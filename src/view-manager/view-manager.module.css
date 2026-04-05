@@ -1,0 +1,610 @@
+/* View Manager Styles */
+:root {
+    --handle-background: transparent;
+    --handle-thickness: 12px;
+    /* default hit area equals visual thickness */
+    --handle-hit-size: var(--handle-thickness);
+    --border-radius: 8px;
+}
+
+/* =============================================
+   View panels
+   ============================================= */
+.view-panel {
+    background: var(--color-canvas-bg);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 16px var(--color-shadow-panel);
+    overflow: visible; /* Changed from hidden to visible so resize handles extending outside panel are clickable */
+    min-width: 20px;
+    position: absolute;
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+}
+
+.view-panel.focused {
+    box-shadow:
+        0 0 0 3px var(--color-border-strong),
+        0 8px 32px var(--color-shadow-secondary);
+}
+
+.view-panel.focused .view-header {
+    background: var(--color-view-title-bar-bg-hover);
+}
+
+.view-panel.resizing {
+    opacity: 0.9;
+    box-shadow: 0 8px 32px var(--color-shadow-secondary);
+}
+
+.view-header {
+    /* Prevent touch scrolling when interacting with header on touch devices */
+    touch-action: none;
+
+    background: var(--color-view-title-bar-bg);
+    color: var(--color-text-on-accent);
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: move;
+    -webkit-user-select: none;
+    user-select: none;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    height: 48px; /* Fixed height for consistent header sizing */
+    box-sizing: border-box;
+    border-radius: 8px 8px 0 0; /* Rounded top corners to match panel */
+    min-width: 0;
+    z-index: 20;
+}
+
+.view-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.view-header:hover {
+    background: var(--color-view-title-bar-bg-hover);
+}
+
+.view-content {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: stretch;
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Resize handles */
+.resize-handle {
+    /* Prevent touch scrolling when interacting with header on touch devices */
+    touch-action: none;
+
+    position: absolute;
+    background: transparent;
+}
+
+/* Larger invisible hit area for touch devices without changing visual handle size */
+.resize-handle::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--handle-hit-size);
+    height: var(--handle-hit-size);
+    transform: translate(-50%, -50%);
+    background: transparent;
+    pointer-events: auto; /* ensure hit area receives pointer events that target the element */
+}
+
+.resize-handle:hover {
+    opacity: 1 !important;
+}
+
+.resize-handle.nw {
+    top: 0px;
+    left: 0px;
+    width: var(--handle-thickness);
+    height: var(--handle-thickness);
+    cursor: nw-resize;
+    z-index: 2;
+}
+
+/* Make the corner hit areas use the configurable hit size so touch targets are larger */
+.resize-handle.nw::after {
+    content: '';
+    position: absolute;
+    top: calc(var(--handle-thickness) - var(--handle-hit-size));
+    left: calc(var(--handle-thickness) - var(--handle-hit-size));
+    width: var(--handle-hit-size);
+    height: var(--handle-hit-size);
+    background: var(--handle-background);
+    opacity: inherit;
+}
+
+.resize-handle.ne {
+    top: 0px;
+    right: 0px;
+    width: var(--handle-thickness);
+    height: var(--handle-thickness);
+    cursor: ne-resize;
+    z-index: 2;
+}
+
+.resize-handle.ne::after {
+    content: '';
+    position: absolute;
+    top: calc(var(--handle-thickness) - var(--handle-hit-size));
+    right: calc(var(--handle-thickness) - var(--handle-hit-size));
+    width: var(--handle-hit-size);
+    height: var(--handle-hit-size);
+    background: var(--handle-background);
+    opacity: inherit;
+}
+
+.resize-handle.sw {
+    bottom: 0px;
+    left: 0px;
+    width: var(--handle-thickness);
+    height: var(--handle-thickness);
+    cursor: sw-resize;
+    z-index: 2;
+}
+
+.resize-handle.sw::after {
+    content: '';
+    position: absolute;
+    bottom: calc(var(--handle-thickness) - var(--handle-hit-size));
+    left: calc(var(--handle-thickness) - var(--handle-hit-size));
+    width: var(--handle-hit-size);
+    height: var(--handle-hit-size);
+    background: var(--handle-background);
+    opacity: inherit;
+}
+
+.resize-handle.se {
+    bottom: 0px;
+    right: 0px;
+    width: var(--handle-thickness);
+    height: var(--handle-thickness);
+    cursor: se-resize;
+    z-index: 2;
+}
+
+.resize-handle.se::after {
+    content: '';
+    position: absolute;
+    bottom: calc(var(--handle-thickness) - var(--handle-hit-size));
+    right: calc(var(--handle-thickness) - var(--handle-hit-size));
+    width: var(--handle-hit-size);
+    height: var(--handle-hit-size);
+    background: var(--handle-background);
+    opacity: inherit;
+}
+
+.resize-handle.n {
+    top: 0px;
+    left: 0px;
+    width: 100%;
+    height: var(--handle-thickness);
+    cursor: n-resize;
+    z-index: 1;
+}
+
+/* Expand edge handles' hit area vertically/horizontally without changing visual thickness */
+.resize-handle.n::before,
+.resize-handle.s::before {
+    left: 0;
+    right: 0;
+    top: calc(var(--handle-thickness) - var(--handle-hit-size));
+    height: var(--handle-hit-size);
+}
+
+.resize-handle.s {
+    bottom: 0px;
+    left: 0px;
+    width: 100%;
+    height: var(--handle-thickness);
+    cursor: s-resize;
+    z-index: 1;
+}
+
+.resize-handle.w {
+    top: 0px;
+    left: 0px;
+    width: var(--handle-thickness);
+    height: 100%;
+    cursor: w-resize;
+    z-index: 1;
+}
+
+.resize-handle.w::before,
+.resize-handle.e::before {
+    top: 0;
+    bottom: 0;
+    left: calc(var(--handle-thickness) - var(--handle-hit-size));
+    width: var(--handle-hit-size);
+}
+
+.resize-handle.e {
+    top: 0px;
+    right: 0px;
+    width: var(--handle-thickness);
+    height: 100%;
+    cursor: e-resize;
+    z-index: 1;
+}
+
+/* =============================================
+   Controls panel
+   ============================================= */
+/* View command buttons in headers */
+.view-commands-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+    min-width: 0;
+    flex: 0 1 auto;
+    max-width: 70%;
+}
+
+.view-commands-scroller {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    overflow: visible;
+    /* Reserve a small bleed area so translated hover/active buttons don't get clipped. */
+    padding: 4px;
+    margin: -4px;
+    max-width: 100%;
+}
+
+.view-commands-scroller::-webkit-scrollbar {
+    height: 0;
+}
+
+.view-commands-scroller::-webkit-scrollbar-thumb {
+    background: var(--color-view-selection-tab-scrollbar-thumb);
+    border-radius: 2px;
+}
+
+.view-commands-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    min-height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--color-btn-on-view-title-bar-border);
+    background: var(--color-view-title-bar-button-bg);
+    color: var(--color-text-on-accent);
+    cursor: pointer;
+    padding: 0 8px;
+    font-size: 18px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.view-commands-toggle:hover {
+    border-color: var(--color-btn-on-view-title-bar-border-hover);
+}
+
+.view-commands-container--compact {
+    position: relative;
+    flex: 0 0 auto;
+    max-width: none;
+}
+
+.view-commands-container--compact .view-commands-toggle {
+    display: inline-flex;
+}
+
+.view-commands-container--compact .view-commands-scroller {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 120;
+    max-width: min(280px, calc(100vw - 48px));
+    background: var(--color-view-title-bar-bg);
+    border: 1px solid var(--color-btn-on-view-title-bar-border);
+    border-radius: 10px;
+    box-shadow: 0 8px 20px var(--color-shadow-panel);
+    padding: 8px;
+    margin: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-view-selection-tab-scrollbar-thumb) transparent;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition:
+        opacity 140ms ease,
+        transform 140ms ease,
+        visibility 140ms ease;
+}
+
+.view-commands-container--compact.view-commands-container--expanded .view-commands-scroller {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.view-commands-container--no-transition .view-commands-scroller {
+    transition: none !important;
+}
+
+/* Command group visuals for grouped commands in view-actions and global commands */
+.command-group {
+    border: 1px solid var(--color-controls-panel-cmd-group-border);
+    padding: 4px 0;
+    margin: 2px 0; /* Reduced from 6px to minimize double-spacing with container gaps */
+    border-radius: 6px;
+    background: var(--color-controls-panel-cmd-group-bg);
+}
+
+.command-group-header {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 4px; /* Reduced from 6px */
+    color: var(--color-controls-panel-cmd-header-text);
+}
+
+/* Slightly different visual when used in the global commands area */
+.global-command-group {
+    display: block;
+}
+
+/* The scoped group width classes (added dynamically) determine whether a group is full width or half width */
+/* Horizontal row container for group buttons */
+.command-group-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* flow layout: buttons size to content and wrap naturally */
+.command-group-buttons--flow {
+    /* inherits flex/gap/wrap from .command-group-buttons; no overrides needed */
+}
+
+/* stack layout: each button occupies its own full-width row */
+.command-group-buttons--stack {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+/* Groups with text or mixed buttons (not all icons) expand to fill the available
+   width. A minimum button width ensures flex-wrap kicks in before buttons become
+   too narrow — at most ~2 buttons fit per row in a typical panel (~380 px). */
+.command-group-buttons--has-text {
+    align-items: stretch;
+}
+
+/* Subgroup (flattened) visuals: a subgroup represents dot-prefixed parts of a group path
+   and renders as a separate row under the parent group header */
+.command-subgroup {
+    margin-top: 8px;
+}
+
+.command-subgroup-header {
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: var(--color-controls-panel-cmd-subheader-text);
+}
+
+.view-command-btn {
+    background: var(--color-view-title-bar-button-bg);
+    color: var(--color-text-on-accent);
+    border: 1px solid var(--color-btn-on-view-title-bar-border);
+    padding: 6px 10px;
+    min-height: 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.view-command-btn:hover {
+    background: var(--color-view-title-bar-button-bg);
+    border-color: var(--color-btn-on-view-title-bar-border-hover);
+    transform: translateY(-2px) translateX(-2px);
+    box-shadow: 0 4px 12px var(--color-btn-on-view-title-bar-shadow);
+}
+
+.view-command-btn[aria-pressed='true'] {
+    background: var(--color-toggle-btn-active-bg);
+    color: var(--color-toggle-btn-active-text);
+    border-color: var(--color-toggle-btn-active-border);
+    box-shadow:
+        inset 0 2px 4px var(--color-overlay-negative-15),
+        0 0 8px var(--color-toggle-btn-active-glow);
+    transform: translateY(1px);
+}
+
+.view-command-btn[aria-pressed='true']:hover {
+    background: var(--color-toggle-btn-active-bg-hover);
+    border-color: var(--color-toggle-btn-active-border);
+    transform: translateY(2px) translateX(2px);
+}
+
+.view-command-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+    transform: none;
+}
+
+/* Touch adjustments: increase interactive hit sizes without changing visuals */
+@media (pointer: coarse) {
+    :root {
+        /* larger touch-friendly hit area */
+        --handle-hit-size: 20px;
+    }
+
+    /* Remove hover translate for coarse pointers to avoid visual jank */
+    .view-command-btn:hover {
+        transform: none;
+    }
+
+    /* Larger tap targets for view command buttons */
+    .view-command-btn {
+        padding: 10px 16px;
+        font-size: 14px;
+        min-height: 44px;
+        min-width: 44px; /* Icon-only buttons must be square touch targets */
+    }
+}
+
+/* =============================================
+   Tab bar - view selection on mobile/tablet mode
+   ============================================= */
+.tab-bar {
+    display: none; /* shown by JS when in tabbed layout mode */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding: 4px 0 6px;
+    /* Hide scrollbar track but keep scrollable */
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-view-selection-tab-scrollbar-thumb) transparent;
+    flex-shrink: 0;
+}
+
+.tab-bar::-webkit-scrollbar {
+    height: 4px;
+}
+
+.tab-bar::-webkit-scrollbar-thumb {
+    background: var(--color-view-selection-tab-scrollbar-thumb);
+    border-radius: 2px;
+}
+
+.tab-item {
+    flex-shrink: 0;
+    min-width: var(--tab-min-width, 80px);
+    min-height: 44px;
+    padding: 8px 16px;
+    background: var(--color-title-panel-menu-toggle-bg);
+    color: white;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        background 0.15s,
+        border-color 0.15s;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.tab-item:hover {
+    background: var(--color-title-panel-menu-toggle-hover);
+}
+
+.tab-item:active {
+    background: var(--color-title-panel-menu-toggle-active);
+}
+
+.tab-item--active {
+    background: var(--color-view-selection-tab-active-bg);
+    color: var(--color-view-selection-tab-active-text);
+    border-color: var(--color-view-selection-tab-active-border);
+}
+
+.tab-item--active:hover {
+    background: var(--color-view-selection-tab-active-bg);
+}
+
+/* =============================================
+   Tabbed-mode panel modifier
+   ============================================= */
+.view-panel--tabbed {
+    position: static !important;
+    width: 100% !important;
+    /* Fix to remaining viewport height so content scrolls internally rather than growing without limit. */
+    height: max(300px, calc(100svh - 200px)) !important;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden; /* clip header corners cleanly; no resize handles extend outside in tabbed mode */
+    box-shadow: none;
+    z-index: auto !important;
+}
+
+/* No drag cursor in tabbed mode; allow natural header height for action buttons */
+.view-panel--tabbed .view-header {
+    cursor: default;
+    min-height: 60px;
+    height: auto;
+    padding: 8px 16px;
+}
+
+/* Tabbed mode is touch-first — guarantee 44×44 px hit areas on all pointer types */
+.view-panel--tabbed .view-commands-container {
+    gap: 8px;
+    max-width: none;
+}
+
+.view-panel--tabbed .view-commands-scroller {
+    max-width: none;
+    overflow-x: visible;
+    overflow-y: visible;
+}
+
+.view-panel--tabbed .view-command-btn {
+    min-height: 44px;
+    min-width: 44px; /* prevents narrow icon-only buttons */
+    padding: 8px 14px;
+    font-size: 14px;
+}
+
+/* Hide the panel title in tabbed mode — the active tab already shows the view name */
+.view-panel--tabbed [data-view-title] {
+    display: none;
+}
+
+/* Hide resize handles entirely in tabbed mode */
+.view-panel--tabbed .resize-handle {
+    display: none;
+}
+
+/* Remove focus border offset in tabbed mode (full-width panel doesn’t need it) */
+.view-panel--tabbed.focused {
+    border: none;
+    box-shadow: none;
+    border-top: none;
+}
+/* The fixed panel height guarantees the available space for computeAvailableContentSize();
+   min-height: 0 lets flex children shrink correctly so inner scroll containers work. */
+.view-panel--tabbed .view-content {
+    min-height: 0;
+}

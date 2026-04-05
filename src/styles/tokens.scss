@@ -1,0 +1,315 @@
+// ============================================================
+// Design Tokens — Rubik's Cube Solver
+// Layer 1: Primitive palette (raw named swatches)
+// Layer 2: Semantic tokens / overridables (what a color means)
+//          Tokens that will be overridden in Layer 3,
+//          set to aggressive placeholder colors by default.
+// Layer 3: Color schemes (what color is used)
+//          Assigns actual colors to the semantic tokens.
+// Theme flip is done exclusively in the dark-mode block here.
+// Components must only reference Layer 3 tokens.
+// ============================================================
+
+// #region Layer 1: Primitive palette
+:root {
+    // Indigo — light-mode interactive
+    --palette-indigo-400: #667eea;
+    --palette-indigo-500: #5a67d8;
+    --palette-indigo-600: #4f46e5;
+    --palette-indigo-700: #4338ca;
+    --palette-indigo-800: #3730a3;
+    --palette-indigo-900: #312e81;
+
+    // Navy/Steel — dark-mode interactive
+    --palette-navy-500: #2980b9;
+    --palette-navy-600: #1a6fa4;
+    --palette-navy-700: #264a68;
+    --palette-navy-800: #1e3547;
+    --palette-navy-900: #0b1220;
+
+    // Cyan — universal active/selected signal (same in both themes)
+    --palette-cyan-300: #6dd0ff;
+    --palette-cyan-400: #4cc3ff;
+    --palette-cyan-500: #00aeef;
+
+    // Slate
+    --palette-slate-50: #f8fafc;
+    --palette-slate-300: #cbd5e1;
+    --palette-slate-400: #94a3b8;
+    --palette-slate-500: #64748b;
+    --palette-slate-800: #1e293b;
+
+    // Gray
+    --palette-gray-200: #e5e7eb;
+    --palette-gray-300: #d1d5db;
+    --palette-gray-400: #9ca3af;
+    --palette-gray-550: #6c757d;
+    --palette-gray-500: #6b7280;
+    --palette-gray-600: #4b5563;
+    --palette-gray-700: #374151;
+    --palette-gray-800: #1f2937;
+    --palette-gray-900: #111827;
+
+    // Neutral utility
+    --palette-neutral-50: #f9fafb;
+
+    // Special
+    --palette-near-black: #1a1a1a;
+    --palette-near-white: #eaeaea;
+    --palette-white: #ffffff;
+    --palette-black: #000000;
+
+    // Domain (physical cube rendering)
+    --palette-domain-cube-interior: #222222;
+    --palette-domain-sticker-border: #333333;
+    --palette-domain-sticker-center: #000000;
+    --palette-domain-face-selected: #0c7e52;
+    --palette-btn-move-icon-highlight: #a72517;
+}
+// #endregion Layer 1: Primitive palette
+
+// #region Layer 2: Semantic tokens
+// Tokens to be overridden.
+// Set to aggressive color to be spotted easily when forgotten or misused.
+:root {
+    // § Tied / shared colors
+    // Some colors are shared between related UI elements and/or the canvas,
+    // so we set them here at the root for easy reference and to ensure consistency.
+    // They can still be overridden in dark mode as needed.
+
+    // § Backgrounds
+    // main page background
+    --color-body-bg: lime;
+
+    // background for content containers (e.g. panels, canvases, modals)
+    --color-content-bg: lime;
+
+    // § Surface tints — darken in light mode, lighten in dark mode
+    --color-surface-tint: lime;
+    --color-surface-tint-inverted: orange;
+    --color-surface-tint-weak: color-mix(in srgb, var(--color-surface-tint) 5%, transparent);
+    --color-surface-tint-medium: color-mix(in srgb, var(--color-surface-tint) 10%, transparent);
+    --color-surface-tint-strong: color-mix(in srgb, var(--color-surface-tint) 20%, transparent);
+
+    // § Common alpha overlays
+    // Positive = tint color, Negative = inverted tint color.
+    --color-overlay-positive-05: color-mix(in srgb, var(--color-surface-tint) 5%, transparent);
+    --color-overlay-positive-10: color-mix(in srgb, var(--color-surface-tint) 10%, transparent);
+    --color-overlay-positive-15: color-mix(in srgb, var(--color-surface-tint) 15%, transparent);
+    --color-overlay-positive-20: color-mix(in srgb, var(--color-surface-tint) 20%, transparent);
+    --color-overlay-positive-25: color-mix(in srgb, var(--color-surface-tint) 25%, transparent);
+    --color-overlay-positive-30: color-mix(in srgb, var(--color-surface-tint) 30%, transparent);
+    --color-overlay-positive-35: color-mix(in srgb, var(--color-surface-tint) 35%, transparent);
+    --color-overlay-positive-40: color-mix(in srgb, var(--color-surface-tint) 40%, transparent);
+    --color-overlay-negative-15: color-mix(
+        in srgb,
+        var(--color-surface-tint-inverted) 15%,
+        transparent
+    );
+    --color-overlay-negative-20: color-mix(
+        in srgb,
+        var(--color-surface-tint-inverted) 20%,
+        transparent
+    );
+    --color-overlay-negative-40: color-mix(
+        in srgb,
+        var(--color-surface-tint-inverted) 40%,
+        transparent
+    );
+
+    // § Texts
+    // default text color, used on --color-content-bg for primary content and UI labels
+    --color-text-primary: lime;
+    // Text on accented (buttons, title bar, etc.) surfaces
+    --color-text-on-accent: var(--palette-slate-50);
+
+    // § Borders
+    // Accented UI elements (tooltips, active tabs, etc.).
+    --color-border-strong: lime;
+
+    // § Shadows
+    --color-shadow-primary: var(--color-surface-tint-strong);
+    --color-shadow-secondary: lime;
+    --color-shadow-backdrop: rgba(0, 0, 0, 0.6);
+
+    // Controls panel and canvas share the same background by default.
+    // main surface color for cube renderings
+    --color-canvas-bg: var(--color-content-bg);
+
+    // § Controls container
+    --color-controls-panel-bg: var(--color-content-bg);
+    --color-controls-panel-text: var(--color-text-primary);
+    --color-controls-panel-section-bg: var(--color-content-bg);
+    --color-controls-panel-section-border: var(--color-surface-tint-strong);
+    --color-controls-panel-bg-hover: var(--color-surface-tint-medium);
+
+    // § Title bar / hamburger
+    --color-title-panel-bg: var(--color-overlay-positive-10);
+    --color-title-panel-menu-toggle-bg: var(--color-overlay-positive-15);
+    --color-title-panel-menu-toggle-hover: var(--color-overlay-positive-25);
+    --color-title-panel-menu-toggle-active: var(--color-overlay-positive-35);
+
+    // § Tooltips
+    --color-tooltip-bg: var(--color-controls-panel-cmd-group-bg);
+    --color-tooltip-text: var(--color-text-primary);
+    --color-tooltip-border: var(--color-border-strong);
+    --size-tooltip-graphical-font: calc(1.75rem);
+    --size-tooltip-graphical-width: 4ch;
+
+    // § Buttons
+    --color-btn-primary-bg: var(--palette-gray-550);
+    --color-btn-primary-text: var(--color-text-on-accent);
+    --color-btn-primary-shadow: var(--palette-gray-600);
+
+    // § Toggle buttons - when active — same in both themes (no dark override)
+    --color-toggle-btn-active-bg: var(--palette-cyan-400);
+    --color-toggle-btn-active-bg-hover: var(--palette-cyan-300);
+    --color-toggle-btn-active-text: var(--palette-near-black);
+    --color-toggle-btn-active-border: color-mix(in srgb, var(--palette-cyan-400) 60%, transparent);
+    --color-toggle-btn-active-glow: color-mix(in srgb, var(--palette-cyan-400) 40%, transparent);
+
+    // § Button on view title bar
+    --color-btn-on-view-title-bar-border: var(--color-overlay-positive-20);
+    --color-btn-on-view-title-bar-border-hover: var(--color-overlay-positive-30);
+    --color-btn-on-view-title-bar-shadow: var(--color-shadow-primary);
+
+    // § Move history
+    --color-move-hover: var(--color-surface-tint-medium);
+    --color-move-current-bg: var(--color-surface-tint-medium);
+    --color-move-current-border: var(--color-border-strong);
+    --color-move-current-hover: color-mix(in srgb, var(--color-border-strong) 25%, transparent);
+    --color-move-notation: var(--color-btn-primary-text);
+    --color-move-number: var(--color-text-primary);
+
+    // § Move buttons
+    // Highlight colors used in the SVG icons for move buttons.
+    --color-btn-move-highlight: var(--palette-btn-move-icon-highlight);
+    --color-btn-move-highlight-glow: color-mix(
+        in srgb,
+        var(--palette-btn-move-icon-highlight) 40%,
+        transparent
+    );
+
+    // § Domain-specific tokens for cube rendering - same in both themes
+
+    // § Cube rendering
+    --color-domain-cube-glow: var(--color-shadow-primary);
+    --color-domain-cube-interior: var(--palette-domain-cube-interior);
+    --color-domain-sticker-border: var(--palette-domain-sticker-border);
+    --color-domain-sticker-center: var(--palette-domain-sticker-center);
+    --color-domain-face-selected: var(--palette-domain-face-selected);
+    --color-domain-face-selected-glow: color-mix(
+        in srgb,
+        var(--palette-domain-face-selected) 25%,
+        transparent
+    );
+
+    // § Sticker interaction
+    --color-domain-sticker-hover: var(--palette-cyan-500);
+    --color-domain-sticker-selected: var(--palette-cyan-400);
+    --color-domain-sticker-selected-box: var(--palette-near-black);
+
+    // § Legend / face labels
+    --color-domain-face-label: var(--palette-gray-550);
+    --color-domain-face-label-border: var(--palette-gray-550);
+    --color-domain-face-label-hidden-bg: var(--palette-gray-550);
+
+    // § Drag interaction
+    --color-drag-halo-stroke: color-mix(in srgb, var(--palette-cyan-400) 75%, transparent);
+    --color-drag-halo-fill: color-mix(in srgb, var(--palette-cyan-400) 50%, transparent);
+    --color-drag-halo-shadow: color-mix(in srgb, var(--palette-cyan-400) 85%, transparent);
+
+    --color-drag-halo-zone-fill: color-mix(in srgb, var(--palette-cyan-400) 75%, transparent);
+    --color-drag-halo-zone-stroke: var(--color-drag-halo-stroke);
+}
+// #endregion Layer 2: Semantic tokens
+
+// #region Layer 3: Light theme
+:root {
+    // § UI Shell
+    --color-body-bg: var(--palette-indigo-400);
+    --color-content-bg: var(--palette-white);
+
+    // § Surface tints — darken in light mode, lighten in dark mode
+    --color-surface-tint: var(--palette-black);
+    --color-surface-tint-inverted: var(--palette-white);
+
+    // § Shadows
+    --color-shadow-secondary: var(--color-shadow-primary);
+    --color-shadow-panel: transparent;
+    --color-shadow-text: var(--color-shadow-primary);
+
+    // § Text
+    --color-text-primary: var(--palette-gray-800);
+
+    // § Borders
+    --color-border-strong: var(--palette-indigo-600);
+
+    // § View title bar
+    --color-view-title-bar-bg: var(--palette-indigo-500);
+    --color-view-title-bar-bg-hover: var(--palette-indigo-600);
+
+    // Buttons on view title bar
+    --color-view-title-bar-button-bg: var(--palette-indigo-400);
+
+    // § Scrollbars
+    --color-scrollbar-track: transparent;
+    --color-scrollbar-thumb: var(--palette-gray-300);
+    --color-scrollbar-thumb-hover: var(--palette-gray-500);
+
+    // § Command groups
+    --color-controls-panel-cmd-group-bg: var(--palette-near-white);
+    --color-controls-panel-cmd-group-border: var(--color-overlay-positive-05);
+    --color-controls-panel-cmd-header-text: var(--palette-gray-700);
+    --color-controls-panel-cmd-subheader-text: var(--palette-gray-600);
+
+    // § Tab bar
+    --color-view-selection-tab-active-bg: var(--palette-white);
+    --color-view-selection-tab-active-text: var(--palette-indigo-600);
+    --color-view-selection-tab-active-border: var(--palette-white);
+    --color-view-selection-tab-scrollbar-thumb: var(--color-overlay-negative-40);
+}
+// #endregion Layer 3: Light theme
+
+// #region Layer 3: Dark theme
+:root[data-theme-effective='dark'] {
+    // § UI Shell
+    --color-body-bg: var(--palette-slate-800);
+    --color-content-bg: var(--palette-gray-900);
+
+    // § Surface tints — darken in light mode, lighten in dark mode
+    --color-surface-tint: var(--palette-white);
+    --color-surface-tint-inverted: var(--palette-black);
+
+    // § Shadows
+    --color-shadow-secondary: var(--palette-navy-700);
+
+    // § Text
+    --color-text-primary: var(--palette-gray-200);
+
+    // § Borders
+    --color-border-strong: var(--palette-navy-500);
+
+    // § View title bar
+    --color-view-title-bar-bg: var(--palette-navy-800);
+    --color-view-title-bar-bg-hover: var(--palette-navy-700);
+
+    // Buttons on view title bar
+    --color-view-title-bar-button-bg: var(--palette-navy-600);
+
+    // § Scrollbars
+    --color-scrollbar-thumb: var(--palette-slate-500);
+    --color-scrollbar-thumb-hover: var(--palette-slate-300);
+
+    // § Command groups
+    --color-controls-panel-cmd-group-bg: var(--palette-gray-800);
+    --color-controls-panel-cmd-header-text: var(--palette-gray-200);
+    --color-controls-panel-cmd-subheader-text: var(--palette-slate-300);
+
+    // § Tab bar — active tab uses the universal cyan signal in dark
+    --color-view-selection-tab-active-bg: var(--palette-cyan-400);
+    --color-view-selection-tab-active-text: var(--palette-near-black);
+    --color-view-selection-tab-active-border: var(--color-toggle-btn-active-border);
+    --color-view-selection-tab-scrollbar-thumb: var(--palette-slate-500);
+}
+// #endregion Layer 3: Dark theme

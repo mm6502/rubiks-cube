@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- Favicon is injected dynamically via main.ts -->
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#111111">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220">
+    <title>Rubik's Cube</title>
+    <meta name="description" content="Interactive Rubik's Cube simulator and visualizer that runs entirely in the browser.">
+    <meta property="og:title" content="Rubik's Cube">
+    <meta property="og:description" content="Interactive Rubik's Cube simulator and visualizer that runs entirely in the browser.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://mm6502.github.io/rubiks-cube">
+    <meta property="og:image" content="https://mm6502.github.io/rubiks-cube/og-image.png">
+</head>
+<body>
+    <div class="container">
+        <div class="title-panel">
+            <button class="menu-toggle" aria-label="Toggle controls" aria-expanded="false">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+            <h1>Rubik's Cube</h1>
+            <button id="about-button" class="about-button" aria-label="About this app">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="8"/>
+                    <polyline points="11 11 12 11 12 16 13 16"/>
+                </svg>
+            </button>
+        </div>
+        <div class="main-content">
+            <div class="controls-overlay" aria-hidden="true"></div>
+            <div class="controls">
+                <div class="controls-header">
+                    <span class="controls-title">Controls</span>
+                    <button class="controls-close" aria-label="Close controls">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <details class="control-section" data-persist open>
+                    <summary class="control-section-summary"><h2>Views</h2></summary>
+                    <div class="control-section-body">
+                        <div class="view-controls">
+                            <!-- View checkboxes will be dynamically created here -->
+                        </div>
+                    </div>
+                </details>
+
+                <details class="control-section" data-persist open>
+                    <summary class="control-section-summary"><h2>Theme</h2></summary>
+                    <div class="control-section-body">
+                        <fieldset class="theme-controls" aria-label="Theme preference">
+                            <label class="theme-option">
+                                <input type="radio" name="theme-preference" value="system">
+                                <span>System</span>
+                            </label>
+                            <label class="theme-option">
+                                <input type="radio" name="theme-preference" value="light">
+                                <span>Light</span>
+                            </label>
+                            <label class="theme-option">
+                                <input type="radio" name="theme-preference" value="dark">
+                                <span>Dark</span>
+                            </label>
+                        </fieldset>
+                    </div>
+                </details>
+
+                <details class="control-section" data-persist open>
+                    <summary class="control-section-summary"><h2>Controls</h2></summary>
+                    <div class="control-section-body">
+                        <div id="controller-commands" class="button-grid"></div>
+                    </div>
+                </details>
+
+                <details class="control-section" data-persist open>
+                    <summary class="control-section-summary"><h2>Moves</h2></summary>
+                    <div class="control-section-body">
+                        <div id="global-move-commands" class="button-grid"></div>
+                    </div>
+                </details>
+
+                <details class="control-section" data-persist open>
+                    <summary class="control-section-summary"><h2>View Actions</h2></summary>
+                    <div class="control-section-body">
+                        <div id="view-actions" class="view-actions">
+                            <p>Select a view to see available actions</p>
+                        </div>
+                    </div>
+                </details>
+            </div>
+            <div class="visualizations" id="visualizations">
+                <!-- View panels will be dynamically created here -->
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

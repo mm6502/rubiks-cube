@@ -1,0 +1,463 @@
+/* Basic Cube View Styles */
+
+/* CSS Variables for rotation angles */
+:root {
+    --face-rotate-y-back: 180deg;
+    --face-rotate-y-right: 90deg;
+    --face-rotate-y-left: -90deg;
+    --face-rotate-x-top: 90deg;
+    --face-rotate-x-bottom: -90deg;
+    --face-translate-z-front: 150px;
+    --face-translate-z-back: -150px;
+}
+
+/* Highlight Colors */
+:root {
+    --highlight-hover: var(--color-domain-sticker-hover);
+    --highlight-hover-box: var(--color-domain-sticker-hover);
+    --highlight-selected: var(--color-domain-sticker-selected);
+    --highlight-selected-box: var(--color-domain-sticker-selected-box);
+}
+
+/* Cube Container */
+.cube-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    position: relative;
+}
+
+.cube-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    perspective: 1000px;
+    width: 100%;
+    height: 100%;
+}
+
+.cube {
+    top: -5px;
+    width: 1px;
+    height: 1px;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.25s;
+    background: transparent;
+    overflow: visible;
+    transform-origin: 50% 50% 0;
+    /* Transform applied via JavaScript for dynamic manual rotation */
+}
+
+.cube-blocker {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    background: var(--color-domain-cube-interior);
+    border-radius: 5%;
+    pointer-events: none;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    z-index: 0;
+}
+
+.cube:hover {
+    /* Hover effect handled by JavaScript to work with dynamic rotation */
+}
+
+.face {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 3%;
+    padding: 3.33%;
+    background: var(--color-domain-cube-interior);
+    border-radius: 5%;
+    overflow: hidden;
+    z-index: 1;
+    container-type: size;
+    box-shadow: 0px 0px 20px 0px var(--color-domain-cube-glow);
+}
+
+.sticker {
+    border: 3px solid var(--color-domain-sticker-border);
+    border-radius: 10%;
+    cursor: pointer;
+    transition: all 0.2s;
+    forced-color-adjust: none;
+    color-scheme: only light;
+}
+
+.sticker.highlighted {
+    border: 4px solid var(--highlight-hover);
+    background-color: var(--highlight-hover);
+    box-shadow: 0 0 4px var(--highlight-hover-box);
+}
+
+.sticker.selected {
+    border: 5px solid var(--highlight-selected);
+    box-shadow: 0 0 8px var(--highlight-selected-box);
+    transform: scale(1.05);
+    position: relative;
+}
+
+/* Face Positions */
+.front {
+    transform: translateZ(var(--face-translate-z-front));
+}
+
+.back {
+    transform: translateZ(var(--face-translate-z-back)) rotateY(var(--face-rotate-y-back));
+}
+
+.right {
+    transform: rotateY(var(--face-rotate-y-right)) translateZ(var(--face-translate-z-front));
+}
+
+.left {
+    transform: rotateY(var(--face-rotate-y-left)) translateZ(var(--face-translate-z-front));
+}
+
+.top {
+    transform: rotateX(var(--face-rotate-x-top)) translateZ(var(--face-translate-z-front));
+}
+
+.bottom {
+    transform: rotateX(var(--face-rotate-x-bottom)) translateZ(var(--face-translate-z-front));
+}
+
+/* Touch notice (shown in tabbed/mobile mode) */
+.touch-notice {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 6px 12px;
+    background: color-mix(in srgb, var(--color-domain-cube-interior) 90%, transparent);
+    color: var(--color-tetxt-primary);
+    font-size: 1em;
+    text-align: center;
+    pointer-events: none;
+    z-index: 20;
+    border-top: 1px solid var(--color-domain-face-label-border);
+    opacity: 0.85;
+}
+
+/* Face Labels */
+.face-label {
+    position: absolute;
+    color: var(--color-domain-face-label);
+    font-size: 18px;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 10;
+    font-family: Arial, sans-serif;
+    opacity: 1;
+    transition: opacity 0.3s ease-in-out;
+    background-color: transparent;
+    border: 2px solid var(--color-domain-face-label-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    display: inline-block;
+}
+
+.face-label.fade-out {
+    opacity: 0;
+}
+
+/* Front view (normal) */
+.face-label-front-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.face-label-front-bottom-left {
+    bottom: 10px;
+    left: 10px;
+}
+
+.face-label-front-bottom-right {
+    bottom: 10px;
+    right: 10px;
+}
+
+/* Front view (tilted) */
+.face-label-front-tilted-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.face-label-front-tilted-bottom-left {
+    bottom: 10px;
+    left: 10px;
+}
+
+.face-label-front-tilted-bottom-right {
+    bottom: 10px;
+    right: 10px;
+}
+
+/* Front view (pitched) */
+.face-label-front-pitched-middle-bottom-pitched {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.face-label-front-pitched-bottom-left {
+    bottom: 10px;
+    left: 10px;
+}
+
+.face-label-front-pitched-bottom-right {
+    bottom: 10px;
+    right: 10px;
+}
+
+/* Front view (tilted + pitched) */
+.face-label-front-tilted-pitched-middle-bottom-pitched {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.face-label-front-tilted-pitched-bottom-left {
+    bottom: 10px;
+    left: 10px;
+}
+
+.face-label-front-tilted-pitched-bottom-right {
+    bottom: 10px;
+    right: 10px;
+}
+
+/* Back view (normal) */
+.face-label-back-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.face-label-back-bottom-left {
+    bottom: 10px;
+    left: 10px;
+}
+
+.face-label-back-bottom-right {
+    bottom: 10px;
+    right: 10px;
+}
+
+/* Back view (tilted) */
+.face-label-back-tilted-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.face-label-back-tilted-bottom-left {
+    bottom: 10px;
+    left: 10px;
+}
+
+.face-label-back-tilted-bottom-right {
+    bottom: 10px;
+    right: 10px;
+}
+
+/* Back view (pitched) */
+.face-label-back-pitched-middle-bottom-pitched {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.face-label-back-pitched-bottom-left {
+    bottom: 10px;
+    left: 10px;
+}
+
+.face-label-back-pitched-bottom-right {
+    bottom: 10px;
+    right: 10px;
+}
+
+/* Back view (tilted + pitched) */
+.face-label-back-tilted-pitched-middle-bottom-pitched {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.face-label-back-tilted-pitched-bottom-left {
+    bottom: 10px;
+    left: 10px;
+}
+
+.face-label-back-tilted-pitched-bottom-right {
+    bottom: 10px;
+    right: 10px;
+}
+
+/* Hidden Face Labels (smaller, for faces facing away) */
+.hidden-face-label {
+    position: absolute;
+    color: white;
+    background-color: var(--color-domain-face-label-hidden-bg);
+    font-size: 12px;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 10;
+    font-family: Arial, sans-serif;
+    opacity: 1;
+    transition: opacity 0.3s ease-in-out;
+    padding: 2px 4px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.hidden-face-label.fade-out {
+    opacity: 0;
+}
+
+/* Front view (normal) - hidden labels */
+.hidden-face-label-front-top-left {
+    top: 10px;
+    left: 10px;
+}
+
+.hidden-face-label-front-top-right {
+    top: 10px;
+    right: 10px;
+}
+
+.hidden-face-label-front-middle-bottom {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Front view (tilted) - hidden labels */
+.hidden-face-label-front-tilted-top-left {
+    top: 10px;
+    left: 10px;
+}
+
+.hidden-face-label-front-tilted-top-right {
+    top: 10px;
+    right: 10px;
+}
+
+.hidden-face-label-front-tilted-middle-bottom {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Front view (pitched) - hidden labels */
+.hidden-face-label-front-pitched-top-left {
+    top: 10px;
+    left: 10px;
+}
+
+.hidden-face-label-front-pitched-top-right {
+    top: 10px;
+    right: 10px;
+}
+
+.hidden-face-label-front-pitched-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Front view (tilted + pitched) - hidden labels */
+.hidden-face-label-front-tilted-pitched-top-left {
+    top: 10px;
+    left: 10px;
+}
+
+.hidden-face-label-front-tilted-pitched-top-right {
+    top: 10px;
+    right: 10px;
+}
+
+.hidden-face-label-front-tilted-pitched-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Back view (normal) - hidden labels */
+.hidden-face-label-back-top-left {
+    top: 10px;
+    left: 10px;
+}
+
+.hidden-face-label-back-top-right {
+    top: 10px;
+    right: 10px;
+}
+
+.hidden-face-label-back-middle-bottom {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Back view (tilted) - hidden labels */
+.hidden-face-label-back-tilted-top-left {
+    top: 10px;
+    left: 10px;
+}
+
+.hidden-face-label-back-tilted-top-right {
+    top: 10px;
+    right: 10px;
+}
+
+.hidden-face-label-back-tilted-middle-bottom {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Back view (pitched) - hidden labels */
+.hidden-face-label-back-pitched-top-left {
+    top: 10px;
+    left: 10px;
+}
+
+.hidden-face-label-back-pitched-top-right {
+    top: 10px;
+    right: 10px;
+}
+
+.hidden-face-label-back-pitched-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Back view (tilted + pitched) - hidden labels */
+.hidden-face-label-back-tilted-pitched-top-left {
+    top: 10px;
+    left: 10px;
+}
+
+.hidden-face-label-back-tilted-pitched-top-right {
+    top: 10px;
+    right: 10px;
+}
+
+.hidden-face-label-back-tilted-pitched-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}

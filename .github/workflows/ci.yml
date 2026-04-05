@@ -1,0 +1,32 @@
+name: CI
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# Quality gate — runs on every push and on PRs targeting main.
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npx eslint .
+      - name: Format check
+        run: npm run format:check
+      - name: Type check
+        run: npm run type-check
+      - name: Unit tests
+        run: npm test

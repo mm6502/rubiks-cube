@@ -1,0 +1,609 @@
+/* Rubik's Cube Solver - Main Styles (v1) */
+
+/* Import design tokens + modularized button styles */
+@import './styles/tokens.scss';
+@import './styles/buttons.module.css';
+
+/* CSS Custom Properties — mobile-first defaults (smallest-screen values) */
+:root {
+    --sidebar-width: 470px;
+    --header-height: 80px;
+    --min-tap-target: 44px;
+    --font-size-h1: 1.5rem;
+    --container-padding: 20px;
+    --z-controls: 100;
+    color-scheme: light;
+}
+
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--color-body-bg);
+    min-height: 100vh;
+    color: var(--color-text-primary);
+    font-size: 16px; /* prevents iOS zoom on input focus */
+    overflow-x: hidden;
+}
+
+.container {
+    max-width: none;
+    margin: 0;
+    padding: var(--container-padding) 8px;
+    padding-top: max(var(--container-padding), env(safe-area-inset-top));
+    position: relative;
+}
+
+h1 {
+    text-align: center;
+    color: var(--color-text-on-accent);
+    font-size: var(--font-size-h1);
+    margin: 0;
+    text-shadow: 2px 2px 4px var(--color-shadow-text);
+}
+
+h2 {
+    color: var(--color-text-primary);
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    border-bottom: 2px solid var(--color-view-title-bar-button-bg);
+    padding-bottom: 5px;
+}
+
+/* Title panel */
+.title-panel {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: var(--color-title-panel-bg);
+    border-radius: 10px;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    margin-bottom: 12px;
+    margin-left: 0;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.title-panel h1 {
+    flex: 1;
+}
+
+.theme-controls {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.theme-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-controls-panel-text);
+    font-weight: 500;
+    padding: 8px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.theme-option:hover {
+    background: var(--color-controls-panel-bg-hover);
+}
+
+.theme-option input[type='radio'] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--color-view-title-bar-button-bg);
+}
+
+/* Ensure Safari/iOS support for disabling text selection on view panels */
+.view-panel,
+.view-header {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* View controls — mobile: column inside the controls drawer */
+.view-controls {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+}
+
+/* When view controls are inside the .controls panel, style them as a vertical section */
+.controls .view-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border-radius: 0;
+    justify-content: flex-start;
+    align-items: stretch;
+}
+
+.controls .view-controls .view-checkbox {
+    color: var(--color-controls-panel-text); /* dark text on white controls panel */
+    background: transparent;
+    padding: 8px 8px;
+}
+
+.controls .view-controls .view-checkbox:hover {
+    background: var(--color-controls-panel-bg-hover);
+}
+
+.view-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-on-accent);
+    font-weight: 500;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+
+.view-checkbox input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--color-view-title-bar-button-bg);
+}
+
+/* Larger touch targets for checkboxes on coarse-pointer devices */
+@media (pointer: coarse) {
+    .view-checkbox {
+        padding: 12px 16px;
+    }
+
+    .view-checkbox input[type='checkbox'] {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+/* Main content layout — now only contains visualizations */
+.main-content {
+    display: flex;
+    align-items: start;
+}
+
+/* Controls panel — mobile-first: full-height slide-in panel */
+.controls {
+    background: var(--color-controls-panel-bg);
+    border-radius: 0;
+    padding: 15px;
+    padding-top: max(15px, env(safe-area-inset-top));
+    padding-bottom: max(15px, env(safe-area-inset-bottom));
+    box-shadow: 2px 0 16px var(--color-shadow-primary);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    width: 85vw;
+    max-width: var(--sidebar-width);
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    z-index: var(--z-controls);
+    transition: left 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Match moves view scrollbar styling for consistent themed scrollbars */
+.controls::-webkit-scrollbar {
+    width: 8px;
+}
+
+.controls::-webkit-scrollbar-track {
+    background: var(--color-scrollbar-track);
+}
+
+.controls::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar-thumb);
+    border-radius: 4px;
+}
+
+.controls::-webkit-scrollbar-thumb:hover {
+    background: var(--color-scrollbar-thumb-hover);
+}
+
+.controls--open {
+    left: 0;
+}
+
+/* Semi-transparent backdrop behind the open controls panel */
+.controls-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--color-shadow-backdrop);
+    z-index: calc(var(--z-controls) - 1);
+}
+
+.controls-overlay--visible {
+    display: block;
+}
+
+/* Hamburger toggle button — visible on mobile, hidden on desktop (≥1025px) */
+.menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--color-title-panel-menu-toggle-bg);
+    border: none;
+    border-radius: 8px;
+    width: var(--min-tap-target);
+    height: var(--min-tap-target);
+    cursor: pointer;
+    color: var(--color-text-on-accent);
+    padding: 0;
+    transition: background-color 0.2s;
+}
+
+.menu-toggle:hover {
+    background: var(--color-title-panel-menu-toggle-hover);
+}
+
+.menu-toggle:active {
+    background: var(--color-title-panel-menu-toggle-active);
+}
+
+.about-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--color-title-panel-menu-toggle-bg);
+    border: none;
+    border-radius: 8px;
+    width: var(--min-tap-target);
+    height: var(--min-tap-target);
+    cursor: pointer;
+    color: var(--color-text-on-accent);
+    padding: 0;
+    transition: background-color 0.2s;
+}
+
+.about-button:hover {
+    background: var(--color-title-panel-menu-toggle-hover);
+}
+
+.about-button:active {
+    background: var(--color-title-panel-menu-toggle-active);
+}
+
+/* Controls panel header with close button (mobile only) */
+.controls-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-controls-panel-section-border);
+}
+
+.controls-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    width: var(--min-tap-target);
+    height: var(--min-tap-target);
+    cursor: pointer;
+    color: var(--color-text-primary);
+    padding: 0;
+    transition:
+        background-color 0.2s,
+        color 0.2s;
+}
+
+.controls-close:active {
+    background: var(--color-controls-panel-section-bg);
+}
+
+.controls-title {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--color-controls-panel-text);
+}
+
+.control-section-summary:hover {
+    background: var(--color-controls-panel-bg-hover);
+    color: var(--color-text-primary);
+}
+
+/* Make Controls panel content non-selectable but allow form controls to remain interactive/selectable */
+.controls .control-section,
+.controls .control-section *:not(input):not(textarea):not(select):not(button) {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Visualizations area */
+.visualizations {
+    position: relative;
+    overflow: visible;
+    flex: 1;
+    min-width: 0;
+    /* margin-left added at desktop breakpoint */
+}
+
+.control-section {
+    margin: 0;
+    border: 1px solid var(--color-controls-panel-section-border);
+    border-radius: 10px;
+    background: var(--color-controls-panel-section-bg);
+    padding: 10px 12px;
+}
+
+.control-section.hidden {
+    display: none;
+}
+
+/* View actions */
+.view-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+#global-move-commands,
+#controller-commands {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 8px;
+}
+
+/* Groups containing text (or mixed) buttons always occupy a full row */
+#view-actions .command-group,
+#controller-commands .command-group:has(.command-group-buttons--has-text) {
+    flex: 1 1 100%;
+}
+
+.view-actions .command-group,
+#controller-commands .command-group,
+#global-move-commands .command-group {
+    padding: 5px;
+}
+
+.view-actions .command-group {
+    display: flex;
+    gap: 10px;
+    border-radius: 8px;
+}
+
+/* Collapsible control sections: use native <details>/<summary> with CSS animation */
+.control-section {
+    position: relative;
+    margin: 0;
+}
+
+.control-section > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    list-style: none; /* remove default marker */
+    padding: 10px 12px;
+    border-radius: 10px;
+}
+
+.control-section > summary:focus {
+    outline: 2px solid var(--color-border-strong);
+    outline-offset: 2px;
+}
+
+.control-section > summary::-webkit-details-marker {
+    display: none;
+}
+
+.control-section > summary h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1.2;
+}
+
+.control-section-summary {
+    border-radius: 10px;
+    transition:
+        background-color 200ms ease,
+        color 200ms ease;
+}
+
+.control-section-summary:focus-visible {
+    background: var(--color-controls-panel-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.control-section > summary::after {
+    content: '▸';
+    font-size: 0.9rem;
+    transition:
+        transform 200ms ease,
+        color 200ms ease;
+    transform-origin: center;
+    color: var(--color-text-primary);
+}
+
+.control-section[open] > summary::after {
+    transform: rotate(90deg);
+}
+
+.control-section-body {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--color-controls-panel-section-border);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 280ms ease;
+}
+
+.control-section[open] .control-section-body {
+    /* large enough for any number of wrapped button rows, even on narrow mobile screens */
+    max-height: 5000px;
+    overflow: visible;
+}
+
+/* =========================================================
+   SVG move icon sprite — arrowhead colour fix
+   The shared sprite SVG lives in <body> and its <marker>
+   content resolves currentColor from the sprite element's
+   own cascade context (not from the wrapper SVG that
+   references it). Without this rule the marker inherits
+   body text colour (dark in light mode) while the arrow
+   stroke inherits button text colour (light), causing a
+   visible mismatch in light mode. Locking the sprite's
+   colour to the same token used for button text keeps both
+   in sync in every theme.
+   ========================================================= */
+#move-icon-sprite-root {
+    color: var(--color-btn-primary-text);
+}
+
+/* =========================================================
+   Responsive — mobile-first min-width breakpoints
+   ========================================================= */
+
+/* 481px+ — small tablet */
+@media (min-width: 481px) {
+    :root {
+        --font-size-h1: 2rem;
+    }
+}
+
+/* 769px+ — large tablet */
+@media (min-width: 769px) {
+    :root {
+        --container-padding: 20px;
+    }
+
+    .container {
+        padding-left: var(--container-padding);
+        padding-right: var(--container-padding);
+    }
+}
+
+/* Landscape on phones — give visualizations more height, tighten the title */
+@media (orientation: landscape) and (max-height: 500px) {
+    .title-panel {
+        padding: 10px 20px;
+        margin-bottom: 6px;
+    }
+
+    h1 {
+        font-size: 1.2rem;
+    }
+}
+
+/* 1025px+ — full desktop: restore fixed sidebar */
+@media (min-width: 1025px) {
+    :root {
+        --font-size-h1: 2.5rem;
+    }
+
+    .container {
+        /* Reserve left space for the fixed sidebar */
+        padding-left: calc(var(--sidebar-width) + 40px);
+        transition: padding-left 240ms ease;
+    }
+
+    /* Reuse the same toggle button on desktop to collapse/expand controls */
+    .menu-toggle {
+        display: flex;
+    }
+
+    /* Overlay should never show on desktop */
+    .controls-overlay {
+        display: none !important;
+    }
+
+    /* Controls returns to its original fixed sidebar */
+    .controls {
+        border-radius: 12px;
+        box-shadow: 0 8px 32px var(--color-shadow-panel);
+        width: var(--sidebar-width);
+        left: 20px;
+        top: var(--container-padding);
+        height: calc(100vh - (var(--container-padding) * 2));
+        transform: translateX(0);
+        opacity: 1;
+        transition:
+            transform 240ms ease,
+            opacity 180ms ease;
+        padding-top: 15px;
+        padding-bottom: 15px;
+    }
+
+    .controls.controls--desktop-collapsed {
+        transform: translateX(calc(-100% - 24px));
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /* Close button and header not needed on desktop */
+    .controls-header {
+        display: none;
+    }
+
+    .visualizations {
+        margin-left: 0;
+    }
+
+    .container.container--controls-collapsed {
+        padding-left: var(--container-padding);
+    }
+
+    .container.container--controls-collapsed .visualizations {
+        margin-left: 0;
+    }
+}
+
+/* =========================================================
+   Long-press tooltip for touch devices
+   ========================================================= */
+.touch-tooltip {
+    position: fixed;
+    background: var(--color-tooltip-bg);
+    color: var(--color-tooltip-text);
+    padding: 7px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    max-width: 220px;
+    white-space: normal;
+    pointer-events: none;
+    z-index: 10000;
+    border: 1px solid var(--color-tooltip-border);
+    box-shadow: 0 4px 16px var(--color-shadow-primary);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.touch-tooltip--visible {
+    opacity: 1;
+}

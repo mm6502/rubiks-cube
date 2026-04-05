@@ -1,0 +1,53 @@
+{
+    "name": "rubiks-cube",
+    "version": "1.0.0",
+    "description": "Rubik's Cube interactive, browser-based simulator and visualizer built with TypeScript",
+    "homepage": "https://mm6502.github.io/rubiks-cube",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/mm6502/rubiks-cube.git"
+    },
+    "type": "module",
+    "scripts": {
+        "all": "cls && npm run lint:imports && cls && npm run format && cls && npm run type-check && cls && npm run test:coverage && npm run build",
+        "all2": "npm run lint:imports && npm run format && npm run type-check && npm run test:coverage && npm run build",
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "type-check": "tsc --noEmit -p tsconfig.test.json",
+        "test": "vitest --run --config vitest.config.ts",
+        "test:ui": "vitest --ui",
+        "test:coverage": "vitest run --coverage",
+        "test:coverage:ui": "vitest --ui --coverage",
+        "test:watch": "vitest",
+        "lint:imports": "npx eslint --fix",
+        "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md,css,scss,html}\" \"scripts/**/*.{ts,tsx,js,jsx,json,md,cjs,mjs}\" \".vscode/**/*.{json,md}\" \"*.{ts,js,json,md,cjs,html}\" --end-of-line lf --no-error-on-unmatched-pattern",
+        "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md,css,scss,html}\" \"scripts/**/*.{ts,tsx,js,jsx,json,md,cjs,mjs}\" \".vscode/**/*.{json,md}\" \"*.{ts,js,json,md,cjs,html}\" --end-of-line lf --no-error-on-unmatched-pattern"
+    },
+    "devDependencies": {
+        "@resvg/resvg-js": "^2.6.2",
+        "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+        "@types/node": "^25.0.1",
+        "@typescript-eslint/eslint-plugin": "^8.51.0",
+        "@typescript-eslint/parser": "^8.51.0",
+        "@vitest/coverage-v8": "^4.0.18",
+        "@vitest/ui": "^4.0.15",
+        "eslint": "^10.1.0",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-prettier": "^5.5.5",
+        "jsdom": "^29.0.1",
+        "prettier": "^3.8.1",
+        "prettier-plugin-organize-imports": "^4.3.0",
+        "sass": "^1.98.0",
+        "typescript": "^6.0.2",
+        "vite": "^8.0.3",
+        "vite-plugin-singlefile": "^2.3.2",
+        "vitest": "^4.0.15"
+    },
+    "dependencies": {
+        "immutable": "^5.1.5"
+    },
+    "overrides": {
+        "flatted": "^3.4.2"
+    }
+}

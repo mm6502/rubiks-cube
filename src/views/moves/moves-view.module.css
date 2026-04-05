@@ -1,0 +1,124 @@
+.mainContainer {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.listWrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 4px 12px 4px 4px;
+    min-height: 0;
+}
+
+.moveList {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.moveItem {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    transition: background-color 0.15s ease;
+    cursor: default;
+}
+
+.moveItem:hover {
+    background-color: var(--color-move-hover);
+}
+
+/* Default state - executed moves */
+.moveItem {
+    opacity: 1;
+}
+
+/* All moves after current are undone - using CSS sibling selector */
+.moveItem.current ~ .moveItem {
+    opacity: 0.5;
+    font-style: italic;
+    color: var(--color-move-number);
+}
+
+/* Special case - All moves undone */
+.moveList:not(:has(.moveItem.current)) .moveItem {
+    opacity: 0.5;
+    font-style: italic;
+    color: var(--color-move-number);
+}
+
+.moveItem.current {
+    background-color: var(--color-move-current-bg);
+    border-left: 5px solid var(--color-move-current-border);
+}
+
+.moveItem.current:hover {
+    background-color: var(--color-move-current-hover);
+}
+
+.moveNumber {
+    font-size: 1.25em;
+    color: var(--color-move-number);
+    min-width: 30px;
+    text-align: right;
+}
+
+.moveNotation {
+    font-size: 1.5em;
+    font-weight: 500;
+    font-family: 'Consolas', 'Courier New', monospace;
+    color: var(--color-move-notation);
+}
+
+.moveIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    position: relative;
+    --highlight: var(--color-btn-move-highlight);
+    --highlight-secondary: var(--color-btn-move-highlight-glow);
+    --bg: transparent;
+}
+
+.moveIcon svg {
+    width: 48px;
+    height: 48px;
+    display: block;
+}
+
+.emptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--color-move-number);
+    font-size: 14px;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Scrollbar styling — only the vertical bar is needed */
+.moveList::-webkit-scrollbar {
+    width: 8px;
+}
+
+.moveList::-webkit-scrollbar-track {
+    background: var(--color-scrollbar-track);
+}
+
+.moveList::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar-thumb);
+    border-radius: 4px;
+}
+
+.moveList::-webkit-scrollbar-thumb:hover {
+    background: var(--color-scrollbar-thumb-hover);
+}

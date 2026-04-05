@@ -1,0 +1,184 @@
+/* Reusable Button Styles - Modularized for component usage */
+
+/* Base button styles */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    min-height: 44px;
+    min-width: 44px;
+}
+
+.btn:hover {
+    transform: translateY(-2px) translateX(-2px);
+    box-shadow: 0 4px 12px var(--color-btn-primary-shadow);
+}
+
+.btn:active {
+    transform: translateY(0);
+    box-shadow: none;
+    filter: brightness(0.9);
+}
+
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+    transform: none;
+    box-shadow: none;
+    filter: none;
+}
+
+/* Remove hover lift on touch devices to prevent visual jank */
+@media (pointer: coarse) {
+    .btn:hover {
+        transform: none;
+        box-shadow: none;
+    }
+}
+
+/* Button variants */
+.btn-primary {
+    background: var(--color-btn-primary-bg);
+    color: var(--color-btn-primary-text);
+}
+
+.btn-primary[aria-pressed='true'] {
+    background: var(--color-toggle-btn-active-bg);
+    color: var(--color-toggle-btn-active-text);
+    box-shadow: 0 0 8px var(--color-toggle-btn-active-glow);
+}
+
+.btn-primary[aria-pressed='true']:hover {
+    background: var(--color-toggle-btn-active-bg-hover);
+}
+
+/* Move buttons */
+.btn-move {
+    background: var(--color-btn-primary-bg);
+    color: var(--color-btn-primary-text);
+    border: 2px solid var(--color-btn-primary-border);
+    padding: 8px;
+    font-weight: bold;
+}
+
+.btn-move:hover {
+    background: var(--color-btn-primary-bg-hover);
+    color: var(--color-btn-primary-text);
+    border-color: var(--color-btn-primary-bg-hover);
+}
+
+/* Button layouts */
+.button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.button-grid {
+    display: block; /* Neutral container for global command groups; group-level CSS controls layout */
+    width: 100%;
+    gap: 8px;
+}
+
+/* View command buttons */
+.view-command-btn {
+    padding: 8px 12px;
+    background: var(--color-btn-primary-bg);
+    color: var(--color-btn-primary-text);
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+}
+
+.view-command-btn:hover {
+    background: var(--color-btn-primary-bg-hover);
+    transform: scale(1.05);
+}
+
+.view-command-btn:active {
+    background: var(--color-btn-primary-bg-active);
+    transform: scale(0.98);
+}
+
+.view-command-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+    transform: none;
+}
+
+/* SVG icons in buttons (explicit helper class) */
+.btn-has-svg svg {
+    width: 48px;
+    height: 48px;
+    display: block;
+}
+
+/* Buttons with SVG icons should have minimal padding */
+.btn-has-svg {
+    padding: 4px;
+}
+
+/* Set highlight colors on button containers - SVGs will inherit via CSS variables */
+.btn-icon,
+.btn-has-svg {
+    --highlight: var(--color-btn-move-highlight);
+    --highlight-secondary: var(--color-btn-move-highlight-glow);
+    --bg: transparent;
+    position: relative;
+}
+
+/* Label overlay on icon buttons */
+.btn-icon-label {
+    position: absolute;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-text-on-accent);
+    text-shadow:
+        0 1px 2px var(--color-shadow-text),
+        0 0 3px var(--color-btn-primary-shadow);
+    pointer-events: none;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Label position variants */
+.btn-icon-label-top-left {
+    top: 6px;
+    left: 6px;
+}
+
+.btn-icon-label-top-right {
+    top: 6px;
+    right: 6px;
+}
+
+.btn-icon-label-bottom-left {
+    bottom: 6px;
+    left: 6px;
+}
+
+.btn-icon-label-bottom-right {
+    bottom: 6px;
+    right: 6px;
+}
+
+.btn-icon-label-center {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}

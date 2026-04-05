@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Open Graph image for Rubik's Cube project.
+  Projection: orthographic with rotateX(-25°) rotateY(-35°) matching Basic view.
+  Front face uses the same scrambled pattern as favicon.svg.
+  Cube half-size h=30 → 60×60 face grid (3×3 of 20px cells).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="600" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0d1525"/>
+      <stop offset="100%" stop-color="#162a3e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="330" cy="315" r="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a3a5c" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#0d1525" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="basic-view-cube-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="6" dy="10" stdDeviation="14" flood-color="slate" flood-opacity="0.7"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!--
+    Flat View — 2D cross-net projection.
+    Cross layout: U above F, L-F-R-B in middle row, D below F.
+    Cell s=10px, sticker=8px, face stride=36px.
+    All 6 faces shown with scramble colours matching the basic view.
+  -->
+  <g id="flat-view" filter="url(#basic-view-cube-shadow)" transform="translate(50, 70) scale(1.5)">
+    <!-- U face — faceX=36, faceY=0 -->
+    <g>
+      <rect x="35" y="-1" width="32" height="32" rx="3" fill="#18243a" stroke="#4a6090" stroke-width="1"/>
+      <rect x="37" y="1"  width="8" height="8" rx="1.5" fill="#ffffff"/>
+      <rect x="47" y="1"  width="8" height="8" rx="1.5" fill="#009b48"/>
+      <rect x="57" y="1"  width="8" height="8" rx="1.5" fill="#ffd500"/>
+      <rect x="37" y="11" width="8" height="8" rx="1.5" fill="#0051ba"/>
+      <rect x="47" y="11" width="8" height="8" rx="1.5" fill="#c41e3a"/>
+      <rect x="57" y="11" width="8" height="8" rx="1.5" fill="#ffffff"/>
+      <rect x="37" y="21" width="8" height="8" rx="1.5" fill="#009b48"/>
+      <rect x="47" y="21" width="8" height="8" rx="1.5" fill="#ff5800"/>
+      <rect x="57" y="21" width="8" height="8" rx="1.5" fill="#ffd500"/>
+    </g>
+    <!-- L face — faceX=0, faceY=36 -->
+    <g>
+      <rect x="-1" y="35" width="32" height="32" rx="3" fill="#18243a" stroke="#4a6090" stroke-width="1"/>
+      <rect x="1"  y="37" width="8" height="8" rx="1.5" fill="#009b48"/>
+      <rect x="11" y="37" width="8" height="8" rx="1.5" fill="#ffffff"/>
+      <rect x="21" y="37" width="8" height="8" rx="1.5" fill="#ffd500"/>
+      <rect x="1"  y="47" width="8" height="8" rx="1.5" fill="#009b48"/>
+      <rect x="11" y="47" width="8" height="8" rx="1.5" fill="#009b48"/>
+      <rect x="21" y="47" width="8" height="8" rx="1.5" fill="#0051ba"/>
+      <rect x="1"  y="57" width="8" height="8" rx="1.5" fill="#c41e3a"/>
+      <rect x="11" y="57" width="8" height="8" rx="1.5" fill="#c41e3a"/>
+      <rect x="21" y="57" width="8" height="8" rx="1.5" fill="#0051ba"/>
+    </g>
+    <!-- F face — faceX=36, faceY=36 -->
+    <g>
+      <rect x="35" y="35" width="32" height="32" rx="3" fill="#18243a" stroke="#4a6090" stroke-width="1"/>
+      <rect x="37" y="37" width="8" height="8" rx="1.5" fill="#c41e3a"/>
+      <rect x="47" y="37" width="8" height="8" rx="1.5" fill="#009b48"/>
+      <rect x="57" y="37" width="8" height="8" rx="1.5" fill="#0051ba"/>
+      <rect x="37" y="47" width="8" height="8" rx="1.5" fill="#ff5800"/>
+      <rect x="47" y="47" width="8" height="8" rx="1.5" fill="#ffd500"/>
+      <rect x="57" y="47" width="8" height="8" rx="1.5" fill="#ffffff"/>
+      <rect x="37" y="57" width="8" height="8" rx="1.5" fill="#ffffff"/>
+      <rect x="47" y="57" width="8" height="8" rx="1.5" fill="#ff5800"/>
+      <rect x="57" y="57" width="8" height="8" rx="1.5" fill="#c41e3a"/>
+    </g>
+    <!-- R face — faceX=72, faceY=36 -->
+    <g>
+      <rect x="71" y="35" width="32" height="32" rx="3" fill="#18243a" stroke="#4a6090" stroke-width="1"/>
+      <rect x="73" y="37" width="8" height="8" rx="1.5" fill="#c41e3a"/>
+      <rect x="83" y="37" width="8" height="8" rx="1.5" fill="#ff5800"/>
+      <rect x="93" y="37" width="8" height="8" rx="1.5" fill="#009b48"/>
+      <rect x="73" y="47" width="8" height="8" rx="1.5" fill="#009b48"/>
+      <rect x="83" y="47" width="8" height="8" rx="1.5" fill="#0051ba"/>
+      <rect x="93" y="47" width="8" height="8" rx="1.5" fill="#c41e3a"/>
+      <rect x="73" y="57" width="8" height="8" rx="1.5" fill="#ffffff"/>
+      <rect x="83" y="57" width="8" height="8" rx="1.5" fill="#ffd500"/>
+      <rect x="93" y="57" width="8" height="8" rx="1.5" fill="#ff5800"/>
+    </g>
+    <!-- B face — faceX=108, faceY=36 -->
+    <g>
+      <rect x="107" y="35" width="32" height="32" rx="3" fill="#18243a" stroke="#4a6090" stroke-width="1"/>
+      <rect x="109" y="37" width="8" height="8" rx="1.5" fill="#ff5800"/>
+      <rect x="119" y="37" width="8" height="8" rx="1.5" fill="#c41e3a"/>
+      <rect x="129" y="37" width="8" height="8" rx="1.5" fill="#ff5800"/>
+      <rect x="109" y="47" width="8" height="8" rx="1.5" fill="#ffffff"/>
+      <rect x="119" y="47" width="8" height="8" rx="1.5" fill="#ffffff"/>
+      <rect x="129" y="47" width="8" height="8" rx="1.5" fill="#ffd500"/>
+      <rect x="109" y="57" width="8" height="8" rx="1.5" fill="#ffd500"/>
+      <rect x="119" y="57" width="8" height="8" rx="1.5" fill="#c41e3a"/>
+      <rect x="129" y="57" width="8" height="8" rx="1.5" fill="#ffffff"/>
+    </g>
+    <!-- D face — faceX=36, faceY=72 -->
+    <g>
+      <rect x="35" y="71" width="32" height="32" rx="3" fill="#18243a" stroke="#4a6090" stroke-width="1"/>
+      <rect x="37" y="73" width="8" height="8" rx="1.5" fill="#ff5800"/>
+      <rect x="47" y="73" width="8" height="8" rx="1.5" fill="#ffd500"/>
+      <rect x="57" y="73" width="8" height="8" rx="1.5" fill="#0051ba"/>
+      <rect x="37" y="83" width="8" height="8" rx="1.5" fill="#0051ba"/>
+      <rect x="47" y="83" width="8" height="8" rx="1.5" fill="#ff5800"/>
+      <rect x="57" y="83" width="8" height="8" rx="1.5" fill="#0051ba"/>
+      <rect x="37" y="93" width="8" height="8" rx="1.5" fill="#009b48"/>
+      <rect x="47" y="93" width="8" height="8" rx="1.5" fill="#ffd500"/>
+      <rect x="57" y="93" width="8" height="8" rx="1.5" fill="#0051ba"/>
+    </g>
+  </g>
+
+  <!--
+    Basic View Cube projection - "true" perspective matching Basic view.
+    Settings: perspective=1000px, half-size=150px, rotateX(-25deg) rotateY(-35deg).
+    Group: translate(315,325) scale(0.62). Matrices are in proj-space (group-local).
+    Each of the 27 stickers has its own affine matrix — per-sticker accuracy.
+    Screen bbox: x=[181,458] y=[166,448]
+  -->
+
+  <!-- Subtle glow behind cube -->
+  <ellipse cx="330" cy="315" rx="300" ry="260" fill="url(#glow)"/>
+
+  <g id="cube" filter="url(#basic-view-cube-shadow)" transform="translate(75,65) scale(0.7)">
+
+    <!-- Ground shadow -->
+    <ellipse cx="315" cy="458" rx="115" ry="13" fill="#000" opacity="0.4" filter="url(#shadow)"/>
+
+<!-- CUBE_REPLACE_START:67db88f454 -->
+    <!-- front face -->
+    <polygon points="188.2,236.5 358.7,271.4 350.7,455.0 195.8,404.6" fill="#1a1a1a"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#c41e3a" transform="matrix(0.06222,0.01311,0.00294,0.07043,195.66104,246.58837)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#009b48" transform="matrix(0.06681,0.01408,0.00118,0.07248,244.82572,256.95184)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#0051ba" transform="matrix(0.07193,0.01516,-0.00084,0.07465,297.62413,268.08127)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ff5800" transform="matrix(0.06048,0.01515,0.00277,0.06650,197.96896,301.93756)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ffd500" transform="matrix(0.06480,0.01623,0.00112,0.06830,245.75616,313.90789)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ffffff" transform="matrix(0.06961,0.01744,-0.00079,0.07020,296.96683,326.73578)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ffffff" transform="matrix(0.05884,0.01694,0.00262,0.06289,200.14833,354.20353)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ff5800" transform="matrix(0.06292,0.01811,0.00105,0.06448,246.63303,367.58466)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#c41e3a" transform="matrix(0.06744,0.01941,-0.00074,0.06613,296.34870,381.89586)"/>
+    <!-- right face -->
+    <polygon points="358.7,271.4 441.8,219.9 428.3,380.1 350.7,455.0" fill="#1a1a1a"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#c41e3a" transform="matrix(0.03638,-0.02323,-0.00349,0.07654,362.85472,277.94562)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ff5800" transform="matrix(0.03248,-0.02073,-0.00438,0.07303,391.37764,259.73723)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#009b48" transform="matrix(0.02917,-0.01862,-0.00507,0.06981,416.84881,243.47701)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#009b48" transform="matrix(0.03548,-0.02673,-0.00327,0.07184,360.11330,338.08209)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#0051ba" transform="matrix(0.03178,-0.02395,-0.00413,0.06878,387.93349,317.12100)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#c41e3a" transform="matrix(0.02864,-0.02158,-0.00479,0.06595,412.86151,298.33901)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ffffff" transform="matrix(0.03462,-0.02978,-0.00308,0.06756,357.54004,394.52960)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ffd500" transform="matrix(0.03111,-0.02677,-0.00389,0.06489,384.68936,371.17207)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ff5800" transform="matrix(0.02811,-0.02419,-0.00454,0.06241,409.09408,350.17582)"/>
+    <!-- top face -->
+    <polygon points="288.7,195.0 441.8,219.9 358.7,271.4 188.2,236.5" fill="#1a1a1a"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ffffff" transform="matrix(0.05703,0.00935,-0.03558,0.01494,291.21889,197.73411)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#009b48" transform="matrix(0.06062,0.00994,-0.03384,0.01588,336.26520,205.12249)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ffd500" transform="matrix(0.06455,0.01059,-0.03181,0.01693,384.14935,212.97633)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#0051ba" transform="matrix(0.05875,0.01030,-0.03922,0.01647,263.07342,209.55062)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#c41e3a" transform="matrix(0.06264,0.01099,-0.03743,0.01757,309.48752,217.69045)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ffffff" transform="matrix(0.06693,0.01174,-0.03530,0.01878,358.97790,226.36978)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#009b48" transform="matrix(0.06054,0.01141,-0.04346,0.01825,232.03757,222.58062)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ff5800" transform="matrix(0.06476,0.01220,-0.04161,0.01953,279.86704,231.59266)"/>
+    <rect x="0" y="0" width="720.29" height="720.29" rx="50.65" fill="#ffd500" transform="matrix(0.06945,0.01309,-0.03939,0.02096,331.04075,241.23484)"/>
+<!-- CUBE_REPLACE_END:67db88f454 -->
+  </g>
+
+  <!--
+    Circular View — concentric ring projection.
+    Natural coords: 3 axis circle sets at Z(150,219), X(250,219), Y(200,132), r=70/85/100.
+    Sticker colors: same scramble as basic view, remapped to circular index ordering.
+  -->
+  <g id="circular-view" filter="url(#basic-view-cube-shadow)" transform="translate(300, 250) scale(1)">
+    <!-- Axis rings: Z, X, Y — fill none, stroke only -->
+    <g fill="none" stroke="#4a6090" stroke-width="1.5">
+      <circle cx="150" cy="219" r="70"/>
+      <circle cx="150" cy="219" r="85"/>
+      <circle cx="150" cy="219" r="100"/>
+      <circle cx="250" cy="219" r="70"/>
+      <circle cx="250" cy="219" r="85"/>
+      <circle cx="250" cy="219" r="100"/>
+      <circle cx="200" cy="132" r="70"/>
+      <circle cx="200" cy="132" r="85"/>
+      <circle cx="200" cy="132" r="100"/>
+    </g>
+    <!-- Face centre ellipses (decorative) -->
+    <g fill="#4a6090" stroke="#4a6090" stroke-width="1" opacity="0.4">
+      <ellipse cx="200" cy="150.26" rx="40" ry="33"/>
+      <ellipse cx="200" cy="287.74" rx="40" ry="33"/>
+      <ellipse cx="115.51" cy="141.31" rx="40" ry="33" transform="rotate(-60 115.51 141.31)"/>
+      <ellipse cx="284.49" cy="141.31" rx="40" ry="33" transform="rotate(60 284.49 141.31)"/>
+      <ellipse cx="165.51" cy="209.69" rx="40" ry="33" transform="rotate(60 165.51 209.69)"/>
+      <ellipse cx="234.49" cy="209.69" rx="40" ry="33" transform="rotate(-60 234.49 209.69)"/>
+    </g>
+    <!-- 54 stickers — r=7, colours mapped to cube coordinates at each axis-ring intersection -->
+    <g stroke="#18243a" stroke-width="0.8">
+      <!-- U face (y=2) -->
+      <circle cx="200.00" cy="132.40" r="7" fill="#ffffff"/>
+      <circle cx="213.88" cy="142.06" r="7" fill="#009b48"/>
+      <circle cx="225.50" cy="153.43" r="7" fill="#ffd500"/>
+      <circle cx="186.13" cy="142.06" r="7" fill="#0051ba"/>
+      <circle cx="200.00" cy="150.26" r="7" fill="#c41e3a"/>
+      <circle cx="211.63" cy="160.46" r="7" fill="#ffffff"/>
+      <circle cx="174.50" cy="153.43" r="7" fill="#009b48"/>
+      <circle cx="188.38" cy="160.46" r="7" fill="#ff5800"/>
+      <circle cx="200.00" cy="170.01" r="7" fill="#ffd500"/>
+      <!-- D face (y=0) -->
+      <circle cx="174.50" cy="284.57" r="7" fill="#ff5800"/>
+      <circle cx="188.38" cy="277.54" r="7" fill="#ffd500"/>
+      <circle cx="200.00" cy="267.99" r="7" fill="#0051ba"/>
+      <circle cx="186.13" cy="295.94" r="7" fill="#0051ba"/>
+      <circle cx="200.00" cy="287.74" r="7" fill="#ff5800"/>
+      <circle cx="211.63" cy="277.54" r="7" fill="#0051ba"/>
+      <circle cx="200.00" cy="305.60" r="7" fill="#009b48"/>
+      <circle cx="213.88" cy="295.94" r="7" fill="#ffd500"/>
+      <circle cx="225.50" cy="284.57" r="7" fill="#0051ba"/>
+      <!-- L face (x=0) -->
+      <circle cx="130.90" cy="120.84" r="7" fill="#009b48"/>
+      <circle cx="130.14" cy="136.35" r="7" fill="#ffffff"/>
+      <circle cx="132.68" cy="151.18" r="7" fill="#ffd500"/>
+      <circle cx="115.27" cy="125.22" r="7" fill="#009b48"/>
+      <circle cx="115.51" cy="141.31" r="7" fill="#009b48"/>
+      <circle cx="118.59" cy="156.44" r="7" fill="#0051ba"/>
+      <circle cx="100.00" cy="132.40" r="7" fill="#c41e3a"/>
+      <circle cx="101.49" cy="149.20" r="7" fill="#c41e3a"/>
+      <circle cx="105.57" cy="164.91" r="7" fill="#0051ba"/>
+      <!-- R face (x=2) -->
+      <circle cx="217.32" cy="199.82" r="7" fill="#c41e3a"/>
+      <circle cx="250.00" cy="218.60" r="7" fill="#ff5800"/>
+      <circle cx="244.43" cy="186.09" r="7" fill="#009b48"/>
+      <circle cx="219.86" cy="214.65" r="7" fill="#009b48"/>
+      <circle cx="234.49" cy="209.69" r="7" fill="#0051ba"/>
+      <circle cx="248.51" cy="201.80" r="7" fill="#c41e3a"/>
+      <circle cx="219.10" cy="230.16" r="7" fill="#ffffff"/>
+      <circle cx="234.73" cy="225.78" r="7" fill="#ffd500"/>
+      <circle cx="231.41" cy="194.56" r="7" fill="#ff5800"/>
+      <!-- B face (z=2) -->
+      <circle cx="267.32" cy="151.18" r="7" fill="#ff5800"/>
+      <circle cx="269.86" cy="136.35" r="7" fill="#c41e3a"/>
+      <circle cx="269.10" cy="120.84" r="7" fill="#ff5800"/>
+      <circle cx="281.41" cy="156.44" r="7" fill="#ffffff"/>
+      <circle cx="284.49" cy="141.31" r="7" fill="#ffffff"/>
+      <circle cx="284.73" cy="125.22" r="7" fill="#ffd500"/>
+      <circle cx="294.43" cy="164.91" r="7" fill="#ffd500"/>
+      <circle cx="298.51" cy="149.20" r="7" fill="#c41e3a"/>
+      <circle cx="300.00" cy="132.40" r="7" fill="#ffffff"/>
+      <!-- F face (z=0) -->
+      <circle cx="155.57" cy="186.09" r="7" fill="#c41e3a"/>
+      <circle cx="168.59" cy="194.56" r="7" fill="#009b48"/>
+      <circle cx="182.68" cy="199.82" r="7" fill="#0051ba"/>
+      <circle cx="151.49" cy="201.80" r="7" fill="#ff5800"/>
+      <circle cx="165.51" cy="209.69" r="7" fill="#ffd500"/>
+      <circle cx="180.14" cy="214.65" r="7" fill="#ffffff"/>
+      <circle cx="150.00" cy="218.60" r="7" fill="#ffffff"/>
+      <circle cx="165.27" cy="225.78" r="7" fill="#ff5800"/>
+      <circle cx="180.90" cy="230.16" r="7" fill="#c41e3a"/>
+    </g>
+  </g>
+
+  <!-- Title -->
+  <text x="860" y="280" filter="url(#basic-view-cube-shadow)" text-anchor="middle" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif" font-size="62" font-weight="700" fill="#ffffff" letter-spacing="1">Rubik&#x2019;s Cube</text>
+
+  <!-- Subtitle -->
+  <text x="860" y="338" filter="url(#basic-view-cube-shadow)" text-anchor="middle" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif" font-size="23" font-weight="400" fill="#94a3b8">Interactive Simulator &amp; Visualizer</text>
+
+  <!-- URL hint -->
+  <text x="860" y="385" filter="url(#basic-view-cube-shadow)" text-anchor="middle" font-family="'Cascadia Code', 'Fira Code', 'SF Mono', 'Consolas', monospace" font-size="16" fill="#94a3b8" opacity="0.9">mm6502.github.io/rubiks-cube</text>
+
+</svg>

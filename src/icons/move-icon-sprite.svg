@@ -1,0 +1,403 @@
+<svg id="move-icon-sprite-root"
+    xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false">
+    <defs>
+        <g id="face-grid">
+            <!-- 3x3 grid of rects with parameterized fill -->
+            <rect x="0" y="0" width="20" height="20" fill="var(--c1, none)" />
+            <rect x="20" y="0" width="20" height="20" fill="var(--c2, none)" />
+            <rect x="40" y="0" width="20" height="20" fill="var(--c3, none)" />
+            <rect x="0" y="20" width="20" height="20" fill="var(--c4, none)" />
+            <rect x="20" y="20" width="20" height="20" fill="var(--c5, none)" />
+            <rect x="40" y="20" width="20" height="20" fill="var(--c6, none)" />
+            <rect x="0" y="40" width="20" height="20" fill="var(--c7, none)" />
+            <rect x="20" y="40" width="20" height="20" fill="var(--c8, none)" />
+            <rect x="40" y="40" width="20" height="20" fill="var(--c9, none)" />
+        </g>
+        <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="30" markerHeight="30" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+        </marker>
+        <g id="base-arrow">
+            <path d="M -60, 10 Q 0, 50 60, 10" stroke="currentColor" stroke-width="10" fill="none" marker-end="url(#arrowhead)" />
+        </g>
+        <g id="quarter-ccw-turn-arrow">
+            <path d="M -40, 10 Q 0, 40 40, 10" stroke="currentColor" stroke-width="10" fill="none" marker-end="url(#arrowhead)" />
+        </g>
+        <g id="quarter-cw-turn-arrow">
+            <path d="M 40, 10 Q 0, 40 -40, 10" stroke="currentColor" stroke-width="10" fill="none" marker-end="url(#arrowhead)" />
+        </g>
+        <g id="half-ccw-turn-arrow">
+            <path d="M -40, 10 A 65 40 0 0 0 70 -45" stroke="currentColor" stroke-width="10" fill="none" marker-end="url(#arrowhead)" />
+        </g>
+        <g id="half-cw-turn-arrow">
+            <path d="M 40, 10 A 65 40 0 0 1 -70, -45" stroke="currentColor" stroke-width="10" fill="none" marker-end="url(#arrowhead)" />
+        </g>
+        <!-- Layer Rotation Arrows -->
+        <g id="arrow-x-0-ccw">
+            <use href="#quarter-ccw-turn-arrow" transform="translate(-45, -25) rotate(120)" />
+        </g>
+        <g id="arrow-x-0-cw">
+            <use href="#quarter-cw-turn-arrow" transform="translate(-45, -25) rotate(120)" />
+        </g>
+        <g id="arrow-x-0-180">
+            <use href="#half-ccw-turn-arrow" transform="translate(-35, -15) rotate(120)" />
+        </g>
+        <g id="arrow-x-2-cw">
+            <use href="#quarter-cw-turn-arrow" transform="translate(45, 35) rotate(-60)" />
+        </g>
+        <g id="arrow-x-2-ccw">
+            <use href="#quarter-ccw-turn-arrow" transform="translate(45, 35) rotate(-60)" />
+        </g>
+        <g id="arrow-x-2-180">
+            <use href="#half-ccw-turn-arrow" transform="translate(45, 35) rotate(-60)" />
+        </g>
+        <g id="arrow-y-0-ccw">
+            <use href="#quarter-ccw-turn-arrow" transform="translate(0, 55)" />
+        </g>
+        <g id="arrow-y-0-cw">
+            <use href="#quarter-cw-turn-arrow" transform="translate(0, 55)" />
+        </g>
+        <g id="arrow-y-0-180">
+            <use href="#half-ccw-turn-arrow" transform="translate(0, 55)" />
+        </g>
+        <g id="arrow-y-2-cw">
+            <use href="#quarter-cw-turn-arrow" transform="translate(0, -40) rotate(180)" />
+        </g>
+        <g id="arrow-y-2-ccw">
+            <use href="#quarter-ccw-turn-arrow" transform="translate(0, -40) rotate(180)" />
+        </g>
+        <g id="arrow-y-2-180">
+            <use href="#half-ccw-turn-arrow" transform="translate(0, -40) rotate(180)" />
+        </g>
+        <g id="arrow-z-0-cw">
+            <use href="#quarter-cw-turn-arrow" transform="translate(-50, 30) rotate(60)" />
+        </g>
+        <g id="arrow-z-0-ccw">
+            <use href="#quarter-ccw-turn-arrow" transform="translate(-50, 30) rotate(60)" />
+        </g>
+        <g id="arrow-z-0-180">
+            <use href="#half-cw-turn-arrow" transform="translate(-35, 30) rotate(60)" />
+        </g>
+        <g id="arrow-z-2-cw">
+            <use href="#quarter-cw-turn-arrow" transform="translate(45, -25) rotate(-120)" />
+        </g>
+        <g id="arrow-z-2-ccw">
+            <use href="#quarter-ccw-turn-arrow" transform="translate(45, -25) rotate(-120)" />
+        </g>
+        <g id="arrow-z-2-180">
+            <use href="#half-cw-turn-arrow" transform="translate(35, -15) rotate(-120)" />
+        </g>
+        <!-- Named Faces -->
+        <g id="face-front">
+            <use href="#face-grid" transform="matrix(0.8, 0.364, 0, 1, -48, -21.84)" />
+        </g>
+        <g id="face-right">
+            <use href="#face-grid" transform="matrix(0.8, -0.364, 0, 1, 0, 0)" />
+        </g>
+        <g id="face-up">
+            <use href="#face-grid" transform="matrix(0.8, 0.364, -0.8, 0.364, 0, -43.68)" />
+        </g>
+        <!-- Cube Construction -->
+        <g id="cube">
+            <use href="#face-front" style="--c1:var(--f1);--c2:var(--f2);--c3:var(--f3);--c4:var(--f4);--c5:var(--f5);--c6:var(--f6);--c7:var(--f7);--c8:var(--f8);--c9:var(--f9);" />
+            <use href="#face-right" style="--c1:var(--r1);--c2:var(--r2);--c3:var(--r3);--c4:var(--r4);--c5:var(--r5);--c6:var(--r6);--c7:var(--r7);--c8:var(--r8);--c9:var(--r9);" />
+            <use href="#face-up" style="--c1:var(--u1);--c2:var(--u2);--c3:var(--u3);--c4:var(--u4);--c5:var(--u5);--c6:var(--u6);--c7:var(--u7);--c8:var(--u8);--c9:var(--u9);" />
+        </g>
+    </defs>
+    <symbol id="move-icon-b" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--u1:var(--highlight);--u2:var(--highlight);--u3:var(--highlight);--r3:var(--highlight);--r6:var(--highlight);--r9:var(--highlight);" />
+            <use href="#arrow-z-2-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-b2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--u1:var(--highlight);--u2:var(--highlight);--u3:var(--highlight);--r3:var(--highlight);--r6:var(--highlight);--r9:var(--highlight);" />
+            <use href="#arrow-z-2-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-bp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--u1:var(--highlight);--u2:var(--highlight);--u3:var(--highlight);--r3:var(--highlight);--r6:var(--highlight);--r9:var(--highlight);" />
+            <use href="#arrow-z-2-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-d" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f7:var(--highlight);--f8:var(--highlight);--f9:var(--highlight);--r7:var(--highlight);--r8:var(--highlight);--r9:var(--highlight);" />
+            <use href="#arrow-y-0-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-d2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f7:var(--highlight);--f8:var(--highlight);--f9:var(--highlight);--r7:var(--highlight);--r8:var(--highlight);--r9:var(--highlight);" />
+            <use href="#arrow-y-0-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-dp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f7:var(--highlight);--f8:var(--highlight);--f9:var(--highlight);--r7:var(--highlight);--r8:var(--highlight);--r9:var(--highlight);" />
+            <use href="#arrow-y-0-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-e" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f4:var(--highlight);--f5:var(--highlight);--f6:var(--highlight);--r4:var(--highlight);--r5:var(--highlight);--r6:var(--highlight);" />
+            <!-- Floating Curved E move arrow -->
+            <use href="#arrow-y-0-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-e2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f4:var(--highlight);--f5:var(--highlight);--f6:var(--highlight);--r4:var(--highlight);--r5:var(--highlight);--r6:var(--highlight);" />
+            <!-- Floating Curved E move arrow -->
+            <use href="#arrow-y-0-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-ep" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f4:var(--highlight);--f5:var(--highlight);--f6:var(--highlight);--r4:var(--highlight);--r5:var(--highlight);--r6:var(--highlight);" />
+            <!-- Floating Curved E move arrow -->
+            <use href="#arrow-y-0-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-f" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight-secondary);--f2:var(--highlight-secondary);--f3:var(--highlight-secondary);--f4:var(--highlight-secondary);--f5:var(--highlight-secondary);--f6:var(--highlight-secondary);--f7:var(--highlight-secondary);--f8:var(--highlight-secondary);--f9:var(--highlight-secondary);--u7:var(--highlight);--u8:var(--highlight);--u9:var(--highlight);--r1:var(--highlight);--r4:var(--highlight);--r7:var(--highlight);" />
+            <use href="#arrow-z-0-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-f2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight-secondary);--f2:var(--highlight-secondary);--f3:var(--highlight-secondary);--f4:var(--highlight-secondary);--f5:var(--highlight-secondary);--f6:var(--highlight-secondary);--f7:var(--highlight-secondary);--f8:var(--highlight-secondary);--f9:var(--highlight-secondary);--u7:var(--highlight);--u8:var(--highlight);--u9:var(--highlight);--r1:var(--highlight);--r4:var(--highlight);--r7:var(--highlight);" />
+            <use href="#arrow-z-0-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-fp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight-secondary);--f2:var(--highlight-secondary);--f3:var(--highlight-secondary);--f4:var(--highlight-secondary);--f5:var(--highlight-secondary);--f6:var(--highlight-secondary);--f7:var(--highlight-secondary);--f8:var(--highlight-secondary);--f9:var(--highlight-secondary);--u7:var(--highlight);--u8:var(--highlight);--u9:var(--highlight);--r1:var(--highlight);--r4:var(--highlight);--r7:var(--highlight);" />
+            <use href="#arrow-z-0-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-l" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight);--f4:var(--highlight);--f7:var(--highlight);--u1:var(--highlight);--u4:var(--highlight);--u7:var(--highlight);" />
+            <use href="#arrow-x-0-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-l2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight);--f4:var(--highlight);--f7:var(--highlight);--u1:var(--highlight);--u4:var(--highlight);--u7:var(--highlight);" />
+            <use href="#arrow-x-0-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-lp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight);--f4:var(--highlight);--f7:var(--highlight);--u1:var(--highlight);--u4:var(--highlight);--u7:var(--highlight);" />
+            <use href="#arrow-x-0-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-m" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f2:var(--highlight);--f5:var(--highlight);--f8:var(--highlight);--u2:var(--highlight);--u5:var(--highlight);--u8:var(--highlight);" />
+            <!-- Floating Curved M move arrow -->
+            <use href="#arrow-x-0-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-m2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f2:var(--highlight);--f5:var(--highlight);--f8:var(--highlight);--u2:var(--highlight);--u5:var(--highlight);--u8:var(--highlight);" />
+            <!-- Floating Curved M2 move arrow -->
+            <use href="#arrow-x-0-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-mp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f2:var(--highlight);--f5:var(--highlight);--f8:var(--highlight);--u2:var(--highlight);--u5:var(--highlight);--u8:var(--highlight);" />
+            <!-- Floating Curved M' move arrow -->
+            <use href="#arrow-x-0-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-r" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--r1:var(--highlight-secondary);--r2:var(--highlight-secondary);--r3:var(--highlight-secondary);--r4:var(--highlight-secondary);--r5:var(--highlight-secondary);--r6:var(--highlight-secondary);--r7:var(--highlight-secondary);--r8:var(--highlight-secondary);--r9:var(--highlight-secondary);--f3:var(--highlight);--f6:var(--highlight);--f9:var(--highlight);--u3:var(--highlight);--u6:var(--highlight);--u9:var(--highlight);" />
+            <use href="#arrow-x-2-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-r2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--r1:var(--highlight-secondary);--r2:var(--highlight-secondary);--r3:var(--highlight-secondary);--r4:var(--highlight-secondary);--r5:var(--highlight-secondary);--r6:var(--highlight-secondary);--r7:var(--highlight-secondary);--r8:var(--highlight-secondary);--r9:var(--highlight-secondary);--f3:var(--highlight);--f6:var(--highlight);--f9:var(--highlight);--u3:var(--highlight);--u6:var(--highlight);--u9:var(--highlight);" />
+            <use href="#arrow-x-2-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-rp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--r1:var(--highlight-secondary);--r2:var(--highlight-secondary);--r3:var(--highlight-secondary);--r4:var(--highlight-secondary);--r5:var(--highlight-secondary);--r6:var(--highlight-secondary);--r7:var(--highlight-secondary);--r8:var(--highlight-secondary);--r9:var(--highlight-secondary);--f3:var(--highlight);--f6:var(--highlight);--f9:var(--highlight);--u3:var(--highlight);--u6:var(--highlight);--u9:var(--highlight);" />
+            <use href="#arrow-x-2-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-s" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--r2:var(--highlight);--r5:var(--highlight);--r8:var(--highlight);--u4:var(--highlight);--u5:var(--highlight);--u6:var(--highlight);" />
+            <!-- Floating Curved S move arrow -->
+            <use href="#arrow-z-0-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-s2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--r2:var(--highlight);--r5:var(--highlight);--r8:var(--highlight);--u4:var(--highlight);--u5:var(--highlight);--u6:var(--highlight);" />
+            <!-- Floating Curved S2 move arrow -->
+            <use href="#arrow-z-0-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-sp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--r2:var(--highlight);--r5:var(--highlight);--r8:var(--highlight);--u4:var(--highlight);--u5:var(--highlight);--u6:var(--highlight);" />
+            <!-- Floating Curved S' move arrow -->
+            <use href="#arrow-z-0-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-u" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--u1:var(--highlight-secondary);--u2:var(--highlight-secondary);--u3:var(--highlight-secondary);--u4:var(--highlight-secondary);--u5:var(--highlight-secondary);--u6:var(--highlight-secondary);--u7:var(--highlight-secondary);--u8:var(--highlight-secondary);--u9:var(--highlight-secondary);--f1:var(--highlight);--f2:var(--highlight);--f3:var(--highlight);--r1:var(--highlight);--r2:var(--highlight);--r3:var(--highlight);" />
+            <use href="#arrow-y-2-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-u2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--u1:var(--highlight-secondary);--u2:var(--highlight-secondary);--u3:var(--highlight-secondary);--u4:var(--highlight-secondary);--u5:var(--highlight-secondary);--u6:var(--highlight-secondary);--u7:var(--highlight-secondary);--u8:var(--highlight-secondary);--u9:var(--highlight-secondary);--f1:var(--highlight);--f2:var(--highlight);--f3:var(--highlight);--r1:var(--highlight);--r2:var(--highlight);--r3:var(--highlight);" />
+            <use href="#arrow-y-2-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-up" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--u1:var(--highlight-secondary);--u2:var(--highlight-secondary);--u3:var(--highlight-secondary);--u4:var(--highlight-secondary);--u5:var(--highlight-secondary);--u6:var(--highlight-secondary);--u7:var(--highlight-secondary);--u8:var(--highlight-secondary);--u9:var(--highlight-secondary);--f1:var(--highlight);--f2:var(--highlight);--f3:var(--highlight);--r1:var(--highlight);--r2:var(--highlight);--r3:var(--highlight);" />
+            <use href="#arrow-y-2-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-x" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight);--f2:var(--highlight);--f3:var(--highlight);--f4:var(--highlight);--f5:var(--highlight);--f6:var(--highlight);--f7:var(--highlight);--f8:var(--highlight);--f9:var(--highlight);--r1:var(--highlight-secondary);--r2:var(--highlight-secondary);--r3:var(--highlight-secondary);--r4:var(--highlight-secondary);--r5:var(--highlight-secondary);--r6:var(--highlight-secondary);--r7:var(--highlight-secondary);--r8:var(--highlight-secondary);--r9:var(--highlight-secondary);--u1:var(--highlight);--u2:var(--highlight);--u3:var(--highlight);--u4:var(--highlight);--u5:var(--highlight);--u6:var(--highlight);--u7:var(--highlight);--u8:var(--highlight);--u9:var(--highlight);" />
+            <use href="#arrow-x-2-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-x2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight);--f2:var(--highlight);--f3:var(--highlight);--f4:var(--highlight);--f5:var(--highlight);--f6:var(--highlight);--f7:var(--highlight);--f8:var(--highlight);--f9:var(--highlight);--r1:var(--highlight-secondary);--r2:var(--highlight-secondary);--r3:var(--highlight-secondary);--r4:var(--highlight-secondary);--r5:var(--highlight-secondary);--r6:var(--highlight-secondary);--r7:var(--highlight-secondary);--r8:var(--highlight-secondary);--r9:var(--highlight-secondary);--u1:var(--highlight);--u2:var(--highlight);--u3:var(--highlight);--u4:var(--highlight);--u5:var(--highlight);--u6:var(--highlight);--u7:var(--highlight);--u8:var(--highlight);--u9:var(--highlight);" />
+            <use href="#arrow-x-2-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-xp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight);--f2:var(--highlight);--f3:var(--highlight);--f4:var(--highlight);--f5:var(--highlight);--f6:var(--highlight);--f7:var(--highlight);--f8:var(--highlight);--f9:var(--highlight);--r1:var(--highlight-secondary);--r2:var(--highlight-secondary);--r3:var(--highlight-secondary);--r4:var(--highlight-secondary);--r5:var(--highlight-secondary);--r6:var(--highlight-secondary);--r7:var(--highlight-secondary);--r8:var(--highlight-secondary);--r9:var(--highlight-secondary);--u1:var(--highlight);--u2:var(--highlight);--u3:var(--highlight);--u4:var(--highlight);--u5:var(--highlight);--u6:var(--highlight);--u7:var(--highlight);--u8:var(--highlight);--u9:var(--highlight);" />
+            <use href="#arrow-x-2-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-y" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight);--f2:var(--highlight);--f3:var(--highlight);--f4:var(--highlight);--f5:var(--highlight);--f6:var(--highlight);--f7:var(--highlight);--f8:var(--highlight);--f9:var(--highlight);--r1:var(--highlight);--r2:var(--highlight);--r3:var(--highlight);--r4:var(--highlight);--r5:var(--highlight);--r6:var(--highlight);--r7:var(--highlight);--r8:var(--highlight);--r9:var(--highlight);--u1:var(--highlight-secondary);--u2:var(--highlight-secondary);--u3:var(--highlight-secondary);--u4:var(--highlight-secondary);--u5:var(--highlight-secondary);--u6:var(--highlight-secondary);--u7:var(--highlight-secondary);--u8:var(--highlight-secondary);--u9:var(--highlight-secondary);" />
+            <use href="#arrow-y-2-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-y2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight);--f2:var(--highlight);--f3:var(--highlight);--f4:var(--highlight);--f5:var(--highlight);--f6:var(--highlight);--f7:var(--highlight);--f8:var(--highlight);--f9:var(--highlight);--r1:var(--highlight);--r2:var(--highlight);--r3:var(--highlight);--r4:var(--highlight);--r5:var(--highlight);--r6:var(--highlight);--r7:var(--highlight);--r8:var(--highlight);--r9:var(--highlight);--u1:var(--highlight-secondary);--u2:var(--highlight-secondary);--u3:var(--highlight-secondary);--u4:var(--highlight-secondary);--u5:var(--highlight-secondary);--u6:var(--highlight-secondary);--u7:var(--highlight-secondary);--u8:var(--highlight-secondary);--u9:var(--highlight-secondary);" />
+            <use href="#arrow-y-2-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-yp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight);--f2:var(--highlight);--f3:var(--highlight);--f4:var(--highlight);--f5:var(--highlight);--f6:var(--highlight);--f7:var(--highlight);--f8:var(--highlight);--f9:var(--highlight);--r1:var(--highlight);--r2:var(--highlight);--r3:var(--highlight);--r4:var(--highlight);--r5:var(--highlight);--r6:var(--highlight);--r7:var(--highlight);--r8:var(--highlight);--r9:var(--highlight);--u1:var(--highlight-secondary);--u2:var(--highlight-secondary);--u3:var(--highlight-secondary);--u4:var(--highlight-secondary);--u5:var(--highlight-secondary);--u6:var(--highlight-secondary);--u7:var(--highlight-secondary);--u8:var(--highlight-secondary);--u9:var(--highlight-secondary);" />
+            <use href="#arrow-y-2-ccw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-z" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight-secondary);--f2:var(--highlight-secondary);--f3:var(--highlight-secondary);--f4:var(--highlight-secondary);--f5:var(--highlight-secondary);--f6:var(--highlight-secondary);--f7:var(--highlight-secondary);--f8:var(--highlight-secondary);--f9:var(--highlight-secondary);--r1:var(--highlight);--r2:var(--highlight);--r3:var(--highlight);--r4:var(--highlight);--r5:var(--highlight);--r6:var(--highlight);--r7:var(--highlight);--r8:var(--highlight);--r9:var(--highlight);--u1:var(--highlight);--u2:var(--highlight);--u3:var(--highlight);--u4:var(--highlight);--u5:var(--highlight);--u6:var(--highlight);--u7:var(--highlight);--u8:var(--highlight);--u9:var(--highlight);" />
+            <use href="#arrow-z-0-cw" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-z2" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight-secondary);--f2:var(--highlight-secondary);--f3:var(--highlight-secondary);--f4:var(--highlight-secondary);--f5:var(--highlight-secondary);--f6:var(--highlight-secondary);--f7:var(--highlight-secondary);--f8:var(--highlight-secondary);--f9:var(--highlight-secondary);--r1:var(--highlight);--r2:var(--highlight);--r3:var(--highlight);--r4:var(--highlight);--r5:var(--highlight);--r6:var(--highlight);--r7:var(--highlight);--r8:var(--highlight);--r9:var(--highlight);--u1:var(--highlight);--u2:var(--highlight);--u3:var(--highlight);--u4:var(--highlight);--u5:var(--highlight);--u6:var(--highlight);--u7:var(--highlight);--u8:var(--highlight);--u9:var(--highlight);" />
+            <use href="#arrow-z-0-180" />
+        </g>
+    </symbol>
+    <symbol id="move-icon-zp" viewBox="0 0 200 180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="200" height="180" fill="var(--bg)" stroke="none" />
+
+        <g transform="translate(100, 85)">
+            <use href="#cube" style="--f1:var(--highlight-secondary);--f2:var(--highlight-secondary);--f3:var(--highlight-secondary);--f4:var(--highlight-secondary);--f5:var(--highlight-secondary);--f6:var(--highlight-secondary);--f7:var(--highlight-secondary);--f8:var(--highlight-secondary);--f9:var(--highlight-secondary);--r1:var(--highlight);--r2:var(--highlight);--r3:var(--highlight);--r4:var(--highlight);--r5:var(--highlight);--r6:var(--highlight);--r7:var(--highlight);--r8:var(--highlight);--r9:var(--highlight);--u1:var(--highlight);--u2:var(--highlight);--u3:var(--highlight);--u4:var(--highlight);--u5:var(--highlight);--u6:var(--highlight);--u7:var(--highlight);--u8:var(--highlight);--u9:var(--highlight);" />
+            <use href="#arrow-z-0-ccw" />
+        </g>
+    </symbol>
+</svg>

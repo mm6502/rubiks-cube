@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="20 0 360 350"
+  preserveAspectRatio="xMidYMid meet"
+  role="img"
+  aria-labelledby="title desc"
+  width="100%"
+  height="100%"
+  style="max-width:100%; max-height:100%; display:block;"
+>
+  <desc id="desc">
+    Three interleaved sets of concentric circles representing X, Y, and Z axes.
+    Each set has three rings for layer indices 0, 1, 2. The three centers form an isosceles triangle,
+    and circle intersections create slanted-square (diamond-like) regions.
+  </desc>
+
+  <defs>
+    <style>
+      /* Theme-friendly: inherits text/stroke color from surrounding CSS */
+      .stroke { stroke: currentColor; fill: none; vector-effect: non-scaling-stroke; }
+
+      .axisLabelRect { fill: currentColor; stroke: currentColor; stroke-width: 0.5; opacity: 0.0; }
+      .axisLabel { fill: currentColor; font: 10px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+      .axisX { stroke-width: 1.5; opacity: 0.66; }
+      .axisY { stroke-width: 1.5; opacity: 0.66; }
+      .axisZ { stroke-width: 1.5; opacity: 0.66; }
+
+      .faceLabel { fill: currentColor; font: 12px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-weight: 700; opacity: 0.9; }
+      .faceEllipse { fill: currentColor; stroke: currentColor; stroke-width: 1.5; opacity: 0.2; }
+
+      .sticker-wrapper {
+        filter:
+          drop-shadow(2px 2px 1.25px rgba(0,0,0,0.8))
+          drop-shadow(-0.5px -0.5px 0.66px rgba(0,0,0,0.3));
+      }
+      .sticker {
+        stroke: black; stroke-width: 0.8;
+        cursor: grab; pointer-events: visiblePainted;
+        /* will-change promotes stickers to their own compositing layer for smoother WAAPI animations. */
+        will-change: transform;
+      }
+    </style>
+
+    <mask id="label-mask">
+      <rect x="0" y="0" width="400" height="340" fill="white" />
+      <!-- Z label holes (on circles, bottom-left) -->
+      <rect id="mask-z-0" x="53" y="261" width="20" height="16" fill="black" />
+      <rect id="mask-z-1" x="66" y="254" width="20" height="16" fill="black" />
+      <rect id="mask-z-2" x="79" y="246" width="20" height="16" fill="black" />
+      <!-- X label holes (on circles, bottom-right) -->
+      <rect id="mask-x-0" x="327" y="261" width="20" height="16" fill="black" />
+      <rect id="mask-x-1" x="314" y="254" width="20" height="16" fill="black" />
+      <rect id="mask-x-2" x="301" y="246" width="20" height="16" fill="black" />
+      <!-- Y label holes (on circles, top) -->
+      <rect id="mask-y-0" x="190" y="24" width="20" height="16" fill="black" />
+      <rect id="mask-y-1" x="190" y="39" width="20" height="16" fill="black" />
+      <rect id="mask-y-2" x="190" y="54" width="20" height="16" fill="black" />
+    </mask>
+  </defs>
+
+  <!-- Concentric rings (3 layers) -->
+  <g mask="url(#label-mask)">
+    <!-- Z axis set (bottom-left) -->
+    <g class="stroke axisZ" aria-label="Axis Z">
+      <circle id="Z-layer-0" data-axis="Z" data-layer-index="0" cx="150" cy="219" r="70" />
+      <circle id="Z-layer-1" data-axis="Z" data-layer-index="1" cx="150" cy="219" r="85" />
+      <circle id="Z-layer-2" data-axis="Z" data-layer-index="2" cx="150" cy="219" r="100" />
+    </g>
+
+    <!-- X axis set (bottom-right) -->
+    <g class="stroke axisX" aria-label="Axis X">
+      <circle id="X-layer-2" data-axis="X" data-layer-index="2" cx="250" cy="219" r="70" />
+      <circle id="X-layer-1" data-axis="X" data-layer-index="1" cx="250" cy="219" r="85" />
+      <circle id="X-layer-0" data-axis="X" data-layer-index="0" cx="250" cy="219" r="100" />
+    </g>
+
+    <!-- Y axis set (top) -->
+    <g class="stroke axisY" aria-label="Axis Y">
+      <circle id="Y-layer-2" data-axis="Y" data-layer-index="2" cx="200" cy="132" r="70" />
+      <circle id="Y-layer-1" data-axis="Y" data-layer-index="1" cx="200" cy="132" r="85" />
+      <circle id="Y-layer-0" data-axis="Y" data-layer-index="0" cx="200" cy="132" r="100" />
+    </g>
+  </g>
+
+  <!-- Labels: axis + layer index per ring -->
+  <g class="axisLabel" aria-hidden="true">
+    <!-- Z labels (on circles, bottom-left) -->
+    <g data-label-id="z-0" transform="translate(53, 261)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">B↺</text>
+      <title>[z:2] B move rotates this circle counter-clockwise.</title>
+    </g>
+    <g data-label-id="z-1" transform="translate(66, 254)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">S↻</text>
+      <title>[z:1] S move rotates this circle clockwise. (follows F)</title>
+    </g>
+    <g data-label-id="z-2" transform="translate(79, 246)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">F↻</text>
+      <title>[z:0] F move rotates this circle clockwise.</title>
+    </g>
+
+    <!-- Y labels (on circles, top) -->
+    <g data-label-id="y-0" transform="translate(190, 24)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">D↺</text>
+      <title>[y:0] D move rotates this circle counter-clockwise.</title>
+    </g>
+    <g data-label-id="y-1" transform="translate(190, 39)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">E↺</text>
+      <title>[y:1] E move rotates this circle counter-clockwise. (follows D)</title>
+    </g>
+    <g data-label-id="y-2" transform="translate(190, 54)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">U↻</text>
+      <title>[y:2] U move rotates this circle clockwise.</title>
+    </g>
+
+    <!-- X labels (on circles, bottom-right) -->
+    <g data-label-id="x-0" transform="translate(327, 261)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">L↺</text>
+      <title>[x:0] L move rotates this circle counter-clockwise.</title>
+    </g>
+    <g data-label-id="x-1" transform="translate(314, 254)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">M↺</text>
+      <title>[x:1] M move rotates this circle counter-clockwise. (follows L)</title>
+    </g>
+    <g data-label-id="x-2" transform="translate(301, 246)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">R↻</text>
+      <title>[x:2] R move rotates this circle clockwise.</title>
+    </g>
+  </g>
+
+  <!-- Cube face labels positioned outside ellipses -->
+  <g class="faceLabel" aria-hidden="true">
+    <!-- Top center is U face -->
+    <text x="200" y="115" text-anchor="middle" dominant-baseline="middle">U</text>
+    <!-- Bottom center is D face -->
+    <text x="200" y="326" text-anchor="middle" dominant-baseline="middle">D</text>
+
+    <!-- Left is L face / Right is B face -->
+    <text x="85" y="120" text-anchor="middle" dominant-baseline="middle">L</text>
+    <text x="315" y="120" text-anchor="middle" dominant-baseline="middle">B</text>
+
+    <!-- Bottom-left is F face / Bottom-right is R face -->
+    <text x="133" y="228" text-anchor="middle" dominant-baseline="middle">F</text>
+    <text x="267" y="228" text-anchor="middle" dominant-baseline="middle">R</text>
+  </g>
+
+  <!-- Face Ellipses -->
+  <g class="faceEllipse">
+    <ellipse id="U-face-ellipse" cx="200" cy="150.26" rx="40" ry="33" />
+    <ellipse id="D-face-ellipse" cx="200" cy="287.74" rx="40" ry="33" />
+    <ellipse id="L-face-ellipse" cx="115.51" cy="141.31" rx="40" ry="33" transform="rotate(-60 115.51 141.31)" />
+    <ellipse id="B-face-ellipse" cx="284.49" cy="141.31" rx="40" ry="33" transform="rotate(60 284.49 141.31)" />
+    <ellipse id="F-face-ellipse" cx="165.51" cy="209.69" rx="40" ry="33" transform="rotate(60 165.51 209.69)" />
+    <ellipse id="R-face-ellipse" cx="234.49" cy="209.69" rx="40" ry="33" transform="rotate(-60 234.49 209.69)" />
+  </g>
+
+  <!-- Intersection Stickers -->
+  <!-- Stickers are individually addressable via data-face and data-pos (0..8). Each sticker is wrapped in a .sticker-group for transform/animation. The initial fill matches the face color so the static image looks correct until JS updates colors dynamically. -->
+  <!-- Face U -->
+  <g class="face-face sticker-wrapper" data-face="U" aria-label="Face U">
+    <circle data-face="U" data-pos="0" id="sticker-U-0" class="sticker" cx="200.00" cy="132.40" r="7" fill="#ffffff" />
+    <circle data-face="U" data-pos="1" id="sticker-U-1" class="sticker" cx="186.13" cy="142.06" r="7" fill="#ffffff" />
+    <circle data-face="U" data-pos="2" id="sticker-U-2" class="sticker" cx="174.50" cy="153.43" r="7" fill="#ffffff" />
+    <circle data-face="U" data-pos="3" id="sticker-U-3" class="sticker" cx="213.88" cy="142.06" r="7" fill="#ffffff" />
+    <circle data-face="U" data-pos="4" id="sticker-U-4" class="sticker" cx="200.00" cy="150.26" r="7" fill="#ffffff" />
+    <circle data-face="U" data-pos="5" id="sticker-U-5" class="sticker" cx="188.38" cy="160.46" r="7" fill="#ffffff" />
+    <circle data-face="U" data-pos="6" id="sticker-U-6" class="sticker" cx="225.50" cy="153.43" r="7" fill="#ffffff" />
+    <circle data-face="U" data-pos="7" id="sticker-U-7" class="sticker" cx="211.63" cy="160.46" r="7" fill="#ffffff" />
+    <circle data-face="U" data-pos="8" id="sticker-U-8" class="sticker" cx="200.00" cy="170.01" r="7" fill="#ffffff" />
+  </g>
+  <!-- Face D -->
+  <g class="face-face sticker-wrapper" data-face="D" aria-label="Face D">
+    <circle data-face="D" data-pos="0" id="sticker-D-0" class="sticker" cx="200.00" cy="305.60" r="7" fill="#ffd500" />
+    <circle data-face="D" data-pos="1" id="sticker-D-1" class="sticker" cx="186.13" cy="295.94" r="7" fill="#ffd500" />
+    <circle data-face="D" data-pos="2" id="sticker-D-2" class="sticker" cx="174.50" cy="284.57" r="7" fill="#ffd500" />
+    <circle data-face="D" data-pos="3" id="sticker-D-3" class="sticker" cx="213.88" cy="295.94" r="7" fill="#ffd500" />
+    <circle data-face="D" data-pos="4" id="sticker-D-4" class="sticker" cx="200.00" cy="287.74" r="7" fill="#ffd500" />
+    <circle data-face="D" data-pos="5" id="sticker-D-5" class="sticker" cx="188.38" cy="277.54" r="7" fill="#ffd500" />
+    <circle data-face="D" data-pos="6" id="sticker-D-6" class="sticker" cx="225.50" cy="284.57" r="7" fill="#ffd500" />
+    <circle data-face="D" data-pos="7" id="sticker-D-7" class="sticker" cx="211.63" cy="277.54" r="7" fill="#ffd500" />
+    <circle data-face="D" data-pos="8" id="sticker-D-8" class="sticker" cx="200.00" cy="267.99" r="7" fill="#ffd500" />
+  </g>
+  <!-- Face L -->
+  <g class="face-face sticker-wrapper" data-face="L" aria-label="Face L">
+    <circle data-face="L" data-pos="0" id="sticker-L-0" class="sticker" cx="100.00" cy="132.40" r="7" fill="#009b48" />
+    <circle data-face="L" data-pos="1" id="sticker-L-1" class="sticker" cx="101.49" cy="149.20" r="7" fill="#009b48" />
+    <circle data-face="L" data-pos="2" id="sticker-L-2" class="sticker" cx="105.57" cy="164.91" r="7" fill="#009b48" />
+    <circle data-face="L" data-pos="3" id="sticker-L-3" class="sticker" cx="115.27" cy="125.22" r="7" fill="#009b48" />
+    <circle data-face="L" data-pos="4" id="sticker-L-4" class="sticker" cx="115.51" cy="141.31" r="7" fill="#009b48" />
+    <circle data-face="L" data-pos="5" id="sticker-L-5" class="sticker" cx="118.59" cy="156.44" r="7" fill="#009b48" />
+    <circle data-face="L" data-pos="6" id="sticker-L-6" class="sticker" cx="130.90" cy="120.84" r="7" fill="#009b48" />
+    <circle data-face="L" data-pos="7" id="sticker-L-7" class="sticker" cx="130.14" cy="136.35" r="7" fill="#009b48" />
+    <circle data-face="L" data-pos="8" id="sticker-L-8" class="sticker" cx="132.68" cy="151.18" r="7" fill="#009b48" />
+  </g>
+  <!-- Face R -->
+  <g class="face-face sticker-wrapper" data-face="R" aria-label="Face R">
+    <circle data-face="R" data-pos="0" id="sticker-R-0" class="sticker" cx="250.00" cy="218.60" r="7" fill="#0046ad" />
+    <circle data-face="R" data-pos="1" id="sticker-R-1" class="sticker" cx="234.73" cy="225.78" r="7" fill="#0046ad" />
+    <circle data-face="R" data-pos="2" id="sticker-R-2" class="sticker" cx="219.10" cy="230.16" r="7" fill="#0046ad" />
+    <circle data-face="R" data-pos="3" id="sticker-R-3" class="sticker" cx="248.51" cy="201.80" r="7" fill="#0046ad" />
+    <circle data-face="R" data-pos="4" id="sticker-R-4" class="sticker" cx="234.49" cy="209.69" r="7" fill="#0046ad" />
+    <circle data-face="R" data-pos="5" id="sticker-R-5" class="sticker" cx="219.86" cy="214.65" r="7" fill="#0046ad" />
+    <circle data-face="R" data-pos="6" id="sticker-R-6" class="sticker" cx="244.43" cy="186.09" r="7" fill="#0046ad" />
+    <circle data-face="R" data-pos="7" id="sticker-R-7" class="sticker" cx="231.41" cy="194.56" r="7" fill="#0046ad" />
+    <circle data-face="R" data-pos="8" id="sticker-R-8" class="sticker" cx="217.32" cy="199.82" r="7" fill="#0046ad" />
+  </g>
+  <!-- Face B -->
+  <g class="face-face sticker-wrapper" data-face="B" aria-label="Face B">
+    <circle data-face="B" data-pos="0" id="sticker-B-0" class="sticker" cx="300.00" cy="132.40" r="7" fill="#ff5800" />
+    <circle data-face="B" data-pos="1" id="sticker-B-1" class="sticker" cx="284.73" cy="125.22" r="7" fill="#ff5800" />
+    <circle data-face="B" data-pos="2" id="sticker-B-2" class="sticker" cx="269.10" cy="120.84" r="7" fill="#ff5800" />
+    <circle data-face="B" data-pos="3" id="sticker-B-3" class="sticker" cx="298.51" cy="149.20" r="7" fill="#ff5800" />
+    <circle data-face="B" data-pos="4" id="sticker-B-4" class="sticker" cx="284.49" cy="141.31" r="7" fill="#ff5800" />
+    <circle data-face="B" data-pos="5" id="sticker-B-5" class="sticker" cx="269.86" cy="136.35" r="7" fill="#ff5800" />
+    <circle data-face="B" data-pos="6" id="sticker-B-6" class="sticker" cx="294.43" cy="164.91" r="7" fill="#ff5800" />
+    <circle data-face="B" data-pos="7" id="sticker-B-7" class="sticker" cx="281.41" cy="156.44" r="7" fill="#ff5800" />
+    <circle data-face="B" data-pos="8" id="sticker-B-8" class="sticker" cx="267.32" cy="151.18" r="7" fill="#ff5800" />
+  </g>
+  <!-- Face F -->
+  <g class="face-face sticker-wrapper" data-face="F" aria-label="Face F">
+    <circle data-face="F" data-pos="0" id="sticker-F-0" class="sticker" cx="150.00" cy="218.60" r="7" fill="#b71234" />
+    <circle data-face="F" data-pos="1" id="sticker-F-1" class="sticker" cx="151.49" cy="201.80" r="7" fill="#b71234" />
+    <circle data-face="F" data-pos="2" id="sticker-F-2" class="sticker" cx="155.57" cy="186.09" r="7" fill="#b71234" />
+    <circle data-face="F" data-pos="3" id="sticker-F-3" class="sticker" cx="165.27" cy="225.78" r="7" fill="#b71234" />
+    <circle data-face="F" data-pos="4" id="sticker-F-4" class="sticker" cx="165.51" cy="209.69" r="7" fill="#b71234" />
+    <circle data-face="F" data-pos="5" id="sticker-F-5" class="sticker" cx="168.59" cy="194.56" r="7" fill="#b71234" />
+    <circle data-face="F" data-pos="6" id="sticker-F-6" class="sticker" cx="180.90" cy="230.16" r="7" fill="#b71234" />
+    <circle data-face="F" data-pos="7" id="sticker-F-7" class="sticker" cx="180.14" cy="214.65" r="7" fill="#b71234" />
+    <circle data-face="F" data-pos="8" id="sticker-F-8" class="sticker" cx="182.68" cy="199.82" r="7" fill="#b71234" />
+  </g>
+</svg>

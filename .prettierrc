@@ -1,0 +1,35 @@
+{
+    "semi": true,
+    "trailingComma": "es5",
+    "singleQuote": true,
+    "endOfLine": "lf",
+    "printWidth": 100,
+    "tabWidth": 4,
+    "useTabs": false,
+    "arrowParens": "avoid",
+    "bracketSpacing": true,
+    "overrides": [
+        {
+            "files": "*.md",
+            "options": {
+                "tabWidth": 2,
+                "proseWrap": "never"
+            }
+        }
+    ],
+    "plugins": [
+        "prettier-plugin-organize-imports",
+        "@trivago/prettier-plugin-sort-imports"
+    ],
+    "importOrder": [
+        "<BUILTIN_MODULES>",
+        "^vi|vitest$",
+        "<THIRD_PARTY_MODULES>",
+        "^@/.*$",
+        "^@/cube/.*$",
+        "^[./]"
+    ],
+    "importOrderSeparation": true,
+    "importOrderSortSpecifiers": true,
+    "importOrderGroupNamespaceSpecifiers": true
+}

@@ -1,0 +1,107 @@
+.backdrop {
+    position: fixed;
+    inset: 0;
+    background: var(--color-shadow-backdrop);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+    padding: 16px;
+}
+
+.backdrop.hidden {
+    display: none;
+}
+
+.dialog {
+    background: var(--color-canvas-bg);
+    color: var(--color-controls-panel-text);
+    border-radius: 12px;
+    padding: 28px 28px 24px;
+    max-width: 420px;
+    width: 100%;
+    box-shadow:
+        0 0 0 3px var(--color-border-strong),
+        0 8px 32px var(--color-shadow-secondary);
+    position: relative;
+    border: none;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-controls-panel-text);
+}
+
+.closeButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    cursor: pointer;
+    color: var(--color-controls-panel-text);
+    opacity: 0.7;
+    transition:
+        opacity 0.15s,
+        background 0.15s;
+    padding: 0;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.closeButton:hover {
+    opacity: 1;
+    background: var(--color-controls-panel-bg-hover);
+}
+
+.description {
+    margin: 0 0 20px;
+    line-height: 1.6;
+    opacity: 0.85;
+    font-size: 0.9rem;
+}
+
+.links {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-border-strong);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: opacity 0.15s;
+}
+
+.link:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
+.license {
+    font-size: 0.8rem;
+    opacity: 0.55;
+    margin: 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-controls-panel-section-border);
+}

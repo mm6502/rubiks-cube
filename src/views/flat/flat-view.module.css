@@ -1,0 +1,208 @@
+/* Flat T-shaped Cube View Styles */
+
+/* Highlight Colors */
+:root {
+    --highlight-hover: var(--color-domain-sticker-hover);
+    --highlight-hover-box: var(--color-domain-sticker-hover);
+    --highlight-selected: var(--color-domain-sticker-selected);
+    --highlight-selected-box: var(--color-domain-sticker-selected-box);
+
+    /* View-specific tokens (moved out of global tokens.css) */
+    --color-flat-face-bg: var(--color-domain-cube-interior);
+    --color-flat-sticker-border: var(--color-domain-sticker-border);
+    --color-flat-legend-text: var(--color-domain-face-label);
+    --color-flat-legend-border: var(--color-domain-face-label-border);
+}
+
+.flat-container {
+    font-weight: 600;
+    font-size: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* Absolutely fill the view-content area (position: relative) so that
+       centering always has a definite, stable height — no dependency on
+       percentage-height resolution through flex-auto parents. */
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    touch-action: none;
+}
+
+.flat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 8px;
+    width: 400px;
+    height: 300px;
+    /* Use static positioning; the parent flex container handles centering. */
+    position: relative;
+    flex-shrink: 0;
+    transform-origin: center;
+    z-index: 1;
+}
+
+.flat-cell {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 0; /* Allow shrinking */
+}
+
+.flat-face {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-width: 40px;
+    min-height: 40px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px;
+    border: 3px solid var(--color-domain-cube-interior);
+    background-color: var(--color-flat-face-bg);
+    border-radius: 5px;
+    aspect-ratio: 1; /* Keep faces square */
+    filter: drop-shadow(0 0 10px var(--color-domain-cube-glow))
+        drop-shadow(0 0 5px var(--color-domain-cube-glow));
+}
+
+.flat-sticker {
+    background-color: var(--color-domain-sticker-border);
+    border: 2px solid var(--color-flat-sticker-border);
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    cursor: grab;
+    min-width: 8px;
+    min-height: 8px;
+    forced-color-adjust: none;
+    color-scheme: only light;
+}
+
+.flat-sticker:hover {
+    filter: brightness(1.1);
+    transform: scale(1.05);
+}
+
+.flat-sticker.highlighted,
+.highlighted {
+    border: 3px solid var(--highlight-hover);
+    background-color: var(--highlight-hover);
+    box-shadow: 0 0 8px var(--highlight-hover-box);
+}
+
+.flat-sticker.selected {
+    border: 4px solid var(--highlight-selected);
+    box-shadow: 0 0 10px var(--highlight-selected-box);
+}
+
+.face-selected {
+    filter: saturate(1.1) brightness(1.03);
+}
+
+.flat-sticker.face-selected {
+    border-color: var(--color-domain-face-selected);
+    box-shadow: inset 0 0 0 2px var(--color-domain-face-selected-glow);
+}
+
+.flat-halo {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: none;
+    background: radial-gradient(
+        circle closest-side,
+        transparent calc(100% - var(--flat-halo-ring-width, 0px)),
+        var(--color-drag-halo-fill) calc(100% - var(--flat-halo-ring-width, 0px)),
+        var(--color-drag-halo-fill) calc(100% - 1px),
+        var(--color-drag-halo-stroke) calc(100% - 1px),
+        var(--color-drag-halo-stroke) 100%,
+        transparent 100%
+    );
+    pointer-events: none;
+    z-index: 15;
+}
+
+.flat-halo-hit-target {
+    position: absolute;
+    background: transparent;
+    pointer-events: auto;
+    cursor: grab;
+    z-index: 14;
+}
+
+.flat-halo-cancel-zone {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 50%;
+    background: var(--color-drag-halo-zone-fill);
+    border: 2px dashed var(--color-drag-halo-zone-stroke);
+    pointer-events: none;
+    z-index: 16;
+}
+
+.flat-drag-label {
+    position: absolute;
+    padding: 4px 8px;
+    width: var(--size-tooltip-graphical-width);
+    text-align: center;
+    border-radius: 999px;
+    border: 2px solid var(--color-tooltip-border);
+    background: var(--color-tooltip-bg);
+    color: var(--color-tooltip-text);
+    font-size: var(--size-tooltip-graphical-font);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    z-index: 20;
+}
+
+/* Legend */
+.flat-legend {
+    position: absolute;
+    /* float in the top-right corner regardless of grid scale */
+    top: 8px;
+    right: 8px;
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--color-flat-legend-text);
+    z-index: 10;
+    cursor: grab;
+    user-select: none;
+}
+
+.legend-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.legend-row span {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    font-weight: bold;
+    margin: 1px 1px;
+    user-select: none;
+    cursor: grab;
+}
+
+.legend-row span:not(:empty) {
+    border-radius: 3px;
+    border: var(--color-flat-legend-border) solid 1px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .flat-container {
+        padding: 5px;
+    }
+
+    .flat-grid {
+        gap: 4px;
+    }
+}

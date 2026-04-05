@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="50 30 300 325"
+  width="300"
+  height="325"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">Rubik cube state – concentric axes concept</title>
+  <desc id="desc">
+    Three interleaved sets of concentric circles representing X, Y, and Z axes.
+    Each set has three rings for layer indices 0, 1, 2. The three centers form an isosceles triangle,
+    and circle intersections create slanted-square (diamond-like) regions.
+  </desc>
+
+  <defs>
+    <style>
+      /* Theme-friendly: inherits text/stroke color from surrounding CSS */
+      .stroke { stroke: currentColor; fill: none; vector-effect: non-scaling-stroke; }
+      .label { fill: currentColor; font: 12px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+      .faceLabel { fill: currentColor; font: 16px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-weight: 700; opacity: 0.9; }
+      .subtle { opacity: 0.35; }
+      .axisX { stroke-width: 2.25; opacity: 0.75; }
+      .axisY { stroke-width: 2.25; opacity: 0.75; }
+      .axisZ { stroke-width: 2.25; opacity: 0.75; }
+      .guide { stroke-width: 1.5; opacity: 0.25; }
+      .center { fill: currentColor; opacity: 0.7; }
+      .labelRect { fill: white; stroke: currentColor; stroke-width: 0.5; opacity: 0.1; }
+      .sticker { r: 7; stroke: black; stroke-width: 1; }
+    </style>
+    <mask id="label-mask">
+      <rect x="0" y="0" width="400" height="340" fill="white" />
+      <!-- X label holes (120 deg left from top) -->
+      <rect x="58" y="272" width="20" height="16" fill="black" />
+      <rect x="71" y="264" width="20" height="16" fill="black" />
+      <rect x="84" y="257" width="20" height="16" fill="black" />
+      <!-- Y label holes (120 deg right from top) -->
+      <rect x="322" y="272" width="20" height="16" fill="black" />
+      <rect x="309" y="264" width="20" height="16" fill="black" />
+      <rect x="296" y="257" width="20" height="16" fill="black" />
+      <!-- Z label holes -->
+      <rect x="190" y="37" width="20" height="16" fill="black" />
+      <rect x="190" y="52" width="20" height="16" fill="black" />
+      <rect x="190" y="67" width="20" height="16" fill="black" />
+    </mask>
+  </defs>
+
+  <!-- Concentric rings (3 layers) -->
+  <g mask="url(#label-mask)">
+    <!-- X axis set (bottom-left) -->
+    <g class="stroke axisX" aria-label="Axis X">
+      <circle cx="155" cy="230" r="70" />
+      <circle cx="155" cy="230" r="85" />
+      <circle cx="155" cy="230" r="100" />
+    </g>
+
+    <!-- Y axis set (bottom-right) -->
+    <g class="stroke axisY" aria-label="Axis Y">
+      <circle cx="245" cy="230" r="70" />
+      <circle cx="245" cy="230" r="85" />
+      <circle cx="245" cy="230" r="100" />
+    </g>
+
+    <!-- Z axis set (top) -->
+    <g class="stroke axisZ" aria-label="Axis Z">
+      <circle cx="200" cy="145" r="70" />
+      <circle cx="200" cy="145" r="85" />
+      <circle cx="200" cy="145" r="100" />
+    </g>
+  </g>
+
+  <!-- Labels: axis + layer index per ring -->
+  <g class="label" aria-hidden="true">
+    <!-- Z labels -->
+    <g transform="translate(58, 272)">
+      <rect class="labelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">2z</text>
+    </g>
+    <g transform="translate(71, 264)">
+      <rect class="labelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">1z</text>
+    </g>
+    <g transform="translate(84, 257)">
+      <rect class="labelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">0z</text>
+    </g>
+
+    <!-- Y labels -->
+    <g transform="translate(190, 37)">
+      <rect class="labelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">0y</text>
+    </g>
+    <g transform="translate(190, 52)">
+      <rect class="labelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">1y</text>
+    </g>
+    <g transform="translate(190, 67)">
+      <rect class="labelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">2y</text>
+    </g>
+
+    <!-- Z labels -->
+    <g transform="translate(322, 272)">
+      <rect class="labelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">0z</text>
+    </g>
+    <g transform="translate(309, 264)">
+      <rect class="labelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">1z</text>
+    </g>
+    <g transform="translate(296, 257)">
+      <rect class="labelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">2z</text>
+    </g>
+  </g>
+
+  <!-- Intersection Stickers -->
+  <!-- Face U -->
+  <g fill="white">
+    <circle class="sticker" cx="200.00" cy="176.38" />
+    <circle class="sticker" cx="187.08" cy="167.79" />
+    <circle class="sticker" cx="171.67" cy="162.01" />
+    <circle class="sticker" cx="212.92" cy="167.79" />
+    <circle class="sticker" cx="200.00" cy="157.89" />
+    <circle class="sticker" cx="184.58" cy="150.31" />
+    <circle class="sticker" cx="228.33" cy="162.01" />
+    <circle class="sticker" cx="215.42" cy="150.31" />
+    <circle class="sticker" cx="200.00" cy="140.70" />
+  </g>
+  <!-- Face D -->
+  <g fill="yellow">
+    <circle class="sticker" cx="200.00" cy="283.62" />
+    <circle class="sticker" cx="187.08" cy="292.21" />
+    <circle class="sticker" cx="171.67" cy="297.99" />
+    <circle class="sticker" cx="212.92" cy="292.21" />
+    <circle class="sticker" cx="200.00" cy="302.11" />
+    <circle class="sticker" cx="184.58" cy="309.69" />
+    <circle class="sticker" cx="228.33" cy="297.99" />
+    <circle class="sticker" cx="215.42" cy="309.69" />
+    <circle class="sticker" cx="200.00" cy="319.30" />
+  </g>
+  <!-- Face L -->
+  <g fill="#009b48">
+    <circle class="sticker" cx="132.54" cy="163.70" />
+    <circle class="sticker" cx="118.79" cy="170.09" />
+    <circle class="sticker" cx="106.24" cy="179.77" />
+    <circle class="sticker" cx="130.10" cy="148.73" />
+    <circle class="sticker" cx="115.56" cy="154.71" />
+    <circle class="sticker" cx="101.77" cy="163.73" />
+    <circle class="sticker" cx="131.05" cy="132.91" />
+    <circle class="sticker" cx="115.27" cy="138.23" />
+    <circle class="sticker" cx="100.01" cy="146.48" />
+  </g>
+  <!-- Face F -->
+  <g fill="#0046ad">
+    <circle class="sticker" cx="222.46" cy="211.30" />
+    <circle class="sticker" cx="224.90" cy="226.27" />
+    <circle class="sticker" cx="223.95" cy="242.09" />
+    <circle class="sticker" cx="236.21" cy="204.91" />
+    <circle class="sticker" cx="239.44" cy="220.29" />
+    <circle class="sticker" cx="239.73" cy="236.77" />
+    <circle class="sticker" cx="248.76" cy="195.23" />
+    <circle class="sticker" cx="253.23" cy="211.27" />
+    <circle class="sticker" cx="254.99" cy="228.52" />
+  </g>
+  <!-- Face B -->
+  <g fill="#ff5800">
+    <circle class="sticker" cx="267.46" cy="163.70" />
+    <circle class="sticker" cx="281.21" cy="170.09" />
+    <circle class="sticker" cx="293.76" cy="179.77" />
+    <circle class="sticker" cx="269.90" cy="148.73" />
+    <circle class="sticker" cx="284.44" cy="154.71" />
+    <circle class="sticker" cx="298.23" cy="163.73" />
+    <circle class="sticker" cx="268.95" cy="132.91" />
+    <circle class="sticker" cx="284.73" cy="138.23" />
+    <circle class="sticker" cx="299.99" cy="146.48" />
+  </g>
+  <!-- Face R -->
+  <g fill="#b71234">
+    <circle class="sticker" cx="177.54" cy="211.30" />
+    <circle class="sticker" cx="175.10" cy="226.27" />
+    <circle class="sticker" cx="176.05" cy="242.09" />
+    <circle class="sticker" cx="163.79" cy="204.91" />
+    <circle class="sticker" cx="160.56" cy="220.29" />
+    <circle class="sticker" cx="160.27" cy="236.77" />
+    <circle class="sticker" cx="151.24" cy="195.23" />
+    <circle class="sticker" cx="146.77" cy="211.27" />
+    <circle class="sticker" cx="145.01" cy="228.52" />
+  </g>
+
+  <!-- Cube face labels positioned at the main intersection groups -->
+  <g class="faceLabel" aria-hidden="true">
+    <!-- Middle-up group -->
+    <text x="200" y="125" text-anchor="middle" dominant-baseline="middle">U</text>
+    <!-- Middle-down group -->
+    <text x="200" y="340" text-anchor="middle" dominant-baseline="middle">D</text>
+
+    <!-- Top-left / Top-right groups -->
+    <text x="85" y="140" text-anchor="middle" dominant-baseline="middle">L</text>
+    <text x="315" y="140" text-anchor="middle" dominant-baseline="middle">B</text>
+
+    <!-- Remaining two: bottom-left / bottom-right -->
+    <text x="130" y="240" text-anchor="middle" dominant-baseline="middle">F</text>
+    <text x="270" y="240" text-anchor="middle" dominant-baseline="middle">R</text>
+  </g>
+</svg>

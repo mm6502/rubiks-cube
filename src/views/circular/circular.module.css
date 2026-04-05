@@ -1,0 +1,74 @@
+:root {
+    --highlight-hover: var(--color-domain-sticker-hover);
+    --highlight-hover-box: var(--color-domain-sticker-hover);
+    --highlight-selected: var(--color-domain-sticker-selected);
+    --highlight-selected-box: var(--color-domain-sticker-selected-box);
+}
+
+.highlighted {
+    transition-duration: 100ms !important;
+    stroke-width: 2 !important;
+    stroke: var(--highlight-hover) !important;
+    translate: -1.25px -1.25px;
+}
+
+.selected {
+    transition-duration: 100ms !important;
+    stroke-width: 2 !important;
+    stroke: var(--highlight-selected) !important;
+}
+
+.circular-halo {
+    fill: none;
+    stroke: var(--color-drag-halo-stroke);
+    stroke-width: 6;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 6px var(--color-drag-halo-shadow));
+}
+
+.circular-drag-label {
+    position: absolute;
+    padding: 4px 8px;
+    width: var(--size-tooltip-graphical-width);
+    text-align: center;
+    border-radius: 999px;
+    border: 1px solid var(--color-tooltip-border);
+    background: var(--color-tooltip-bg);
+    color: var(--color-tooltip-text);
+    font-size: var(--size-tooltip-graphical-font);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    z-index: 20;
+}
+
+.circular-face-overlay {
+    fill: transparent;
+    stroke: none;
+    cursor: grab;
+}
+
+.circular-axis-selected {
+    stroke: var(--highlight-selected) !important;
+    stroke-width: 2.5 !important;
+    stroke-dasharray: 5 3;
+}
+
+.circular-cancel-zone {
+    fill: var(--color-drag-halo-zone-fill);
+    stroke: var(--color-drag-halo-zone-stroke);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 3;
+    pointer-events: none;
+}
+
+.circular-drag-cross {
+    pointer-events: none;
+}
+
+.circular-drag-cross-arm {
+    stroke: var(--color-drag-halo-zone-stroke);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 7 5;
+}
