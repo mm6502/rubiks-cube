@@ -55,7 +55,7 @@ const postState = stateManager.getCurrentState();
 │                        Application                       │
 │                                                          │
 │  ┌────────────────────────────────────────────────────┐  │
-│  │                    CubeModel                       │  │
+│  │        CubeController (implements CubeModel)       │  │
 │  │  - Main controller and state coordinator           │  │
 │  │  - Integrates all core components                  │  │
 │  │  - Provides public API for views                   │  │
@@ -80,9 +80,17 @@ const postState = stateManager.getCurrentState();
 │                   │                                      │
 │  ┌────────────────▼───────────────────────────────────┐  │
 │  │                    Views                           │  │
-│  │  - BasicView (2D net)                              │  │
-│  │  - CircularView (circular arrangement)             │  │
-│  │  - FlatView (flat projection)                      │  │
+│  │  - BasicView (pseudo-3D net view)                  │  │
+│  │  - CircularView (concentric-ring SVG view)         │  │
+│  │  - FlatView (flat 2D projection)                   │  │
+│  │  - MovesView (move history list)                   │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │                  Interaction                       │  │
+│  │  - DragStateMachine (pointer event FSM)            │  │
+│  │  - MoveInference (drag gesture → move notation)    │  │
+│  │  - KeyboardMoves (keyboard shortcut → move)        │  │
 │  └────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -298,8 +306,9 @@ interface Sticker {
 
 // Complete cube state (pure logic, no geometry)
 interface CubeState {
-  cubies: Map<CubieId, Cubie>;
   cubeSize: number;
+  cubiesById: IMap<CubieId, Cubie>; // Immutable.js Map
+  cubiesByPosition: IMap<PositionKey, Cubie>; // Immutable.js Map
   timestamp: number;
 }
 ```
@@ -465,7 +474,7 @@ The architecture supports any cube size n ≥ 2:
 - More complex algorithms
 - Parity cases (future implementation)
 
-**Automatic Scaling**: All components automatically handle different sizes without code changes. With exception to views - at least for now, they are hardcoded for 3x3x3.
+**Automatic Scaling**: All core components automatically handle different sizes without code changes. Views are currently hardcoded for 3×3×3 (reading `cubeSize` from state is future-proofing only).
 
 ## Performance Characteristics
 

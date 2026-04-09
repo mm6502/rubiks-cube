@@ -1,29 +1,61 @@
 // Basic 3D Cube Visualization
 import { Application } from '@/application';
-import { CubeView, Face, LayoutMode, ReadOnlyCubeModel, Size2D, StickerId } from '@/cube/types';
+import {
+    CubeView,
+    Face,
+    LayoutMode,
+    ReadOnlyCubeModel,
+    Size2D,
+    StickerId,
+    Vector3,
+} from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
-import { Command, CommandCategory, EventName, MoveExecutedEvent } from '@/types';
+import {
+    inferKeyboardMove,
+    isFaceSelectKey,
+    isKeyboardMoveKey,
+    mapArrowToDirection,
+} from '@/interaction/keyboard-moves';
+import {
+    BasicViewRotationLinkedEvent,
+    Command,
+    CommandCategory,
+    EventName,
+    MoveExecutedEvent,
+    MoveRequestedEvent,
+    ViewRotation,
+} from '@/types';
 
 import * as initialization from './initialization';
 import * as navigation from './navigation';
 import * as rendering from './rendering';
 import * as selection from './selection';
 import styles from './basic-view.module.css';
+import { createBasicInteractionAdapter } from './interaction-adapter';
+import { isLinked, setLinked } from './linked-rotations';
+import { BasicTouchHandler } from './touch-handler';
 
 /**
  * Variant type for basic view (front or back).
  */
-export type BasicVariant = 'front' | 'back';
+export const BasicVariant = {
+    Front: 'front',
+    Back: 'back',
+} as const;
+
+export type BasicVariant = (typeof BasicVariant)[keyof typeof BasicVariant];
 
 /**
  * State persisted for the basic view.
  */
 export interface BasicViewState {
+    viewRight: Vector3;
+    viewUp: Vector3;
+    viewForward: Vector3;
     isTilted: boolean;
     isPitched: boolean;
-    yRotation: number;
-    xRotation: number;
-    zRotation: number;
+    faceDirectMode: boolean;
+    linked: boolean;
 }
 
 /**
@@ -39,24 +71,29 @@ export type BasicViewInternalData = {
     styles: Record<string, string>;
     variant: BasicVariant;
     viewType: string;
+    viewRight: Vector3;
+    viewUp: Vector3;
+    viewForward: Vector3;
     isTilted: boolean;
     isPitched: boolean;
-    yRotation: number;
-    xRotation: number;
-    zRotation: number;
     isHovered: boolean;
+    layoutMode: LayoutMode;
     currentSelected?: StickerId;
-    pendingMoveFace?: string;
+    selectedFace?: string;
+    selectedPosition?: number;
 };
 
 export class BasicView implements CubeView {
     private state: BasicViewInternalData;
-    private touchNoticeEl: HTMLElement | null = null;
+    private touchHandler: BasicTouchHandler | null = null;
+    private linkedRotationListener: ((e: BasicViewRotationLinkedEvent) => void) | null = null;
 
     constructor(config?: { viewType?: string }) {
         const viewType = config?.viewType === 'basic-back' ? 'basic-back' : 'basic-front';
-        const variant: BasicVariant = viewType === 'basic-back' ? 'back' : 'front';
+        const variant: BasicVariant =
+            viewType === 'basic-back' ? BasicVariant.Back : BasicVariant.Front;
 
+        const defaultVectors = navigation.getDefaultVectors(variant);
         this.state = {
             model: undefined,
             container: null,
@@ -65,14 +102,14 @@ export class BasicView implements CubeView {
             styles: styles as Record<string, string>,
             variant,
             viewType,
+            viewRight: defaultVectors.viewRight,
+            viewUp: defaultVectors.viewUp,
+            viewForward: defaultVectors.viewForward,
             isTilted: false,
             isPitched: false,
-            yRotation: 0,
-            xRotation: 0,
-            zRotation: 0,
             isHovered: false,
+            layoutMode: 'floating',
             currentSelected: undefined,
-            pendingMoveFace: undefined,
         };
     }
 
@@ -92,7 +129,8 @@ export class BasicView implements CubeView {
                 category: CommandCategory.VIEW,
                 showInHeader: true,
                 icon: '↩',
-                tooltip: 'Undo last move',
+                tooltip: 'Undo last move.',
+                keyBindings: [{ key: '[' }, { key: ',' }],
                 priority: 900,
                 action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
                 isEnabled: () => this.state.model?.getMoveHistory().canUndo() ?? false,
@@ -103,104 +141,22 @@ export class BasicView implements CubeView {
                 category: CommandCategory.VIEW,
                 showInHeader: true,
                 icon: '↪',
-                tooltip: 'Redo last undone move',
+                tooltip: 'Redo last undone move.',
+                keyBindings: [{ key: ']' }, { key: '.' }],
                 priority: 901,
                 action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
                 isEnabled: () => this.state.model?.getMoveHistory().canRedo() ?? false,
             },
             {
-                id: 'tilt-view',
-                label: 'Tilt View',
-                keyBindings: [{ key: '|' }, { key: '\\' }],
-                category: CommandCategory.VIEW,
-                group: '.',
-                icon: '↔',
-                showInHeader: true,
-                tooltip: 'Toggle view tilt (Y-axis: -35° ↔ 35°)',
-                action: () => {
-                    this.state.isTilted = !this.state.isTilted;
-                    rendering.updateRotation(this.state);
-                    rendering.updateFaceLabels(this.state);
-                    this.emitStateChanged();
-                },
-            },
-            {
-                id: 'pitch-view',
-                label: 'Pitch View',
-                keyBindings: [{ key: 'PageUp' }, { key: 'PageDown' }],
-                category: CommandCategory.VIEW,
-                group: '.',
-                icon: '↕',
-                showInHeader: true,
-                tooltip: 'Toggle view pitch (X-axis: -25° ↔ 25°)',
-                action: () => {
-                    this.state.isPitched = !this.state.isPitched;
-                    rendering.updateRotation(this.state);
-                    rendering.updateFaceLabels(this.state);
-                    this.emitStateChanged();
-                },
-            },
-            {
-                id: 'rotate-view-left',
-                label: 'Rotate View Left',
-                keyBindings: [{ key: 'ArrowLeft', ctrlKey: true }],
-                category: CommandCategory.VIEW,
-                group: '.',
-                icon: '←',
-                tooltip: 'Rotate cube view left',
-                action: () => {
-                    this.rotateViewLeft();
-                    this.emitStateChanged();
-                },
-            },
-            {
-                id: 'rotate-view-right',
-                label: 'Rotate View Right',
-                keyBindings: [{ key: 'ArrowRight', ctrlKey: true }],
-                category: CommandCategory.VIEW,
-                group: '.',
-                icon: '→',
-                tooltip: 'Rotate cube view right',
-                action: () => {
-                    this.rotateViewRight();
-                    this.emitStateChanged();
-                },
-            },
-            {
-                id: 'rotate-view-up',
-                label: 'Rotate View Up',
-                keyBindings: [{ key: 'ArrowUp', ctrlKey: true }],
-                category: CommandCategory.VIEW,
-                group: '.',
-                icon: '↑',
-                tooltip: 'Rotate cube view up',
-                action: () => {
-                    this.rotateViewUp();
-                    this.emitStateChanged();
-                },
-            },
-            {
-                id: 'rotate-view-down',
-                label: 'Rotate View Down',
-                keyBindings: [{ key: 'ArrowDown', ctrlKey: true }],
-                category: CommandCategory.VIEW,
-                group: '.',
-                icon: '↓',
-                tooltip: 'Rotate cube view down',
-                action: () => {
-                    this.rotateViewDown();
-                    this.emitStateChanged();
-                },
-            },
-            {
                 id: 'reset-view',
                 label: 'Reset View',
                 keyBindings: [{ key: 'Home' }],
+                priority: 801,
                 category: CommandCategory.VIEW,
                 group: '.',
                 icon: '↻',
                 showInHeader: true,
-                tooltip: 'Reset all view rotations to default position',
+                tooltip: 'Reset all view rotations to default position.',
                 action: () => {
                     this.resetView();
                     this.emitStateChanged();
@@ -215,14 +171,164 @@ export class BasicView implements CubeView {
                     { key: 'Enter' },
                     { key: 'NumpadEnter' },
                 ],
+                priority: 800,
                 category: CommandCategory.VIEW,
                 group: '.',
                 icon: '=',
                 showInHeader: true,
-                tooltip: 'Rotate the cube to match the current view orientation',
+                tooltip: 'Rotate the cube to match the current view orientation.',
                 action: () => {
                     this.alignCubeToView();
                     this.emitStateChanged();
+                },
+            },
+            {
+                id: `${this.getViewType()}.face-direct-mode`,
+                label: 'Face Mode',
+                category: CommandCategory.VIEW,
+                group: '.',
+                icon: '◎',
+                showInHeader: true,
+                keyBindings: [{ key: '2', ctrlKey: true }],
+                priority: 700,
+                tooltip:
+                    'Drag any sticker to rotate its face immediately (no pre-selection needed).',
+                isActive: () => this.touchHandler?.isFaceDirectMode() ?? false,
+                action: () => {
+                    if (this.touchHandler) {
+                        this.touchHandler.setFaceDirectMode(!this.touchHandler.isFaceDirectMode());
+                        this.emitStateChanged();
+                    }
+                },
+            },
+            {
+                id: 'link-rotations',
+                label: 'Link Rotations',
+                keyBindings: [{ key: '5', ctrlKey: true }],
+                category: CommandCategory.VIEW,
+                group: '.',
+                icon: '⛓',
+                showInHeader: true,
+                tooltip: 'Link view rotations between Basic Front and Basic Back.',
+                isActive: () => isLinked(),
+                action: () => {
+                    setLinked(!isLinked());
+                    Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
+                        viewType: 'basic-front',
+                    });
+                    Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
+                        viewType: 'basic-back',
+                    });
+                },
+            },
+            {
+                id: 'tilt-view',
+                label: 'Tilt View',
+                keyBindings: [{ key: '|' }, { key: '\\' }, { key: '4', ctrlKey: true }],
+                category: CommandCategory.VIEW,
+                group: '.',
+                icon: '↔',
+                showInHeader: true,
+                tooltip: 'Toggle view tilt (Y-axis: -35° ↔ 35°).',
+                isActive: () => this.state.isTilted,
+                action: () => {
+                    this.state.isTilted = !this.state.isTilted;
+                    rendering.updateRotation(this.state);
+                    rendering.updateFaceLabels(this.state);
+                    this.emitStateChanged();
+                },
+            },
+            {
+                id: 'pitch-view',
+                label: 'Pitch View',
+                keyBindings: [{ key: 'PageUp' }, { key: 'PageDown' }, { key: '3', ctrlKey: true }],
+                category: CommandCategory.VIEW,
+                group: '.',
+                icon: '↕',
+                showInHeader: true,
+                tooltip: 'Toggle view pitch (X-axis: -25° ↔ 25°).',
+                isActive: () => this.state.isPitched,
+                action: () => {
+                    this.state.isPitched = !this.state.isPitched;
+                    rendering.updateRotation(this.state);
+                    rendering.updateFaceLabels(this.state);
+                    this.emitStateChanged();
+                },
+            },
+            {
+                id: 'rotate-view-left',
+                label: 'Rotate View Left',
+                keyBindings: [{ key: 'ArrowLeft', altKey: true }],
+                category: CommandCategory.VIEW,
+                group: '.',
+                icon: '←',
+                tooltip: 'Rotate cube view left.',
+                action: () => {
+                    this.rotateViewLeft();
+                    this.emitStateChanged();
+                    if (isLinked()) {
+                        Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
+                            rotation: ViewRotation.Left,
+                            sourceViewType: this.state.viewType,
+                        });
+                    }
+                },
+            },
+            {
+                id: 'rotate-view-right',
+                label: 'Rotate View Right',
+                keyBindings: [{ key: 'ArrowRight', altKey: true }],
+                category: CommandCategory.VIEW,
+                group: '.',
+                icon: '→',
+                tooltip: 'Rotate cube view right.',
+                action: () => {
+                    this.rotateViewRight();
+                    this.emitStateChanged();
+                    if (isLinked()) {
+                        Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
+                            rotation: ViewRotation.Right,
+                            sourceViewType: this.state.viewType,
+                        });
+                    }
+                },
+            },
+            {
+                id: 'rotate-view-up',
+                label: 'Rotate View Up',
+                keyBindings: [{ key: 'ArrowUp', altKey: true }],
+                category: CommandCategory.VIEW,
+                group: '.',
+                icon: '↑',
+                tooltip: 'Rotate cube view up.',
+                action: () => {
+                    this.rotateViewUp();
+                    this.emitStateChanged();
+                    if (isLinked()) {
+                        Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
+                            rotation: ViewRotation.Up,
+                            sourceViewType: this.state.viewType,
+                        });
+                    }
+                },
+            },
+            {
+                id: 'rotate-view-down',
+                label: 'Rotate View Down',
+                keyBindings: [{ key: 'ArrowDown', altKey: true }],
+                category: CommandCategory.VIEW,
+                group: '.',
+                icon: '↓',
+                tooltip: 'Rotate cube view down.',
+                action: () => {
+                    this.rotateViewDown();
+                    this.emitStateChanged();
+                    if (isLinked()) {
+                        Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
+                            rotation: ViewRotation.Down,
+                            sourceViewType: this.state.viewType,
+                        });
+                    }
                 },
             },
         ];
@@ -249,6 +355,47 @@ export class BasicView implements CubeView {
         rendering.updateRotation(this.state, true);
         rendering.updateFaceLabels(this.state);
 
+        // Wire up touch/pointer interaction.
+        const adapter = createBasicInteractionAdapter(
+            () => this.state.viewRight,
+            () => this.state.viewUp
+        );
+        this.touchHandler = new BasicTouchHandler({
+            host: container,
+            styles: this.state.styles,
+            getCubeSize: () => this.state.model?.getCurrentState().cubeSize ?? 3,
+            getState: () => this.state,
+            onStickerSelected: id => this.updateSelected(id as StickerId | undefined),
+            onViewRotated: (direction: 'horizontal' | 'vertical') => {
+                rendering.updateRotation(this.state);
+                rendering.updateFaceLabels(this.state, direction);
+            },
+            viewId: this.state.viewType,
+            adapter,
+        });
+        this.touchHandler.attach();
+
+        // Subscribe to linked rotation events from the peer view.
+        this.linkedRotationListener = (event: BasicViewRotationLinkedEvent) => {
+            if (event.sourceViewType === this.state.viewType) return;
+            switch (event.rotation) {
+                case 'left':
+                    this.rotateViewLeft();
+                    break;
+                case 'right':
+                    this.rotateViewRight();
+                    break;
+                case 'up':
+                    this.rotateViewUp();
+                    break;
+                case 'down':
+                    this.rotateViewDown();
+                    break;
+            }
+            this.emitStateChanged();
+        };
+        Application.eventBus.on(EventName.BASIC_VIEW_ROTATION_LINKED, this.linkedRotationListener);
+
         // Default selection: F4 sticker.
         const f4 = CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, 4);
         if (f4) this.updateSelected(f4.id);
@@ -257,31 +404,49 @@ export class BasicView implements CubeView {
     update(model: ReadOnlyCubeModel): void {
         this.state.model = model;
         rendering.update(this.state, model);
+        this.restoreSelection();
     }
 
     updateSelective(event?: MoveExecutedEvent): void {
         if (event) {
             rendering.updateSelective(this.state, event);
+            this.restoreSelection();
+            // Whole-cube rotations (x/y/z) change which original face is at each
+            // visible CSS position — update labels so they reflect the new mapping.
+            const notation = event.moveDetails?.notation ?? '';
+            if (/^[xyz]['2]?$/.test(notation) && this.state.model) {
+                const direction = notation.charAt(0) === 'x' ? 'vertical' : 'horizontal';
+                rendering.updateFaceLabels(this.state, direction);
+            }
+        }
+    }
+
+    private restoreSelection(): void {
+        if (
+            this.state.selectedFace == null ||
+            this.state.selectedPosition == null ||
+            !this.state.model
+        )
+            return;
+        const sticker = CubeStateUtils.getStickerAt(
+            this.state.model.getCurrentState(),
+            this.state.selectedFace,
+            this.state.selectedPosition
+        );
+        if (sticker) {
+            this.updateSelected(sticker.id);
         }
     }
 
     resize(): void {
         rendering.resize(this.state);
+        this.touchHandler?.resize();
     }
 
     setLayoutMode(mode: LayoutMode): void {
-        if (mode === 'tabbed') {
-            if (!this.touchNoticeEl && this.state.container) {
-                const notice = document.createElement('div');
-                notice.className = this.state.styles['touch-notice'] ?? '';
-                notice.textContent = 'Touch interaction is not yet implemented.';
-                this.state.container.appendChild(notice);
-                this.touchNoticeEl = notice;
-            }
-        } else {
-            this.touchNoticeEl?.remove();
-            this.touchNoticeEl = null;
-        }
+        this.state.layoutMode = mode;
+        this.touchHandler?.setLayoutMode(mode);
+        rendering.resize(this.state);
     }
 
     getMinimumSize(): Size2D {
@@ -301,16 +466,83 @@ export class BasicView implements CubeView {
     }
 
     private handleKeyPress(event: KeyboardEvent, preview: boolean): boolean {
+        // Face selection toggle (Space or Backtick).
+        if (isFaceSelectKey(event)) {
+            if (!preview) this.handleFaceSelectKey();
+            return this.state.currentSelected !== undefined;
+        }
+
+        // Keyboard move (Ctrl+Arrow, optionally +Shift for 180°).
+        if (isKeyboardMoveKey(event)) {
+            if (!preview) this.handleKeyboardMove(event);
+            return this.state.currentSelected !== undefined;
+        }
+
+        // Plain arrow keys — sticker navigation.
         if (!navigation.isNavigationKey(event)) return false;
 
-        const handled = navigation.navigate(event, preview, this.state, id =>
-            this.updateSelected(id)
+        const onRotated = (r: ViewRotation): void => {
+            if (r === ViewRotation.Left) this.rotateViewLeft();
+            else if (r === ViewRotation.Right) this.rotateViewRight();
+            else if (r === ViewRotation.Up) this.rotateViewUp();
+            else if (r === ViewRotation.Down) this.rotateViewDown();
+            if (isLinked()) {
+                Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
+                    rotation: r,
+                    sourceViewType: this.state.viewType,
+                });
+            }
+        };
+
+        const handled = navigation.navigate(
+            event,
+            preview,
+            this.state,
+            id => this.updateSelected(id),
+            onRotated
         );
         if (handled && !preview) {
-            // navigate() may mutate yRotation for U→B over-horizon transitions.
             rendering.updateRotation(this.state);
         }
         return handled;
+    }
+
+    private handleFaceSelectKey(): void {
+        if (!this.state.currentSelected || !this.state.model || !this.touchHandler) return;
+
+        const sticker = CubeStateUtils.getStickerById(
+            this.state.model.getCurrentState(),
+            this.state.currentSelected
+        );
+        if (!sticker) return;
+
+        const face = sticker.currentFace as Face;
+        const current = this.touchHandler.getSelectedFace();
+        this.touchHandler.selectFace(current === face ? undefined : face);
+    }
+
+    private handleKeyboardMove(event: KeyboardEvent): void {
+        if (!this.state.currentSelected || !this.state.model || !this.touchHandler) return;
+
+        const direction = mapArrowToDirection(event);
+        if (!direction) return;
+
+        const notation = inferKeyboardMove({
+            stickerId: this.state.currentSelected,
+            selectedFace: this.touchHandler.getSelectedFace(),
+            faceDirectMode: this.touchHandler.isFaceDirectMode(),
+            direction,
+            doubleTurn: event.shiftKey,
+            model: this.state.model,
+        });
+        if (!notation) return;
+
+        const payload: MoveRequestedEvent = {
+            moveNotation: notation,
+            viewId: this.state.viewType,
+            tentative: false,
+        };
+        Application.eventBus.emit(EventName.MOVE_REQUESTED, payload);
     }
 
     // -------------------------------------------------------------------------
@@ -344,25 +576,25 @@ export class BasicView implements CubeView {
     rotateViewLeft(): void {
         navigation.rotateViewLeft(this.state);
         rendering.updateRotation(this.state);
-        rendering.updateFaceLabels(this.state);
+        rendering.updateFaceLabels(this.state, 'horizontal');
     }
 
     rotateViewRight(): void {
         navigation.rotateViewRight(this.state);
         rendering.updateRotation(this.state);
-        rendering.updateFaceLabels(this.state);
+        rendering.updateFaceLabels(this.state, 'horizontal');
     }
 
     rotateViewUp(): void {
         navigation.rotateViewUp(this.state);
         rendering.updateRotation(this.state);
-        rendering.updateFaceLabels(this.state);
+        rendering.updateFaceLabels(this.state, 'vertical');
     }
 
     rotateViewDown(): void {
         navigation.rotateViewDown(this.state);
         rendering.updateRotation(this.state);
-        rendering.updateFaceLabels(this.state);
+        rendering.updateFaceLabels(this.state, 'vertical');
     }
 
     resetView(): void {
@@ -377,45 +609,48 @@ export class BasicView implements CubeView {
         rendering.updateFaceLabels(this.state);
     }
 
-    // -------------------------------------------------------------------------
-    // Rendering helpers (retained for backwards-compatibility with tests)
-    // -------------------------------------------------------------------------
-
-    updateRotation(skipAnimation?: boolean): void {
-        rendering.updateRotation(this.state, skipAnimation);
-    }
-
-    updateFaceLabels(): void {
-        rendering.updateFaceLabels(this.state);
-    }
-
-    findClosestEquivalentAngle(current: number, target: number): number {
-        return rendering.findClosestEquivalentAngle(current, target);
-    }
-
+    // (Rendering helpers removed; tests updated to call rendering.updateRotation)
     // -------------------------------------------------------------------------
     // State persistence
     // -------------------------------------------------------------------------
 
     getState(): BasicViewState {
         return {
+            viewRight: { ...this.state.viewRight },
+            viewUp: { ...this.state.viewUp },
+            viewForward: { ...this.state.viewForward },
             isTilted: this.state.isTilted,
             isPitched: this.state.isPitched,
-            yRotation: this.state.yRotation,
-            xRotation: this.state.xRotation,
-            zRotation: this.state.zRotation,
+            faceDirectMode: this.touchHandler?.isFaceDirectMode() ?? false,
+            linked: isLinked(),
         };
     }
 
     setState(state: unknown): void {
         if (!state || typeof state !== 'object') return;
-        const viewState = state as Partial<BasicViewState>;
+        const viewState = state as Record<string, unknown>;
 
-        if (typeof viewState.isTilted === 'boolean') this.state.isTilted = viewState.isTilted;
-        if (typeof viewState.isPitched === 'boolean') this.state.isPitched = viewState.isPitched;
-        if (typeof viewState.yRotation === 'number') this.state.yRotation = viewState.yRotation;
-        if (typeof viewState.xRotation === 'number') this.state.xRotation = viewState.xRotation;
-        if (typeof viewState.zRotation === 'number') this.state.zRotation = viewState.zRotation;
+        // Migrate old format (xRotation/yRotation/zRotation) — reset to default.
+        if (
+            typeof viewState['xRotation'] === 'number' ||
+            typeof viewState['yRotation'] === 'number' ||
+            typeof viewState['zRotation'] === 'number'
+        ) {
+            navigation.resetView(this.state);
+        } else {
+            const vR = viewState['viewRight'];
+            const vU = viewState['viewUp'];
+            const vF = viewState['viewForward'];
+            if (vR && typeof vR === 'object') this.state.viewRight = vR as Vector3;
+            if (vU && typeof vU === 'object') this.state.viewUp = vU as Vector3;
+            if (vF && typeof vF === 'object') this.state.viewForward = vF as Vector3;
+        }
+        if (typeof viewState['isTilted'] === 'boolean') this.state.isTilted = viewState['isTilted'];
+        if (typeof viewState['isPitched'] === 'boolean')
+            this.state.isPitched = viewState['isPitched'];
+        if (typeof viewState['faceDirectMode'] === 'boolean')
+            this.touchHandler?.setFaceDirectMode(viewState['faceDirectMode']);
+        if (typeof viewState['linked'] === 'boolean') setLinked(viewState['linked']);
 
         rendering.updateRotation(this.state, true);
         rendering.updateFaceLabels(this.state);
@@ -426,6 +661,15 @@ export class BasicView implements CubeView {
     // -------------------------------------------------------------------------
 
     destroy(): void {
+        if (this.linkedRotationListener) {
+            Application.eventBus.off(
+                EventName.BASIC_VIEW_ROTATION_LINKED,
+                this.linkedRotationListener
+            );
+            this.linkedRotationListener = null;
+        }
+        this.touchHandler?.destroy();
+        this.touchHandler = null;
         initialization.destroy(this.state);
         this.state.cubeElement = null;
         this.state.container = null;

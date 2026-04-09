@@ -2,7 +2,7 @@ import { ViewFactory, ViewVariant } from '@/view-manager/view-registry';
 
 import { BasicView } from './basic-view';
 
-export { createBasicInteractionAdapter } from './basic-interaction-adapter';
+export { createBasicInteractionAdapter } from './interaction-adapter';
 
 export const basicViewFactory: ViewFactory = {
     create(config?: any): BasicView {

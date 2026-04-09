@@ -28,7 +28,7 @@ Almost all of the code (99%) was written by an AI agent (Claude Sonnet 4.5) in a
 - **Multiple View Types**: Basic, Flat, Circular visualizations
 - **State Import/Export**: Save and load cube states
 - **State Restoration**: Automatically restore your last cube state on app start
-- **Responsive Design**: Works on desktops (needs keyboard for controls)
+- **Responsive Design**: Works on desktops, tablets, and phones; supports touch and mouse interaction
 
 For more details on features and usage, see the [documentation](src/docs/README.md).
 

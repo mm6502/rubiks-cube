@@ -1,0 +1,30 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "npm: dev",
+            "type": "process",
+            "command": "npm run dev",
+            "isBackground": false,
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                {
+                    "pattern": {
+                        "regexp": ".*ready in.*|.*Local:.*",
+                        "file": 1,
+                        "location": 2,
+                        "message": 3
+                    },
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": ".*",
+                        "endsPattern": "ready in|Local:"
+                    }
+                }
+            ]
+        }
+    ]
+}

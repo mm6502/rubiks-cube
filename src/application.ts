@@ -285,11 +285,19 @@ export class Application {
         overlay.addEventListener('click', closePanel);
         closeBtn?.addEventListener('click', closePanel);
 
-        // Close when focus moves to a keyboard-triggered Escape key.
+        // Toggle controls panel with Escape key.
         document.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && controls.classList.contains('controls--open')) {
-                closePanel();
-                toggle.focus();
+            if (e.key === 'Escape') {
+                if (desktopQuery?.matches) {
+                    const collapsed = controls.classList.contains(desktopCollapsedClass);
+                    setDesktopCollapsed(!collapsed);
+                } else if (controls.classList.contains('controls--open')) {
+                    closePanel();
+                    toggle.focus();
+                } else {
+                    openPanel();
+                }
+                e.preventDefault();
             }
         });
 

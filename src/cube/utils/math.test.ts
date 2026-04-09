@@ -20,7 +20,7 @@ import {
     roundToNearest,
     toActual,
     toCentered,
-    vectorsEqual,
+    vectorsEqual3,
 } from './math';
 
 beforeAll(() => {
@@ -252,19 +252,19 @@ describe('Math Utilities', () => {
         it('should return true for identical vectors', () => {
             const a = { x: 1, y: 2, z: 3 };
             const b = { x: 1, y: 2, z: 3 };
-            expect(vectorsEqual(a, b)).toBe(true);
+            expect(vectorsEqual3(a, b)).toBe(true);
         });
 
         it('should return true for approximately equal vectors', () => {
             const a = { x: 1.0, y: 2.0, z: 3.0 };
             const b = { x: 1.0000001, y: 2.0000001, z: 3.0000001 };
-            expect(vectorsEqual(a, b)).toBe(true);
+            expect(vectorsEqual3(a, b)).toBe(true);
         });
 
         it('should return false for different vectors', () => {
             const a = { x: 1, y: 2, z: 3 };
             const b = { x: 1, y: 2, z: 4 };
-            expect(vectorsEqual(a, b)).toBe(false);
+            expect(vectorsEqual3(a, b)).toBe(false);
         });
     });
 

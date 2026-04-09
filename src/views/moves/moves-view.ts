@@ -5,8 +5,8 @@ import { MOVE_ICONS } from '@/icons';
 import buttonStyles from '@/styles/buttons.module.css';
 import { Command, CommandCategory, EventName, MoveExecutedEvent } from '@/types';
 
-import { MovesViewRenderer } from './moves-view-renderer';
 import styles from './moves-view.module.css';
+import { MovesViewRenderer } from './renderer';
 
 /**
  * State persisted for the moves view.
@@ -124,7 +124,8 @@ export class MovesView implements CubeView {
                 category: CommandCategory.VIEW,
                 showInHeader: true,
                 icon: '↩',
-                tooltip: 'Undo last move',
+                tooltip: 'Undo last move.',
+                keyBindings: [{ key: '[' }, { key: ',' }],
                 priority: 900,
                 action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
                 isEnabled: () => this.moveHistory?.canUndo() ?? false,
@@ -135,7 +136,8 @@ export class MovesView implements CubeView {
                 category: CommandCategory.VIEW,
                 showInHeader: true,
                 icon: '↪',
-                tooltip: 'Redo last undone move',
+                tooltip: 'Redo last undone move.',
+                keyBindings: [{ key: ']' }, { key: '.' }],
                 priority: 901,
                 action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
                 isEnabled: () => this.moveHistory?.canRedo() ?? false,
@@ -145,7 +147,7 @@ export class MovesView implements CubeView {
                 label: 'Show Icons',
                 category: CommandCategory.VIEW,
                 group: '.',
-                keyBindings: [{ key: '\\' }],
+                keyBindings: [{ key: '2', ctrlKey: true }, { key: '\\' }],
                 icon: 'A',
                 tooltip: 'Toggle between showing moves as text notation or icons.',
                 showInHeader: true,

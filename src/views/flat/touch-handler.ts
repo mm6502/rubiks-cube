@@ -1,6 +1,7 @@
 import { Application } from '@/application';
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import { clamp } from '@/cube/utils/math';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { inferMoveFromDrag, inferMoveFromFaceRotation } from '@/interaction/move-inference';
 import {
@@ -33,7 +34,7 @@ type StickerHit = {
 };
 
 const DRAG_THRESHOLD_PX = 4;
-const FAR_DRAG_THRESHOLD_PX = 50;
+const FAR_DRAG_THRESHOLD_PX = 60;
 
 /**
  * Flat-view pointer interaction handler.
@@ -47,7 +48,7 @@ export class FlatTouchHandler {
     private readonly onStickerSelected: (stickerId?: string) => void;
     private readonly adapter: ViewInteractionAdapter;
 
-    private layoutMode: LayoutMode = 'floating';
+    private layoutMode: LayoutMode = LayoutMode.Floating;
 
     private readonly dragStateMachine: DragStateMachine;
     private selectedFace: Face | undefined;
@@ -58,6 +59,10 @@ export class FlatTouchHandler {
     private startHit: StickerHit | undefined;
     private selectedFaceGesture = false;
     private suppressNextClick = false;
+
+    private faceDirectMode = false;
+    private directModeTempFace: Face | undefined;
+    private previousSelectedFace: Face | undefined;
 
     private haloEl: HTMLDivElement;
     private haloHitTargetEl: HTMLDivElement;
@@ -149,6 +154,39 @@ export class FlatTouchHandler {
         this.layoutMode = mode;
     }
 
+    isFaceDirectMode(): boolean {
+        return this.faceDirectMode;
+    }
+
+    setFaceDirectMode(enabled: boolean): void {
+        this.faceDirectMode = enabled;
+    }
+
+    getSelectedFace(): Face | undefined {
+        return this.selectedFace;
+    }
+
+    /**
+     * Programmatically select or deselect a face (for keyboard-driven face selection).
+     */
+    selectFace(face: Face | undefined): void {
+        this.selectedFace = face;
+        this.applyFaceSelectionStyling();
+        this.updateHaloPosition();
+    }
+
+    private restoreTempFaceState(): void {
+        if (this.directModeTempFace === undefined) {
+            return;
+        }
+
+        this.selectedFace = this.previousSelectedFace;
+        this.directModeTempFace = undefined;
+        this.previousSelectedFace = undefined;
+        this.applyFaceSelectionStyling();
+        this.updateHaloPosition();
+    }
+
     destroy(): void {
         this.host.removeEventListener('pointerdown', this.onPointerDownBound);
         document.removeEventListener('pointermove', this.onPointerMoveBound);
@@ -184,15 +222,31 @@ export class FlatTouchHandler {
 
         const isHaloDragStart = this.isHaloHitTargetAtPoint(event.clientX, event.clientY);
 
+        // Face mode: temporarily select the hit face so that the drag acts as a
+        // face-rotation gesture (same logic as BasicTouchHandler / CircularTouchHandler).
+        if (this.faceDirectMode && this.startHit && !isHaloDragStart) {
+            this.directModeTempFace = this.startHit.face;
+            this.previousSelectedFace = this.selectedFace;
+            this.selectedFace = this.startHit.face;
+            this.applyFaceSelectionStyling();
+            this.updateHaloPosition();
+            this.startHit = undefined;
+        }
+
         if (this.selectedFace && this.startHit?.face === this.selectedFace && !isHaloDragStart) {
             // Selected-face rotation is ring-only: drags inside the invisible center are ignored.
             this.startHit = undefined;
         }
 
-        const canStartDrag = Boolean((isHaloDragStart && this.selectedFace) || this.startHit);
+        const canStartDrag = Boolean(
+            (isHaloDragStart && this.selectedFace) ||
+            (this.directModeTempFace && this.selectedFace) ||
+            this.startHit
+        );
         this.activePointerAllowsDrag = canStartDrag;
 
         if (!canStartDrag) {
+            this.restoreTempFaceState();
             this.hideCancellationZone();
             return;
         }
@@ -200,7 +254,7 @@ export class FlatTouchHandler {
         this.activeCommitDistancePx = this.cancelZoneRadiusPx();
         this.showCancellationZoneAtOrigin(event.clientX, event.clientY);
 
-        if (isHaloDragStart && this.selectedFace) {
+        if ((isHaloDragStart || this.directModeTempFace) && this.selectedFace) {
             this.selectedFaceGesture = true;
             this.dragStateMachine.onPointerDown(event, {
                 rotationCenter: getElementCenter(this.haloHitTargetEl),
@@ -265,6 +319,7 @@ export class FlatTouchHandler {
         this.selectedFaceGesture = false;
         this.startHit = undefined;
         this.hideCancellationZone();
+        this.restoreTempFaceState();
         this.host.releasePointerCapture?.(event.pointerId);
         this.host.style.cursor = '';
     }
@@ -286,6 +341,7 @@ export class FlatTouchHandler {
         this.startHit = undefined;
         this.hideDragLabel();
         this.hideCancellationZone();
+        this.restoreTempFaceState();
         this.host.style.cursor = '';
     }
 
@@ -472,12 +528,12 @@ export class FlatTouchHandler {
         let x: number;
         let y: number;
 
-        if (this.layoutMode === 'tabbed') {
+        if (this.layoutMode === LayoutMode.Tabbed) {
             // Fixed positioning lets the label float above the panel header when dragging near the top edge.
             this.dragLabelEl.style.position = 'fixed';
             this.dragLabelEl.style.zIndex = '10000';
             x = clientX - labelWidth / 2;
-            y = clientY - labelHeight - 36;
+            y = clientY - labelHeight - 50;
             x = clamp(x, 4, window.innerWidth - labelWidth - 4);
             y = clamp(y, 4, window.innerHeight - labelHeight - 4);
         } else {
@@ -635,7 +691,7 @@ export class FlatTouchHandler {
     }
 
     private cancelZoneRadiusPx(): number {
-        return this.layoutMode === 'tabbed'
+        return this.layoutMode === LayoutMode.Tabbed
             ? CANCEL_ZONE_RADIUS_BASE_PX * CANCEL_ZONE_TABBED_MULTIPLIER
             : CANCEL_ZONE_RADIUS_BASE_PX;
     }
@@ -681,8 +737,4 @@ function getElementCenter(element: HTMLElement): { x: number; y: number } {
         x: rect.left + rect.width / 2,
         y: rect.top + rect.height / 2,
     };
-}
-
-function clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value));
 }

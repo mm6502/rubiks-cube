@@ -672,7 +672,9 @@ describe('FlatView', () => {
             const ids = commands.map(c => c.id);
 
             // Assert structure
-            expect(commands).toHaveLength(2);
+            expect(commands).toHaveLength(4);
+            expect(ids).toContain('flat.face-direct-mode');
+            expect(ids).toContain('flat.cube-walk');
             expect(ids).toContain('flat.undo');
             expect(ids).toContain('flat.redo');
 
@@ -789,6 +791,206 @@ describe('FlatView', () => {
         it('should not throw if container is null', () => {
             // Act & Assert
             expect(() => view.destroy()).not.toThrow();
+        });
+    });
+
+    describe('legend drag – MOVE_REQUESTED', () => {
+        beforeEach(() => {
+            view.create(container, controller);
+        });
+
+        it('emits MOVE_REQUESTED on pointerup when drag exceeds threshold', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+            const legend = container.querySelector(`.${styles['flat-legend']}`) as HTMLElement;
+
+            legend.dispatchEvent(
+                new PointerEvent('pointerdown', { clientX: 100, clientY: 200, bubbles: true })
+            );
+            document.dispatchEvent(
+                new PointerEvent('pointermove', { clientX: 150, clientY: 200, bubbles: true })
+            );
+            document.dispatchEvent(
+                new PointerEvent('pointerup', { clientX: 150, clientY: 200, bubbles: true })
+            );
+
+            expect(emitSpy).toHaveBeenCalledWith(
+                EventName.MOVE_REQUESTED,
+                expect.objectContaining({ viewId: 'flat' })
+            );
+        });
+
+        it('shows drag label on pointermove when drag exceeds threshold', () => {
+            const legend = container.querySelector(`.${styles['flat-legend']}`) as HTMLElement;
+
+            legend.dispatchEvent(
+                new PointerEvent('pointerdown', { clientX: 100, clientY: 200, bubbles: true })
+            );
+            document.dispatchEvent(
+                new PointerEvent('pointermove', { clientX: 130, clientY: 200, bubbles: true })
+            );
+
+            // No throw, drag label code path exercised
+            document.dispatchEvent(
+                new PointerEvent('pointerup', { clientX: 130, clientY: 200, bubbles: true })
+            );
+        });
+
+        it('does not emit MOVE_REQUESTED when drag is below threshold', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+            const legend = container.querySelector(`.${styles['flat-legend']}`) as HTMLElement;
+
+            // Small movement (< 20px threshold)
+            legend.dispatchEvent(
+                new PointerEvent('pointerdown', { clientX: 100, clientY: 200, bubbles: true })
+            );
+            emitSpy.mockClear(); // ignore any calls from pointerdown processing
+            document.dispatchEvent(
+                new PointerEvent('pointerup', { clientX: 110, clientY: 200, bubbles: true })
+            );
+
+            expect(emitSpy).not.toHaveBeenCalledWith(EventName.MOVE_REQUESTED, expect.anything());
+        });
+
+        it("inferLegendMove: non-rotated horizontal right → y'", () => {
+            // Force non-rotated mode
+            Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+            view['handleResize']();
+            expect(view['state'].isRotated).toBe(false);
+
+            // drag right
+            const result = view['inferLegendMove'](50, 5);
+            expect(result).toBe("y'");
+
+            // Restore
+            Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
+        });
+
+        it('inferLegendMove: non-rotated horizontal left → y', () => {
+            Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+            view['handleResize']();
+
+            const result = view['inferLegendMove'](-50, 5);
+            expect(result).toBe('y');
+
+            Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
+        });
+
+        it("inferLegendMove: non-rotated vertical down → x'", () => {
+            Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+            view['handleResize']();
+
+            const result = view['inferLegendMove'](5, 50);
+            expect(result).toBe("x'");
+
+            Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
+        });
+
+        it('inferLegendMove: non-rotated vertical up → x', () => {
+            Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+            view['handleResize']();
+
+            const result = view['inferLegendMove'](5, -50);
+            expect(result).toBe('x');
+
+            Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
+        });
+    });
+
+    describe('keyboard: face-select and keyboard-move', () => {
+        beforeEach(() => {
+            view.create(container, controller);
+            const sticker = CubeStateUtils.getStickerAt(controller.getCurrentState(), 'F', 4);
+            if (sticker) view.updateSelected(sticker.id);
+        });
+
+        it('face-select key (space) returns true when sticker selected', () => {
+            const event = new KeyboardEvent('keyup', { key: ' ' });
+            expect(view.handleKeyUp(event)).toBe(true);
+        });
+
+        it('face-select key returns false when no sticker selected', () => {
+            view.updateSelected(undefined);
+            const event = new KeyboardEvent('keyup', { key: ' ' });
+            expect(view.handleKeyUp(event)).toBe(false);
+        });
+
+        it('Ctrl+ArrowUp emits MOVE_REQUESTED', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+            const event = new KeyboardEvent('keyup', { key: 'ArrowUp', ctrlKey: true });
+            view.handleKeyUp(event);
+
+            expect(emitSpy).toHaveBeenCalledWith(
+                EventName.MOVE_REQUESTED,
+                expect.objectContaining({ viewId: 'flat' })
+            );
+        });
+
+        it('handleKeyDown returns true for Ctrl+Arrow preview', () => {
+            const event = new KeyboardEvent('keydown', { key: 'ArrowUp', ctrlKey: true });
+            expect(view.handleKeyDown(event)).toBe(true);
+        });
+    });
+
+    describe('commands: flat.cube-walk and flat.face-direct-mode', () => {
+        beforeEach(() => {
+            view.create(container, controller);
+        });
+
+        const getCmd = (id: string) => view.getCommands().find(c => c.id === id)!;
+
+        it('flat.cube-walk toggles state', () => {
+            const cmd = getCmd('flat.cube-walk');
+            expect(cmd.isActive!()).toBe(true);
+
+            cmd.action();
+            expect(cmd.isActive!()).toBe(false);
+
+            cmd.action();
+            expect(cmd.isActive!()).toBe(true);
+        });
+
+        it('flat.face-direct-mode toggles touch handler mode', () => {
+            const cmd = getCmd('flat.face-direct-mode');
+            expect(cmd.isActive!()).toBe(false);
+
+            cmd.action();
+            expect(cmd.isActive!()).toBe(true);
+
+            cmd.action();
+            expect(cmd.isActive!()).toBe(false);
+        });
+
+        it('flat.undo emits UNDO_REQUESTED', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+            getCmd('flat.undo').action();
+            expect(emitSpy).toHaveBeenCalledWith(EventName.UNDO_REQUESTED, {});
+        });
+
+        it('flat.redo emits REDO_REQUESTED', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+            getCmd('flat.redo').action();
+            expect(emitSpy).toHaveBeenCalledWith(EventName.REDO_REQUESTED, {});
+        });
+    });
+
+    describe('setState', () => {
+        beforeEach(() => {
+            view.create(container, controller);
+        });
+
+        it('setState with faceDirectMode=true enables face direct mode', () => {
+            view.setState({ faceDirectMode: true });
+            expect(view.getState().faceDirectMode).toBe(true);
+        });
+
+        it('setState with cubeWalk=false disables cube walk', () => {
+            view.setState({ cubeWalk: false });
+            expect(view.getState().cubeWalk).toBe(false);
+        });
+
+        it('setState ignores non-object input', () => {
+            expect(() => view.setState(null)).not.toThrow();
+            expect(() => view.setState('invalid')).not.toThrow();
         });
     });
 });

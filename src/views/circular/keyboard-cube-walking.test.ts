@@ -1,26 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Application } from '@/application';
-import { StickerId } from '@/cube/types';
+import { CubeController } from '@/cube-controller';
+import { Face, StickerId } from '@/cube/types';
 import { logger } from '@/diagnostics/logger';
+import { NavDirection } from '@/types';
 
 import { CircularCubeViewInternalData } from './circular-view';
 import {
-    Direction,
     findNextSticker,
     isNavigationKey,
-    mapKeyToDirection,
+    mapKeyToNavDirection,
     navigate,
+    recoverSelection,
 } from './keyboard-cube-walking';
 import { AxisCircle } from './svg-tools';
 
 describe('keyboard-cube-walking', () => {
-    describe('Direction', () => {
-        it('should have all expected direction values', () => {
-            expect(Direction.Up).toBe('up');
-            expect(Direction.Down).toBe('down');
-            expect(Direction.Left).toBe('left');
-            expect(Direction.Right).toBe('right');
+    describe('NavDirection', () => {
+        it('should have all expected NavDirection values', () => {
+            expect(NavDirection.Up).toBe('up');
+            expect(NavDirection.Down).toBe('down');
+            expect(NavDirection.Left).toBe('left');
+            expect(NavDirection.Right).toBe('right');
         });
     });
 
@@ -41,37 +43,37 @@ describe('keyboard-cube-walking', () => {
         });
     });
 
-    describe('mapKeyToDirection', () => {
-        it('should map ArrowUp to Direction.Up', () => {
+    describe('mapKeyToNavDirection', () => {
+        it('should map ArrowUp to NavDirection.Up', () => {
             // Arrange
             const event = new KeyboardEvent('keydown', { key: 'ArrowUp' });
 
             // Act & Assert
-            expect(mapKeyToDirection(event)).toBe(Direction.Up);
+            expect(mapKeyToNavDirection(event)).toBe(NavDirection.Up);
         });
 
-        it('should map ArrowDown to Direction.Down', () => {
+        it('should map ArrowDown to NavDirection.Down', () => {
             // Arrange
             const event = new KeyboardEvent('keydown', { key: 'ArrowDown' });
 
             // Act & Assert
-            expect(mapKeyToDirection(event)).toBe(Direction.Down);
+            expect(mapKeyToNavDirection(event)).toBe(NavDirection.Down);
         });
 
-        it('should map ArrowLeft to Direction.Left', () => {
+        it('should map ArrowLeft to NavDirection.Left', () => {
             // Arrange
             const event = new KeyboardEvent('keydown', { key: 'ArrowLeft' });
 
             // Act & Assert
-            expect(mapKeyToDirection(event)).toBe(Direction.Left);
+            expect(mapKeyToNavDirection(event)).toBe(NavDirection.Left);
         });
 
-        it('should map ArrowRight to Direction.Right', () => {
+        it('should map ArrowRight to NavDirection.Right', () => {
             // Arrange
             const event = new KeyboardEvent('keydown', { key: 'ArrowRight' });
 
             // Act & Assert
-            expect(mapKeyToDirection(event)).toBe(Direction.Right);
+            expect(mapKeyToNavDirection(event)).toBe(NavDirection.Right);
         });
 
         it('should return undefined for non-arrow keys', () => {
@@ -79,7 +81,7 @@ describe('keyboard-cube-walking', () => {
             const event = new KeyboardEvent('keydown', { key: 'a' });
 
             // Act & Assert
-            expect(mapKeyToDirection(event)).toBeUndefined();
+            expect(mapKeyToNavDirection(event)).toBeUndefined();
         });
     });
 
@@ -116,6 +118,7 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId: new Map(),
                 axisCircles: [],
                 animationChain: Promise.resolve(),
+                cubeWalk: false,
             } as CircularCubeViewInternalData;
 
             // Set current selection on state (moved into state)
@@ -142,6 +145,7 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId: new Map(),
                 axisCircles: [],
                 animationChain: Promise.resolve(),
+                cubeWalk: false,
             } as CircularCubeViewInternalData;
 
             // Act
@@ -165,6 +169,7 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId: new Map(),
                 axisCircles: [],
                 animationChain: Promise.resolve(),
+                cubeWalk: false,
             } as CircularCubeViewInternalData;
 
             // Set current selection on state (moved into state)
@@ -202,6 +207,7 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId,
                 axisCircles: [] as AxisCircle[],
                 animationChain: Promise.resolve(),
+                cubeWalk: false,
             } as CircularCubeViewInternalData;
 
             // Set current selection on state
@@ -338,7 +344,7 @@ describe('keyboard-cube-walking', () => {
             // Act
             const result = findNextSticker(
                 'INVALID' as StickerId,
-                Direction.Up,
+                NavDirection.Up,
                 svgElementCache,
                 stickerIdToSvgId,
                 svgIdToStickerId,
@@ -361,7 +367,7 @@ describe('keyboard-cube-walking', () => {
             // Act
             const result = findNextSticker(
                 'U5' as StickerId,
-                Direction.Up,
+                NavDirection.Up,
                 svgElementCache,
                 stickerIdToSvgId,
                 svgIdToStickerId,
@@ -372,7 +378,7 @@ describe('keyboard-cube-walking', () => {
             expect(result).toBeUndefined();
         });
 
-        it('should find the closest sticker above (Direction.Up)', () => {
+        it('should find the closest sticker above (NavDirection.Up)', () => {
             // Arrange
             const currentElement = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             currentElement.setAttribute('id', 'sticker-U5');
@@ -406,7 +412,7 @@ describe('keyboard-cube-walking', () => {
             // Act
             const result = findNextSticker(
                 'U5' as StickerId,
-                Direction.Up,
+                NavDirection.Up,
                 svgElementCache,
                 stickerIdToSvgId,
                 svgIdToStickerId,
@@ -419,7 +425,7 @@ describe('keyboard-cube-walking', () => {
             expect(typeof result).toBe('string');
         });
 
-        it('should find the closest sticker below (Direction.Down)', () => {
+        it('should find the closest sticker below (NavDirection.Down)', () => {
             // Arrange
             const currentElement = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             currentElement.setAttribute('id', 'sticker-U5');
@@ -450,7 +456,7 @@ describe('keyboard-cube-walking', () => {
             // Act
             const result = findNextSticker(
                 'U5' as StickerId,
-                Direction.Down,
+                NavDirection.Down,
                 svgElementCache,
                 stickerIdToSvgId,
                 svgIdToStickerId,
@@ -463,7 +469,7 @@ describe('keyboard-cube-walking', () => {
             expect(typeof result).toBe('string');
         });
 
-        it('should find the closest sticker to the left (Direction.Left)', () => {
+        it('should find the closest sticker to the left (NavDirection.Left)', () => {
             // Arrange
             const currentElement = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             currentElement.setAttribute('id', 'sticker-U5');
@@ -494,7 +500,7 @@ describe('keyboard-cube-walking', () => {
             // Act
             const result = findNextSticker(
                 'U5' as StickerId,
-                Direction.Left,
+                NavDirection.Left,
                 svgElementCache,
                 stickerIdToSvgId,
                 svgIdToStickerId,
@@ -507,7 +513,7 @@ describe('keyboard-cube-walking', () => {
             expect(typeof result).toBe('string');
         });
 
-        it('should find the closest sticker to the right (Direction.Right)', () => {
+        it('should find the closest sticker to the right (NavDirection.Right)', () => {
             // Arrange
             const currentElement = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             currentElement.setAttribute('id', 'sticker-U5');
@@ -538,7 +544,7 @@ describe('keyboard-cube-walking', () => {
             // Act
             const result = findNextSticker(
                 'U5' as StickerId,
-                Direction.Right,
+                NavDirection.Right,
                 svgElementCache,
                 stickerIdToSvgId,
                 svgIdToStickerId,
@@ -581,7 +587,7 @@ describe('keyboard-cube-walking', () => {
             // Act
             const result = findNextSticker(
                 'U5' as StickerId,
-                Direction.Down,
+                NavDirection.Down,
                 svgElementCache,
                 stickerIdToSvgId,
                 svgIdToStickerId,
@@ -632,7 +638,7 @@ describe('keyboard-cube-walking', () => {
             // Act
             const result = findNextSticker(
                 'U5' as StickerId,
-                Direction.Up,
+                NavDirection.Up,
                 svgElementCache,
                 stickerIdToSvgId,
                 svgIdToStickerId,
@@ -641,6 +647,279 @@ describe('keyboard-cube-walking', () => {
 
             // Assert
             expect(result).toBe('U2');
+        });
+    });
+
+    describe('recoverSelection', () => {
+        let model: CubeController;
+
+        beforeEach(() => {
+            model = new CubeController();
+        });
+
+        function makeState(
+            overrides: Partial<CircularCubeViewInternalData> = {}
+        ): CircularCubeViewInternalData {
+            return {
+                model,
+                container: null,
+                styles: {},
+                svgRoot: null,
+                svgReady: false,
+                svgElementCache: new Map(),
+                stickerIdToSvgId: new Map(),
+                svgIdToStickerId: new Map(),
+                axisCircles: [],
+                animationChain: Promise.resolve(),
+                cubeWalk: false,
+                ...overrides,
+            } as CircularCubeViewInternalData;
+        }
+
+        it('should recover from exact spatial anchor (face + position)', () => {
+            const onSelected = vi.fn();
+            const state = makeState({ selectedFace: Face.U, selectedPosition: 4 });
+
+            const result = recoverSelection(state, onSelected);
+
+            expect(result).toBe(true);
+            expect(onSelected).toHaveBeenCalledOnce();
+            // The selected sticker should be the center of U face
+            const stickerId = onSelected.mock.calls[0][0] as string;
+            expect(stickerId).toContain('U');
+        });
+
+        it('should recover from face-only anchor (center of that face)', () => {
+            const onSelected = vi.fn();
+            const state = makeState({ selectedFace: Face.R });
+
+            const result = recoverSelection(state, onSelected);
+
+            expect(result).toBe(true);
+            expect(onSelected).toHaveBeenCalledOnce();
+        });
+
+        it('should fall back to F-center when no spatial anchors exist', () => {
+            const onSelected = vi.fn();
+            const state = makeState();
+
+            const result = recoverSelection(state, onSelected);
+
+            expect(result).toBe(true);
+            expect(onSelected).toHaveBeenCalledOnce();
+        });
+
+        it('should return false when model is unavailable', () => {
+            const onSelected = vi.fn();
+            const state = makeState({ model: undefined });
+
+            const result = recoverSelection(state, onSelected);
+
+            expect(result).toBe(false);
+            expect(onSelected).not.toHaveBeenCalled();
+        });
+
+        it('should return false when model has no getCurrentState', () => {
+            const onSelected = vi.fn();
+            const state = makeState({ model: {} as any });
+
+            const result = recoverSelection(state, onSelected);
+
+            expect(result).toBe(false);
+            expect(onSelected).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('navigate recovery', () => {
+        let model: CubeController;
+
+        beforeEach(() => {
+            vi.spyOn(logger, 'error').mockImplementation(() => {});
+            model = new CubeController();
+        });
+
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
+        function makeState(
+            overrides: Partial<CircularCubeViewInternalData> = {}
+        ): CircularCubeViewInternalData {
+            return {
+                model,
+                container: null,
+                styles: {},
+                svgRoot: null,
+                svgReady: false,
+                svgElementCache: new Map(),
+                stickerIdToSvgId: new Map(),
+                svgIdToStickerId: new Map(),
+                axisCircles: [],
+                animationChain: Promise.resolve(),
+                cubeWalk: false,
+                ...overrides,
+            } as CircularCubeViewInternalData;
+        }
+
+        it('should recover selection when currentSelected is lost but spatial anchors exist', () => {
+            const onSelected = vi.fn();
+            const state = makeState({ selectedFace: Face.F, selectedPosition: 4 });
+            const event = new KeyboardEvent('keydown', { key: 'ArrowUp' });
+
+            const result = navigate(event, false, state, onSelected);
+
+            expect(result).toBe(true);
+            expect(onSelected).toHaveBeenCalledOnce();
+        });
+
+        it('should recover to F-center when no anchors and no selection', () => {
+            const onSelected = vi.fn();
+            const state = makeState();
+            const event = new KeyboardEvent('keydown', { key: 'ArrowDown' });
+
+            const result = navigate(event, false, state, onSelected);
+
+            expect(result).toBe(true);
+            expect(onSelected).toHaveBeenCalledOnce();
+        });
+
+        it('should return true in preview mode when recovery is possible', () => {
+            const state = makeState({ selectedFace: Face.U, selectedPosition: 0 });
+            const event = new KeyboardEvent('keydown', { key: 'ArrowLeft' });
+
+            const result = navigate(event, true, state);
+
+            expect(result).toBe(true);
+        });
+
+        it('should return false in preview mode for non-navigation keys even without selection', () => {
+            const state = makeState();
+            const event = new KeyboardEvent('keydown', { key: 'Enter' });
+
+            const result = navigate(event, true, state);
+
+            expect(result).toBe(false);
+        });
+    });
+
+    describe('navigate (cubeWalk=true)', () => {
+        let model: CubeController;
+
+        beforeEach(() => {
+            model = new CubeController();
+        });
+
+        function stickerAt(face: Face, pos: number): StickerId {
+            const sticker = (() => {
+                const state = model.getCurrentState();
+                const realCubies = state.cubiesById.filter(c => c.type !== 'virtual_center');
+                for (const cubie of realCubies.values()) {
+                    for (const s of cubie.stickers.values()) {
+                        if (s.currentFace === face && s.facePosition === pos) return s;
+                    }
+                }
+                return undefined;
+            })();
+            if (!sticker) throw new Error(`No sticker at ${face}:${pos}`);
+            return sticker.id;
+        }
+
+        function faceOfSticker(stickerId: StickerId): Face {
+            const state = model.getCurrentState();
+            for (const cubie of state.cubiesById.values()) {
+                const s = cubie.stickers.get(stickerId);
+                if (s) return s.currentFace;
+            }
+            throw new Error(`No sticker with id ${stickerId}`);
+        }
+
+        function makeWalkState(currentStickerId: StickerId): CircularCubeViewInternalData {
+            return {
+                model,
+                container: null,
+                styles: {},
+                svgRoot: null,
+                svgReady: false,
+                svgElementCache: new Map(),
+                stickerIdToSvgId: new Map(),
+                svgIdToStickerId: new Map(),
+                axisCircles: [],
+                animationChain: Promise.resolve(),
+                cubeWalk: true,
+                currentSelected: currentStickerId,
+            } as CircularCubeViewInternalData;
+        }
+
+        function navigateCubeWalk(
+            key: string,
+            startStickerId: StickerId,
+            preview = false
+        ): { result: boolean; selectedId?: StickerId } {
+            const event = new KeyboardEvent('keydown', { key });
+            let selectedId: StickerId | undefined;
+            const state = makeWalkState(startStickerId);
+            const result = navigate(event, preview, state, id => {
+                selectedId = id;
+            });
+            return { result, selectedId };
+        }
+
+        it('should walk within a face normally', () => {
+            const { result, selectedId } = navigateCubeWalk('ArrowUp', stickerAt(Face.F, 4));
+            expect(result).toBe(true);
+            expect(selectedId).toBeDefined();
+            expect(faceOfSticker(selectedId!)).toBe(Face.F);
+        });
+
+        it('should cross F edge to an adjacent face', () => {
+            // Walking up from F top-center (pos 1): face-intrinsic Up on F is +Y,
+            // so from top row (y = max) we cross onto U face.
+            const { result, selectedId } = navigateCubeWalk('ArrowUp', stickerAt(Face.F, 1));
+            expect(result).toBe(true);
+            expect(selectedId).toBeDefined();
+            expect(faceOfSticker(selectedId!)).toBe(Face.U);
+        });
+
+        it('should cross edges that spatial walk cannot reach', () => {
+            // U:3 (left-center, x=0) + ArrowLeft → face-intrinsic LEFT.
+            // On Face.U, left = −x, which crosses to Face.L.
+            const startId = stickerAt(Face.U, 3);
+            const { result, selectedId } = navigateCubeWalk('ArrowLeft', startId);
+            expect(result).toBe(true);
+            expect(selectedId).toBeDefined();
+            expect(faceOfSticker(selectedId!)).toBe(Face.L);
+        });
+
+        it('should preserve cubie identity on cross-edge', () => {
+            const startId = stickerAt(Face.F, 1);
+            const { selectedId } = navigateCubeWalk('ArrowUp', startId);
+            expect(selectedId).toBeDefined();
+            // Same cubie — cross-edge stays on the same physical cube piece
+            const state = model.getCurrentState();
+            const startCubieId = (() => {
+                for (const c of state.cubiesById.values()) {
+                    if (c.stickers.has(startId)) return c.id;
+                }
+                return undefined;
+            })();
+            const endCubieId = (() => {
+                for (const c of state.cubiesById.values()) {
+                    if (c.stickers.has(selectedId!)) return c.id;
+                }
+                return undefined;
+            })();
+            expect(endCubieId).toBe(startCubieId);
+        });
+
+        it('should work in preview mode without calling onSelected', () => {
+            const { result, selectedId } = navigateCubeWalk('ArrowUp', stickerAt(Face.F, 1), true);
+            expect(result).toBe(true);
+            expect(selectedId).toBeUndefined();
+        });
+
+        it('should return false for non-navigation keys', () => {
+            const { result } = navigateCubeWalk('Enter', stickerAt(Face.F, 4));
+            expect(result).toBe(false);
         });
     });
 });

@@ -1,4 +1,5 @@
 import { StickerId } from '@/cube/types';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
 
 import type { BasicViewInternalData } from './basic-view';
 
@@ -31,6 +32,20 @@ export function updateSelected(state: BasicViewInternalData, selectedSticker?: S
     allStickers?.forEach((sticker: Element) => sticker.classList.remove(state.styles.selected));
 
     state.currentSelected = selectedSticker;
+
+    if (selectedSticker && state.model) {
+        const stickerObj = CubeStateUtils.getStickerById(
+            state.model.getCurrentState(),
+            selectedSticker
+        );
+        if (stickerObj) {
+            state.selectedFace = stickerObj.currentFace;
+            state.selectedPosition = stickerObj.facePosition;
+        }
+    } else {
+        state.selectedFace = undefined;
+        state.selectedPosition = undefined;
+    }
 
     if (selectedSticker && state.container) {
         const stickerElement = state.container.querySelector(

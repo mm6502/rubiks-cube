@@ -125,6 +125,8 @@ For cubes larger than 3×3, slices are numbered from the outer layer inward.
 
 ### Alternative Layer Notation
 
+> **Status: Planned — Not Yet Implemented.** The notations in this section (Indexed Face Layers, Axis Notation, Two-Axis Notation) are design proposals. The parser does not currently support them.
+
 #### Indexed Face Layers
 
 Specify layers by distance from the face (0 = outer layer).
@@ -163,6 +165,8 @@ Specify plane by intersection of two axes (must include index).
 | **3XZ**  | 3Y         | y=3 plane                                    |
 
 ## Notation Normalization
+
+> **Status: Planned — Not Yet Implemented.** The normalization rules described below are a design proposal. The current parser only normalizes apostrophe character variants.
 
 For consistency in move history and algorithms, alternative notations should be normalized to standard form:
 
@@ -278,11 +282,11 @@ R U R' U'           // Outer layer
 
 ### Parser Requirements
 
-1. Support all notation variants
-2. Normalize to canonical form
-3. Validate moves for cube size
-4. Handle comments and whitespace
-5. Support grouping and repetition
+1. Support face moves, wide moves, slice moves, cube rotations, and their modifiers (`'`, `2`)
+2. Normalize apostrophe character variants to standard `'`
+3. Validate moves against pre-built move tables for the current cube size
+
+> **Note:** Sequence parsing (comments, whitespace splitting, grouping, and repetition) is not yet implemented. Moves are currently parsed individually.
 
 ### Move Validation
 

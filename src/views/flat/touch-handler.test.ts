@@ -4,7 +4,7 @@ import { Application } from '@/application';
 import { DragDirection } from '@/interaction/types';
 import { EventName } from '@/types';
 
-import { FlatTouchHandler } from './flat-touch-handler';
+import { FlatTouchHandler } from './touch-handler';
 
 type Fixture = {
     host: HTMLElement;
@@ -343,6 +343,209 @@ describe('FlatTouchHandler', () => {
             viewId: 'flat',
             tentative: false,
         });
+
+        handler.destroy();
+    });
+
+    it('setFaceDirectMode and isFaceDirectMode round-trip', () => {
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+        });
+        handler.attach();
+
+        expect(handler.isFaceDirectMode()).toBe(false);
+        handler.setFaceDirectMode(true);
+        expect(handler.isFaceDirectMode()).toBe(true);
+        handler.setFaceDirectMode(false);
+        expect(handler.isFaceDirectMode()).toBe(false);
+
+        handler.destroy();
+    });
+
+    it('getSelectedFace returns undefined initially and updates after selectFace', () => {
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+        });
+        handler.attach();
+
+        expect(handler.getSelectedFace()).toBeUndefined();
+
+        handler.selectFace('F' as any);
+        expect(handler.getSelectedFace()).toBe('F');
+
+        handler.selectFace(undefined);
+        expect(handler.getSelectedFace()).toBeUndefined();
+
+        handler.destroy();
+    });
+
+    it('setLayoutMode: tabbed mode uses larger cancel zone radius', () => {
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+        });
+        handler.attach();
+        handler.setLayoutMode('tabbed' as any);
+
+        elementFromPointMock.mockReturnValue(fixture.stickers[0]);
+        firePointer(fixture.host, 'pointerdown', 10, 24, 24);
+
+        const cancelZone = fixture.host.querySelector(
+            `.${styles['flat-halo-cancel-zone']}`
+        ) as HTMLElement;
+        const widthTabbed = parseFloat(cancelZone.style.width);
+
+        firePointer(document, 'pointerup', 10, 24, 24);
+
+        // Clear face selection so the second pointerdown can show the cancel zone again
+        handler.selectFace(undefined as any);
+        handler.setLayoutMode('floating' as any);
+        elementFromPointMock.mockReturnValue(fixture.stickers[0]);
+        firePointer(fixture.host, 'pointerdown', 11, 24, 24);
+
+        const widthFloating = parseFloat(cancelZone.style.width);
+        expect(widthTabbed).toBeGreaterThan(widthFloating);
+
+        firePointer(document, 'pointerup', 11, 24, 24);
+        handler.destroy();
+    });
+
+    it('showDragLabel in tabbed mode uses fixed positioning', () => {
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+        });
+        handler.attach();
+        handler.setLayoutMode('tabbed' as any);
+
+        handler.showDragLabel("R'", 100, 200);
+
+        const label = fixture.host.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
+        expect(label.style.display).toBe('block');
+        expect(label.style.position).toBe('fixed');
+
+        handler.destroy();
+    });
+
+    it('hideDragLabel resets display and positioning', () => {
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+        });
+        handler.attach();
+
+        handler.showDragLabel('R', 100, 100);
+        handler.hideDragLabel();
+
+        const label = fixture.host.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
+        expect(label.style.display).toBe('none');
+
+        handler.destroy();
+    });
+
+    it('hideCancellationZone hides cancel zone', () => {
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+        });
+        handler.attach();
+
+        handler.showCancellationZoneAtOrigin(100, 100);
+        const zone = fixture.host.querySelector(
+            `.${styles['flat-halo-cancel-zone']}`
+        ) as HTMLElement;
+        expect(zone.style.display).toBe('block');
+
+        handler.hideCancellationZone();
+        expect(zone.style.display).toBe('none');
+
+        handler.destroy();
+    });
+
+    it('pointercancel hides drag label and cancel zone', () => {
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+        });
+        handler.attach();
+
+        elementFromPointMock.mockReturnValue(fixture.stickers[0]);
+        firePointer(fixture.host, 'pointerdown', 12, 24, 24);
+        firePointer(document, 'pointermove', 12, 24, 8);
+        firePointer(document, 'pointercancel', 12, 24, 8);
+
+        const label = fixture.host.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
+        const zone = fixture.host.querySelector(
+            `.${styles['flat-halo-cancel-zone']}`
+        ) as HTMLElement;
+        expect(label.style.display).toBe('none');
+        expect(zone.style.display).toBe('none');
+
+        handler.destroy();
+    });
+
+    it('resize does not throw when called', () => {
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+        });
+        handler.attach();
+        handler.selectFace('F' as any);
+
+        expect(() => handler.resize()).not.toThrow();
+
+        handler.destroy();
+    });
+
+    it('faceDirectMode: sticker drag emits face rotation MOVE_REQUESTED', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+        });
+        handler.attach();
+        handler.setFaceDirectMode(true);
+
+        elementFromPointMock.mockReturnValue(fixture.stickers[2]); // center sticker pos=4
+
+        firePointer(fixture.host, 'pointerdown', 13, 100, 100);
+        firePointer(document, 'pointermove', 13, 100, 70);
+        firePointer(document, 'pointerup', 13, 100, 70);
+
+        expect(emitSpy).toHaveBeenCalledWith(
+            EventName.MOVE_REQUESTED,
+            expect.objectContaining({ viewId: 'flat' })
+        );
 
         handler.destroy();
     });

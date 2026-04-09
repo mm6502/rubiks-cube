@@ -13,7 +13,9 @@
 .view-panel {
     background: var(--color-canvas-bg);
     border-radius: var(--border-radius);
-    box-shadow: 0 4px 16px var(--color-shadow-panel);
+    box-shadow:
+        0 0 0 1px var(--color-border-subtle),
+        0 4px 16px var(--color-shadow-panel);
     overflow: visible; /* Changed from hidden to visible so resize handles extending outside panel are clickable */
     min-width: 20px;
     position: absolute;
@@ -262,24 +264,41 @@
     max-width: 70%;
 }
 
-.view-commands-scroller {
+.view-commands-inline {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
     overflow: visible;
     /* Reserve a small bleed area so translated hover/active buttons don't get clipped. */
     padding: 4px;
     margin: -4px;
-    max-width: 100%;
+    flex-shrink: 1;
+    min-width: 0;
 }
 
-.view-commands-scroller::-webkit-scrollbar {
-    height: 0;
-}
-
-.view-commands-scroller::-webkit-scrollbar-thumb {
-    background: var(--color-view-selection-tab-scrollbar-thumb);
-    border-radius: 2px;
+.view-commands-overflow {
+    display: none; /* populated and shown only when --has-overflow --expanded */
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 120;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: var(--color-view-title-bar-bg);
+    border: 1px solid var(--color-btn-on-view-title-bar-border);
+    border-radius: 10px;
+    box-shadow: 0 8px 20px var(--color-shadow-panel);
+    padding: 10px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition:
+        opacity 140ms ease,
+        transform 140ms ease,
+        visibility 140ms ease;
 }
 
 .view-commands-toggle {
@@ -303,51 +322,19 @@
     border-color: var(--color-btn-on-view-title-bar-border-hover);
 }
 
-.view-commands-container--compact {
-    position: relative;
-    flex: 0 0 auto;
-    max-width: none;
-}
-
-.view-commands-container--compact .view-commands-toggle {
+.view-commands-container--has-overflow .view-commands-toggle {
     display: inline-flex;
 }
 
-.view-commands-container--compact .view-commands-scroller {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    z-index: 120;
-    max-width: min(280px, calc(100vw - 48px));
-    background: var(--color-view-title-bar-bg);
-    border: 1px solid var(--color-btn-on-view-title-bar-border);
-    border-radius: 10px;
-    box-shadow: 0 8px 20px var(--color-shadow-panel);
-    padding: 8px;
-    margin: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-view-selection-tab-scrollbar-thumb) transparent;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(-4px);
-    transition:
-        opacity 140ms ease,
-        transform 140ms ease,
-        visibility 140ms ease;
+.view-commands-container--has-overflow .view-commands-overflow {
+    display: flex;
 }
 
-.view-commands-container--compact.view-commands-container--expanded .view-commands-scroller {
+.view-commands-container--has-overflow.view-commands-container--expanded .view-commands-overflow {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
     transform: translateY(0);
-}
-
-.view-commands-container--no-transition .view-commands-scroller {
-    transition: none !important;
 }
 
 /* Command group visuals for grouped commands in view-actions and global commands */
@@ -482,6 +469,12 @@
         min-height: 44px;
         min-width: 44px; /* Icon-only buttons must be square touch targets */
     }
+
+    /* Larger tap target for the ⋯ overflow toggle */
+    .view-commands-toggle {
+        min-width: 44px;
+        min-height: 44px;
+    }
 }
 
 /* =============================================
@@ -574,10 +567,9 @@
     max-width: none;
 }
 
-.view-panel--tabbed .view-commands-scroller {
+.view-panel--tabbed .view-commands-inline {
     max-width: none;
-    overflow-x: visible;
-    overflow-y: visible;
+    flex-wrap: wrap;
 }
 
 .view-panel--tabbed .view-command-btn {

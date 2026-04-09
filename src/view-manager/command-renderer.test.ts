@@ -913,4 +913,150 @@ describe('CommandRenderer', () => {
             }).not.toThrow();
         });
     });
+
+    describe('configureHeaderCommandLayout (toggle button)', () => {
+        let container: HTMLElement;
+        let commandRegistry: Map<string, Command[]>;
+        let overflowStyles: Record<string, string>;
+
+        beforeEach(() => {
+            // Include overflow-related CSS module keys so configureHeaderCommandLayout
+            // doesn't early-return on missing style classes.
+            overflowStyles = {
+                ...styles,
+                'view-commands-toggle': 'view-commands-toggle',
+                'view-commands-inline': 'view-commands-inline',
+                'view-commands-overflow': 'view-commands-overflow',
+                'view-commands-container--has-overflow': 'has-overflow',
+                'view-commands-container--expanded': 'expanded',
+                'view-command-btn': 'view-command-btn',
+            };
+
+            container = document.createElement('div');
+            container.innerHTML = '<div data-view-header><span data-view-title>Title</span></div>';
+            document.body.appendChild(container);
+
+            commandRegistry = new Map([
+                [
+                    'view1',
+                    [
+                        {
+                            id: 'toggle-header-cmd',
+                            label: 'Cmd',
+                            action: vi.fn(),
+                            category: 'view' as any,
+                            showInHeader: true,
+                        },
+                    ],
+                ],
+            ]);
+        });
+
+        afterEach(() => {
+            container.remove();
+        });
+
+        function buildRenderer(): CommandRenderer {
+            return new CommandRenderer(overflowStyles, buttonStyles);
+        }
+
+        it('toggle button click expands / collapses overflow dropdown', () => {
+            const r = buildRenderer();
+            r.updateViewHeaderCommands('view1', container, commandRegistry);
+
+            const toggleBtn = container.querySelector('.view-commands-toggle') as HTMLElement;
+            expect(toggleBtn).not.toBeNull();
+            expect(toggleBtn.getAttribute('aria-expanded')).toBe('false');
+
+            // Click → expand
+            toggleBtn.click();
+            expect(toggleBtn.getAttribute('aria-expanded')).toBe('true');
+
+            // Click again → collapse
+            toggleBtn.click();
+            expect(toggleBtn.getAttribute('aria-expanded')).toBe('false');
+        });
+
+        it('toggle button Enter key triggers click', () => {
+            const r = buildRenderer();
+            r.updateViewHeaderCommands('view1', container, commandRegistry);
+
+            const toggleBtn = container.querySelector('.view-commands-toggle') as HTMLElement;
+
+            toggleBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+            expect(toggleBtn.getAttribute('aria-expanded')).toBe('true');
+        });
+
+        it('toggle button Space key triggers click', () => {
+            const r = buildRenderer();
+            r.updateViewHeaderCommands('view1', container, commandRegistry);
+
+            const toggleBtn = container.querySelector('.view-commands-toggle') as HTMLElement;
+
+            toggleBtn.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+            expect(toggleBtn.getAttribute('aria-expanded')).toBe('true');
+        });
+
+        it('toggle button ignores non-Enter/Space keys', () => {
+            const r = buildRenderer();
+            r.updateViewHeaderCommands('view1', container, commandRegistry);
+
+            const toggleBtn = container.querySelector('.view-commands-toggle') as HTMLElement;
+
+            toggleBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+            expect(toggleBtn.getAttribute('aria-expanded')).toBe('false');
+        });
+
+        it('toggle button pointerdown stops propagation (does not throw)', () => {
+            const r = buildRenderer();
+            r.updateViewHeaderCommands('view1', container, commandRegistry);
+
+            const toggleBtn = container.querySelector('.view-commands-toggle') as HTMLElement;
+            expect(() => {
+                toggleBtn.dispatchEvent(
+                    new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+                );
+            }).not.toThrow();
+        });
+    });
+
+    describe('renderGlobalCommands – missing view-actions container', () => {
+        it('logs warning when view-actions container is missing', () => {
+            // Arrange: no view-actions in DOM
+            document.body.innerHTML = `
+                <div id="controller-commands"></div>
+                <div id="global-move-commands"></div>
+            `;
+
+            // Should not throw
+            expect(() => renderer.renderGlobalCommands(new Map(), undefined)).not.toThrow();
+        });
+
+        it('shows message when view has only CUBE commands (no VIEW category)', () => {
+            document.body.innerHTML = `
+                <div id="controller-commands"></div>
+                <div id="global-move-commands"></div>
+                <div id="view-actions"></div>
+            `;
+
+            const reg = new Map([
+                [
+                    'view1',
+                    [
+                        {
+                            id: 'cube-only',
+                            label: 'Cube',
+                            action: vi.fn(),
+                            category: CommandCategory.CUBE,
+                        },
+                    ],
+                ],
+            ]);
+
+            renderer.renderGlobalCommands(reg, 'view1');
+
+            const viewActions = document.getElementById('view-actions');
+            expect(viewActions?.innerHTML).toContain('No actions available for this view');
+        });
+    });
 });

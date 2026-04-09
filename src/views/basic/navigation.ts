@@ -1,232 +1,162 @@
 import { Application } from '@/application';
-import { Axis, Face, ReadOnlyCubeModel, ReadonlyCubie, StickerId, Vector3 } from '@/cube/types';
-import { findClosestEquivalentAngle, mod, rotatePosition3D } from '@/cube/utils/math';
+import { CubeState, Face, ReadonlyCubie, Sticker, StickerId, Vector3 } from '@/cube/types';
+import { FACE_BASIS } from '@/cube/utils/face-utils';
+import { dot3, negate3 } from '@/cube/utils/math';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { LogLevel, logger } from '@/diagnostics/logger';
-import { EventName } from '@/types';
+import { EventName, NavDirection, ViewRotation } from '@/types';
 
+import { BasicVariant } from './basic-view';
 import type { BasicViewInternalData } from './basic-view';
-import { BASIC_VIEW_ANGLES } from './constants';
 
 // ---------------------------------------------------------------------------
-// Orientation
+// Coordinate system (model space, right-handed)
 // ---------------------------------------------------------------------------
-
-/** Cube view orientation for Basic view */
-export type Orientation = 'front' | 'back';
-
-/** Orientation constants for type safety */
-export const Orientation = {
-    Front: 'front' as Orientation,
-    Back: 'back' as Orientation,
-} as const;
+//
+//   +X = right   +Y = up   +Z = away from camera   (camera is at −Z, looking +Z)
+//
+// CSS projection flips both Y and Z relative to model space:
+//   screen_y = −model_y,   screen_z = −model_z
+//
+// viewForward / viewRight / viewUp
+// ---------------------------------------------------------------------------
+// Axis-aligned unit vectors on BasicViewInternalData that describe the virtual
+// camera orientation. They rotate on whole-cube Ctrl+Arrow moves.
+//
+//   viewForward — model-space axis that currently points toward the viewer
+//   viewRight   — model-space axis that currently points screen-right
+//   viewUp      — model-space axis that currently points screen-up
+//
+// Default orientation (Face.F toward viewer):
+//   viewForward = { x:0, y:0, z:1 }  (+Z points at camera → front face visible)
+//   viewRight   = { x:1, y:0, z:0 }
+//   viewUp      = { x:0, y:1, z:0 }
+//
+// These are preferred over FACE_BASIS normals for navigation because FACE_BASIS
+// gives canonical face-intrinsic directions, which break when a face is reached
+// via a non-canonical rotation (e.g. arriving at Face.U by rotating from Face.R
+// gives viewUp = {0,0,1}, not the canonical {0,1,0}).
 
 // ---------------------------------------------------------------------------
-// NavigationDelta
-// ---------------------------------------------------------------------------
-
-/** Navigation delta for keyboard movement */
-export type NavigationDelta = -3 | -1 | 1 | 3;
-
-/** Navigation delta constants for type safety */
-export const NavigationDelta = {
-    Up: -3 as NavigationDelta,
-    Down: 3 as NavigationDelta,
-    Left: -1 as NavigationDelta,
-    Right: 1 as NavigationDelta,
-} as const;
-
-// ---------------------------------------------------------------------------
-// Cube sticker-grid navigation
+// Cube sticker navigation using 3D model coordinates
 // ---------------------------------------------------------------------------
 
 /**
- * Get the adjacent position when moving from a sticker position.
- * Handles both within-face movement and cross-face transitions.
+ * Returns the face adjacent to the cube when movement exits the boundary in
+ * the given direction. Only called when one of tx/ty/tz is out of range.
+ *
+ * Each out-of-range axis maps unambiguously to a face:
+ *   tx < 0             → Face.L  (left face, x=0 layer)
+ *   tx >= cubeSize     → Face.R  (right face, x=max layer)
+ *   ty < 0             → Face.D  (bottom face, y=0 layer)
+ *   ty >= cubeSize     → Face.U  (top face, y=max layer)
+ *   tz < 0             → Face.F  (front face, nearest to camera)
+ *   tz >= cubeSize     → Face.B  (back face, furthest from camera)
  */
-export function getAdjacentPos(
-    model: ReadOnlyCubeModel,
-    currentFace: Face,
-    currentPos: number,
-    delta: NavigationDelta,
-    _orientation: Orientation = Orientation.Front,
-    _yRotation: number = 0,
-    _xRotation: number = 0
-): { newFace: Face; newPos: number } {
-    const state = model.getCurrentState();
-    const cubeSize = state.cubeSize;
-    const row = Math.floor(currentPos / cubeSize);
-    const col = currentPos % cubeSize;
-
-    let newFace = currentFace;
-    let newRow = row;
-    let newCol = col;
-
-    if (delta === NavigationDelta.Up) {
-        if (row === 0) {
-            if (currentFace === Face.F) {
-                newFace = Face.U;
-                newRow = cubeSize - 1;
-                newCol = col;
-            } else if (currentFace === Face.U) {
-                newFace = Face.B;
-                newRow = cubeSize - 1;
-                newCol = col;
-            } else if (currentFace === Face.B) {
-                newFace = Face.U;
-                newRow = 0;
-                newCol = col;
-            } else if (currentFace === Face.D) {
-                newFace = Face.B;
-                newRow = cubeSize - 1;
-                newCol = col;
-            } else if (currentFace === Face.R) {
-                newFace = Face.U;
-                newRow = col;
-                newCol = cubeSize - 1;
-            } else if (currentFace === Face.L) {
-                newFace = Face.U;
-                newRow = col;
-                newCol = 0;
-            }
-        } else {
-            newRow = row - 1;
-        }
-    } else if (delta === NavigationDelta.Down) {
-        if (row === cubeSize - 1) {
-            if (currentFace === Face.F) {
-                newFace = Face.D;
-                newRow = 0;
-                newCol = col;
-            } else if (currentFace === Face.D) {
-                newFace = Face.B;
-                newRow = 0;
-                newCol = col;
-            } else if (currentFace === Face.B) {
-                newFace = Face.D;
-                newRow = 0;
-                newCol = col;
-            } else if (currentFace === Face.U) {
-                newFace = Face.F;
-                newRow = 0;
-                newCol = col;
-            } else if (currentFace === Face.R) {
-                newFace = Face.D;
-                newRow = cubeSize - 1 - col;
-                newCol = cubeSize - 1;
-            } else if (currentFace === Face.L) {
-                newFace = Face.D;
-                newRow = col;
-                newCol = 0;
-            }
-        } else {
-            newRow = row + 1;
-        }
-    } else if (delta === NavigationDelta.Left) {
-        if (col === 0) {
-            if (currentFace === Face.F) {
-                newFace = Face.L;
-                newRow = row;
-                newCol = cubeSize - 1;
-            } else if (currentFace === Face.L) {
-                newFace = Face.B;
-                newRow = row;
-                newCol = cubeSize - 1;
-            } else if (currentFace === Face.B) {
-                newFace = Face.R;
-                newRow = row;
-                newCol = cubeSize - 1;
-            } else if (currentFace === Face.R) {
-                newFace = Face.F;
-                newRow = row;
-                newCol = cubeSize - 1;
-            } else if (currentFace === Face.U) {
-                newFace = Face.L;
-                newRow = 0;
-                newCol = cubeSize - 1 - row;
-            } else if (currentFace === Face.D) {
-                newFace = Face.L;
-                newRow = cubeSize - 1;
-                newCol = row;
-            }
-        } else {
-            newCol = col - 1;
-        }
-    } else if (delta === NavigationDelta.Right) {
-        if (col === cubeSize - 1) {
-            if (currentFace === Face.F) {
-                newFace = Face.R;
-                newRow = row;
-                newCol = 0;
-            } else if (currentFace === Face.R) {
-                newFace = Face.B;
-                newRow = row;
-                newCol = 0;
-            } else if (currentFace === Face.B) {
-                newFace = Face.L;
-                newRow = row;
-                newCol = 0;
-            } else if (currentFace === Face.L) {
-                newFace = Face.F;
-                newRow = row;
-                newCol = 0;
-            } else if (currentFace === Face.U) {
-                newFace = Face.R;
-                newRow = 0;
-                newCol = row;
-            } else if (currentFace === Face.D) {
-                newFace = Face.R;
-                newRow = cubeSize - 1;
-                newCol = cubeSize - 1 - row;
-            }
-        } else {
-            newCol = col + 1;
-        }
-    }
-
-    return { newFace, newPos: newRow * cubeSize + newCol };
+function getTransitionFace(tx: number, ty: number, tz: number, cubeSize: number): Face {
+    if (tx < 0) return Face.L;
+    if (tx >= cubeSize) return Face.R;
+    if (ty < 0) return Face.D;
+    if (ty >= cubeSize) return Face.U;
+    if (tz < 0) return Face.F;
+    return Face.B; // tz >= cubeSize
 }
 
 /**
- * Rotate a navigation delta based on horizontal (Y-axis) rotation.
- * rotationSteps: 0=0°, 1=90°, 2=180°, 3=270°
+ * Finds the adjacent sticker to select when navigating from the current cubie.
+ *
+ * Computes screen-aligned right/up directions from the current view orientation
+ * and the CSS face placement geometry (F/B are Z-planes, U/D use rotateX(90deg),
+ * L/R use rotateY(±90deg)), so navigation is always consistent with the viewed
+ * orientation regardless of how the face was reached.
+ *
+ * - In-bounds: returns the neighbour cubie's sticker on the current front face.
+ * - Out-of-bounds: returns the current cubie's sticker on the adjacent face.
  */
-export function rotateDeltaClockwise(
-    delta: NavigationDelta,
-    rotationSteps: number
-): NavigationDelta {
-    const deltaMap = {
-        [NavigationDelta.Right]: 0,
-        [NavigationDelta.Down]: 1,
-        [NavigationDelta.Left]: 2,
-        [NavigationDelta.Up]: 3,
-    } as const;
-    const inverseMap: Record<number, NavigationDelta> = {
-        0: NavigationDelta.Right,
-        1: NavigationDelta.Down,
-        2: NavigationDelta.Left,
-        3: NavigationDelta.Up,
+export function getAdjacentSticker(
+    cubeState: CubeState,
+    state: BasicViewInternalData,
+    cubie: ReadonlyCubie,
+    dir: NavDirection
+): Sticker | undefined {
+    const front = viewFrontFace(state);
+    const n = cubeState.cubeSize;
+    const pos = cubie.position;
+    const vR = state.viewRight;
+    const vU = state.viewUp;
+
+    // Each CSS face element is placed in 3D at a different angle, which determines
+    // how the view vectors (vR, vU) project onto the face's navigable (col, row) axes.
+    //
+    // Face placement geometry summary:
+    //   F / B  — rendered in the Z-plane (no extra CSS rotation)
+    //            col = model_x,  row = maxIndex − model_y
+    //            ∴ screen_right ∝ +x,  screen_up ∝ −y
+    //            faceRight = (vR.x, −vR.y, 0),  faceUp = (−vU.x, vU.y, 0)
+    //
+    //   U / D  — rendered in the X-Z plane (CSS rotateX 90°)
+    //            col = model_x,  row = maxIndex − model_z
+    //            ∴ screen_right ∝ +x,  screen_up ∝ −z  (after the X-rotation)
+    //            faceRight = (vR.x, 0, −vR.z),  faceUp = (−vU.x, 0, vU.z)
+    //
+    //   L / R  — rendered in the Y-Z plane (CSS rotateY ±90°)
+    //            col = model_z,  row = maxIndex − model_y
+    //            ∴ screen_right ∝ +z,  screen_up ∝ −y  (L face; R face mirrors z)
+    //            faceRight = (0, −vR.y, −vR.z),  faceUp = (0, vU.y, vU.z)
+    //
+    // The || 0 on negated components converts −0 to 0 for clean arithmetic.
+    let faceRight: Vector3;
+    let faceUp: Vector3;
+    switch (front) {
+        case Face.F:
+        case Face.B:
+            // Z-plane: col=x, row=maxIndex-y → right=(vR.x,−vR.y,0), up=(−vU.x,vU.y,0)
+            faceRight = { x: vR.x, y: -vR.y || 0, z: 0 };
+            faceUp = { x: -vU.x || 0, y: vU.y, z: 0 };
+            break;
+        case Face.U:
+        case Face.D:
+            // X-Z plane (rotateX 90°): col=x, row=maxIndex-z → right=(vR.x,0,−vR.z), up=(−vU.x,0,vU.z)
+            faceRight = { x: vR.x, y: 0, z: -vR.z || 0 };
+            faceUp = { x: -vU.x || 0, y: 0, z: vU.z };
+            break;
+        default: // Face.L, Face.R
+            // Y-Z plane (rotateY ±90°): col=z, row=maxIndex-y → right=(0,−vR.y,−vR.z), up=(0,vU.y,vU.z)
+            faceRight = { x: 0, y: -vR.y || 0, z: -vR.z || 0 };
+            faceUp = { x: 0, y: vU.y, z: vU.z };
+            break;
+    }
+
+    const d =
+        dir === NavDirection.Up
+            ? faceUp
+            : dir === NavDirection.Down
+              ? negate3(faceUp)
+              : dir === NavDirection.Right
+                ? faceRight
+                : negate3(faceRight);
+
+    const tx = pos.x + d.x;
+    const ty = pos.y + d.y;
+    const tz = pos.z + d.z;
+
+    const stickerOnFace = (c: ReadonlyCubie, face: Face): Sticker | undefined => {
+        for (const sticker of c.stickers.values()) {
+            if (sticker.currentFace === face) return sticker;
+        }
+        return undefined;
     };
-    const currentIndex = deltaMap[delta];
-    if (currentIndex === undefined) return delta;
-    return inverseMap[mod(currentIndex + rotationSteps, 4)];
-}
 
-/**
- * Rotate a navigation delta based on vertical (X-axis) rotation.
- * Each rotation step = 45 degrees.
- */
-export function rotateVerticalDelta(
-    delta: NavigationDelta,
-    rotationSteps: number
-): NavigationDelta {
-    const halfRotations = (rotationSteps % 8) / 4;
-    if (halfRotations === 0) return delta;
-    if (halfRotations === 1) {
-        if (delta === NavigationDelta.Up) return NavigationDelta.Down;
-        if (delta === NavigationDelta.Down) return NavigationDelta.Up;
+    if (tx >= 0 && tx < n && ty >= 0 && ty < n && tz >= 0 && tz < n) {
+        // Neighbor cubie on the same face
+        const neighbor = CubeStateUtils.getCubieAtPosition(cubeState, { x: tx, y: ty, z: tz });
+        if (!neighbor) return undefined;
+        return stickerOnFace(neighbor, front);
     }
-    return delta;
+
+    // Going over an edge — same cubie, different face
+    const targetFace = getTransitionFace(tx, ty, tz, n);
+    return stickerOnFace(cubie, targetFace);
 }
 
 // ---------------------------------------------------------------------------
@@ -237,21 +167,21 @@ export function rotateVerticalDelta(
  * Returns true when the keyboard event is a bare arrow key (no modifiers).
  */
 export function isNavigationKey(event: KeyboardEvent): boolean {
-    return mapKeyToDelta(event) !== undefined;
+    return mapKeyToDir(event) !== undefined;
 }
 
-function mapKeyToDelta(event: KeyboardEvent): NavigationDelta | undefined {
+function mapKeyToDir(event: KeyboardEvent): NavDirection | undefined {
     if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return undefined;
 
     switch (event.key) {
         case 'ArrowUp':
-            return NavigationDelta.Up;
+            return NavDirection.Up;
         case 'ArrowDown':
-            return NavigationDelta.Down;
+            return NavDirection.Down;
         case 'ArrowLeft':
-            return NavigationDelta.Left;
+            return NavDirection.Left;
         case 'ArrowRight':
-            return NavigationDelta.Right;
+            return NavDirection.Right;
         default:
             return undefined;
     }
@@ -265,16 +195,21 @@ function mapKeyToDelta(event: KeyboardEvent): NavigationDelta | undefined {
  * Moves the keyboard selection in the direction indicated by the arrow key.
  *
  * @param preview - When true, checks feasibility without emitting events.
+ * @param onSelected - Called with the newly selected sticker id.
+ * @param onRotated - Optional callback invoked once per elementary view rotation
+ *   INSTEAD of the internal standalone mutators. Use this to route rotations
+ *   through class methods that handle rendering and linked-view sync.
  * @returns true if navigation succeeded (or would succeed in preview mode).
  */
 export function navigate(
     event: KeyboardEvent,
     preview: boolean,
     state: BasicViewInternalData,
-    onSelected?: (id: StickerId) => void
+    onSelected?: (id: StickerId) => void,
+    onRotated?: (r: ViewRotation) => void
 ): boolean {
-    const delta = mapKeyToDelta(event);
-    if (!delta) return false;
+    const dir = mapKeyToDir(event);
+    if (!dir) return false;
 
     if (!state.currentSelected || !state.model) return false;
 
@@ -289,47 +224,26 @@ export function navigate(
     if (!cubie) return false;
 
     const stickerFace = currentSticker.currentFace;
-    const pos = currentSticker.facePosition;
 
-    const { newFace, newPos } = getAdjacentPos(
-        state.model,
-        stickerFace,
-        pos,
-        delta,
-        state.variant === 'back' ? Orientation.Back : Orientation.Front,
-        state.yRotation,
-        state.xRotation
-    );
-
-    let newSticker = undefined;
-
-    if (newFace === stickerFace) {
-        newSticker = CubeStateUtils.getStickerAt(cubeState, newFace, newPos);
-    } else {
-        for (const [stickerId] of cubie.stickers) {
-            const candidateSticker = CubeStateUtils.getStickerById(cubeState, stickerId);
-            if (candidateSticker && candidateSticker.currentFace === newFace) {
-                newSticker = candidateSticker;
-                break;
-            }
+    // Phase 1: selection is not on the current front face.
+    // Rotate the view projection to bring the selection's face to front.
+    // Selection does not move; the key is fully consumed.
+    if (stickerFace !== viewFrontFace(state)) {
+        if (!preview) {
+            rotateViewToFace(state, stickerFace, onRotated);
         }
+        return true;
     }
 
-    if (!newSticker) {
-        newSticker = CubeStateUtils.getStickerAt(cubeState, newFace, newPos);
-    }
-
+    // Phase 2: selection is on the front face — navigate in model-space.
+    const newSticker = getAdjacentSticker(cubeState, state, cubie, dir);
     if (!newSticker) return false;
     if (newSticker.id === currentSticker.id) return false;
 
-    // Handle over-the-horizon transitions that require a view rotation
-    if (stickerFace === Face.U && delta === NavigationDelta.Up && newFace === Face.B) {
-        state.yRotation -= 180;
-    } else if (stickerFace === Face.D && delta === NavigationDelta.Down && newFace === Face.B) {
-        state.yRotation += 180;
-    }
-
     if (!preview) {
+        if (newSticker.currentFace !== stickerFace) {
+            rotateViewToFace(state, newSticker.currentFace, onRotated);
+        }
         onSelected?.(newSticker.id);
     }
 
@@ -337,205 +251,253 @@ export function navigate(
 }
 
 // ---------------------------------------------------------------------------
-// View rotation helpers (pure state mutations — callers handle re-rendering)
+// View-front-face helpers
 // ---------------------------------------------------------------------------
 
-function getTransformedUpVector(state: BasicViewInternalData): Vector3 {
-    let vec: Vector3 = { x: 0, y: 1, z: 0 };
-
-    const baseX = state.isPitched ? BASIC_VIEW_ANGLES.PITCHED_BASE_X : BASIC_VIEW_ANGLES.BASE_X;
-    const baseY = state.isTilted ? BASIC_VIEW_ANGLES.TILTED_BASE_Y : BASIC_VIEW_ANGLES.BASE_Y;
-    const baseZ = BASIC_VIEW_ANGLES.BASE_Z;
-
-    vec = rotatePosition3D(vec, Axis.X, (Math.round(baseX / 90) * 90) as any);
-    vec = rotatePosition3D(vec, Axis.Y, (Math.round(baseY / 90) * 90) as any);
-    vec = rotatePosition3D(vec, Axis.Z, (Math.round(baseZ / 90) * 90) as any);
-
-    const yRot = Math.round(state.yRotation / 90) * 90;
-    const xRot = Math.round(state.xRotation / 90) * 90;
-    const zRot = Math.round(state.zRotation / 90) * 90;
-
-    if (xRot !== 0) vec = rotatePosition3D(vec, Axis.X, xRot as any);
-    if (yRot !== 0) vec = rotatePosition3D(vec, Axis.Y, yRot as any);
-    if (zRot !== 0) vec = rotatePosition3D(vec, Axis.Z, zRot as any);
-
-    return vec;
+/**
+ * Returns the model Face that is currently facing the viewer,
+ * based on state.viewForward.
+ *
+ * viewForward is the model-space axis pointing toward the camera:
+ *   z=+1 → Face.F  (front face, normal = −Z outward)
+ *   z=−1 → Face.B  (back face,  normal = +Z outward)
+ *   x=+1 → Face.R  (right face, normal = +X outward)
+ *   x=−1 → Face.L  (left face,  normal = −X outward)
+ *   y=+1 → Face.D  (CSS +Y = visual downward → bottom face)
+ *   y=−1 → Face.U  (CSS −Y = visual upward   → top face)
+ *
+ * The Y mapping is inverted because the CSS projection flips the Y axis:
+ * model +Y is rendered at a lower screen position, so the top of the cube
+ * (model +Y = Face.U) is reached by viewForward pointing −Y.
+ */
+export function viewFrontFace(state: BasicViewInternalData): Face {
+    const v = state.viewForward;
+    if (v.z === 1) return Face.F;
+    if (v.z === -1) return Face.B;
+    if (v.x === 1) return Face.R;
+    if (v.x === -1) return Face.L;
+    if (v.y === 1) return Face.D; // CSS +Y is visual-down = Face.D
+    if (v.y === -1) return Face.U; // CSS -Y is visual-up  = Face.U
+    return Face.F; // fallback — viewForward should always be axis-aligned
 }
 
-function getTransformedRightVector(state: BasicViewInternalData): Vector3 {
-    let vec: Vector3 = { x: 1, y: 0, z: 0 };
+/**
+ * Rotates the view projection so that targetFace faces the viewer.
+ * Uses at most two rotateView calls (back face requires two).
+ * No cube model moves are emitted.
+ *
+ * @param onStep - Optional callback invoked once per elementary rotation step
+ *   INSTEAD of the internal standalone mutators. When provided, the caller is
+ *   responsible for applying the rotation (e.g. via a class method that also
+ *   handles rendering and linked-view synchronisation).
+ */
+export function rotateViewToFace(
+    state: BasicViewInternalData,
+    targetFace: Face,
+    onStep?: (r: ViewRotation) => void
+): void {
+    // The model coordinate system flips Y and Z relative to the CSS/screen projection,
+    // so the viewForward vector when a face is front equals { x: n.x, y: -n.y, z: -n.z }
+    // where n is FACE_BASIS[face].normal (the outward geometric normal).
+    const n = FACE_BASIS[targetFace].normal;
+    const faceViewDir: Vector3 = { x: n.x, y: -n.y || 0, z: -n.z || 0 };
+    const { viewForward: vF, viewRight: vR, viewUp: vU } = state;
 
-    const baseX = state.isPitched ? BASIC_VIEW_ANGLES.PITCHED_BASE_X : BASIC_VIEW_ANGLES.BASE_X;
-    const baseY = state.isTilted ? BASIC_VIEW_ANGLES.TILTED_BASE_Y : BASIC_VIEW_ANGLES.BASE_Y;
-    const baseZ = BASIC_VIEW_ANGLES.BASE_Z;
+    const applyLeft = (): void => (onStep ? onStep(ViewRotation.Left) : rotateViewLeft(state));
+    const applyRight = (): void => (onStep ? onStep(ViewRotation.Right) : rotateViewRight(state));
+    const applyUp = (): void => (onStep ? onStep(ViewRotation.Up) : rotateViewUp(state));
+    const applyDown = (): void => (onStep ? onStep(ViewRotation.Down) : rotateViewDown(state));
 
-    vec = rotatePosition3D(vec, Axis.X, (Math.round(baseX / 90) * 90) as any);
-    vec = rotatePosition3D(vec, Axis.Y, (Math.round(baseY / 90) * 90) as any);
-    vec = rotatePosition3D(vec, Axis.Z, (Math.round(baseZ / 90) * 90) as any);
-
-    const yRot = Math.round(state.yRotation / 90) * 90;
-    const xRot = Math.round(state.xRotation / 90) * 90;
-    const zRot = Math.round(state.zRotation / 90) * 90;
-
-    if (xRot !== 0) vec = rotatePosition3D(vec, Axis.X, xRot as any);
-    if (yRot !== 0) vec = rotatePosition3D(vec, Axis.Y, yRot as any);
-    if (zRot !== 0) vec = rotatePosition3D(vec, Axis.Z, zRot as any);
-
-    return vec;
-}
-
-function getLeftRightAxis(state: BasicViewInternalData): 'Y' | 'Z' {
-    const normX = mod(state.xRotation, 360);
-    const normY = mod(state.yRotation, 360);
-    const isXTilted = Math.abs((normX % 180) - 90) < 1;
-    const isYSideways = Math.abs((normY % 180) - 90) < 1;
-    if (isXTilted && !isYSideways) return 'Z';
-    return 'Y';
-}
-
-function getUpDownAxis(state: BasicViewInternalData): 'X' | 'Z' {
-    const normX = mod(state.xRotation, 360);
-    const normY = mod(state.yRotation, 360);
-    const isYSideways = Math.abs((normY % 180) - 90) < 1;
-    const isXTilted = Math.abs((normX % 180) - 90) < 1;
-    if (isYSideways && !isXTilted) return 'Z';
-    return 'X';
+    if (dot3(faceViewDir, vF) === 1) {
+        // Already facing front — no-op
+    } else if (dot3(faceViewDir, vF) === -1) {
+        // Directly behind — rotate 180° horizontally
+        applyLeft();
+        applyLeft();
+    } else if (dot3(faceViewDir, vR) === 1) {
+        // Right face comes to front
+        applyLeft();
+    } else if (dot3(faceViewDir, vR) === -1) {
+        // Left face comes to front
+        applyRight();
+    } else if (dot3(faceViewDir, vU) === 1) {
+        // Top face comes to front
+        applyUp();
+    } else if (dot3(faceViewDir, vU) === -1) {
+        // Bottom face comes to front
+        applyDown();
+    }
 }
 
 // ---------------------------------------------------------------------------
-// View rotation actions — mutate state; caller is responsible for re-render
+// Default orientation vectors
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the default orientation vectors for a given variant.
+ * front: cube model +Z faces viewer, +X is screen-right, +Y is screen-up.
+ * back:  cube model -Z faces viewer (showing the back face), -X is screen-right.
+ */
+export function getDefaultVectors(variant: BasicVariant): {
+    viewRight: Vector3;
+    viewUp: Vector3;
+    viewForward: Vector3;
+} {
+    if (variant === 'back') {
+        return {
+            viewRight: { x: -1, y: 0, z: 0 },
+            viewUp: { x: 0, y: 1, z: 0 },
+            viewForward: { x: 0, y: 0, z: -1 },
+        };
+    }
+    return {
+        viewRight: { x: 1, y: 0, z: 0 },
+        viewUp: { x: 0, y: 1, z: 0 },
+        viewForward: { x: 0, y: 0, z: 1 },
+    };
+}
+
+// ---------------------------------------------------------------------------
+// View rotation actions — mutate state via vector swaps (no Euler angles).
+// Callers are responsible for re-rendering.
+//
+// Definitions (from viewer's perspective):
+//   Ctrl+Left  — front goes left,   right  becomes front
+//   Ctrl+Right — front goes right,  left   becomes front
+//   Ctrl+Up    — front goes up,     bottom becomes front
+//   Ctrl+Down  — front goes down,   top    becomes front
 // ---------------------------------------------------------------------------
 
 export function rotateViewLeft(state: BasicViewInternalData): void {
-    const upVec = getTransformedUpVector(state);
-    const targetTilt = upVec.y >= 0;
-
-    if (state.isTilted !== targetTilt) {
-        state.isTilted = targetTilt;
-    } else {
-        const axis = getLeftRightAxis(state);
-        if (axis === 'Z') {
-            state.zRotation += 90;
-        } else {
-            state.yRotation += 90;
-        }
-    }
-
+    // vF_new = vR,  vR_new = -vF,  vU unchanged
+    const { viewForward: vF, viewRight: vR } = state;
+    state.viewForward = vR;
+    state.viewRight = negate3(vF);
     logState(state, 'left');
 }
 
 export function rotateViewRight(state: BasicViewInternalData): void {
-    const upVec = getTransformedUpVector(state);
-    const targetTilt = upVec.y < 0;
-
-    if (state.isTilted !== targetTilt) {
-        state.isTilted = targetTilt;
-    } else {
-        const axis = getLeftRightAxis(state);
-        if (axis === 'Z') {
-            state.zRotation -= 90;
-        } else {
-            state.yRotation -= 90;
-        }
-    }
-
+    // vF_new = -vR, vR_new = vF,   vU unchanged
+    const { viewForward: vF, viewRight: vR } = state;
+    state.viewForward = negate3(vR);
+    state.viewRight = vF;
     logState(state, 'right');
 }
 
 export function rotateViewUp(state: BasicViewInternalData): void {
-    const rightVec = getTransformedRightVector(state);
-    const targetPitch = rightVec.x >= 0;
-
-    if (state.isPitched !== targetPitch) {
-        state.isPitched = targetPitch;
-    } else {
-        const axis = getUpDownAxis(state);
-        if (axis === 'Z') {
-            state.zRotation -= 90;
-        } else {
-            state.xRotation += 90;
-        }
-    }
-
+    // vF_new = vU,  vU_new = -vF,  vR unchanged
+    // Front goes up (CSS -Y = visual top), visual-bottom comes forward.
+    const { viewForward: vF, viewUp: vU } = state;
+    state.viewForward = vU;
+    state.viewUp = negate3(vF);
     logState(state, 'up');
 }
 
 export function rotateViewDown(state: BasicViewInternalData): void {
-    const rightVec = getTransformedRightVector(state);
-    const targetPitch = rightVec.x < 0;
-
-    if (state.isPitched !== targetPitch) {
-        state.isPitched = targetPitch;
-    } else {
-        const axis = getUpDownAxis(state);
-        if (axis === 'Z') {
-            state.zRotation += 90;
-        } else {
-            state.xRotation -= 90;
-        }
-    }
-
+    // vF_new = -vU, vU_new = vF,   vR unchanged
+    // Front goes down (CSS +Y = visual bottom), visual-top comes forward.
+    const { viewForward: vF, viewUp: vU } = state;
+    state.viewForward = negate3(vU);
+    state.viewUp = vF;
     logState(state, 'down');
 }
 
 /**
- * Resets all view rotations to the default orientation.  Also resets tilt and
- * pitch flags.  Uses findClosestEquivalentAngle to avoid violent animation
- * spins when angles have accumulated to large values.
+ * Resets all view rotations to the default orientation for this variant.
+ * Preserves isTilted and isPitched (cosmetic-only flags).
  */
 export function resetView(state: BasicViewInternalData): void {
-    const targetY = state.variant === 'back' ? 180 : 0;
-
-    state.xRotation = findClosestEquivalentAngle(state.xRotation, 0);
-    state.yRotation = findClosestEquivalentAngle(state.yRotation, targetY);
-    state.zRotation = findClosestEquivalentAngle(state.zRotation, 0);
-    state.isTilted = false;
-    state.isPitched = false;
-
+    const defaults = getDefaultVectors(state.variant);
+    state.viewRight = defaults.viewRight;
+    state.viewUp = defaults.viewUp;
+    state.viewForward = defaults.viewForward;
     logState(state, 'reset');
 }
 
 /**
  * Emits whole-cube rotation moves to align the model to the current view
- * orientation, then resets the view rotations to zero.
+ * orientation, then resets the view vectors to the default identity.
+ *
+ * The move sequence is derived from a lookup over all 24 possible (vF, vU)
+ * orientations. After emitting, the view is reset to identity so the rendered
+ * transforms go back to zero without any visual jump.
  */
 export function alignCubeToView(state: BasicViewInternalData): void {
-    const stepsX = Math.round(state.xRotation / 90);
-    const stepsY = Math.round(state.yRotation / 90);
-    const stepsZ = Math.round(state.zRotation / 90);
-
-    const xMove = stepsX > 0 ? 'x' : "x'";
-    for (let i = 0; i < Math.abs(stepsX); i++) {
+    const moves = movesForOrientation(state.viewForward, state.viewUp);
+    for (const notation of moves) {
         Application.eventBus.emit(EventName.MOVE_REQUESTED, {
-            moveNotation: xMove,
+            moveNotation: notation,
             viewId: state.viewType,
             tentative: false,
         });
     }
-
-    const yMove = stepsY > 0 ? "y'" : 'y';
-    for (let i = 0; i < Math.abs(stepsY); i++) {
-        Application.eventBus.emit(EventName.MOVE_REQUESTED, {
-            moveNotation: yMove,
-            viewId: state.viewType,
-            tentative: false,
-        });
-    }
-
-    const zMove = stepsZ > 0 ? 'z' : "z'";
-    for (let i = 0; i < Math.abs(stepsZ); i++) {
-        Application.eventBus.emit(EventName.MOVE_REQUESTED, {
-            moveNotation: zMove,
-            viewId: state.viewType,
-            tentative: false,
-        });
-    }
-
-    state.xRotation = 0;
-    state.yRotation = 0;
-    state.zRotation = 0;
-
+    resetView(state);
     logState(state, 'alignCubeToView');
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function vecKey(v: Vector3): string {
+    return `${v.x},${v.y},${v.z}`;
+}
+
+/**
+ * Returns the sequence of whole-cube moves (x/x'/y/y'/z/z'/y2/z2) needed to
+ * bring the orientation described by (vForward, vUp) to the identity
+ * orientation (vF=+Z, vU=+Y).
+ *
+ * Derivation:
+ *   Step 1 — y/x moves to bring vForward to +Z.
+ *   Step 2 — z move to fix vUp to +Y.
+ *
+ * Move semantics (rotatePosition3D convention, matching WCA):
+ *   y  = Ry(-90): +X→+Z, +Z→-X  (same direction as U face)
+ *   y' = Ry(+90): +X→-Z, +Z→+X
+ *   x  = Rx(+90): +Y→+Z, +Z→-Y  (same direction as R face)
+ *   x' = Rx(-90): +Y→-Z, -Y→+Z
+ *   z  = Rz(+90): +X→+Y, +Y→-X  (same direction as F face)
+ *   z' = Rz(-90): +X→-Y, +Y→+X
+ */
+function movesForOrientation(vF: Vector3, vU: Vector3): string[] {
+    // Map (vForward key, vUp key) → move sequence
+    type Key = string;
+    const table: Map<Key, string[]> = new Map([
+        // vF = +Z (front, no step-1 move needed)
+        [`${vecKey({ x: 0, y: 0, z: 1 })}_${vecKey({ x: 0, y: 1, z: 0 })}`, []],
+        [`${vecKey({ x: 0, y: 0, z: 1 })}_${vecKey({ x: 1, y: 0, z: 0 })}`, ['z']],
+        [`${vecKey({ x: 0, y: 0, z: 1 })}_${vecKey({ x: 0, y: -1, z: 0 })}`, ['z2']],
+        [`${vecKey({ x: 0, y: 0, z: 1 })}_${vecKey({ x: -1, y: 0, z: 0 })}`, ["z'"]],
+        // vF = +X (right face toward viewer); step-1: y
+        [`${vecKey({ x: 1, y: 0, z: 0 })}_${vecKey({ x: 0, y: 1, z: 0 })}`, ['y']],
+        [`${vecKey({ x: 1, y: 0, z: 0 })}_${vecKey({ x: 0, y: 0, z: 1 })}`, ['y', "z'"]],
+        [`${vecKey({ x: 1, y: 0, z: 0 })}_${vecKey({ x: 0, y: -1, z: 0 })}`, ['y', 'z2']],
+        [`${vecKey({ x: 1, y: 0, z: 0 })}_${vecKey({ x: 0, y: 0, z: -1 })}`, ['y', 'z']],
+        // vF = -Z (back face toward viewer); step-1: y2
+        [`${vecKey({ x: 0, y: 0, z: -1 })}_${vecKey({ x: 0, y: 1, z: 0 })}`, ['y2']],
+        [`${vecKey({ x: 0, y: 0, z: -1 })}_${vecKey({ x: 1, y: 0, z: 0 })}`, ['y2', "z'"]],
+        [`${vecKey({ x: 0, y: 0, z: -1 })}_${vecKey({ x: 0, y: -1, z: 0 })}`, ['y2', 'z2']],
+        [`${vecKey({ x: 0, y: 0, z: -1 })}_${vecKey({ x: -1, y: 0, z: 0 })}`, ['y2', 'z']],
+        // vF = -X (left face toward viewer); step-1: y'
+        [`${vecKey({ x: -1, y: 0, z: 0 })}_${vecKey({ x: 0, y: 1, z: 0 })}`, ["y'"]],
+        [`${vecKey({ x: -1, y: 0, z: 0 })}_${vecKey({ x: 0, y: 0, z: 1 })}`, ["y'", 'z']],
+        [`${vecKey({ x: -1, y: 0, z: 0 })}_${vecKey({ x: 0, y: -1, z: 0 })}`, ["y'", 'z2']],
+        [`${vecKey({ x: -1, y: 0, z: 0 })}_${vecKey({ x: 0, y: 0, z: -1 })}`, ["y'", "z'"]],
+        // vF = +Y (top face toward viewer); step-1: x
+        [`${vecKey({ x: 0, y: 1, z: 0 })}_${vecKey({ x: 0, y: 0, z: -1 })}`, ['x']],
+        [`${vecKey({ x: 0, y: 1, z: 0 })}_${vecKey({ x: -1, y: 0, z: 0 })}`, ['x', "z'"]],
+        [`${vecKey({ x: 0, y: 1, z: 0 })}_${vecKey({ x: 0, y: 0, z: 1 })}`, ['x', 'z2']],
+        [`${vecKey({ x: 0, y: 1, z: 0 })}_${vecKey({ x: 1, y: 0, z: 0 })}`, ['x', 'z']],
+        // vF = -Y (bottom face toward viewer); step-1: x'
+        [`${vecKey({ x: 0, y: -1, z: 0 })}_${vecKey({ x: 0, y: 0, z: 1 })}`, ["x'"]],
+        [`${vecKey({ x: 0, y: -1, z: 0 })}_${vecKey({ x: 1, y: 0, z: 0 })}`, ["x'", 'z']],
+        [`${vecKey({ x: 0, y: -1, z: 0 })}_${vecKey({ x: 0, y: 0, z: -1 })}`, ["x'", 'z2']],
+        [`${vecKey({ x: 0, y: -1, z: 0 })}_${vecKey({ x: -1, y: 0, z: 0 })}`, ["x'", "z'"]],
+    ]);
+
+    const key: Key = `${vecKey(vF)}_${vecKey(vU)}`;
+    return table.get(key) ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -548,12 +510,12 @@ function logState(state: BasicViewInternalData, action?: string): void {
 
     try {
         scope.debug(`After action: ${action}`);
-        scope.debug(`Rotations X,Y,Z: ${state.xRotation}, ${state.yRotation}, ${state.zRotation}`);
+        scope.debug(
+            `vF: (${state.viewForward.x},${state.viewForward.y},${state.viewForward.z})` +
+                ` vU: (${state.viewUp.x},${state.viewUp.y},${state.viewUp.z})` +
+                ` vR: (${state.viewRight.x},${state.viewRight.y},${state.viewRight.z})`
+        );
         scope.debug(`isTilted: ${state.isTilted}, isPitched: ${state.isPitched}`);
-        const upVec = getTransformedUpVector(state);
-        scope.debug(`Transformed Up Vector: x=${upVec.x}, y=${upVec.y}, z=${upVec.z}`);
-        const rightVec = getTransformedRightVector(state);
-        scope.debug(`Transformed Right Vector: x=${rightVec.x}, y=${rightVec.y}, z=${rightVec.z}`);
     } finally {
         scope.groupEnd();
     }

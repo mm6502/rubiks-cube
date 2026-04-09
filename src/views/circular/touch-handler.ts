@@ -3,6 +3,7 @@ import { Axis, Face } from '@/cube/types';
 import type { CubeState } from '@/cube/types';
 import type { StickerId } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import { clamp, distance2, dot2, negate2, normalize2 } from '@/cube/utils/math';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import {
@@ -24,6 +25,13 @@ import {
 } from '@/interaction/types';
 import { EventName, MoveRequestedEvent } from '@/types';
 
+import {
+    FACE_TOP_DIRECTION_HINTS,
+    type FaceScreenBasis,
+    buildFaceScreenBasisByFace,
+    buildFaceScreenBasisFromHint,
+    mapDirectionToFaceBasis,
+} from './direction-mapping';
 import { AxisCircle } from './svg-tools';
 
 type CircularTouchHandlerOptions = {
@@ -52,11 +60,6 @@ type AxisHit = {
     circleCenterClient: { x: number; y: number };
 };
 
-type FaceScreenBasis = {
-    upDir: Point2D;
-    rightDir: Point2D;
-};
-
 type InteractionStart =
     | { kind: typeof HitKind.STICKER; sticker: StickerHit }
     | { kind: typeof HitKind.FACE_ELLIPSE; face: Face }
@@ -73,18 +76,7 @@ const CROSSING_PROXIMITY_MAX_SVG = 12;
 const DRAG_CROSS_ARM_LENGTH_FLOATING = 34;
 const DRAG_CROSS_ARM_LENGTH_TABBED = 64;
 const DRAG_THRESHOLD_PX = 4;
-const FAR_DRAG_THRESHOLD_PX = 75;
-
-// Per-face "top when looking directly at that face" hints in screen-space.
-// These resolve directional ambiguity in circular projection.
-const FACE_TOP_DIRECTION_HINTS: Record<Face, Point2D> = {
-    [Face.U]: { x: 0.75, y: -0.66 },
-    [Face.D]: { x: -0.75, y: -0.66 },
-    [Face.L]: { x: 0.97, y: -0.24 },
-    [Face.R]: { x: -0.24, y: -0.97 },
-    [Face.F]: { x: 0.24, y: -0.97 },
-    [Face.B]: { x: -0.97, y: -0.24 },
-};
+const FAR_DRAG_THRESHOLD_PX = 70;
 
 export class CircularTouchHandler {
     private readonly svgRoot: SVGSVGElement;
@@ -206,6 +198,22 @@ export class CircularTouchHandler {
 
     setFaceDirectMode(enabled: boolean): void {
         this.faceDirectMode = enabled;
+    }
+
+    getSelectedFace(): Face | undefined {
+        return this.selectedFace;
+    }
+
+    /**
+     * Programmatically select or deselect a face (for keyboard-driven face selection).
+     */
+    selectFace(face: Face | undefined): void {
+        this.selectedFace = face;
+        if (face) {
+            this.showHaloForFace(face);
+        } else {
+            this.hideHalo();
+        }
     }
 
     setLayoutMode(mode: LayoutMode): void {
@@ -380,7 +388,6 @@ export class CircularTouchHandler {
 
         if (hit.kind === HitKind.FACE_ELLIPSE) {
             this.selectedFace = this.selectedFace === hit.face ? undefined : hit.face;
-            this.onStickerSelected(undefined);
 
             if (!this.selectedFace) {
                 this.hideHalo();
@@ -392,7 +399,6 @@ export class CircularTouchHandler {
         }
 
         this.selectedFace = undefined;
-        this.onStickerSelected(undefined);
         this.hideHalo();
     }
 
@@ -593,19 +599,19 @@ export class CircularTouchHandler {
     private showDragDecisionCross(basis: FaceScreenBasis, clientX: number, clientY: number): void {
         const center = this.clientToSvgPoint(clientX, clientY);
         const armLength =
-            this.layoutMode === 'tabbed'
+            this.layoutMode === LayoutMode.Tabbed
                 ? DRAG_CROSS_ARM_LENGTH_TABBED
                 : DRAG_CROSS_ARM_LENGTH_FLOATING;
 
         // Arms are zone boundaries (bisectors between adjacent drag directions).
         // Each zone's centre aligns with a circle-tangent drag direction.
         const arm1Dir =
-            normalizeVector({
+            normalize2({
                 x: basis.upDir.x + basis.rightDir.x,
                 y: basis.upDir.y + basis.rightDir.y,
             }) ?? basis.upDir;
         const arm2Dir =
-            normalizeVector({
+            normalize2({
                 x: basis.upDir.x - basis.rightDir.x,
                 y: basis.upDir.y - basis.rightDir.y,
             }) ?? basis.rightDir;
@@ -619,7 +625,7 @@ export class CircularTouchHandler {
     private showDragDecisionLine(dir: Point2D, clientX: number, clientY: number): void {
         const center = this.clientToSvgPoint(clientX, clientY);
         const armLength =
-            this.layoutMode === 'tabbed'
+            this.layoutMode === LayoutMode.Tabbed
                 ? DRAG_CROSS_ARM_LENGTH_TABBED
                 : DRAG_CROSS_ARM_LENGTH_FLOATING;
 
@@ -644,7 +650,7 @@ export class CircularTouchHandler {
         const faceCx = Number(ellipse.getAttribute('cx') ?? 0);
         const faceCy = Number(ellipse.getAttribute('cy') ?? 0);
         const touchSvg = this.clientToSvgPoint(clientX, clientY);
-        const radialDir = normalizeVector({ x: touchSvg.x - faceCx, y: touchSvg.y - faceCy });
+        const radialDir = normalize2({ x: touchSvg.x - faceCx, y: touchSvg.y - faceCy });
         if (!radialDir) {
             this.hideDragDecisionCross();
             return;
@@ -663,7 +669,7 @@ export class CircularTouchHandler {
         }
 
         const touchSvg = this.clientToSvgPoint(clientX, clientY);
-        const radialDir = normalizeVector({
+        const radialDir = normalize2({
             x: touchSvg.x - axisCircle.cx,
             y: touchSvg.y - axisCircle.cy,
         });
@@ -687,7 +693,7 @@ export class CircularTouchHandler {
         const faceCx = Number(ellipse.getAttribute('cx') ?? 0);
         const faceCy = Number(ellipse.getAttribute('cy') ?? 0);
         const touchSvg = this.clientToSvgPoint(clientX, clientY);
-        const radialDir = normalizeVector({ x: touchSvg.x - faceCx, y: touchSvg.y - faceCy });
+        const radialDir = normalize2({ x: touchSvg.x - faceCx, y: touchSvg.y - faceCy });
         if (!radialDir) {
             this.hideDragDecisionCross();
             return;
@@ -706,7 +712,7 @@ export class CircularTouchHandler {
             return;
         }
 
-        const radialDir = normalizeVector({ x: touchSvg.x - center.x, y: touchSvg.y - center.y });
+        const radialDir = normalize2({ x: touchSvg.x - center.x, y: touchSvg.y - center.y });
         if (!radialDir) {
             this.hideDragDecisionCross();
             return;
@@ -721,7 +727,7 @@ export class CircularTouchHandler {
     }
 
     private buildCrossingBasisAtPoint(face: Face, point: Point2D): FaceScreenBasis | undefined {
-        const upHint = normalizeVector(FACE_TOP_DIRECTION_HINTS[face]);
+        const upHint = normalize2(FACE_TOP_DIRECTION_HINTS[face]);
         if (!upHint) {
             return undefined;
         }
@@ -760,7 +766,7 @@ export class CircularTouchHandler {
             y: upDir.x,
         };
 
-        const normalizedRight = normalizeVector(rightDir);
+        const normalizedRight = normalize2(rightDir);
         if (!normalizedRight) {
             return undefined;
         }
@@ -1258,7 +1264,9 @@ export class CircularTouchHandler {
     }
 
     private get commitThresholdPx(): number {
-        return this.layoutMode === 'tabbed' ? COMMIT_DISTANCE_TABBED_PX : COMMIT_DISTANCE_PX;
+        return this.layoutMode === LayoutMode.Tabbed
+            ? COMMIT_DISTANCE_TABBED_PX
+            : COMMIT_DISTANCE_PX;
     }
 
     private showCancelZone(clientX: number, clientY: number): void {
@@ -1286,12 +1294,12 @@ export class CircularTouchHandler {
         let x: number;
         let y: number;
 
-        if (this.layoutMode === 'tabbed') {
+        if (this.layoutMode === LayoutMode.Tabbed) {
             // Fixed positioning lets the label float above the panel header when dragging near the top edge.
             this.dragLabelEl.style.position = 'fixed';
             this.dragLabelEl.style.zIndex = '10000';
             x = clientX - labelWidth / 2;
-            y = clientY - labelHeight - 36;
+            y = clientY - labelHeight - 50;
             x = clamp(x, 4, window.innerWidth - labelWidth - 4);
             y = clamp(y, 4, window.innerHeight - labelHeight - 4);
         } else {
@@ -1401,8 +1409,8 @@ function createCircularInteractionAdapter(axisCircles: AxisCircle[]): ViewIntera
                 return inferWholeCubeMove(deltaX, deltaY) ?? 'y';
             }
 
-            const dragVector = normalizeVector({ x: deltaX, y: deltaY });
-            const centerToStart = normalizeVector({
+            const dragVector = normalize2({ x: deltaX, y: deltaY });
+            const centerToStart = normalize2({
                 x: startViewPoint.x - center.x,
                 y: startViewPoint.y - center.y,
             });
@@ -1421,36 +1429,6 @@ function createCircularInteractionAdapter(axisCircles: AxisCircle[]): ViewIntera
     };
 }
 
-function buildFaceScreenBasisByFace(): Record<Face, FaceScreenBasis> {
-    const result = {} as Record<Face, FaceScreenBasis>;
-    for (const face of [Face.U, Face.D, Face.F, Face.B, Face.L, Face.R]) {
-        const upDir = normalizeVector(FACE_TOP_DIRECTION_HINTS[face]);
-        if (!upDir) {
-            continue;
-        }
-        const rightDir = normalizeVector({ x: -upDir.y, y: upDir.x });
-        if (!rightDir) {
-            continue;
-        }
-        result[face] = { upDir, rightDir };
-    }
-    return result;
-}
-
-function buildFaceScreenBasisFromHint(face: Face): FaceScreenBasis {
-    const upDir = normalizeVector(FACE_TOP_DIRECTION_HINTS[face]);
-    if (!upDir) {
-        return { upDir: { x: 0, y: -1 }, rightDir: { x: 1, y: 0 } };
-    }
-
-    const rightDir = normalizeVector({ x: -upDir.y, y: upDir.x });
-    if (!rightDir) {
-        return { upDir, rightDir: { x: 1, y: 0 } };
-    }
-
-    return { upDir, rightDir };
-}
-
 function setLineFromBasis(
     line: SVGLineElement,
     center: Point2D,
@@ -1461,19 +1439,6 @@ function setLineFromBasis(
     line.setAttribute('y1', `${center.y - axisDir.y * arm}`);
     line.setAttribute('x2', `${center.x + axisDir.x * arm}`);
     line.setAttribute('y2', `${center.y + axisDir.y * arm}`);
-}
-
-function mapDirectionToFaceBasis(direction: DragDirection, basis: FaceScreenBasis): DragDirection {
-    const drag = directionToVector(direction);
-    const candidates: Array<{ direction: DragDirection; score: number }> = [
-        { direction: DragDirection.RIGHT, score: dot2(drag, basis.rightDir) },
-        { direction: DragDirection.LEFT, score: dot2(drag, negate2(basis.rightDir)) },
-        { direction: DragDirection.DOWN, score: dot2(drag, negate2(basis.upDir)) },
-        { direction: DragDirection.UP, score: dot2(drag, basis.upDir) },
-    ];
-
-    candidates.sort((a, b) => b.score - a.score);
-    return candidates[0].direction;
 }
 
 function collectAxisCentersByAxis(axisCircles: AxisCircle[]): Partial<Record<Axis, Point2D>> {
@@ -1578,24 +1543,8 @@ function compareAxisLayer(
     return a.layer - b.layer;
 }
 
-function directionToVector(direction: DragDirection): { x: number; y: number } {
-    switch (direction) {
-        case DragDirection.UP:
-            return { x: 0, y: -1 };
-        case DragDirection.DOWN:
-            return { x: 0, y: 1 };
-        case DragDirection.LEFT:
-            return { x: -1, y: 0 };
-        case DragDirection.RIGHT:
-        default:
-            return { x: 1, y: 0 };
-    }
-}
-
 function circleProximity(point: Point2D, circle: AxisCircle): number {
-    const dx = point.x - circle.cx;
-    const dy = point.y - circle.cy;
-    const distance = Math.hypot(dx, dy);
+    const distance = distance2(point, { x: circle.cx, y: circle.cy });
     return Math.abs(distance - circle.r);
 }
 
@@ -1604,32 +1553,12 @@ function orientedTangentAtPoint(
     circle: AxisCircle,
     hint: Point2D
 ): Point2D | undefined {
-    const radial = normalizeVector({ x: point.x - circle.cx, y: point.y - circle.cy });
+    const radial = normalize2({ x: point.x - circle.cx, y: point.y - circle.cy });
     if (!radial) {
         return undefined;
     }
 
     const tangent = { x: -radial.y, y: radial.x };
     const aligned = dot2(tangent, hint) >= 0 ? tangent : negate2(tangent);
-    return normalizeVector(aligned);
-}
-
-function dot2(a: Point2D, b: Point2D): number {
-    return a.x * b.x + a.y * b.y;
-}
-
-function negate2(v: Point2D): Point2D {
-    return { x: -v.x, y: -v.y };
-}
-
-function normalizeVector(v: Point2D): Point2D | undefined {
-    const length = Math.hypot(v.x, v.y);
-    if (length < 0.00001) {
-        return undefined;
-    }
-    return { x: v.x / length, y: v.y / length };
-}
-
-function clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value));
+    return normalize2(aligned);
 }

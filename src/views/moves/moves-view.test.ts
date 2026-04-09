@@ -301,4 +301,53 @@ describe('MovesView', () => {
             expect(emptyState).toBeTruthy();
         });
     });
+
+    describe('edge cases before create()', () => {
+        it('updateSelective() before create() returns early without throwing', () => {
+            expect(() => view.updateSelective({} as any)).not.toThrow();
+        });
+
+        it('updateHighlight() is a no-op and does not throw', () => {
+            expect(() => view.updateHighlight('st1' as any)).not.toThrow();
+        });
+
+        it('updateSelected() is a no-op and does not throw', () => {
+            expect(() => view.updateSelected('st1' as any)).not.toThrow();
+        });
+
+        it('setState() before create() stores value without touching renderer', () => {
+            view.setState({ showAsIcons: true });
+            expect(view.getState().showAsIcons).toBe(true);
+        });
+
+        it('getCommands() isEnabled returns false before create()', () => {
+            const commands = view.getCommands();
+            const undo = commands.find(c => c.id === 'moves.undo')!;
+            const redo = commands.find(c => c.id === 'moves.redo')!;
+            expect(undo.isEnabled?.()).toBe(false);
+            expect(redo.isEnabled?.()).toBe(false);
+        });
+
+        it('toggle-move-icons action before create() still emits VIEW_STATE_CHANGED', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+            const commands = view.getCommands();
+            commands.find(c => c.id === 'toggle-move-icons')!.action();
+            expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_STATE_CHANGED, {
+                viewType: 'moves',
+            });
+        });
+    });
+
+    describe('destroy with pending animation frame', () => {
+        it('cancels pending rAF when destroy() is called', () => {
+            view.create(container, controller.getReadOnlyModel());
+            const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+
+            // Trigger a pending frame without flushing timers
+            view.updateSelective({} as any);
+            view.destroy();
+
+            expect(cancelSpy).toHaveBeenCalled();
+        });
+    });
 });

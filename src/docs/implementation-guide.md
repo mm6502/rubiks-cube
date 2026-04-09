@@ -12,7 +12,10 @@ src/
 │   │   ├── cubie.ts           # Cubie, Position3D, CubieType, DiscreteOrientation
 │   │   ├── sticker.ts         # Sticker interface with localIndex
 │   │   ├── cube-state.ts      # CubeState with Immutable.js Maps
-│   │   └── move.ts            # MoveDefinition, MoveResult, QuarterTurn
+│   │   ├── move.ts            # MoveDefinition, MoveResult, QuarterTurn
+│   │   ├── model.ts           # CubeModel and ReadOnlyCubeModel interfaces
+│   │   ├── view.ts            # View-related type definitions
+│   │   └── index.ts           # Re-exports for cube types
 │   ├── core/
 │   │   ├── cubie-manager.ts       # Cubie creation and initialization
 │   │   ├── state-manager.ts       # State lifecycle and mutation control
@@ -20,6 +23,7 @@ src/
 │   │   ├── move-engine.ts         # Pure move computation
 │   │   ├── cube-invariants.ts     # Pre-computed lookup tables
 │   │   ├── move-history.ts        # Undo/redo tracking
+│   │   ├── move-parser.ts         # Parse WCA notation strings → MoveDefinition
 │   │   └── state-persistence.ts   # Serialization and storage
 │   └── utils/
 │       ├── coordinates.ts        # ID generation, type determination
@@ -28,16 +32,31 @@ src/
 │       ├── sticker-position.ts   # Sticker positioning on faces
 │       ├── state-conversion.ts   # 3D to 2D view conversion
 │       ├── state-legality.ts     # Cubology invariant validation
-│       └── math.ts               # Vector math and rotations
+│       ├── math.ts               # Vector math and rotations
+│       ├── surface-walking.ts    # Surface traversal utilities
+│       ├── view-utils.ts         # View helper utilities
+│       └── index.ts              # Re-exports for cube utils
+├── interaction/
+│   ├── drag-state-machine.ts     # Pointer event FSM → emits DragGesture callbacks
+│   ├── move-inference.ts         # Maps drag direction + face → move notation
+│   ├── keyboard-moves.ts         # Keyboard shortcut → cube move mapping
+│   └── types.ts                  # DragDirection, DragGesture, MoveInferenceInput
+├── types/
+│   ├── commands.ts               # Command, CommandCategory, KeyBinding types
+│   ├── events.ts                 # EventName constants + EventPayload interfaces
+│   └── index.ts                  # Re-exports for app-level types
+├── diagnostics/
+│   ├── diagnostics.ts            # Diagnostic utilities
+│   └── logger.ts                 # Structured logger (LogLevel 0–5, colorized)
 ├── view-manager/
 │   ├── view-manager.ts           # Multi-view coordination
 │   ├── view-registry.ts          # View type registration
 │   └── panel-*.ts                # Panel interaction handlers
 ├── views/
-│   ├── basic/                    # 2D net view
-│   ├── circular/                 # Circular arrangement view
-│   ├── flat/                     # Flat projection view
-│   └── moves/                    # Move history view
+│   ├── basic/                    # Pseudo-3D net view
+│   ├── circular/                 # Concentric-ring SVG view
+│   ├── flat/                     # Flat 2D projection view
+│   └── moves/                    # Move history list view
 ├── events/
 │   └── event-bus.ts              # Global event system
 └── docs/

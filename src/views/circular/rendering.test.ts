@@ -187,4 +187,92 @@ describe('rendering utilities', () => {
         expect(removeSpy).toHaveBeenCalledWith(state, state.styles);
         expect(updateSelectedSpy).toHaveBeenCalledWith(state, state.styles, 's1');
     });
+
+    it('setStickerFillById is a no-op when element not in cache', () => {
+        expect(() => rendering.setStickerFillById(state, 'missing', '#fff')).not.toThrow();
+    });
+
+    it('renderState returns early when svgReady is false', () => {
+        state.svgReady = false;
+        const cubeState = { cubeSize: 3, cubiesById: IMap() } as any;
+        expect(() => rendering.renderState(state, cubeState)).not.toThrow();
+        // no fills set
+        expect(state.svgIdToStickerId.size).toBe(0);
+    });
+
+    it('renderState uses FACE_COLORS fallback when sticker color is undefined', () => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        state.svgElementCache.set('svg1', circle);
+
+        const position: Position3D = { x: 0, y: 1, z: 0 } as any;
+        const cubie: any = {
+            type: CubieType.CORNER,
+            position,
+            stickers: new Map([
+                [
+                    Face.U,
+                    {
+                        id: 'st-nocolor',
+                        currentFace: Face.U,
+                        facePosition: 0,
+                        color: undefined, // triggers FACE_COLORS fallback
+                    },
+                ],
+            ]),
+        };
+
+        const posKey = getPositionKey(position, 3);
+        state.stickerLookupMap!.set(posKey, new Map([[Face.U, 'svg1']]));
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap().set('c1', cubie) as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        rendering.renderState(state, cubeState);
+
+        // Color should be non-empty (a hex string from FACE_COLORS)
+        const fill = circle.getAttribute('fill');
+        expect(fill).toBeTruthy();
+        expect(fill).toMatch(/^#/);
+    });
+
+    it('updateSelective with svgRoot=null falls back to renderState (no throw)', async () => {
+        state.svgRoot = undefined as any;
+        state.svgReady = true;
+        state.stickerLookupMap = new Map();
+
+        // Set up a sticker so renderState would set a fill if called
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        state.svgElementCache.set('svg1', circle);
+
+        const position: Position3D = { x: 0, y: 1, z: 0 } as any;
+        const cubie: any = {
+            type: CubieType.CORNER,
+            position,
+            stickers: new Map([
+                [Face.U, { id: 'st9', currentFace: Face.U, facePosition: 0, color: Color.WHITE }],
+            ]),
+        };
+        state.stickerLookupMap!.set(getPositionKey(position, 3), new Map([[Face.U, 'svg1']]));
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap().set('c1', cubie) as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const event: any = {
+            moveDetails: { movedCubies: { after: [{}] } },
+            preState: cubeState,
+            postState: cubeState,
+        };
+
+        await expect(rendering.updateSelective(state, event)).resolves.toBeUndefined();
+        // renderState path was taken: fill attribute set on the circle
+        expect(circle.getAttribute('fill')).toBe(ColorMap[Color.WHITE]);
+    });
 });

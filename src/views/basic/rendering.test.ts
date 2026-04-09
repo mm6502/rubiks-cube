@@ -3,12 +3,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as viewUtils from '@/cube/utils/view-utils';
-import { Color, Face } from '@/cube/types';
+import { Color, Face, LayoutMode } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils';
 import type { MoveExecutedEvent } from '@/types';
 
 import * as rendering from './rendering';
 import type { BasicViewInternalData } from './basic-view';
+import { BASIC_VIEW_SCALE } from './constants';
 
 // Helper to test the findClosestEquivalentAngle function
 // Tests are self-contained so we inline the reference implementation for clarity
@@ -395,6 +396,18 @@ function makeState(
     cubeContainer: HTMLElement | null,
     overrides?: Partial<BasicViewInternalData>
 ): BasicViewInternalData {
+    const defaultVectors =
+        variant === 'back'
+            ? {
+                  viewRight: { x: -1, y: 0, z: 0 },
+                  viewUp: { x: 0, y: 1, z: 0 },
+                  viewForward: { x: 0, y: 0, z: -1 },
+              }
+            : {
+                  viewRight: { x: 1, y: 0, z: 0 },
+                  viewUp: { x: 0, y: 1, z: 0 },
+                  viewForward: { x: 0, y: 0, z: 1 },
+              };
     return {
         model: undefined,
         container,
@@ -405,12 +418,10 @@ function makeState(
         viewType: variant === 'back' ? 'basic-back' : 'basic-front',
         isTilted: false,
         isPitched: false,
-        yRotation: 0,
-        xRotation: 0,
-        zRotation: 0,
+        ...defaultVectors,
         isHovered: false,
+        layoutMode: 'floating' as const,
         currentSelected: undefined,
-        pendingMoveFace: undefined,
         ...overrides,
     };
 }
@@ -446,26 +457,19 @@ describe('BasicCubeRenderer - generic tests', () => {
         state = makeState(mockCubeElement, mockContainer, baseStyles, 'front', mockCubeContainer);
     });
 
-    describe('findClosestEquivalentAngle (module function)', () => {
-        it('should delegate correctly', () => {
-            const result = rendering.findClosestEquivalentAngle(0, 90);
-            expect(result).toBe(90);
-        });
-    });
-
     describe('updateRotation', () => {
         it('should apply correct transforms for default state', () => {
             rendering.updateRotation(state);
 
             expect(mockCubeElement.style.transform).toContain('rotateX(-25deg)');
             expect(mockCubeElement.style.transform).toContain('rotateY(-35deg)');
-            expect(mockCubeElement.style.transform).toContain('rotateY(0deg)');
-            expect(mockCubeElement.style.transform).toContain('rotateX(0deg)');
-            expect(mockCubeElement.style.transform).toContain('rotateY(0deg)');
-            expect(mockCubeElement.style.transform).toContain('rotateZ(0deg)');
+            // Identity orientation → matrix3d with 1s on diagonal
+            expect(mockCubeElement.style.transform).toContain(
+                'matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1)'
+            );
         });
 
-        it('should apply scale when hovered', () => {
+        it('should apply scale when hovered in floating mode', () => {
             const hoveredState = makeState(
                 mockCubeElement,
                 mockContainer,
@@ -477,7 +481,22 @@ describe('BasicCubeRenderer - generic tests', () => {
 
             rendering.updateRotation(hoveredState);
 
-            expect(mockCubeElement.style.transform).toContain('scale(1.05)');
+            expect(mockCubeElement.style.transform).toContain(`scale(${BASIC_VIEW_SCALE.HOVER})`);
+        });
+
+        it('should NOT apply scale when hovered in tabbed mode', () => {
+            const hoveredState = makeState(
+                mockCubeElement,
+                mockContainer,
+                {},
+                'front',
+                mockCubeContainer,
+                { isHovered: true, layoutMode: LayoutMode.Tabbed }
+            );
+
+            rendering.updateRotation(hoveredState);
+
+            expect(mockCubeElement.style.transform).not.toContain('scale(');
         });
 
         it('should skip animation when requested', () => {
@@ -534,12 +553,23 @@ describe('BasicCubeRenderer - generic tests', () => {
         });
 
         it('should handle pitched state', () => {
+            // Arrange: front-variant default (vF=+Z, vR=+X, vU=+Y)
             state.isPitched = true;
+
+            // Act
             const result = rendering.getVisibleFacesWithPositions(state);
 
+            // Assert: F [U] R / [L] D [B]
             expect(result.visibleFaces).toHaveLength(3);
             expect(result.hiddenFaces).toHaveLength(3);
-            expect(result.visibleFaces[0].position).toBe('middle-bottom-pitched');
+            const vMap = Object.fromEntries(result.visibleFaces.map(f => [f.position, f.face]));
+            const hMap = Object.fromEntries(result.hiddenFaces.map(f => [f.position, f.face]));
+            expect(vMap['top-left']).toBe(Face.F);
+            expect(vMap['top-right']).toBe(Face.R);
+            expect(vMap['middle-bottom-pitched']).toBe(Face.D);
+            expect(hMap['top']).toBe(Face.U);
+            expect(hMap['bottom-left']).toBe(Face.L);
+            expect(hMap['bottom-right']).toBe(Face.B);
         });
 
         it('should handle back variant', () => {
@@ -575,9 +605,11 @@ describe('BasicCubeRenderer - generic tests', () => {
             expect(result.hiddenFaces).toHaveLength(3);
         });
 
-        it('should handle non-zero Y rotation steps', () => {
-            // Arrange: yRotation=-90 → ySteps=1, rotates orientation Y +
-            state.yRotation = -90;
+        it('should handle rotated view — right face forward (equivalent to old yRotation=-90)', () => {
+            // Arrange: viewForward points to +X (right face toward viewer)
+            state.viewForward = { x: 1, y: 0, z: 0 };
+            state.viewRight = { x: 0, y: 0, z: -1 };
+            state.viewUp = { x: 0, y: 1, z: 0 };
 
             // Act
             const result = rendering.getVisibleFacesWithPositions(state);
@@ -587,9 +619,11 @@ describe('BasicCubeRenderer - generic tests', () => {
             expect(result.hiddenFaces).toHaveLength(3);
         });
 
-        it('should handle negative Y rotation steps (yRotation positive)', () => {
-            // Arrange: yRotation=90 → ySteps=-1 → rotateOrientationY(-1)
-            state.yRotation = 90;
+        it('should handle rotated view — left face forward (equivalent to old yRotation=90)', () => {
+            // Arrange: viewForward points to -X (left face toward viewer)
+            state.viewForward = { x: -1, y: 0, z: 0 };
+            state.viewRight = { x: 0, y: 0, z: 1 };
+            state.viewUp = { x: 0, y: 1, z: 0 };
 
             // Act
             const result = rendering.getVisibleFacesWithPositions(state);
@@ -599,9 +633,11 @@ describe('BasicCubeRenderer - generic tests', () => {
             expect(result.hiddenFaces).toHaveLength(3);
         });
 
-        it('should handle non-zero X rotation steps', () => {
-            // Arrange: xRotation=90 → xSteps=1 → rotateOrientationX(1)
-            state.xRotation = 90;
+        it('should handle rotated view — top face forward (equivalent to old xRotation=90)', () => {
+            // Arrange: viewForward points to +Y (top face toward viewer)
+            state.viewForward = { x: 0, y: 1, z: 0 };
+            state.viewRight = { x: 1, y: 0, z: 0 };
+            state.viewUp = { x: 0, y: 0, z: -1 };
 
             // Act
             const result = rendering.getVisibleFacesWithPositions(state);
@@ -611,9 +647,11 @@ describe('BasicCubeRenderer - generic tests', () => {
             expect(result.hiddenFaces).toHaveLength(3);
         });
 
-        it('should handle negative X rotation steps (xRotation negative)', () => {
-            // Arrange: xRotation=-90 → xSteps=-1 → rotateOrientationX(-1)
-            state.xRotation = -90;
+        it('should handle rotated view — bottom face forward (equivalent to old xRotation=-90)', () => {
+            // Arrange: viewForward points to -Y (bottom face toward viewer)
+            state.viewForward = { x: 0, y: -1, z: 0 };
+            state.viewRight = { x: 1, y: 0, z: 0 };
+            state.viewUp = { x: 0, y: 0, z: 1 };
 
             // Act
             const result = rendering.getVisibleFacesWithPositions(state);
@@ -623,9 +661,11 @@ describe('BasicCubeRenderer - generic tests', () => {
             expect(result.hiddenFaces).toHaveLength(3);
         });
 
-        it('should handle non-zero Z rotation steps', () => {
-            // Arrange: zRotation=-90 → zSteps=1 → rotateOrientationZ(1)
-            state.zRotation = -90;
+        it('should handle rotated view — front face forward, rolled left (equivalent to old zRotation=-90)', () => {
+            // Arrange: viewUp points to +X (cube rolled left)
+            state.viewForward = { x: 0, y: 0, z: 1 };
+            state.viewRight = { x: 0, y: -1, z: 0 };
+            state.viewUp = { x: 1, y: 0, z: 0 };
 
             // Act
             const result = rendering.getVisibleFacesWithPositions(state);
@@ -635,9 +675,11 @@ describe('BasicCubeRenderer - generic tests', () => {
             expect(result.hiddenFaces).toHaveLength(3);
         });
 
-        it('should handle negative Z rotation steps (zRotation positive)', () => {
-            // Arrange: zRotation=90 → zSteps=-1 → rotateOrientationZ(-1)
-            state.zRotation = 90;
+        it('should handle rotated view — front face forward, rolled right (equivalent to old zRotation=90)', () => {
+            // Arrange: viewUp points to -X (cube rolled right)
+            state.viewForward = { x: 0, y: 0, z: 1 };
+            state.viewRight = { x: 0, y: 1, z: 0 };
+            state.viewUp = { x: -1, y: 0, z: 0 };
 
             // Act
             const result = rendering.getVisibleFacesWithPositions(state);
@@ -883,7 +925,7 @@ describe('BasicCubeRenderer - method coverage', () => {
             // Act
             rendering.updateSize(state);
 
-            // Assert: faceSize = min(600,400)*0.6 = 240
+            // Assert: faceSize = min(600,400)*BASIC_VIEW_SCALE.DEFAULT = 240
             expect(mockCubeElement.style.width).toBe('240px');
             expect(mockCubeElement.style.height).toBe('240px');
         });
@@ -897,7 +939,7 @@ describe('BasicCubeRenderer - method coverage', () => {
                 height: 500,
             });
 
-            // Act: faceSize = 500*0.6 = 300, scaledPerspective = 1000*(300/300) = 1000
+            // Act: faceSize = 500*BASIC_VIEW_SCALE.DEFAULT = 300, scaledPerspective = 1000*(300/300) = 1000
             rendering.updateSize(state);
 
             // Assert

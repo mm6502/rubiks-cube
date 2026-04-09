@@ -18,6 +18,8 @@
 import { CubeState, ReadonlyCubie, StickerId } from '@/cube/types';
 import type { MoveDefinition } from '@/cube/types/move';
 
+import type { ViewRotation } from './geometry';
+
 /**
  * Constant object containing all valid event names
  * Used for type-safe event emission and handling
@@ -37,6 +39,7 @@ export const EventName = {
     STORAGE_CLEAR_REQUESTED: 'storageClearRequested',
     STATE_EXPORT_REQUESTED: 'stateExportRequested',
     STATE_IMPORT_REQUESTED: 'stateImportRequested',
+    BASIC_VIEW_ROTATION_LINKED: 'basicViewRotationLinked',
 } as const;
 
 /**
@@ -224,6 +227,22 @@ export interface StateImportRequestedEvent {
 }
 
 /**
+ * Event emitted when a Basic view rotation is applied and linked rotation is enabled.
+ * Allows the peer view (front/back) to apply the same rotation.
+ */
+export interface BasicViewRotationLinkedEvent {
+    /**
+     * The rotation direction applied in the source view.
+     */
+    rotation: ViewRotation;
+
+    /**
+     * View type of the view that originated the rotation.
+     */
+    sourceViewType: string;
+}
+
+/**
  * Union type for all event payloads.
  * Used by the EventBus for type-safe event emission and handling.
  * Each event name maps to its corresponding payload type.
@@ -239,4 +258,5 @@ export type EventPayload =
     | CubeScrambleRequestedEvent
     | StorageClearRequestedEvent
     | StateExportRequestedEvent
-    | StateImportRequestedEvent;
+    | StateImportRequestedEvent
+    | BasicViewRotationLinkedEvent;

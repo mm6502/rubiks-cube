@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Map as IMap } from 'immutable';
 
 import { Application } from '@/application';
-import { CubeState, Cubie, CubieId, PositionKey, StickerId } from '@/cube/types';
+import { CubeController } from '@/cube-controller';
+import { CubeState, Cubie, CubieId, LayoutMode, PositionKey, StickerId } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { EventName } from '@/types';
 
@@ -11,9 +12,9 @@ import * as highlights from './highlights';
 import * as initialization from './initialization';
 import * as keyboard from './keyboard-cube-walking';
 import * as rendering from './rendering';
-import { CircularTouchHandler } from './circular-touch-handler';
 import { CircularCubeView } from './circular-view';
 import { circularViewFactory } from './index';
+import { CircularTouchHandler } from './touch-handler';
 import { ZoomPanController } from './zoom-pan';
 
 // Minimal mock model for tests
@@ -280,12 +281,13 @@ describe('CircularCubeView (unit)', () => {
         expect(view.getViewType()).toBe('circular');
         expect(view.getMinimumSize()).toEqual({ width: 300, height: 300 });
         const commands = view.getCommands();
-        expect(commands).toHaveLength(5);
+        expect(commands).toHaveLength(6);
         expect(commands.map(c => c.id)).toContain('circular.undo');
         expect(commands.map(c => c.id)).toContain('circular.redo');
         expect(commands.map(c => c.id)).toContain('circular-view.pan-mode');
         expect(commands.map(c => c.id)).toContain('circular-view.reset-zoom');
         expect(commands.map(c => c.id)).toContain('circular-view.face-direct-mode');
+        expect(commands.map(c => c.id)).toContain('circular-view.cube-walk');
     });
 
     it('face-direct-mode command toggles touch handler direct mode', () => {
@@ -399,10 +401,10 @@ describe('CircularCubeView (unit)', () => {
         (view as any).touchHandler = fakeHandler;
 
         // Act
-        view.setLayoutMode('tabbed');
+        view.setLayoutMode(LayoutMode.Tabbed);
 
         // Assert
-        expect(fakeHandler.setLayoutMode).toHaveBeenCalledWith('tabbed');
+        expect(fakeHandler.setLayoutMode).toHaveBeenCalledWith(LayoutMode.Tabbed);
     });
 
     it('setLayoutMode is a no-op when touchHandler is null', () => {
@@ -538,5 +540,188 @@ describe('CircularCubeView (unit)', () => {
         expect(fakeTouch.destroy).toHaveBeenCalled();
         expect((view as any).zoomPan).toBeNull();
         expect((view as any).touchHandler).toBeNull();
+    });
+
+    // ─── cube-walk command ────────────────────────────────────────────────────
+
+    it('cube-walk command exists and is active by default', () => {
+        const cmd = view.getCommands().find(c => c.id === 'circular-view.cube-walk')!;
+        expect(cmd).toBeDefined();
+        expect(cmd.isActive!()).toBe(true);
+    });
+
+    it('cube-walk command toggles state', () => {
+        const cmd = view.getCommands().find(c => c.id === 'circular-view.cube-walk')!;
+        expect(cmd.isActive!()).toBe(true);
+        cmd.action();
+        expect(cmd.isActive!()).toBe(false);
+        cmd.action();
+        expect(cmd.isActive!()).toBe(true);
+    });
+
+    it('cube-walk command emits VIEW_STATE_CHANGED', () => {
+        const spy = vi.spyOn(Application.eventBus, 'emit');
+        const cmd = view.getCommands().find(c => c.id === 'circular-view.cube-walk')!;
+        cmd.action();
+        expect(spy).toHaveBeenCalledWith(EventName.VIEW_STATE_CHANGED, {
+            viewType: 'circular',
+        });
+        spy.mockRestore();
+    });
+
+    it('getState includes cubeWalk', () => {
+        const state = view.getState();
+        expect(state.cubeWalk).toBe(true);
+    });
+
+    it('setState restores cubeWalk', () => {
+        view.setState({ cubeWalk: false });
+        expect(view.getState().cubeWalk).toBe(false);
+    });
+
+    // ─── setState: panMode and faceDirectMode ─────────────────────────────────
+
+    it('setState with panMode=true calls zoomPan.setGestureMode("legacy")', () => {
+        const fakeZoom = { setGestureMode: vi.fn() } as any;
+        (view as any).zoomPan = fakeZoom;
+
+        view.setState({ panMode: true });
+
+        expect((view as any).panMode).toBe(true);
+        expect(fakeZoom.setGestureMode).toHaveBeenCalledWith('legacy');
+    });
+
+    it('setState with panMode=false calls zoomPan.setGestureMode("delegated-left-drag")', () => {
+        (view as any).panMode = true; // start in pan mode
+        const fakeZoom = { setGestureMode: vi.fn() } as any;
+        (view as any).zoomPan = fakeZoom;
+
+        view.setState({ panMode: false });
+
+        expect((view as any).panMode).toBe(false);
+        expect(fakeZoom.setGestureMode).toHaveBeenCalledWith('delegated-left-drag');
+    });
+
+    it('setState with faceDirectMode calls touchHandler.setFaceDirectMode', () => {
+        const fakeHandler = { setFaceDirectMode: vi.fn() } as any;
+        (view as any).touchHandler = fakeHandler;
+
+        view.setState({ faceDirectMode: true });
+
+        expect(fakeHandler.setFaceDirectMode).toHaveBeenCalledWith(true);
+    });
+
+    it('setState ignores panMode when zoomPan is null', () => {
+        (view as any).zoomPan = null;
+        expect(() => view.setState({ panMode: true })).not.toThrow();
+    });
+
+    it('setState ignores faceDirectMode when touchHandler is null', () => {
+        (view as any).touchHandler = null;
+        expect(() => view.setState({ faceDirectMode: true })).not.toThrow();
+    });
+
+    // ─── destroy with faceLabelResetTimer ─────────────────────────────────────
+
+    it('destroy clears faceLabelResetTimer when set', () => {
+        vi.useFakeTimers();
+        (view as any).faceLabelResetTimer = setTimeout(() => {}, 9999);
+        const fakeState = { container: null, svgRoot: undefined };
+        (view as any).state = fakeState;
+
+        view.destroy();
+
+        expect((view as any).faceLabelResetTimer).toBeNull();
+        vi.useRealTimers();
+    });
+
+    // ─── handleKeyPress: face-select and keyboard-move keys ───────────────────
+
+    it('face-select key (backtick) returns true when sticker is selected', () => {
+        (view as any).state.currentSelected = 'sticker-1';
+        const evt = new KeyboardEvent('keydown', { key: '`' });
+
+        expect(view.handleKeyDown(evt)).toBe(true);
+    });
+
+    it('face-select key returns false when no sticker is selected', () => {
+        (view as any).state.currentSelected = undefined;
+        const evt = new KeyboardEvent('keydown', { key: '`' });
+
+        expect(view.handleKeyDown(evt)).toBe(false);
+    });
+
+    it('keyboard-move key (Ctrl+ArrowUp) returns true when sticker is selected', () => {
+        (view as any).state.currentSelected = 'sticker-1';
+        const evt = new KeyboardEvent('keydown', { key: 'ArrowUp', ctrlKey: true });
+
+        expect(view.handleKeyDown(evt)).toBe(true);
+    });
+
+    it('keyboard-move key returns false when no sticker is selected', () => {
+        (view as any).state.currentSelected = undefined;
+        const evt = new KeyboardEvent('keydown', { key: 'ArrowUp', ctrlKey: true });
+
+        expect(view.handleKeyDown(evt)).toBe(false);
+    });
+
+    it('handleKeyboardMove emits MOVE_REQUESTED when model and sticker available', () => {
+        // Arrange: set up model with a valid state via real CubeController
+        const controller = new CubeController();
+        const state = controller.getCurrentState();
+        const sticker = CubeStateUtils.getStickerAt(state, 'F', 4);
+
+        (view as any).state.model = controller.getReadOnlyModel();
+        (view as any).state.currentSelected = sticker?.id;
+
+        const fakeHandler = {
+            getSelectedFace: vi.fn().mockReturnValue(undefined),
+            getFaceDirectMode: vi.fn().mockReturnValue(false),
+        };
+        (view as any).touchHandler = fakeHandler;
+
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        // Act: Ctrl+ArrowUp on keyup
+        const evt = new KeyboardEvent('keyup', { key: 'ArrowUp', ctrlKey: true });
+        view.handleKeyUp(evt);
+
+        // Assert
+        expect(emitSpy).toHaveBeenCalledWith(
+            EventName.MOVE_REQUESTED,
+            expect.objectContaining({ viewId: 'circular' })
+        );
+    });
+
+    it('flashFaceLabelTilt sets transform on face-label elements', () => {
+        vi.useFakeTimers();
+
+        // Create a fake SVG with face-label elements
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        for (const face of ['U', 'D', 'L', 'R', 'F', 'B']) {
+            const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            el.id = `face-label-${face}`;
+            svg.appendChild(el);
+        }
+        (view as any).state.svgRoot = svg;
+        (view as any).state.currentSelected = 'sticker-1';
+        (view as any).state.model = {
+            getCurrentState: () => ({ cubeSize: 3 }),
+            getMoveHistory: () => ({}),
+        };
+
+        // Trigger flashFaceLabelTilt via face-select key on keyup
+        const evt = new KeyboardEvent('keyup', { key: '`' });
+        view.handleKeyUp(evt);
+
+        // After keyup the face labels should have a 'rotate' transform
+        const uLabel = svg.getElementById('face-label-U');
+        expect(uLabel?.getAttribute('transform')).toContain('rotate');
+
+        // After timeout, labels should reset (no rotate)
+        vi.advanceTimersByTime(1600);
+        expect(uLabel?.getAttribute('transform')).not.toContain('rotate');
+
+        vi.useRealTimers();
     });
 });

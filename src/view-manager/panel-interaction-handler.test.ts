@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CubeView } from '@/cube/types';
+import { CubeView, LayoutMode } from '@/cube/types';
 import { logger } from '@/diagnostics/logger';
 
 import * as panelPositioning from './panel-positioning';
@@ -536,7 +536,7 @@ describe('PanelInteractionHandler', () => {
 
         it('should be a no-op in tabbed mode', () => {
             // Arrange
-            handler.setLayoutMode('tabbed');
+            handler.setLayoutMode(LayoutMode.Tabbed);
             const panel = document.createElement('div');
             panel.id = 'basic-panel';
 

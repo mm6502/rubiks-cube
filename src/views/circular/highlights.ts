@@ -1,4 +1,5 @@
 import { StickerId } from '@/cube/types';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
 
 import { CircularCubeViewInternalData } from './circular-view';
 
@@ -48,6 +49,19 @@ export function updateSelected(
 ): void {
     // Track current selection for keyboard navigation.
     state.currentSelected = selectedSticker;
+
+    if (selectedSticker && state.model) {
+        const stickerObj = CubeStateUtils.getStickerById(
+            state.model.getCurrentState(),
+            selectedSticker
+        );
+        if (stickerObj) {
+            state.selectedFace = stickerObj.currentFace;
+            state.selectedPosition = stickerObj.facePosition;
+        }
+    }
+    // When deselecting, intentionally preserve selectedFace and selectedPosition
+    // as spatial anchors so keyboard navigation can recover from them.
 
     // Remove previous selections.
     removeSelectionHighlight(state, styles);

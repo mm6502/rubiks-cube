@@ -1,3 +1,29 @@
+import { Branded } from '@/global';
+
+/**
+ * A sticker navigation direction (arrow key → direction).
+ * Nominally distinct from ViewRotation via branding.
+ */
+export const NavDirection = {
+    Up: 'up' as NavDirection,
+    Down: 'down' as NavDirection,
+    Left: 'left' as NavDirection,
+    Right: 'right' as NavDirection,
+} as const;
+export type NavDirection = Branded<string, 'NavDirection'>;
+
+/**
+ * A view rotation direction.
+ * Nominally distinct from NavDirection via branding.
+ */
+export const ViewRotation = {
+    Up: 'up' as ViewRotation,
+    Down: 'down' as ViewRotation,
+    Left: 'left' as ViewRotation,
+    Right: 'right' as ViewRotation,
+} as const;
+export type ViewRotation = Branded<string, 'ViewRotation'>;
+
 /**
  * Simple 3D vector representation used for positions and normals.
  */

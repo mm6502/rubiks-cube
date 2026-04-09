@@ -1,0 +1,41 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    // VS Code launch configuration for debugging the Vite dev server in Microsoft Edge
+    "configurations": [
+        {
+            "name": "Launch Integrated Browser",
+            "request": "launch",
+            "type": "editor-browser",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}"
+        },
+        {
+            "type": "msedge",
+            "request": "launch",
+            "name": "Debug in Edge (Vite)",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}",
+            "userDataDir": "${workspaceFolder}/.vscode/edge-debug-profile",
+            "cleanUp": "wholeBrowser"
+        },
+        {
+            "type": "firefox",
+            "request": "launch",
+            "name": "Debug in Firefox (Vite)",
+            "reAttach": true,
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}"
+        }
+        // {
+        //     "type": "msedge",
+        //     "request": "attach",
+        //     "name": "Attach to Edge (remote)",
+        //     "address": "localhost",
+        //     "port": 9222,
+        //     "webRoot": "${workspaceFolder}",
+        // }
+    ]
+}

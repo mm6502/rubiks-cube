@@ -37,8 +37,8 @@ describe('BasicView core API', () => {
     it('getCommands returns a full command list and running actions updates state', () => {
         // Arrange
         const spyEmit = vi.spyOn(Application.eventBus, 'emit');
-        view.updateRotation = vi.fn();
-        view.updateFaceLabels = vi.fn();
+        vi.spyOn(rendering as any, 'updateRotation').mockImplementation(() => {});
+        vi.spyOn(rendering as any, 'updateFaceLabels').mockImplementation(() => {});
 
         // Act
         const commands = view.getCommands();
@@ -80,35 +80,36 @@ describe('BasicView core API', () => {
         pitch!.action();
         expect((view as any).state.isPitched).toBe(true);
 
-        // Act/Assert reset behaviour
-        (view as any).state.yRotation = 123;
-        (view as any).state.xRotation = 456;
+        // Act/Assert reset behaviour — rotateViewLeft changes vectors; reset restores defaults
+        view.rotateViewLeft();
         reset!.action();
-        const finalY = (view as any).state.yRotation;
-        expect(finalY % 180).toBe(0);
-        const finalX = (view as any).state.xRotation;
-        expect(finalX % 180).toBe(0);
+        // After reset, back-variant default: vF = (0,0,-1)
+        expect((view as any).state.viewForward).toEqual({ x: 0, y: 0, z: -1 });
+        expect((view as any).state.viewRight).toEqual({ x: -1, y: 0, z: 0 });
+        expect((view as any).state.viewUp).toEqual({ x: 0, y: 1, z: 0 });
     });
 
     it('getState and setState allow persisting/restoring the view state', () => {
-        // Arrange: mutate some values
+        // Arrange: rotate the view and set aesthetic flags
+        view.rotateViewLeft();
         (view as any).state.isTilted = true;
-        (view as any).state.yRotation = 270;
 
         // Act: capture state
         const persisted = view.getState();
 
-        // Assert persisted structure
+        // Assert persisted structure — vectors reflect the rotation
         expect(persisted).toEqual<BasicViewState>({
+            viewRight: { x: 0, y: 0, z: 1 }, // after rotateViewLeft from back default
+            viewUp: { x: 0, y: 1, z: 0 },
+            viewForward: { x: -1, y: 0, z: 0 },
             isTilted: true,
             isPitched: false,
-            yRotation: 270,
-            xRotation: 0,
-            zRotation: 0,
+            faceDirectMode: false,
+            linked: true,
         });
 
         // Arrange: fresh view
-        const another = new BasicView({ viewType: 'basic-front' });
+        const another = new BasicView({ viewType: 'basic-back' });
         another.create(container, model);
 
         // Act: restore state
@@ -116,12 +117,16 @@ describe('BasicView core API', () => {
 
         // Assert restoration
         expect((another as any).state.isTilted).toBe(true);
-        expect((another as any).state.yRotation).toBe(270);
+        expect((another as any).state.viewForward).toEqual({ x: -1, y: 0, z: 0 });
 
         // Act & Assert: garbage inputs don't throw
         another.setState(null);
         another.setState({});
         another.setState({ isTilted: 'nope' } as any);
+
+        // Act & Assert: old-format state (xRotation present) silently resets to default
+        another.setState({ xRotation: 90, yRotation: 0, zRotation: 0 });
+        expect((another as any).state.viewForward).toEqual({ x: 0, y: 0, z: -1 }); // back default
     });
 
     it('public helpers delegate to the rendering module', () => {

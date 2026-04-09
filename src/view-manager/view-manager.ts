@@ -120,9 +120,9 @@ export class ViewManager implements CommandManager {
         // Determine initial layout mode and listen for breakpoint changes
         if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
             const mq = window.matchMedia('(min-width: 1025px)');
-            this.layoutMode = mq.matches ? 'floating' : 'tabbed';
+            this.layoutMode = mq.matches ? 'floating' : LayoutMode.Tabbed;
             mq.addEventListener('change', (e: MediaQueryListEvent) => {
-                this.layoutMode = e.matches ? 'floating' : 'tabbed';
+                this.layoutMode = e.matches ? 'floating' : LayoutMode.Tabbed;
                 this.applyLayoutMode();
             });
         }
@@ -139,6 +139,10 @@ export class ViewManager implements CommandManager {
 
         // Set up drag and resize event listeners
         this.panelInteractionHandler.setupDragAndResizeHandlers();
+
+        // Sync the interaction handler's layout mode before any views are created so
+        // that setInitialPanelPosition() skips absolute-position sizing in tabbed mode.
+        this.panelInteractionHandler.setLayoutMode(this.layoutMode);
 
         // Create view lifecycle manager
         this.viewLifecycleManager = new ViewLifecycleManager(
@@ -252,7 +256,22 @@ export class ViewManager implements CommandManager {
                     return true;
                 }
             }
+
+            // Check view-specific command bindings: return true to suppress the
+            // browser default (e.g. Ctrl+Arrow moving the text cursor) even though
+            // the command action itself fires on keyUp.
+            const viewCommands = this.commandRegistry.get(activeViewId);
+            if (viewCommands?.some(cmd => this.matchesKeyBindings(cmd.keyBindings, e))) {
+                return true;
+            }
         }
+
+        // Check controller (global) command bindings for the same reason.
+        const controllerCommands = this.commandRegistry.get('controller');
+        if (controllerCommands?.some(cmd => this.matchesKeyBindings(cmd.keyBindings, e))) {
+            return true;
+        }
+
         return false;
     }
 
@@ -338,16 +357,21 @@ export class ViewManager implements CommandManager {
         try {
             localStorage.removeItem('rubiksCubeVisibleViews');
 
-            const len = localStorage.length;
-            for (let i = 0; i < len; i++) {
+            // Collect keys first to avoid index-shifting bugs when removing during iteration.
+            const panelKeys: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 if (key && key.startsWith('view-panel-')) {
-                    localStorage.removeItem(key);
+                    panelKeys.push(key);
                 }
             }
+            panelKeys.forEach(key => localStorage.removeItem(key));
         } catch (err) {
             logger.warn('Failed to clear view-related storage', err);
         }
+
+        // Re-position any currently open panels to valid on-screen positions.
+        this.panelInteractionHandler?.repositionAllActivePanels();
     }
 
     /**
@@ -422,12 +446,12 @@ export class ViewManager implements CommandManager {
      * Applies the current layoutMode to all open panels and tab bar visibility.
      */
     private applyLayoutMode(): void {
-        if (this.layoutMode === 'tabbed') {
+        if (this.layoutMode === LayoutMode.Tabbed) {
             this.tabBar?.show();
-            this.panelInteractionHandler?.setLayoutMode('tabbed');
+            this.panelInteractionHandler?.setLayoutMode(LayoutMode.Tabbed);
             for (const [, { view, container }] of this.activeViews) {
                 this.applyTabbedLayoutToPanel(container);
-                view.setLayoutMode?.('tabbed');
+                view.setLayoutMode?.(LayoutMode.Tabbed);
             }
             this.tabBar?.updateTabs(this.activeViews);
             this.showOnlyActivePanel();
@@ -451,7 +475,7 @@ export class ViewManager implements CommandManager {
      * In tabbed mode, applies tabbed CSS, updates the tab bar, and shows only the active panel.
      */
     private handlePanelAdded(container: HTMLElement): void {
-        if (this.layoutMode === 'tabbed') {
+        if (this.layoutMode === LayoutMode.Tabbed) {
             this.applyTabbedLayoutToPanel(container);
             this.tabBar?.updateTabs(this.activeViews);
             this.showOnlyActivePanel();
@@ -496,19 +520,27 @@ export class ViewManager implements CommandManager {
      * No-op in floating mode.
      */
     private showOnlyActivePanel(): void {
-        if (this.layoutMode !== 'tabbed') return;
+        if (this.layoutMode !== LayoutMode.Tabbed) return;
         const activeId = this.getActiveViewId();
         for (const [viewType, { view, container }] of this.activeViews) {
             const isActive = viewType === activeId;
+            const wasHidden = container.style.display === 'none';
             container.style.display = isActive ? '' : 'none';
-            if (isActive) {
-                // Trigger resize so content scales to correct dimensions (the
-                // panel may have been hidden when resize() was last called).
-                requestAnimationFrame(() => view.resize?.());
-                // Force a full update so any state changes that accumulated
-                // while this tab was hidden are applied immediately.
-                view.update?.(this.cubeModel.getReadOnlyModel());
+            if (!isActive) continue;
+
+            if (wasHidden) {
+                // Panel was just revealed: resize synchronously so the first
+                // paint shows the correct size. Reading clientWidth here forces
+                // a CSS reflow that picks up the now-visible panel dimensions.
+                view.resize?.();
             }
+
+            // Also queue a rAF resize for any layout changes that settle after
+            // the synchronous reflow (e.g. header height recalculations).
+            requestAnimationFrame(() => view.resize?.());
+            // Force a full update so any state changes that accumulated
+            // while this tab was hidden are applied immediately.
+            view.update?.(this.cubeModel.getReadOnlyModel());
         }
     }
 
@@ -543,7 +575,7 @@ export class ViewManager implements CommandManager {
     showView(viewType: string): void {
         this.viewLifecycleManager!.showView(viewType);
         // Apply tabbed layout to the newly added panel if in tabbed mode
-        if (this.layoutMode === 'tabbed') {
+        if (this.layoutMode === LayoutMode.Tabbed) {
             const entry = this.activeViews.get(viewType);
             if (entry) {
                 this.applyTabbedLayoutToPanel(entry.container);

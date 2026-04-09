@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { StickerId } from '@/cube/types';
+import { LayoutMode, StickerId } from '@/cube/types';
 
 import * as selection from './selection';
 import type { BasicViewInternalData } from './basic-view';
@@ -35,11 +35,11 @@ describe('BasicCubeSelector', () => {
             viewType: 'basic-front',
             isTilted: false,
             isPitched: false,
-            yRotation: 0,
-            xRotation: 0,
-            zRotation: 0,
+            viewRight: { x: 1, y: 0, z: 0 },
+            viewUp: { x: 0, y: 1, z: 0 },
+            viewForward: { x: 0, y: 0, z: 1 },
             isHovered: false,
-            pendingMoveFace: undefined,
+            layoutMode: LayoutMode.Floating,
         };
     });
 

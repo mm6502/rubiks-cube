@@ -1,40 +1,66 @@
-import { Face, ReadOnlyCubeModel, Size2D, resolveCubeColor } from '@/cube/types';
+import { Face, ReadOnlyCubeModel, Size2D, Vector3, resolveCubeColor } from '@/cube/types';
+import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils';
-import { findClosestEquivalentAngle as mathFindClosestEquivalentAngle } from '@/cube/utils/math';
 import { computeAvailableContentSize } from '@/cube/utils/view-utils';
 import { MoveExecutedEvent } from '@/types';
 
 import type { BasicViewInternalData } from './basic-view';
-import { BASIC_VIEW_ANGLES } from './constants';
+import { BASIC_VIEW_ANGLES, BASIC_VIEW_SCALE } from './constants';
 
 /**
- * Re-export so callers that only need the angle helper can import it from here.
+ * Maps an axis-aligned unit vector expressed in **CSS 3D space** to the
+ * corresponding cube Face.
+ *
+ * Differs from `vectorToFace` only on the Y axis: in the CSS 3D cube layout
+ * the Face.U element is positioned at CSS −Y (visual up) and Face.D at CSS +Y
+ * (visual down), which is the opposite of the model convention where Face.U
+ * lives at model +Y.
+ *
+ * Convention: CSS +X=R, CSS −X=L, CSS +Y=D, CSS −Y=U, CSS +Z=F, CSS −Z=B.
  */
-export function findClosestEquivalentAngle(current: number, target: number): number {
-    return mathFindClosestEquivalentAngle(current, target);
+function faceFromCSSDir(v: Vector3): Face {
+    if (v.x === 1) return Face.R;
+    if (v.x === -1) return Face.L;
+    if (v.y === 1) return Face.D; // CSS +Y is visual-down = model Down face
+    if (v.y === -1) return Face.U; // CSS −Y is visual-up  = model Up   face
+    if (v.z === 1) return Face.F;
+    return Face.B;
 }
 
 /**
  * Updates the CSS transform of the cube element based on current rotation values.
+ *
+ * The user-controlled orientation is expressed as three orthogonal unit vectors
+ * (viewRight, viewUp, viewForward) stored in model space.  These are combined
+ * into a CSS matrix3d (column-major) so the cube always shows exactly the right
+ * face toward the viewer, with no accumulated floating-point error.
+ *
+ * Base aesthetic angles (isTilted / isPitched) are applied first as simple
+ * rotateX / rotateY so the cube sits at a comfortable viewing angle.
  */
 export function updateRotation(state: BasicViewInternalData, skipAnimation?: boolean): void {
     if (!state.cubeElement) return;
 
     const baseX = state.isPitched ? BASIC_VIEW_ANGLES.PITCHED_BASE_X : BASIC_VIEW_ANGLES.BASE_X;
     const baseY = state.isTilted ? BASIC_VIEW_ANGLES.TILTED_BASE_Y : BASIC_VIEW_ANGLES.BASE_Y;
-    const baseZ = BASIC_VIEW_ANGLES.BASE_Z;
 
-    const transforms = [
-        `rotateX(${baseX}deg)`,
-        `rotateY(${baseY}deg)`,
-        `rotateY(${baseZ}deg)`,
-        `rotateX(${state.xRotation}deg)`,
-        `rotateY(${state.yRotation}deg)`,
-        `rotateZ(${state.zRotation}deg)`,
-    ];
+    // Build a column-major CSS matrix3d from the orientation vectors.
+    // R (rows = vR, vU, vF) maps model directions to screen directions:
+    //   R * vR = (1,0,0)  (model viewRight → screen right)
+    //   R * vU = (0,1,0)  (model viewUp    → screen up)
+    //   R * vF = (0,0,1)  (model viewFwd   → toward viewer)
+    // CSS matrix3d column-major:
+    //   col1 = (vR.x, vU.x, vF.x, 0)
+    //   col2 = (vR.y, vU.y, vF.y, 0)
+    //   col3 = (vR.z, vU.z, vF.z, 0)
+    //   col4 = (0, 0, 0, 1)
+    const { viewRight: vR, viewUp: vU, viewForward: vF } = state;
+    const m = `matrix3d(${vR.x},${vU.x},${vF.x},0, ${vR.y},${vU.y},${vF.y},0, ${vR.z},${vU.z},${vF.z},0, 0,0,0,1)`;
 
-    if (state.isHovered) {
-        transforms.push('scale(1.05)');
+    const transforms = [`rotateX(${baseX}deg)`, `rotateY(${baseY}deg)`, m];
+
+    if (state.isHovered && state.layoutMode !== LayoutMode.Tabbed) {
+        transforms.push(`scale(${BASIC_VIEW_SCALE.HOVER})`);
     }
 
     const transition = state.cubeElement.style.transition;
@@ -53,158 +79,70 @@ export function updateRotation(state: BasicViewInternalData, skipAnimation?: boo
 
 /**
  * Calculates which faces should be visible for label placement based on
- * current rotation state.
+ * current orientation vectors.
+ *
+ * The three orientation vectors (viewForward, viewRight, viewUp) each point to
+ * one of the six axis-aligned model directions (±X, ±Y, ±Z) which correspond
+ * directly to the six cube faces (R, L, U, D, F, B).
+ *
+ * The isTilted flag controls which CSS slot layout is used (mirroring the base
+ * aesthetic Y-angle of ±35°).  The isPitched flag controls which set of three
+ * faces counts as "visible".
  */
 export function getVisibleFacesWithPositions(state: BasicViewInternalData): {
     visibleFaces: Array<{ face: Face; position: string }>;
     hiddenFaces: Array<{ face: Face; position: string }>;
 } {
-    const orientation: Record<'front' | 'back' | 'right' | 'left' | 'up' | 'down', Face> = {
-        front: Face.F,
-        back: Face.B,
-        right: Face.R,
-        left: Face.L,
-        up: Face.U,
-        down: Face.D,
-    };
+    const { viewForward: vF, viewRight: vR, viewUp: vU } = state;
 
-    const rotateOrientationX = (dir: 1 | -1) => {
-        const { front, back, up, down } = orientation;
-        if (dir === 1) {
-            orientation.front = down;
-            orientation.up = front;
-            orientation.back = up;
-            orientation.down = back;
-        } else {
-            orientation.front = up;
-            orientation.up = back;
-            orientation.back = down;
-            orientation.down = front;
-        }
-    };
-
-    const rotateOrientationY = (dir: 1 | -1) => {
-        const { front, back, right, left } = orientation;
-        if (dir === 1) {
-            orientation.front = right;
-            orientation.right = back;
-            orientation.back = left;
-            orientation.left = front;
-        } else {
-            orientation.front = left;
-            orientation.left = back;
-            orientation.back = right;
-            orientation.right = front;
-        }
-    };
-
-    const rotateOrientationZ = (dir: 1 | -1) => {
-        const { up, right, down, left } = orientation;
-        if (dir === 1) {
-            orientation.up = left;
-            orientation.left = down;
-            orientation.down = right;
-            orientation.right = up;
-        } else {
-            orientation.up = right;
-            orientation.right = down;
-            orientation.down = left;
-            orientation.left = up;
-        }
-    };
-
-    const applySteps = (steps: number, rotatePositive: () => void, rotateNegative: () => void) => {
-        let count = steps;
-        while (count > 0) {
-            rotatePositive();
-            count--;
-        }
-        while (count < 0) {
-            rotateNegative();
-            count++;
-        }
-    };
-
-    const ySteps = Math.round(-state.yRotation / 90);
-    applySteps(
-        ySteps,
-        () => rotateOrientationY(1),
-        () => rotateOrientationY(-1)
-    );
-
-    const xSteps = Math.round(state.xRotation / 90);
-    applySteps(
-        xSteps,
-        () => rotateOrientationX(1),
-        () => rotateOrientationX(-1)
-    );
-
-    const zSteps = Math.round(-state.zRotation / 90);
-    applySteps(
-        zSteps,
-        () => rotateOrientationZ(1),
-        () => rotateOrientationZ(-1)
-    );
+    // Each face is identified by its CSS-space direction.
+    // vU maps to CSS +Y (visual-DOWN), so the visual-top face is in the neg(vU)
+    // CSS direction; visual-bottom is in the +vU CSS direction.
+    const fwdFace = faceFromCSSDir(vF);
+    const rightFace = faceFromCSSDir(vR);
+    const upFace = faceFromCSSDir({ x: -vU.x || 0, y: -vU.y || 0, z: -vU.z || 0 });
+    const backFace = faceFromCSSDir({ x: -vF.x || 0, y: -vF.y || 0, z: -vF.z || 0 });
+    const leftFace = faceFromCSSDir({ x: -vR.x || 0, y: -vR.y || 0, z: -vR.z || 0 });
+    const downFace = faceFromCSSDir(vU);
 
     const slotFaces: Record<string, Face> = {};
 
-    const assignFrontNormal = () => {
-        slotFaces['top'] = orientation.up;
-        slotFaces['bottom-left'] = orientation.front;
-        slotFaces['bottom-right'] = orientation.right;
-        slotFaces['top-left'] = orientation.left;
-        slotFaces['top-right'] = orientation.back;
-        slotFaces['middle-bottom'] = orientation.down;
-    };
-
-    const assignFrontTilted = () => {
-        slotFaces['top'] = orientation.up;
-        slotFaces['bottom-left'] = orientation.left;
-        slotFaces['bottom-right'] = orientation.front;
-        slotFaces['top-left'] = orientation.back;
-        slotFaces['top-right'] = orientation.right;
-        slotFaces['middle-bottom'] = orientation.down;
-    };
-
-    const assignBackNormal = () => {
-        slotFaces['top'] = orientation.up;
-        slotFaces['bottom-left'] = orientation.front;
-        slotFaces['bottom-right'] = orientation.right;
-        slotFaces['top-left'] = orientation.left;
-        slotFaces['top-right'] = orientation.back;
-        slotFaces['middle-bottom'] = orientation.down;
-    };
-
-    const assignBackTilted = () => {
-        slotFaces['top'] = orientation.up;
-        slotFaces['bottom-left'] = orientation.left;
-        slotFaces['bottom-right'] = orientation.front;
-        slotFaces['top-left'] = orientation.back;
-        slotFaces['top-right'] = orientation.right;
-        slotFaces['middle-bottom'] = orientation.down;
-    };
-
-    if (state.variant === 'back') {
-        if (state.isTilted) {
-            assignBackTilted();
-        } else {
-            assignBackNormal();
-        }
+    if (state.isTilted) {
+        // Tilted layout: base Y = +35° (looking from slightly left).
+        // Front face appears at bottom-right, left face at bottom-left.
+        slotFaces['top'] = upFace;
+        slotFaces['bottom-left'] = leftFace;
+        slotFaces['bottom-right'] = fwdFace;
+        slotFaces['top-left'] = backFace;
+        slotFaces['top-right'] = rightFace;
+        slotFaces['middle-bottom'] = downFace;
     } else {
-        if (state.isTilted) {
-            assignFrontTilted();
-        } else {
-            assignFrontNormal();
-        }
+        // Normal layout: base Y = -35° (looking from slightly right).
+        // Front face appears at bottom-left, right face at bottom-right.
+        slotFaces['top'] = upFace;
+        slotFaces['bottom-left'] = fwdFace;
+        slotFaces['bottom-right'] = rightFace;
+        slotFaces['top-left'] = leftFace;
+        slotFaces['top-right'] = backFace;
+        slotFaces['middle-bottom'] = downFace;
     }
 
     let visiblePositions: string[];
     let hiddenPositions: string[];
 
     if (state.isPitched) {
+        // When pitched (+25° X), the bottom face comes toward the viewer.
+        // The faces previously visible at bottom-left/right shift to the top row;
+        // the faces previously hidden at top-left/right drop to the bottom row.
+        const prevTopLeft = slotFaces['top-left'];
+        const prevTopRight = slotFaces['top-right'];
+        slotFaces['top-left'] = slotFaces['bottom-left'];
+        slotFaces['top-right'] = slotFaces['bottom-right'];
+        slotFaces['bottom-left'] = prevTopLeft;
+        slotFaces['bottom-right'] = prevTopRight;
         slotFaces['middle-bottom-pitched'] = slotFaces['middle-bottom'];
-        visiblePositions = ['middle-bottom-pitched', 'bottom-left', 'bottom-right'];
-        hiddenPositions = ['top-left', 'top-right', 'top'];
+        visiblePositions = ['top-left', 'middle-bottom-pitched', 'top-right'];
+        hiddenPositions = ['top', 'bottom-left', 'bottom-right'];
     } else {
         visiblePositions = ['top', 'bottom-left', 'bottom-right'];
         hiddenPositions = ['top-left', 'top-right', 'middle-bottom'];
@@ -224,37 +162,165 @@ export function getVisibleFacesWithPositions(state: BasicViewInternalData): {
 }
 
 /**
- * Rebuilds face label DOM elements based on current rotation state.
+ * Builds a map of CSS face position → original face letter by reading the
+ * virtual center cubies from the model.  After whole-cube rotations the
+ * virtual centers track where each original face ended up.
+ *
+ * Returns null when the model is unavailable or doesn't have virtual centers.
  */
-export function updateFaceLabels(state: BasicViewInternalData): void {
+function buildFaceMap(model: ReadOnlyCubeModel | undefined): Map<Face, Face> | null {
+    if (!model) return null;
+    try {
+        const cubeState = model.getCurrentState();
+        const result = new Map<Face, Face>();
+        const allFaces = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
+        for (const originalFace of allFaces) {
+            const vc = CubeStateUtils.getVirtualCenterCubie(cubeState, originalFace);
+            const sticker = vc.stickers.first();
+            if (sticker) {
+                // sticker.currentFace = which CSS position this original face is now at
+                result.set(sticker.currentFace as Face, originalFace);
+            }
+        }
+        return result;
+    } catch {
+        return null;
+    }
+}
+
+const pendingLabelTimers = new WeakMap<Element, Map<string, ReturnType<typeof setTimeout>>>();
+
+type LabelTarget = {
+    posKey: string;
+    face: Face;
+    baseClass: string; // 'face-label' or 'hidden-face-label'
+    posClass: string; // e.g. 'face-label-front-top'
+    viewPrefix: string;
+};
+
+function buildTargets(
+    state: BasicViewInternalData,
+    faceMap: Map<Face, Face> | null
+): LabelTarget[] {
+    const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(state);
+    const viewPrefix = `${state.variant}${state.isTilted ? '-tilted' : ''}${state.isPitched ? '-pitched' : ''}`;
+    const targets: LabelTarget[] = [];
+    visibleFaces.forEach(({ face, position }: { face: Face; position: string }) => {
+        const resolvedFace = faceMap?.get(face) ?? face;
+        targets.push({
+            posKey: position,
+            face: resolvedFace,
+            baseClass: state.styles['face-label'],
+            posClass: state.styles[`face-label-${viewPrefix}-${position}`],
+            viewPrefix,
+        });
+    });
+    hiddenFaces.forEach(({ face, position }: { face: Face; position: string }) => {
+        const resolvedFace = faceMap?.get(face) ?? face;
+        targets.push({
+            posKey: `hidden:${position}`,
+            face: resolvedFace,
+            baseClass: state.styles['hidden-face-label'],
+            posClass: state.styles[`hidden-face-label-${viewPrefix}-${position}`],
+            viewPrefix,
+        });
+    });
+    return targets;
+}
+
+function createLabelElement(target: LabelTarget, spinInClass: string): HTMLElement {
+    const el = document.createElement('div');
+    el.className = `${target.baseClass} ${target.posClass}${spinInClass ? ` ${spinInClass}` : ''}`;
+    el.textContent = target.face;
+    el.dataset['pos'] = target.posKey;
+    el.dataset['face'] = target.face;
+    el.dataset['prefix'] = target.viewPrefix;
+    return el;
+}
+
+/**
+ * Updates face label DOM elements, animating only the labels that actually
+ * changed (different face letter or layout prefix).  Unchanged labels are
+ * left alone.
+ *
+ * @param direction Controls the animation axis: 'horizontal' (scaleX, default)
+ *                  for left/right rotations, 'vertical' (scaleY) for up/down.
+ */
+export function updateFaceLabels(
+    state: BasicViewInternalData,
+    direction: 'horizontal' | 'vertical' = 'horizontal'
+): void {
     if (!state.cubeContainer) return;
 
-    const existingLabels = state.cubeContainer.querySelectorAll(
-        `.${state.styles['face-label']}, .${state.styles['hidden-face-label']}`
-    );
-    existingLabels.forEach((label: Element) => label.remove());
+    const faceMap = buildFaceMap(state.model);
+    const targets = buildTargets(state, faceMap);
 
-    const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(state);
+    // Build a map of existing labels by position key.
+    const existingByPos = new Map<string, HTMLElement>();
+    state.cubeContainer
+        .querySelectorAll<HTMLElement>(`[data-pos]`)
+        .forEach(el => existingByPos.set(el.dataset['pos']!, el));
 
-    const basePrefix = state.variant;
-    const tiltSuffix = state.isTilted ? '-tilted' : '';
-    const pitchSuffix = state.isPitched ? '-pitched' : '';
-    const viewPrefix = `${basePrefix}${tiltSuffix}${pitchSuffix}`;
+    // First render — no animation.
+    if (existingByPos.size === 0) {
+        targets.forEach(t => state.cubeContainer!.appendChild(createLabelElement(t, '')));
+        return;
+    }
 
-    visibleFaces.forEach(({ face, position }: { face: Face; position: string }) => {
-        const label = document.createElement('div');
-        const className = `face-label-${viewPrefix}-${position}`;
-        label.className = `${state.styles['face-label']} ${state.styles[className]}`;
-        label.textContent = face;
-        state.cubeContainer!.appendChild(label);
+    // Retrieve (or create) the per-container timer map.
+    let timerMap = pendingLabelTimers.get(state.cubeContainer);
+    if (!timerMap) {
+        timerMap = new Map();
+        pendingLabelTimers.set(state.cubeContainer, timerMap);
+    }
+
+    const isVertical = direction === 'vertical';
+    const spinOutClass = isVertical
+        ? state.styles['face-label-spinning-out-vertical']
+        : state.styles['face-label-spinning-out'];
+    const spinInClass = isVertical
+        ? state.styles['face-label-spinning-in-vertical']
+        : state.styles['face-label-spinning-in'];
+    const container = state.cubeContainer;
+
+    // Determine which positions are being removed (not in new targets).
+    const newPosKeys = new Set(targets.map(t => t.posKey));
+    existingByPos.forEach((el, posKey) => {
+        if (!newPosKeys.has(posKey)) {
+            el.remove();
+        }
     });
 
-    hiddenFaces.forEach(({ face, position }: { face: Face; position: string }) => {
-        const label = document.createElement('div');
-        const className = `hidden-face-label-${viewPrefix}-${position}`;
-        label.className = `${state.styles['hidden-face-label']} ${state.styles[className]}`;
-        label.textContent = face;
-        state.cubeContainer!.appendChild(label);
+    targets.forEach(target => {
+        const existing = existingByPos.get(target.posKey);
+        const unchanged =
+            existing !== undefined &&
+            existing.dataset['face'] === target.face &&
+            existing.dataset['prefix'] === target.viewPrefix;
+
+        if (unchanged) {
+            // Nothing to do — label is already correct.
+            return;
+        }
+
+        // Cancel any in-flight timer for this position.
+        const prev = timerMap!.get(target.posKey);
+        if (prev !== undefined) clearTimeout(prev);
+
+        // Spin out the old label (if any).
+        if (existing) {
+            existing.classList.add(spinOutClass);
+        }
+
+        // After spin-out, remove old and insert new with spin-in.
+        const posKey = target.posKey;
+        const timer = setTimeout(() => {
+            timerMap!.delete(posKey);
+            container.querySelector(`[data-pos="${posKey}"]`)?.remove();
+            container.appendChild(createLabelElement(target, spinInClass));
+        }, 120);
+
+        timerMap!.set(posKey, timer);
     });
 }
 
@@ -325,7 +391,11 @@ export function updateSize(state: BasicViewInternalData): void {
     const availableSize = computeAvailableContentSize(state.container);
     if (availableSize.width <= 0 || availableSize.height <= 0) return;
 
-    const faceSize = Math.min(availableSize.width, availableSize.height) * 0.6;
+    // We want more space around the cube in Tabbed mode
+    // to leave more space where background can be dragged.
+    const scale =
+        state.layoutMode === LayoutMode.Tabbed ? BASIC_VIEW_SCALE.TABBED : BASIC_VIEW_SCALE.DEFAULT;
+    const faceSize = Math.min(availableSize.width, availableSize.height) * scale;
 
     state.cubeElement.style.width = `${faceSize}px`;
     state.cubeElement.style.height = `${faceSize}px`;

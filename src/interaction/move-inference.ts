@@ -1,44 +1,12 @@
 import { Axis, Face, Position3D, QuarterTurn, Vector3 } from '@/cube/types';
-import { rotatePosition3D, toCentered } from '@/cube/utils/math';
+import { FACE_BASIS } from '@/cube/utils/face-utils';
+import { cross3, dot3, negate3, rotatePosition3D, subtract3, toCentered } from '@/cube/utils/math';
 import { facePositionTo3D } from '@/cube/utils/sticker-position';
 
 import { DragDirection, MoveInferenceInput } from './types';
 
-const FACE_BASIS: Record<Face, { normal: Vector3; up: Vector3; right: Vector3 }> = {
-    [Face.F]: {
-        normal: { x: 0, y: 0, z: -1 },
-        up: { x: 0, y: 1, z: 0 },
-        right: { x: 1, y: 0, z: 0 },
-    },
-    [Face.B]: {
-        normal: { x: 0, y: 0, z: 1 },
-        up: { x: 0, y: 1, z: 0 },
-        right: { x: -1, y: 0, z: 0 },
-    },
-    [Face.U]: {
-        normal: { x: 0, y: 1, z: 0 },
-        up: { x: 0, y: 0, z: 1 },
-        right: { x: 1, y: 0, z: 0 },
-    },
-    [Face.D]: {
-        normal: { x: 0, y: -1, z: 0 },
-        up: { x: 0, y: 0, z: -1 },
-        right: { x: 1, y: 0, z: 0 },
-    },
-    [Face.L]: {
-        normal: { x: -1, y: 0, z: 0 },
-        up: { x: 0, y: 1, z: 0 },
-        right: { x: 0, y: 0, z: -1 },
-    },
-    [Face.R]: {
-        normal: { x: 1, y: 0, z: 0 },
-        up: { x: 0, y: 1, z: 0 },
-        right: { x: 0, y: 0, z: 1 },
-    },
-};
-
 /** Threshold distance in pixels for inferring a 180° move from a drag gesture. */
-const DEFAULT_FAR_DRAG_THRESHOLD_PX = 50;
+const DEFAULT_FAR_DRAG_THRESHOLD_PX = 60;
 
 export type WholeCubeNotationPolicy = (deltaX: number, deltaY: number) => string | undefined;
 
@@ -55,7 +23,7 @@ export function inferMoveFromDrag(input: MoveInferenceInput): string {
     const basis = FACE_BASIS[face];
 
     const dragVector = directionToVector(direction, basis);
-    const axisVector = cross(basis.normal, dragVector);
+    const axisVector = cross3(basis.normal, dragVector);
     const axis = axisFromVector(axisVector);
     const layerIndex = getLayerIndex(stickerPosition, axis);
 
@@ -168,11 +136,11 @@ function directionToVector(
         case DragDirection.UP:
             return basis.up;
         case DragDirection.DOWN:
-            return negate(basis.up);
+            return negate3(basis.up);
         case DragDirection.RIGHT:
             return basis.right;
         case DragDirection.LEFT:
-            return negate(basis.right);
+            return negate3(basis.right);
         default:
             throw new Error(`Unsupported drag direction: ${String(direction)}`);
     }
@@ -192,11 +160,11 @@ function inferQuarterTurnAngle(
     const plus = rotatePosition3D(position, axis, 90);
     const minus = rotatePosition3D(position, axis, -90);
 
-    const plusDisplacement = subtract(plus, position);
-    const minusDisplacement = subtract(minus, position);
+    const plusDisplacement = subtract3(plus, position);
+    const minusDisplacement = subtract3(minus, position);
 
-    const plusScore = dot(plusDisplacement, dragVector);
-    const minusScore = dot(minusDisplacement, dragVector);
+    const plusScore = dot3(plusDisplacement, dragVector);
+    const minusScore = dot3(minusDisplacement, dragVector);
 
     return plusScore >= minusScore ? 90 : -90;
 }
@@ -249,32 +217,4 @@ function axisFromVector(vector: Vector3): Axis {
     if (vector.y !== 0) return Axis.Y;
     if (vector.z !== 0) return Axis.Z;
     throw new Error('Could not determine rotation axis from drag vector');
-}
-
-function cross(a: Vector3, b: Vector3): Vector3 {
-    return {
-        x: a.y * b.z - a.z * b.y,
-        y: a.z * b.x - a.x * b.z,
-        z: a.x * b.y - a.y * b.x,
-    };
-}
-
-function dot(a: Vector3, b: Vector3): number {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-function subtract(a: Vector3, b: Vector3): Vector3 {
-    return {
-        x: a.x - b.x,
-        y: a.y - b.y,
-        z: a.z - b.z,
-    };
-}
-
-function negate(vector: Vector3): Vector3 {
-    return {
-        x: -vector.x,
-        y: -vector.y,
-        z: -vector.z,
-    };
 }

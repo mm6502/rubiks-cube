@@ -39,6 +39,10 @@ export default defineConfig({
                 'src/types/index.ts',
                 'src/cube/**/index.ts',
                 'src/**/*.commands.ts',
+                // Exclude type-only files (no executable code)
+                'src/cube/types/**',
+                // Exclude interface-only files (no executable statements)
+                'src/view-manager/command-manager.ts',
             ],
         },
     },

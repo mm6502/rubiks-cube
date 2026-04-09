@@ -83,6 +83,7 @@ export class ViewLifecycleManager {
                 viewType === 'moves' ||
                 viewType === 'circular' ||
                 viewType === 'basic-front' ||
+                viewType === 'basic-back' ||
                 viewType === 'flat'
             ) {
                 checkbox.checked = true;
@@ -148,59 +149,77 @@ export class ViewLifecycleManager {
         const { container: viewContainer, content } = this.createViewPanelDOM(viewType);
         this.visualizationsContainer.appendChild(viewContainer);
 
-        // Create the view first to get minimum size.
-        const view = this.createView(viewType as string);
+        try {
+            // Create the view first to get minimum size.
+            const view = this.createView(viewType as string);
 
-        // Set initial position and size.
-        this.panelInteractionHandler.setInitialPanelPosition(
-            viewContainer,
-            viewType as string,
-            view
-        );
+            // Set initial position and size.
+            this.panelInteractionHandler.setInitialPanelPosition(
+                viewContainer,
+                viewType as string,
+                view
+            );
 
-        // Initialize the view.
-        view.create(content, this.cubeModel.getReadOnlyModel());
-        // Propagate the current layout mode immediately after creation so views
-        // that adjust gesture handling (e.g. circular view) start in the right mode.
-        view.setLayoutMode?.(this.getLayoutMode());
-        this.activeViews.set(viewType as string, { view, container: viewContainer });
+            // Initialize the view.
+            view.create(content, this.cubeModel.getReadOnlyModel());
+            // Propagate the current layout mode immediately after creation so views
+            // that adjust gesture handling (e.g. circular view) start in the right mode.
+            view.setLayoutMode?.(this.getLayoutMode());
+            this.activeViews.set(viewType as string, { view, container: viewContainer });
 
-        // Notify view of initial size.
-        view.resize?.();
+            // Notify view of initial size.
+            view.resize?.();
 
-        // Load and apply saved state (includes flip state and view-specific state).
-        const savedState = loadPanelState(viewType as string);
-        if (savedState) {
-            // Restore view-specific state if view implements setState.
-            if (savedState.viewState !== undefined && typeof view.setState === 'function') {
-                view.setState(savedState.viewState);
-                // Trigger a re-render to apply the restored state visually.
-                if (typeof view.update === 'function') {
-                    view.update(this.cubeModel.getReadOnlyModel());
+            // Load and apply saved state (includes flip state and view-specific state).
+            const savedState = loadPanelState(viewType as string);
+            if (savedState) {
+                // Restore view-specific state if view implements setState.
+                if (savedState.viewState !== undefined && typeof view.setState === 'function') {
+                    view.setState(savedState.viewState);
+                    // Trigger a re-render to apply the restored state visually.
+                    if (typeof view.update === 'function') {
+                        view.update(this.cubeModel.getReadOnlyModel());
+                    }
                 }
             }
-        }
 
-        // Notify parent so tabbed-mode panels get their CSS class and tab bar updated.
-        this.onPanelAdded?.(viewType as string, viewContainer);
+            // Notify parent so tabbed-mode panels get their CSS class and tab bar updated.
+            this.onPanelAdded?.(viewType as string, viewContainer);
 
-        // Persist the panel position immediately on open so reopening restores same placement.
-        // Skip in tabbed mode — panel geometry is not meaningful there.
-        if (this.getLayoutMode() !== 'tabbed') {
-            const activeViewEntry = this.activeViews.get(viewType as string);
-            if (activeViewEntry) {
-                savePanelState(activeViewEntry, this.visualizationsContainer);
+            // Persist the panel position immediately on open so reopening restores same placement.
+            // Skip in tabbed mode — panel geometry is not meaningful there.
+            if (this.getLayoutMode() !== LayoutMode.Tabbed) {
+                const activeViewEntry = this.activeViews.get(viewType as string);
+                if (activeViewEntry) {
+                    savePanelState(activeViewEntry, this.visualizationsContainer);
+                }
             }
-        }
 
-        // Register commands.
-        this.commandManager.registerViewCommands(viewType as string, view);
-        this.commandManager.updateViewHeaderCommands(viewType as string);
-        this.commandManager.renderGlobalCommands();
+            // Register commands.
+            this.commandManager.registerViewCommands(viewType as string, view);
+            this.commandManager.updateViewHeaderCommands(viewType as string);
+            this.commandManager.renderGlobalCommands();
 
-        // Update focus if requested.
-        if (updateFocus) {
-            this.onUpdateFocus(viewType as string);
+            // Update focus if requested.
+            if (updateFocus) {
+                this.onUpdateFocus(viewType as string);
+            }
+        } catch (error) {
+            logger.error(`Failed to initialize view "${viewType}":`, error);
+
+            // Clean up the partially-created panel so the DOM is not left in a broken state.
+            viewContainer.remove();
+            this.activeViews.delete(viewType);
+
+            // Clear saved settings for this view so a corrupted/incompatible state
+            // does not prevent initialization on the next attempt.
+            localStorage.removeItem(`view-panel-${viewType}`);
+
+            // Uncheck the corresponding visibility checkbox so UI stays consistent.
+            const checkbox = document.getElementById(`show-${viewType}`) as HTMLInputElement | null;
+            if (checkbox) {
+                checkbox.checked = false;
+            }
         }
     }
 
@@ -222,7 +241,7 @@ export class ViewLifecycleManager {
             savePanelState(
                 activeView,
                 this.visualizationsContainer,
-                this.getLayoutMode() !== 'tabbed'
+                this.getLayoutMode() !== LayoutMode.Tabbed
             );
             activeView.view.destroy();
             this.visualizationsContainer.removeChild(activeView.container);
@@ -303,7 +322,14 @@ export class ViewLifecycleManager {
         if (!activeView) return;
 
         // In tabbed mode only save view-specific state; position/size are not meaningful.
-        savePanelState(activeView, this.visualizationsContainer, this.getLayoutMode() !== 'tabbed');
+        savePanelState(
+            activeView,
+            this.visualizationsContainer,
+            this.getLayoutMode() !== LayoutMode.Tabbed
+        );
+
+        // Refresh header command buttons so toggle states (aria-pressed) stay in sync.
+        this.commandManager.updateViewHeaderCommands(event.viewType);
     }
 
     /**

@@ -106,9 +106,9 @@ export class PanelInteractionHandler {
 
             // Check if clicking on header (drag) or resize handle
             if (target.closest(`.${this.styles['view-header']}`) && !isCommandButton) {
-                if (this.layoutMode !== 'tabbed') this.startDrag(e, panel);
+                if (this.layoutMode !== LayoutMode.Tabbed) this.startDrag(e, panel);
             } else if (target.classList.contains(this.styles['resize-handle'])) {
-                if (this.layoutMode !== 'tabbed') {
+                if (this.layoutMode !== LayoutMode.Tabbed) {
                     const direction = target.getAttribute('data-resize-direction') || '';
                     this.startResize(e, panel, direction as ResizeDirection);
                 }
@@ -210,10 +210,28 @@ export class PanelInteractionHandler {
         const mouseY = e.clientY - containerRect.top;
 
         // Position the panel so the mouse stays at the same relative position within the panel
-        const newX = mouseX - this.dragState.offsetX;
-        const newY = mouseY - this.dragState.offsetY;
+        let newX = mouseX - this.dragState.offsetX;
+        let newY = mouseY - this.dragState.offsetY;
 
-        // Allow free movement without constraints
+        // Clamp so the header is always reachable:
+        //   - vertically: header top can reach up to PANEL_GAP from the viewport top edge
+        //     (panels may cover the application title bar)
+        //   - horizontally: at least MIN_VISIBLE pixels must stay inside the viewport
+        const PANEL_GAP = 8;
+        const MIN_VISIBLE = 50;
+        const panelWidth = parseFloat(this.dragState.panel.style.width) || 200;
+
+        // Convert viewport limits to container-relative coordinates
+        const viewportTopInContainer = -containerRect.top + PANEL_GAP;
+        const viewportRightInContainer = window.innerWidth - containerRect.left;
+        const viewportLeftInContainer = -containerRect.left;
+
+        newY = Math.max(viewportTopInContainer, newY);
+        newX = Math.max(
+            viewportLeftInContainer + MIN_VISIBLE - panelWidth,
+            Math.min(newX, viewportRightInContainer - MIN_VISIBLE)
+        );
+
         this.dragState.panel.style.left = `${newX}px`;
         this.dragState.panel.style.top = `${newY}px`;
     }
@@ -300,7 +318,7 @@ export class PanelInteractionHandler {
      */
     setInitialPanelPosition(panel: HTMLElement, viewType: string, view?: CubeView): void {
         // In tabbed mode the CSS class controls layout; absolute positioning must not be applied.
-        if (this.layoutMode === 'tabbed') return;
+        if (this.layoutMode === LayoutMode.Tabbed) return;
 
         const savedState = loadPanelState(viewType);
         const minSize = view ? view.getMinimumSize() : { width: 100, height: 100 };
@@ -388,7 +406,14 @@ export class PanelInteractionHandler {
 
         const visibleFraction = panelArea > 0 ? visibleArea / panelArea : 0;
 
-        return visibleFraction >= 0.5;
+        // Also require that the header row (top of the panel) is reachable.
+        // Panels may extend above the container into the app title area, so check against
+        // the viewport top (with PANEL_GAP margin) rather than the container top (y=0).
+        const PANEL_GAP = 8;
+        const minY = -(containerRect.top - PANEL_GAP); // container-relative minimum y
+        const headerIsAccessible = position.y >= minY && position.y < containerRect.height;
+
+        return visibleFraction >= 0.5 && headerIsAccessible;
     }
 
     /**
@@ -431,6 +456,38 @@ export class PanelInteractionHandler {
     private bringToFront(panel: HTMLElement): void {
         this.zIndexCounter++;
         panel.style.zIndex = this.zIndexCounter.toString();
+    }
+
+    /**
+     * Repositions all currently active panels to valid on-screen positions.
+     * Used after clearing saved data so panels are immediately accessible without a reload.
+     */
+    repositionAllActivePanels(): void {
+        if (this.layoutMode === LayoutMode.Tabbed) return;
+
+        const containerRect = this.visualizationsContainer.getBoundingClientRect();
+        if (containerRect.width === 0 || containerRect.height === 0) return;
+
+        for (const [viewType, activeView] of this.activeViews) {
+            const minSize = activeView.view.getMinimumSize();
+            const currentWidth = parseFloat(activeView.container.style.width) || minSize.width;
+            const currentHeight = parseFloat(activeView.container.style.height) || minSize.height;
+            const size: Size2D = {
+                width: Math.max(currentWidth, minSize.width),
+                height: Math.max(currentHeight, minSize.height),
+            };
+
+            const position = calculateDefaultPosition(
+                this.visualizationsContainer,
+                this.activeViews as Map<string, { container: HTMLElement }>,
+                viewType,
+                size,
+                this.getActiveViewId
+            );
+
+            this.applyPanelLayout(activeView.container, viewType, position, size);
+            savePanelState(activeView, this.visualizationsContainer);
+        }
     }
 
     /**

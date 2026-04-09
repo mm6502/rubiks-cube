@@ -1,6 +1,6 @@
 // Cube model interfaces
 import { MoveHistory } from '@/cube/core/move-history';
-import { CubeState } from '@/cube/types';
+import { CubeState, MoveResult } from '@/cube/types';
 import { Command } from '@/types';
 
 /**
@@ -32,8 +32,16 @@ export interface CubeModel {
      * Apply a move to the cube
      * @param move - The move notation (e.g., 'U', 'R\'', 'F2')
      * @param skipUndoLogic - Whether to skip adding this move to undo history
+     * @param hiddenMove - Whether to suppress console logging for this move
+     * @param emitEvent - Whether to emit a MoveExecutedEvent after applying
+     * @returns The MoveResult of the last applied move, or null if no moves were applied
      */
-    applyMove(move: string, skipUndoLogic?: boolean): void;
+    applyMove(
+        move: string,
+        skipUndoLogic?: boolean,
+        hiddenMove?: boolean,
+        emitEvent?: boolean
+    ): MoveResult | null;
 
     /**
      * Scramble the cube with random moves

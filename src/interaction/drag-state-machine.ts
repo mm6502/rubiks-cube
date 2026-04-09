@@ -36,7 +36,7 @@ type ActivePointerState = {
 };
 
 const DEFAULT_DRAG_THRESHOLD_PX = 4;
-const DEFAULT_FAR_DRAG_THRESHOLD_PX = 50;
+const DEFAULT_FAR_DRAG_THRESHOLD_PX = 60;
 
 /**
  * Shared pointer drag recognizer used by touch handlers across views.

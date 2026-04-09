@@ -10,8 +10,6 @@
     /* View-specific tokens (moved out of global tokens.css) */
     --color-flat-face-bg: var(--color-domain-cube-interior);
     --color-flat-sticker-border: var(--color-domain-sticker-border);
-    --color-flat-legend-text: var(--color-domain-face-label);
-    --color-flat-legend-border: var(--color-domain-face-label-border);
 }
 
 .flat-container {
@@ -166,7 +164,7 @@
     right: 8px;
     font-size: 18px;
     font-weight: bold;
-    color: var(--color-flat-legend-text);
+    color: var(--color-domain-face-label);
     z-index: 10;
     cursor: grab;
     user-select: none;
@@ -192,8 +190,9 @@
 }
 
 .legend-row span:not(:empty) {
-    border-radius: 3px;
-    border: var(--color-flat-legend-border) solid 1px;
+    border-radius: 4px;
+    border: 2px solid var(--color-domain-face-label-border);
+    background-color: var(--color-domain-face-label-bg);
 }
 
 /* Responsive adjustments */

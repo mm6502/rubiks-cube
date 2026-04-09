@@ -1,6 +1,25 @@
 // Navigation utilities for Flat T-shaped cube view.
 import { Face, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { getAdjacentStickerOnSurface } from '@/cube/utils/surface-walking';
+import { NavDirection } from '@/types';
+
+function mapKeyToNavDirection(event: KeyboardEvent): NavDirection | undefined {
+    if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return undefined;
+
+    switch (event.key) {
+        case 'ArrowUp':
+            return NavDirection.Up;
+        case 'ArrowDown':
+            return NavDirection.Down;
+        case 'ArrowLeft':
+            return NavDirection.Left;
+        case 'ArrowRight':
+            return NavDirection.Right;
+        default:
+            return undefined;
+    }
+}
 
 /**
  * Get the adjacent position when moving from a sticker position in the Flat view.
@@ -11,7 +30,7 @@ import { CubeStateUtils } from '@/cube/utils/state-conversion';
 export function getAdjacentPos(
     currentFace: Face,
     currentPos: number,
-    key: string,
+    dir: NavDirection,
     cubeSize: number = 3
 ): { newFace: Face; newPos: number } | undefined {
     // Define the T-shaped layout positions.
@@ -45,8 +64,8 @@ export function getAdjacentPos(
     let newFace = currentFace;
     let newPos = currentPos;
 
-    switch (key) {
-        case 'ArrowUp':
+    switch (dir) {
+        case NavDirection.Up:
             if (stickerRow === 0) {
                 // Try to move to face above.
                 if (currentRow > 0 && layout[currentRow - 1][currentCol]) {
@@ -58,7 +77,7 @@ export function getAdjacentPos(
                 newPos = (stickerRow - 1) * cubeSize + stickerCol;
             }
             break;
-        case 'ArrowDown':
+        case NavDirection.Down:
             if (stickerRow === cubeSize - 1) {
                 // Try to move to face below.
                 if (currentRow < layout.length - 1 && layout[currentRow + 1][currentCol]) {
@@ -70,7 +89,7 @@ export function getAdjacentPos(
                 newPos = (stickerRow + 1) * cubeSize + stickerCol;
             }
             break;
-        case 'ArrowLeft':
+        case NavDirection.Left:
             if (stickerCol === 0) {
                 // Try to move to face to the left.
                 if (currentCol > 0 && layout[currentRow][currentCol - 1]) {
@@ -82,7 +101,7 @@ export function getAdjacentPos(
                 newPos = stickerRow * cubeSize + (stickerCol - 1);
             }
             break;
-        case 'ArrowRight':
+        case NavDirection.Right:
             if (stickerCol === cubeSize - 1) {
                 // Try to move to face to the right.
                 if (
@@ -111,14 +130,16 @@ export function getAdjacentPos(
  * @internal This function is exported for testing purposes only and should not be used outside this module.
  */
 export function isNavigationKey(event: KeyboardEvent): boolean {
-    const handledKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-    return handledKeys.includes(event.key);
+    return mapKeyToNavDirection(event) !== undefined;
 }
 
 /**
  * Handle navigation based on arrow key presses.
  * If preview is true, just check preconditions without emitting events.
  * Returns the new sticker ID if navigation would succeed, null otherwise.
+ *
+ * @param cubeWalk - When true, walks across real cube surfaces; when false,
+ *   walks within the T-shaped layout (stops at layout edges).
  *
  * @internal This function is exported for testing purposes only and should not be used outside this module.
  */
@@ -127,6 +148,7 @@ export function navigate(
     preview: boolean = false,
     currentSelected: StickerId | undefined,
     model: ReadOnlyCubeModel | null,
+    cubeWalk: boolean = true,
     onSelected?: (id: StickerId) => void
 ): boolean {
     // Preconditions: must have a currently selected sticker.
@@ -138,24 +160,35 @@ export function navigate(
     if (!currentSticker) return false;
 
     // Get the adjacent position based on the key pressed.
-    const result = getAdjacentPos(
-        currentSticker.currentFace as Face,
-        currentSticker.facePosition,
-        event.key,
-        state.cubeSize
-    );
-    if (!result) return false;
+    const dir = mapKeyToNavDirection(event);
+    if (!dir) return false;
 
-    // Get the actual sticker object at the new position.
-    const newSticker = CubeStateUtils.getStickerAt(state, result.newFace, result.newPos);
-    if (!newSticker) return false;
+    let newStickerId: StickerId | undefined;
 
-    // Somehow navigated to the same sticker, no change.
-    if (currentSticker?.id === newSticker?.id) return false;
+    if (cubeWalk) {
+        // Surface walk: follow real cube topology via FACE_BASIS vectors.
+        newStickerId = getAdjacentStickerOnSurface(state, currentSelected, dir);
+    } else {
+        // Planar walk: follow the T-shaped layout (stops at layout edges).
+        const result = getAdjacentPos(
+            currentSticker.currentFace as Face,
+            currentSticker.facePosition,
+            dir,
+            state.cubeSize
+        );
+        if (!result) return false;
+        const newSticker = CubeStateUtils.getStickerAt(state, result.newFace, result.newPos);
+        newStickerId = newSticker?.id;
+    }
+
+    if (!newStickerId) return false;
+
+    // Navigated to the same sticker — no change.
+    if (currentSticker.id === newStickerId) return false;
 
     // If not a preview, notify the caller about the new selection.
     if (!preview) {
-        onSelected?.(newSticker.id);
+        onSelected?.(newStickerId);
     }
 
     // Navigation successful.

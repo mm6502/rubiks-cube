@@ -266,7 +266,6 @@ describe('basic/initialization', () => {
             state = {
                 viewType: 'basic-front',
                 isHovered: false,
-                pendingMoveFace: undefined,
                 cubeElement,
                 container,
                 styles: {},
@@ -300,8 +299,8 @@ describe('basic/initialization', () => {
             expect(focusSpy).toHaveBeenCalled();
         });
 
-        it('should emit tentative MOVE_REQUESTED on cube mousedown with data-face target', () => {
-            // Arrange
+        it('should not emit MOVE_REQUESTED on cube mousedown with data-face target', () => {
+            // Arrange — the old tentative move system has been replaced by BasicTouchHandler.
             const emitSpy = vi.spyOn(Application.eventBus, 'emit');
             const blocker = document.createElement('div');
             blocker.setAttribute('data-face', 'front');
@@ -311,13 +310,8 @@ describe('basic/initialization', () => {
             // Act
             blocker.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
-            // Assert
-            expect(state.pendingMoveFace).toBe('front');
-            expect(emitSpy).toHaveBeenCalledWith(EventName.MOVE_REQUESTED, {
-                moveNotation: 'front',
-                viewId: 'basic-front',
-                tentative: true,
-            });
+            // Assert — no MOVE_REQUESTED from attachContainerListeners itself
+            expect(emitSpy).not.toHaveBeenCalledWith(EventName.MOVE_REQUESTED, expect.anything());
         });
 
         it('should not emit MOVE_REQUESTED on mousedown when target has no data-face', () => {
@@ -333,9 +327,8 @@ describe('basic/initialization', () => {
             expect(state.pendingMoveFace).toBeUndefined();
         });
 
-        it('should emit final MOVE_REQUESTED on mouseup and clear pendingMoveFace', () => {
+        it('should not emit MOVE_REQUESTED on mouseup (move handling is done by BasicTouchHandler)', () => {
             // Arrange
-            state.pendingMoveFace = 'front';
             const emitSpy = vi.spyOn(Application.eventBus, 'emit');
             attachContainerListeners(container, cubeElement, state);
 
@@ -343,15 +336,10 @@ describe('basic/initialization', () => {
             cubeElement.dispatchEvent(new MouseEvent('mouseup'));
 
             // Assert
-            expect(emitSpy).toHaveBeenCalledWith(EventName.MOVE_REQUESTED, {
-                moveNotation: 'front',
-                viewId: 'basic-front',
-                tentative: false,
-            });
-            expect(state.pendingMoveFace).toBeUndefined();
+            expect(emitSpy).not.toHaveBeenCalledWith(EventName.MOVE_REQUESTED, expect.anything());
         });
 
-        it('should not emit on mouseup when no pendingMoveFace is set', () => {
+        it('should not emit on mouseup when no pending state', () => {
             // Arrange
             const emitSpy = vi.spyOn(Application.eventBus, 'emit');
             attachContainerListeners(container, cubeElement, state);

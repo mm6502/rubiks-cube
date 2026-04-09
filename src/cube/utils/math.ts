@@ -162,7 +162,7 @@ export function toActual(centered: Vector3, cubeSize: number): Position3D {
 /**
  * Compare two vectors component-wise using approximately-equal semantics.
  */
-export function vectorsEqual(a: Vector3, b: Vector3): boolean {
+export function vectorsEqual3(a: Vector3, b: Vector3): boolean {
     return (
         approximatelyEqual(a.x, b.x) && approximatelyEqual(a.y, b.y) && approximatelyEqual(a.z, b.z)
     );
@@ -215,6 +215,37 @@ export function distance2(a: Vector2, b: Vector2): number {
 }
 
 /**
+ * Dot product of two 2D vectors.
+ */
+export function dot2(a: Vector2, b: Vector2): number {
+    return a.x * b.x + a.y * b.y;
+}
+
+/**
+ * Negates all components of a 2D vector.
+ */
+export function negate2(v: Vector2): Vector2 {
+    return { x: -v.x, y: -v.y };
+}
+
+/**
+ * Normalize a 2D vector to unit length.
+ * Returns undefined when the vector length is below a tiny threshold.
+ */
+export function normalize2(v: Vector2): Vector2 | undefined {
+    const length = Math.hypot(v.x, v.y);
+    if (length < 1e-5) return undefined;
+    return { x: v.x / length, y: v.y / length };
+}
+
+/**
+ * Clamp a numeric value between a minimum and maximum.
+ */
+export function clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+}
+
+/**
  * Finds the equivalent angle of the target that is closest to the current angle.
  * Handles angle equivalence (360° = 0°) and prevents long-term accumulation by
  * considering normalized versions. Works for any rotation value without limits.
@@ -222,6 +253,48 @@ export function distance2(a: Vector2, b: Vector2): number {
  * @param target The target rotation angle in degrees
  * @returns The equivalent angle closest to current
  */
+/**
+ * Dot product of two 3D vectors.
+ */
+export function dot3(a: Vector3, b: Vector3): number {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+/**
+ * Cross product of two 3D vectors.
+ */
+export function cross3(a: Vector3, b: Vector3): Vector3 {
+    return {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x,
+    };
+}
+
+/**
+ * Component-wise subtraction of two 3D vectors.
+ */
+export function subtract3(a: Vector3, b: Vector3): Vector3 {
+    return {
+        x: a.x - b.x,
+        y: a.y - b.y,
+        z: a.z - b.z,
+    };
+}
+
+/**
+ * Negates all components of a 3D vector.
+ *
+ * Uses `|| 0` to collapse -0 to +0 and keep later comparisons stable.
+ */
+export function negate3(vector: Vector3): Vector3 {
+    return {
+        x: -vector.x || 0,
+        y: -vector.y || 0,
+        z: -vector.z || 0,
+    };
+}
+
 export function findClosestEquivalentAngle(current: number, target: number): number {
     // Mathematically find the closest equivalent of target to current
     // This works for any rotation value without needing arbitrary limits

@@ -4,8 +4,8 @@ import { MoveHistory } from '@/cube/core/move-history';
 import { MOVE_ICONS } from '@/icons';
 import buttonStyles from '@/styles/buttons.module.css';
 
-import { MovesViewRenderer } from './moves-view-renderer';
 import styles from './moves-view.module.css';
+import { MovesViewRenderer } from './renderer';
 
 describe('MovesViewRenderer', () => {
     let renderer: MovesViewRenderer;

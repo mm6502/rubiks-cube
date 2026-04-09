@@ -3,7 +3,12 @@ import { ReadOnlyCubeModel, Size2D, StickerId } from '@/cube/types';
 import { Command, MoveExecutedEvent } from '@/types';
 
 /** Layout mode for the application — floating panels (desktop) or tabbed (mobile/tablet). */
-export type LayoutMode = 'floating' | 'tabbed';
+export const LayoutMode = {
+    Floating: 'floating',
+    Tabbed: 'tabbed',
+} as const;
+
+export type LayoutMode = (typeof LayoutMode)[keyof typeof LayoutMode];
 
 /** Interface for cube visualization views */
 export interface CubeView {

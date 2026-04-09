@@ -548,4 +548,94 @@ describe('initializeErrorHandlers', () => {
         expect(removeEventListenerSpy).toHaveBeenCalledTimes(4); // 2 from first re-init + 2 from second re-init
         expect(addEventListenerSpy).toHaveBeenCalledTimes(4); // 2 initial + 2 re-initialized
     });
+
+    it('error handler callback calls preventDefault and stopImmediatePropagation on cancelable events', () => {
+        // Arrange
+        initializeErrorHandlers();
+
+        const installedHandler = addEventListenerSpy.mock.calls.find(
+            (call: any[]) => call[0] === 'error'
+        )![1] as (event: any) => void;
+
+        const preventDefault = vi.fn();
+        const stopImmediatePropagation = vi.fn();
+        const spyError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        // Act
+        installedHandler({
+            cancelable: true,
+            preventDefault,
+            stopImmediatePropagation,
+            error: new Error('test'),
+        });
+
+        // Assert
+        expect(preventDefault).toHaveBeenCalled();
+        expect(stopImmediatePropagation).toHaveBeenCalled();
+
+        spyError.mockRestore();
+    });
+
+    it('error handler callback skips preventDefault on non-cancelable events', () => {
+        // Arrange
+        initializeErrorHandlers();
+        const installedHandler = addEventListenerSpy.mock.calls.find(
+            (call: any[]) => call[0] === 'error'
+        )![1] as (event: any) => void;
+
+        const preventDefault = vi.fn();
+        const spyError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        // Act — cancelable: false
+        installedHandler({ cancelable: false, preventDefault, error: new Error('x') });
+
+        // Assert
+        expect(preventDefault).not.toHaveBeenCalled();
+        spyError.mockRestore();
+    });
+
+    it('rejection handler callback calls preventDefault and stopImmediatePropagation on cancelable events', () => {
+        // Arrange
+        initializeErrorHandlers();
+
+        const installedHandler = addEventListenerSpy.mock.calls.find(
+            (call: any[]) => call[0] === 'unhandledrejection'
+        )![1] as (event: any) => void;
+
+        const preventDefault = vi.fn();
+        const stopImmediatePropagation = vi.fn();
+        const spyError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        // Act
+        installedHandler({
+            cancelable: true,
+            preventDefault,
+            stopImmediatePropagation,
+            reason: 'rejected promise',
+        });
+
+        // Assert
+        expect(preventDefault).toHaveBeenCalled();
+        expect(stopImmediatePropagation).toHaveBeenCalled();
+
+        spyError.mockRestore();
+    });
+
+    it('rejection handler callback skips preventDefault on non-cancelable events', () => {
+        // Arrange
+        initializeErrorHandlers();
+        const installedHandler = addEventListenerSpy.mock.calls.find(
+            (call: any[]) => call[0] === 'unhandledrejection'
+        )![1] as (event: any) => void;
+
+        const preventDefault = vi.fn();
+        const spyError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        // Act — cancelable: false
+        installedHandler({ cancelable: false, preventDefault, reason: 'x' });
+
+        // Assert
+        expect(preventDefault).not.toHaveBeenCalled();
+        spyError.mockRestore();
+    });
 });

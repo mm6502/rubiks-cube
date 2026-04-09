@@ -17,7 +17,7 @@ import {
     rotatePosition3D,
     toActual,
     toCentered,
-    vectorsEqual,
+    vectorsEqual3,
 } from '@/cube/utils/math';
 import { logger } from '@/diagnostics/logger';
 
@@ -829,21 +829,21 @@ describe('CubeInvariants', () => {
 
         it('rotatePosition3D applies quarter-turn rotations', () => {
             expect(
-                vectorsEqual(rotatePosition3D({ x: 0, y: 1, z: 0 }, Axis.X, 90 as QuarterTurn), {
+                vectorsEqual3(rotatePosition3D({ x: 0, y: 1, z: 0 }, Axis.X, 90 as QuarterTurn), {
                     x: 0,
                     y: 0,
                     z: 1,
                 })
             ).toBe(true);
             expect(
-                vectorsEqual(rotatePosition3D({ x: 0, y: 1, z: 0 }, Axis.X, 270 as QuarterTurn), {
+                vectorsEqual3(rotatePosition3D({ x: 0, y: 1, z: 0 }, Axis.X, 270 as QuarterTurn), {
                     x: 0,
                     y: 0,
                     z: -1,
                 })
             ).toBe(true);
             expect(
-                vectorsEqual(rotatePosition3D({ x: 1, y: 0, z: 0 }, Axis.Z, 90 as QuarterTurn), {
+                vectorsEqual3(rotatePosition3D({ x: 1, y: 0, z: 0 }, Axis.Z, 90 as QuarterTurn), {
                     x: 0,
                     y: 1,
                     z: 0,
@@ -863,8 +863,8 @@ describe('CubeInvariants', () => {
             const close: Vector3 = { x: 1 + 5e-7, y: -2 - 5e-7, z: 3 + 5e-7 };
             const far: Vector3 = { x: 1.001, y: -2, z: 3 };
 
-            expect(vectorsEqual(reference, close)).toBe(true);
-            expect(vectorsEqual(reference, far)).toBe(false);
+            expect(vectorsEqual3(reference, close)).toBe(true);
+            expect(vectorsEqual3(reference, far)).toBe(false);
         });
 
         it('computeEdgeOrientationDelta detects flips', () => {

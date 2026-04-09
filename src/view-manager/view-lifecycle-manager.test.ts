@@ -12,7 +12,7 @@ import {
 } from 'vitest';
 
 import { Application } from '@/application';
-import { CubeModel, CubeView } from '@/cube/types';
+import { CubeModel, CubeView, LayoutMode } from '@/cube/types';
 import { LogLevel, logger } from '@/diagnostics/logger';
 import { EventName, ViewStateChangedEvent } from '@/types';
 
@@ -292,7 +292,7 @@ describe('ViewLifecycleManager', () => {
                 mockCommandManager,
                 {
                     onUpdateFocus: mockOnUpdateFocus,
-                    getLayoutMode: () => 'tabbed' as const,
+                    getLayoutMode: () => LayoutMode.Tabbed,
                     onPanelAdded: mockOnPanelAdded,
                 }
             );
@@ -356,7 +356,7 @@ describe('ViewLifecycleManager', () => {
                 mockCommandManager,
                 {
                     onUpdateFocus: mockOnUpdateFocus,
-                    getLayoutMode: () => 'tabbed' as const,
+                    getLayoutMode: () => LayoutMode.Tabbed,
                 }
             );
 
@@ -403,7 +403,7 @@ describe('ViewLifecycleManager', () => {
                 mockCommandManager,
                 {
                     onUpdateFocus: mockOnUpdateFocus,
-                    getLayoutMode: () => 'tabbed' as const,
+                    getLayoutMode: () => LayoutMode.Tabbed,
                 }
             );
             const mockView = { view: {} as CubeView, container: document.createElement('div') };

@@ -11,11 +11,28 @@ import {
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils, createFlatView } from '@/cube/utils/state-conversion';
 import { computeAvailableContentSize } from '@/cube/utils/view-utils';
+import {
+    inferKeyboardMove,
+    isFaceSelectKey,
+    isKeyboardMoveKey,
+    mapArrowToDirection,
+} from '@/interaction/keyboard-moves';
 import { CANCEL_ZONE_RADIUS_BASE_PX, CANCEL_ZONE_TABBED_MULTIPLIER } from '@/interaction/types';
-import { Command, CommandCategory, EventName, MoveExecutedEvent } from '@/types';
+import {
+    Command,
+    CommandCategory,
+    EventName,
+    MoveExecutedEvent,
+    MoveRequestedEvent,
+} from '@/types';
 
-import { FlatTouchHandler } from './flat-touch-handler';
 import { isNavigationKey, navigate } from './navigation';
+import { FlatTouchHandler } from './touch-handler';
+
+export type FlatViewState = {
+    faceDirectMode: boolean;
+    cubeWalk: boolean;
+};
 
 /**
  * Internal state shared between all flat-view operations.
@@ -29,6 +46,10 @@ export type FlatViewInternalData = {
     styles: Record<string, string>;
     /** Currently selected sticker for keyboard navigation. */
     currentSelected: StickerId | undefined;
+    /** Face of the currently selected sticker (spatial anchor for selection). */
+    selectedFace: string | undefined;
+    /** Position on face of the currently selected sticker (spatial anchor). */
+    selectedPosition: number | undefined;
     /**
      * Whether the cross layout is currently rotated 90° (portrait / mobile).
      * Used by touch-input handling to map swipe directions to cube moves.
@@ -36,13 +57,15 @@ export type FlatViewInternalData = {
     isRotated: boolean;
     /** The legend DOM element, kept for runtime rotation updates. */
     legendElement: HTMLElement | null;
+    /** Whether keyboard walking follows real cube surface topology. */
+    cubeWalk: boolean;
 };
 
 // Flat T-shaped Cube Visualization
 export class FlatView implements CubeView {
     private state: FlatViewInternalData;
     private touchHandler: FlatTouchHandler | null = null;
-    private layoutMode: LayoutMode = 'floating';
+    private layoutMode: LayoutMode = LayoutMode.Floating;
     private legendPointerDownBound: (e: PointerEvent) => void;
     private legendPointerMoveBound: (e: PointerEvent) => void;
     private legendPointerUpBound: (e: PointerEvent) => void;
@@ -56,8 +79,11 @@ export class FlatView implements CubeView {
             container: null,
             styles,
             currentSelected: undefined,
+            selectedFace: undefined,
+            selectedPosition: undefined,
             isRotated: false,
             legendElement: null,
+            cubeWalk: true,
         };
         this.legendPointerDownBound = this.handleLegendPointerDown.bind(this);
         this.legendPointerMoveBound = this.handleLegendPointerMove.bind(this);
@@ -243,6 +269,8 @@ export class FlatView implements CubeView {
                 }
             }
         });
+
+        this.restoreSelection();
     }
 
     public updateSelective(event?: MoveExecutedEvent): void {
@@ -301,6 +329,8 @@ export class FlatView implements CubeView {
                 }
             }
         });
+
+        this.restoreSelection();
     }
 
     updateHighlight(highlightedSticker?: StickerId): void {
@@ -341,9 +371,22 @@ export class FlatView implements CubeView {
             if (stickerElement) {
                 this.state.currentSelected = selectedSticker;
                 stickerElement.classList.add(this.state.styles.selected);
+
+                if (this.state.model) {
+                    const stickerObj = CubeStateUtils.getStickerById(
+                        this.state.model.getCurrentState(),
+                        selectedSticker
+                    );
+                    if (stickerObj) {
+                        this.state.selectedFace = stickerObj.currentFace;
+                        this.state.selectedPosition = stickerObj.facePosition;
+                    }
+                }
             }
         } else {
             this.state.currentSelected = undefined;
+            this.state.selectedFace = undefined;
+            this.state.selectedPosition = undefined;
         }
     }
 
@@ -359,14 +402,69 @@ export class FlatView implements CubeView {
      * Check if this view would handle the given key press (used for pre-checking in keydown).
      */
     willHandleKeyPress(event: KeyboardEvent, preview: boolean = false): boolean {
-        // Only arrow keys are handled by navigation logic.
+        // Face selection toggle (Space or Backtick).
+        if (isFaceSelectKey(event)) {
+            if (!preview) this.handleFaceSelectKey();
+            return this.state.currentSelected !== undefined;
+        }
+
+        // Keyboard move (Ctrl+Arrow, optionally +Shift for 180°).
+        if (isKeyboardMoveKey(event)) {
+            if (!preview) this.handleKeyboardMove(event);
+            return this.state.currentSelected !== undefined;
+        }
+
+        // Plain arrow keys — sticker navigation.
         if (isNavigationKey(event)) {
-            return navigate(event, preview, this.state.currentSelected, this.state.model, id =>
-                this.updateSelected(id)
+            return navigate(
+                event,
+                preview,
+                this.state.currentSelected,
+                this.state.model,
+                this.state.cubeWalk,
+                id => this.updateSelected(id)
             );
         }
 
         return false;
+    }
+
+    private handleFaceSelectKey(): void {
+        if (!this.state.currentSelected || !this.state.model || !this.touchHandler) return;
+
+        const sticker = CubeStateUtils.getStickerById(
+            this.state.model.getCurrentState(),
+            this.state.currentSelected
+        );
+        if (!sticker) return;
+
+        const face = sticker.currentFace as Face;
+        const current = this.touchHandler.getSelectedFace();
+        this.touchHandler.selectFace(current === face ? undefined : face);
+    }
+
+    private handleKeyboardMove(event: KeyboardEvent): void {
+        if (!this.state.currentSelected || !this.state.model || !this.touchHandler) return;
+
+        const direction = mapArrowToDirection(event);
+        if (!direction) return;
+
+        const notation = inferKeyboardMove({
+            stickerId: this.state.currentSelected,
+            selectedFace: this.touchHandler.getSelectedFace(),
+            faceDirectMode: this.touchHandler.isFaceDirectMode(),
+            direction,
+            doubleTurn: event.shiftKey,
+            model: this.state.model,
+        });
+        if (!notation) return;
+
+        const payload: MoveRequestedEvent = {
+            moveNotation: notation,
+            viewId: 'flat',
+            tentative: false,
+        };
+        Application.eventBus.emit(EventName.MOVE_REQUESTED, payload);
     }
 
     resize(): void {
@@ -445,12 +543,51 @@ export class FlatView implements CubeView {
     getCommands(): Command[] {
         return [
             {
+                id: 'flat.cube-walk',
+                label: 'Cube Walk',
+                category: CommandCategory.VIEW,
+                icon: '⊕',
+                keyBindings: [{ key: '3', ctrlKey: true }],
+                showInHeader: true,
+                priority: 880,
+                tooltip:
+                    'Arrow-key navigation follows real cube surface — walking off an edge lands on the adjacent face.',
+                isActive: () => this.state.cubeWalk,
+                action: () => {
+                    this.state.cubeWalk = !this.state.cubeWalk;
+                    Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
+                        viewType: this.getViewType(),
+                    });
+                },
+            },
+            {
+                id: 'flat.face-direct-mode',
+                label: 'Face Mode',
+                category: CommandCategory.VIEW,
+                icon: '◎',
+                keyBindings: [{ key: '2', ctrlKey: true }],
+                showInHeader: true,
+                priority: 890,
+                tooltip:
+                    'Drag any sticker to rotate its face immediately (no pre-selection needed).',
+                isActive: () => this.touchHandler?.isFaceDirectMode() ?? false,
+                action: () => {
+                    if (this.touchHandler) {
+                        this.touchHandler.setFaceDirectMode(!this.touchHandler.isFaceDirectMode());
+                        Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
+                            viewType: this.getViewType(),
+                        });
+                    }
+                },
+            },
+            {
                 id: 'flat.undo',
                 label: 'Undo',
                 category: CommandCategory.VIEW,
                 showInHeader: true,
                 icon: '↩',
-                tooltip: 'Undo last move',
+                tooltip: 'Undo last move.',
+                keyBindings: [{ key: '[' }, { key: ',' }],
                 priority: 900,
                 action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
                 isEnabled: () => this.state.model?.getMoveHistory().canUndo() ?? false,
@@ -461,12 +598,30 @@ export class FlatView implements CubeView {
                 category: CommandCategory.VIEW,
                 showInHeader: true,
                 icon: '↪',
-                tooltip: 'Redo last undone move',
+                tooltip: 'Redo last undone move.',
+                keyBindings: [{ key: ']' }, { key: '.' }],
                 priority: 901,
                 action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
                 isEnabled: () => this.state.model?.getMoveHistory().canRedo() ?? false,
             },
         ];
+    }
+
+    private restoreSelection(): void {
+        if (
+            this.state.selectedFace == null ||
+            this.state.selectedPosition == null ||
+            !this.state.model
+        )
+            return;
+        const sticker = CubeStateUtils.getStickerAt(
+            this.state.model.getCurrentState(),
+            this.state.selectedFace,
+            this.state.selectedPosition
+        );
+        if (sticker) {
+            this.updateSelected(sticker.id);
+        }
     }
 
     private handleMoveExecuted(event: any): void {
@@ -513,7 +668,7 @@ export class FlatView implements CubeView {
         this.touchHandler?.showCancellationZoneAtOrigin(
             event.clientX,
             event.clientY,
-            this.layoutMode === 'tabbed'
+            this.layoutMode === LayoutMode.Tabbed
                 ? CANCEL_ZONE_RADIUS_BASE_PX * CANCEL_ZONE_TABBED_MULTIPLIER
                 : CANCEL_ZONE_RADIUS_BASE_PX
         );
@@ -580,5 +735,20 @@ export class FlatView implements CubeView {
             return deltaX > 0 ? "y'" : 'y';
         }
         return deltaY > 0 ? "x'" : 'x';
+    }
+
+    getState(): FlatViewState {
+        return {
+            faceDirectMode: this.touchHandler?.isFaceDirectMode() ?? false,
+            cubeWalk: this.state.cubeWalk,
+        };
+    }
+
+    setState(state: unknown): void {
+        if (!state || typeof state !== 'object') return;
+        const s = state as Record<string, unknown>;
+        if (typeof s['faceDirectMode'] === 'boolean')
+            this.touchHandler?.setFaceDirectMode(s['faceDirectMode']);
+        if (typeof s['cubeWalk'] === 'boolean') this.state.cubeWalk = s['cubeWalk'];
     }
 }

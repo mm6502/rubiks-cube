@@ -3,6 +3,7 @@ import { CubeState, Cubie, CubieType } from '@/cube/types';
 import { Color, FACE_COLORS } from '@/cube/types/common';
 import { getCanonicalIndexFromInvariants as getCanonicalIndex } from '@/cube/utils/coordinates';
 import { computeStickerFace } from '@/cube/utils/face-utils';
+import { mod } from '@/cube/utils/math';
 
 export const LegalityIssueCode = {
     CORNER_ORIENTATION_SUM: 'corner_orientation_sum',
@@ -47,7 +48,7 @@ export function checkStateLegality(state: CubeState): StateLegalityReport {
     const centerCubies = collectCubies(state, CubieType.CENTER);
 
     const cornerOrientationSum = cornerCubies.reduce(
-        (sum, cubie) => sum + normalizeMod(cubie.orientation, 3),
+        (sum, cubie) => sum + mod(cubie.orientation, 3),
         0
     );
     const cornerOrientationMod3 = cornerOrientationSum % 3;
@@ -59,10 +60,7 @@ export function checkStateLegality(state: CubeState): StateLegalityReport {
         });
     }
 
-    const edgeFlipSum = edgeCubies.reduce(
-        (sum, cubie) => sum + normalizeMod(cubie.orientation, 2),
-        0
-    );
+    const edgeFlipSum = edgeCubies.reduce((sum, cubie) => sum + mod(cubie.orientation, 2), 0);
     const edgeFlipMod2 = edgeFlipSum % 2;
     if (edgeFlipMod2 !== 0) {
         issues.push({
@@ -146,11 +144,6 @@ function collectCubies(state: CubeState, type: CubieType): Cubie[] {
         }
     }
     return result;
-}
-
-function normalizeMod(value: number, modulus: number): number {
-    const normalized = value % modulus;
-    return normalized < 0 ? normalized + modulus : normalized;
 }
 
 function buildCornerPermutation(

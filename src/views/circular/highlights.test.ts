@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StickerId } from '@/cube/types/sticker';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
 
 import * as highlights from './highlights';
 import { CircularCubeViewInternalData } from './circular-view';
@@ -22,6 +23,7 @@ describe('highlights helpers', () => {
             svgIdToStickerId: new Map<string, StickerId>(),
             stickerIdToSvgId: new Map<StickerId, string>(),
             animationChain: Promise.resolve(),
+            cubeWalk: false,
         } as CircularCubeViewInternalData;
     });
 
@@ -127,5 +129,35 @@ describe('highlights helpers', () => {
         expect(state.currentSelected).toBe('missing');
         // no element mapped for 'missing' so no class added
         expect(c1.classList.contains(styles.selected)).toBe(false);
+    });
+
+    it('updateHighlight with undefined highlightedSticker clears highlights and returns early', () => {
+        const c1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c1.classList.add(styles.highlighted);
+        state.svgElementCache.set('svg1', c1);
+
+        highlights.updateHighlight(state, styles, undefined);
+
+        expect(c1.classList.contains(styles.highlighted)).toBe(false);
+    });
+
+    it('updateSelected with model sets selectedFace and selectedPosition from sticker', () => {
+        const c1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        state.svgElementCache.set('svg1', c1);
+        state.stickerIdToSvgId.set('st1' as StickerId, 'svg1');
+
+        vi.spyOn(CubeStateUtils, 'getStickerById').mockReturnValue({
+            id: 'st1' as StickerId,
+            currentFace: 'F' as any,
+            facePosition: 4,
+        } as any);
+
+        state.model = { getCurrentState: () => ({}) as any } as any;
+
+        highlights.updateSelected(state, styles, 'st1' as StickerId);
+
+        expect(state.selectedFace).toBe('F');
+        expect(state.selectedPosition).toBe(4);
+        expect(state.currentSelected).toBe('st1');
     });
 });

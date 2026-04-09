@@ -525,16 +525,18 @@ describe('Application', () => {
             expect(document.activeElement).toBe(toggle);
         });
 
-        it('should not close the panel on Escape when already closed', () => {
+        it('should open the panel on Escape when closed', () => {
             // Arrange
             const controls = document.querySelector('.controls')!;
+            const overlay = document.querySelector('.controls-overlay')!;
             // controls is already closed (no controls--open class)
 
             // Act
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
             // Assert
-            expect(controls.classList.contains('controls--open')).toBe(false);
+            expect(controls.classList.contains('controls--open')).toBe(true);
+            expect(overlay.classList.contains('controls-overlay--visible')).toBe(true);
         });
 
         it('should do nothing when required DOM elements are absent', () => {
@@ -568,6 +570,39 @@ describe('Application', () => {
             const toggle = document.querySelector<HTMLButtonElement>('.menu-toggle')!;
             expect(controls.classList.contains('controls--desktop-collapsed')).toBe(false);
             expect(toggle.getAttribute('aria-expanded')).toBe('true');
+        });
+
+        it('should toggle desktop collapsed state on Escape key', () => {
+            // Arrange
+            mockMatchMedia(true);
+            document.body.innerHTML = `
+                <div class="container">
+                    <div id="visualizations"></div>
+                    <button class="menu-toggle" aria-expanded="false"></button>
+                    <button class="controls-close"></button>
+                    <div class="controls"></div>
+                    <div class="controls-overlay"></div>
+                </div>
+            `;
+            const app2 = new Application();
+            app2.initialize();
+
+            const controls = document.querySelector('.controls')!;
+            const container = document.querySelector('.container')!;
+
+            // Act: collapse via Escape
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+            // Assert: collapsed
+            expect(controls.classList.contains('controls--desktop-collapsed')).toBe(true);
+            expect(container.classList.contains('container--controls-collapsed')).toBe(true);
+
+            // Act: expand via Escape
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+            // Assert: expanded
+            expect(controls.classList.contains('controls--desktop-collapsed')).toBe(false);
+            expect(container.classList.contains('container--controls-collapsed')).toBe(false);
         });
 
         it('should collapse and expand controls when clicking toggle in desktop mode', () => {

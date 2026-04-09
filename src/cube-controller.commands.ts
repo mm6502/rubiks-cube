@@ -10,7 +10,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CONTROLLER,
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
-            tooltip: 'Reset cube to solved state',
+            tooltip: 'Reset cube to solved state.',
             action: () => Application.eventBus.emit(EventName.CUBE_RESET_REQUESTED, {}),
         },
         {
@@ -19,7 +19,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CONTROLLER,
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
-            tooltip: 'Scramble the cube with random moves',
+            tooltip: 'Scramble the cube with random moves.',
             action: () => Application.eventBus.emit(EventName.CUBE_SCRAMBLE_REQUESTED, {}),
         },
         {
@@ -28,7 +28,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CONTROLLER,
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
-            tooltip: 'Clear saved cube state and layout',
+            tooltip: 'Clear saved cube state and layout.',
             action: () => Application.eventBus.emit(EventName.STORAGE_CLEAR_REQUESTED, {}),
         },
         {
@@ -37,7 +37,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CONTROLLER,
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
-            tooltip: 'Save cube state to file',
+            tooltip: 'Save cube state to file.',
             action: () => Application.eventBus.emit(EventName.STATE_EXPORT_REQUESTED, {}),
         },
         {
@@ -46,7 +46,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CONTROLLER,
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
-            tooltip: 'Import cube state from file',
+            tooltip: 'Import cube state from file.',
             action: () => Application.eventBus.emit(EventName.STATE_IMPORT_REQUESTED, {}),
         },
         {
@@ -55,7 +55,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CONTROLLER,
             group: 'Move Management',
             groupLayout: GroupLayout.FLOW,
-            tooltip: 'Undo the last move',
+            tooltip: 'Undo the last move.',
             keyBindings: [{ key: '[' }, { key: ',' }],
             action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
             isEnabled: () => model.getMoveHistory().canUndo(),
@@ -66,7 +66,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CONTROLLER,
             group: 'Move Management',
             groupLayout: GroupLayout.FLOW,
-            tooltip: 'Redo the last undone move',
+            tooltip: 'Redo the last undone move.',
             keyBindings: [{ key: ']' }, { key: '.' }],
             action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
             isEnabled: () => model.getMoveHistory().canRedo(),
@@ -78,7 +78,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'f', shiftKey: true }],
             category: CommandCategory.CUBE,
             group: 'Basic 1/.Front',
-            tooltip: 'Rotate front face counter-clockwise',
+            tooltip: 'Rotate front face counter-clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "F'",
@@ -93,7 +93,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'f' }],
             category: CommandCategory.CUBE,
             group: 'Basic 1/.Front',
-            tooltip: 'Rotate front face clockwise',
+            tooltip: 'Rotate front face clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'F',
@@ -107,7 +107,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-f2',
             category: CommandCategory.CUBE,
             group: 'Basic 1/.Front',
-            tooltip: 'Rotate front face 180°',
+            tooltip: 'Rotate front face 180°.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'F2',
@@ -122,7 +122,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'b', shiftKey: true }],
             category: CommandCategory.CUBE,
             group: 'Basic 2/.Back',
-            tooltip: 'Rotate back face counter-clockwise',
+            tooltip: 'Rotate back face counter-clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "B'",
@@ -137,7 +137,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'b' }],
             category: CommandCategory.CUBE,
             group: 'Basic 2/.Back',
-            tooltip: 'Rotate back face clockwise',
+            tooltip: 'Rotate back face clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'B',
@@ -151,7 +151,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-b2',
             category: CommandCategory.CUBE,
             group: 'Basic 2/.Back',
-            tooltip: 'Rotate back face 180°',
+            tooltip: 'Rotate back face 180°.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'B2',
@@ -166,7 +166,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'u', shiftKey: true }],
             category: CommandCategory.CUBE,
             group: 'Basic 1/.Up',
-            tooltip: 'Rotate top face counter-clockwise',
+            tooltip: 'Rotate top face counter-clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "U'",
@@ -181,7 +181,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'u' }],
             category: CommandCategory.CUBE,
             group: 'Basic 1/.Up',
-            tooltip: 'Rotate top face clockwise',
+            tooltip: 'Rotate top face clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'U',
@@ -195,7 +195,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-u2',
             category: CommandCategory.CUBE,
             group: 'Basic 1/.Up',
-            tooltip: 'Rotate top face 180°',
+            tooltip: 'Rotate top face 180°.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'U2',
@@ -210,7 +210,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'd', shiftKey: true }],
             category: CommandCategory.CUBE,
             group: 'Basic 2/.Down',
-            tooltip: 'Rotate bottom face counter-clockwise',
+            tooltip: 'Rotate bottom face counter-clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "D'",
@@ -225,7 +225,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'd' }],
             category: CommandCategory.CUBE,
             group: 'Basic 2/.Down',
-            tooltip: 'Rotate bottom face clockwise',
+            tooltip: 'Rotate bottom face clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'D',
@@ -239,7 +239,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-d2',
             category: CommandCategory.CUBE,
             group: 'Basic 2/.Down',
-            tooltip: 'Rotate bottom face 180°',
+            tooltip: 'Rotate bottom face 180°.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'D2',
@@ -254,7 +254,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'l', shiftKey: true }],
             category: CommandCategory.CUBE,
             group: 'Basic 2/.Left',
-            tooltip: 'Rotate left face counter-clockwise',
+            tooltip: 'Rotate left face counter-clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "L'",
@@ -269,7 +269,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'l' }],
             category: CommandCategory.CUBE,
             group: 'Basic 2/.Left',
-            tooltip: 'Rotate left face clockwise',
+            tooltip: 'Rotate left face clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'L',
@@ -283,7 +283,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-l2',
             category: CommandCategory.CUBE,
             group: 'Basic 2/.Left',
-            tooltip: 'Rotate left face 180°',
+            tooltip: 'Rotate left face 180°.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'L2',
@@ -298,7 +298,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'r', shiftKey: true }],
             category: CommandCategory.CUBE,
             group: 'Basic 1/.Right',
-            tooltip: 'Rotate right face counter-clockwise',
+            tooltip: 'Rotate right face counter-clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "R'",
@@ -313,7 +313,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'r' }],
             category: CommandCategory.CUBE,
             group: 'Basic 1/.Right',
-            tooltip: 'Rotate right face clockwise',
+            tooltip: 'Rotate right face clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'R',
@@ -327,7 +327,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-r2',
             category: CommandCategory.CUBE,
             group: 'Basic 1/.Right',
-            tooltip: 'Rotate right face 180°',
+            tooltip: 'Rotate right face 180°.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'R2',
@@ -344,7 +344,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CUBE,
             group: 'Extended/.Middle',
             tooltip:
-                'Rotate middle slice (between L and R) counter-clockwise (follows L direction)',
+                'Rotate middle slice (between L and R) counter-clockwise (follows L direction).',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "M'",
@@ -359,7 +359,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'm' }],
             category: CommandCategory.CUBE,
             group: 'Extended/.Middle',
-            tooltip: 'Rotate middle slice (between L and R) clockwise (follows L direction)',
+            tooltip: 'Rotate middle slice (between L and R) clockwise (follows L direction).',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'M',
@@ -373,7 +373,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-m2',
             category: CommandCategory.CUBE,
             group: 'Extended/.Middle',
-            tooltip: 'Rotate middle slice 180° (follows L direction)',
+            tooltip: 'Rotate middle slice 180° (follows L direction).',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'M2',
@@ -389,7 +389,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CUBE,
             group: 'Extended/.Equatorial',
             tooltip:
-                'Rotate equatorial slice (between U and D) counter-clockwise (follows D direction)',
+                'Rotate equatorial slice (between U and D) counter-clockwise (follows D direction).',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "E'",
@@ -404,7 +404,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'e' }],
             category: CommandCategory.CUBE,
             group: 'Extended/.Equatorial',
-            tooltip: 'Rotate equatorial slice (between U and D) clockwise (follows D direction)',
+            tooltip: 'Rotate equatorial slice (between U and D) clockwise (follows D direction).',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'E',
@@ -418,7 +418,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-e2',
             category: CommandCategory.CUBE,
             group: 'Extended/.Equatorial',
-            tooltip: 'Rotate equatorial slice 180° (follows D direction)',
+            tooltip: 'Rotate equatorial slice 180° (follows D direction).',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'E2',
@@ -434,7 +434,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             category: CommandCategory.CUBE,
             group: 'Extended/.Standing',
             tooltip:
-                'Rotate standing slice (between F and B) counter-clockwise (follows F direction)',
+                'Rotate standing slice (between F and B) counter-clockwise (follows F direction).',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "S'",
@@ -450,7 +450,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 's' }],
             category: CommandCategory.CUBE,
             group: 'Extended/.Standing',
-            tooltip: 'Rotate standing slice (between F and B) clockwise (follows F direction)',
+            tooltip: 'Rotate standing slice (between F and B) clockwise (follows F direction).',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'S',
@@ -464,7 +464,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-s2',
             category: CommandCategory.CUBE,
             group: 'Extended/.Standing',
-            tooltip: 'Rotate standing slice 180° (follows F direction)',
+            tooltip: 'Rotate standing slice 180° (follows F direction).',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'S2',
@@ -480,7 +480,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'x', shiftKey: true }],
             category: CommandCategory.CUBE,
             group: 'Whole Cube Rotations/.x',
-            tooltip: 'Rotate entire cube around x-axis (R direction) counter-clockwise',
+            tooltip: 'Rotate entire cube around x-axis (R direction) counter-clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "x'",
@@ -495,7 +495,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'x' }],
             category: CommandCategory.CUBE,
             group: 'Whole Cube Rotations/.x',
-            tooltip: 'Rotate entire cube around x-axis (R direction) clockwise',
+            tooltip: 'Rotate entire cube around x-axis (R direction) clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'x',
@@ -509,7 +509,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-x2',
             category: CommandCategory.CUBE,
             group: 'Whole Cube Rotations/.x',
-            tooltip: 'Rotate entire cube around x-axis 180°',
+            tooltip: 'Rotate entire cube around x-axis 180°.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'x2',
@@ -525,7 +525,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'y', shiftKey: true }],
             category: CommandCategory.CUBE,
             group: 'Whole Cube Rotations/.y',
-            tooltip: 'Rotate entire cube around y-axis (U direction) counter-clockwise',
+            tooltip: 'Rotate entire cube around y-axis (U direction) counter-clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "y'",
@@ -540,7 +540,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'y' }],
             category: CommandCategory.CUBE,
             group: 'Whole Cube Rotations/.y',
-            tooltip: 'Rotate entire cube around y-axis (U direction) clockwise',
+            tooltip: 'Rotate entire cube around y-axis (U direction) clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'y',
@@ -554,7 +554,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-y2',
             category: CommandCategory.CUBE,
             group: 'Whole Cube Rotations/.y',
-            tooltip: 'Rotate entire cube around y-axis 180°',
+            tooltip: 'Rotate entire cube around y-axis 180°.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'y2',
@@ -569,7 +569,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'z', shiftKey: true }],
             category: CommandCategory.CUBE,
             group: 'Whole Cube Rotations/.z',
-            tooltip: 'Rotate entire cube around z-axis (F direction) counter-clockwise',
+            tooltip: 'Rotate entire cube around z-axis (F direction) counter-clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "z'",
@@ -584,7 +584,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             keyBindings: [{ key: 'z' }],
             category: CommandCategory.CUBE,
             group: 'Whole Cube Rotations/.z',
-            tooltip: 'Rotate entire cube around z-axis (F direction) clockwise',
+            tooltip: 'Rotate entire cube around z-axis (F direction) clockwise.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'z',
@@ -598,7 +598,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             icon: 'move-z2',
             category: CommandCategory.CUBE,
             group: 'Whole Cube Rotations/.z',
-            tooltip: 'Rotate entire cube around z-axis 180°',
+            tooltip: 'Rotate entire cube around z-axis 180°.',
             action: () =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'z2',

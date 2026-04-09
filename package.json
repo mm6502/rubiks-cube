@@ -47,7 +47,5 @@
     "dependencies": {
         "immutable": "^5.1.5"
     },
-    "overrides": {
-        "flatted": "^3.4.2"
-    }
+    "overrides": {}
 }

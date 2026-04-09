@@ -3,6 +3,57 @@ import { CubieType, DiscreteOrientation, Face, Position3D, Vector3 } from '@/cub
 import { approximatelyEqual } from './math';
 
 /**
+ * Per-face orthonormal basis in model space.
+ * - `normal` — outward normal (same as getFaceNormal)
+ * - `up`     — "visual up" direction when looking straight at the face
+ * - `right`  — "visual right" direction when looking straight at the face
+ */
+export type FaceBasis = { normal: Vector3; up: Vector3; right: Vector3 };
+
+/**
+ * Lookup table of orthonormal basis vectors for each cube face.
+ *
+ * Provides a single source of truth for face orientation used by move
+ * inference (drag → layer move) and view interaction adapters (screen drag →
+ * face-intrinsic drag direction).
+ *
+ * All vectors are expressed in **model space** (cube coordinate system).
+ * The `normal` component is identical to the value returned by `getFaceNormal`.
+ */
+export const FACE_BASIS: Record<Face, FaceBasis> = {
+    [Face.F]: {
+        normal: { x: 0, y: 0, z: -1 },
+        up: { x: 0, y: 1, z: 0 },
+        right: { x: 1, y: 0, z: 0 },
+    },
+    [Face.B]: {
+        normal: { x: 0, y: 0, z: 1 },
+        up: { x: 0, y: 1, z: 0 },
+        right: { x: -1, y: 0, z: 0 },
+    },
+    [Face.U]: {
+        normal: { x: 0, y: 1, z: 0 },
+        up: { x: 0, y: 0, z: 1 },
+        right: { x: 1, y: 0, z: 0 },
+    },
+    [Face.D]: {
+        normal: { x: 0, y: -1, z: 0 },
+        up: { x: 0, y: 0, z: -1 },
+        right: { x: 1, y: 0, z: 0 },
+    },
+    [Face.L]: {
+        normal: { x: -1, y: 0, z: 0 },
+        up: { x: 0, y: 1, z: 0 },
+        right: { x: 0, y: 0, z: -1 },
+    },
+    [Face.R]: {
+        normal: { x: 1, y: 0, z: 0 },
+        up: { x: 0, y: 1, z: 0 },
+        right: { x: 0, y: 0, z: 1 },
+    },
+};
+
+/**
  * Get corner faces in standard cubing order:
  * - U or D face first (reference)
  * - Remaining two faces in clockwise order around the corner

@@ -28,7 +28,7 @@ Each sticker is represented by a `<circle>` element with:
 - `id="sticker-{FACE}-{POSITION}"` format
 - `cx` and `cy` attributes defining its center position
 
-**Important**: The face labels in the SVG IDs do not match the cube model face names (see Face Mapping section below).
+The face labels in the SVG IDs directly correspond to the cube model face names (see Face Mapping section below).
 
 ## Coordinate System Mapping
 
@@ -66,15 +66,15 @@ Based on which axis is **not** represented (null) in the intersection:
 
 ### SVG Label to Cube Model Face Conversion
 
-The SVG uses face labels that **do not match** the standard cube model naming:
+The SVG uses face labels that directly match the standard cube model naming:
 
 | SVG Label | Cube Model Face | Coordinate | Axis Pattern         |
 | --------- | --------------- | ---------- | -------------------- |
 | `L`       | **L** (Left)    | x=0        | y,z defined (x null) |
-| `F`       | **R** (Right)   | x=2        | y,z defined (x null) |
+| `R`       | **R** (Right)   | x=2        | y,z defined (x null) |
 | `D`       | **D** (Down)    | y=0        | x,z defined (y null) |
 | `U`       | **U** (Up)      | y=2        | x,z defined (y null) |
-| `R`       | **F** (Front)   | z=0        | x,y defined (z null) |
+| `F`       | **F** (Front)   | z=0        | x,y defined (z null) |
 | `B`       | **B** (Back)    | z=2        | x,y defined (z null) |
 
 This mapping is implemented in the `svgToCubeMapping()` function.

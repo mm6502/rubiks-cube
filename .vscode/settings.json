@@ -1,0 +1,17 @@
+{
+    "terminal.integrated.persistentSessionReviveProcess": "never",
+
+    "js/ts.implicitProjectConfig.module": "System",
+    "vite.showTerminal": false,
+
+    "[typescript]": {
+        "editor.defaultFormatter": "TypeScriptTeam.native-preview",
+        "editor.formatOnSave": true
+    },
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "TypeScriptTeam.native-preview"
+    }
+}

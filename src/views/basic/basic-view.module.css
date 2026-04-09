@@ -55,7 +55,6 @@
     width: 300px;
     height: 300px;
     background: var(--color-domain-cube-interior);
-    border-radius: 5%;
     pointer-events: none;
     transform-style: preserve-3d;
     backface-visibility: hidden;
@@ -86,7 +85,7 @@
 .sticker {
     border: 3px solid var(--color-domain-sticker-border);
     border-radius: 10%;
-    cursor: pointer;
+    cursor: grab;
     transition: all 0.2s;
     forced-color-adjust: none;
     color-scheme: only light;
@@ -148,6 +147,42 @@
 }
 
 /* Face Labels */
+@keyframes face-label-spin-out {
+    from {
+        transform: scaleX(1);
+    }
+    to {
+        transform: scaleX(0);
+    }
+}
+
+@keyframes face-label-spin-in {
+    from {
+        transform: scaleX(0);
+    }
+    to {
+        transform: scaleX(1);
+    }
+}
+
+@keyframes face-label-spin-out-vertical {
+    from {
+        transform: scaleY(1);
+    }
+    to {
+        transform: scaleY(0);
+    }
+}
+
+@keyframes face-label-spin-in-vertical {
+    from {
+        transform: scaleY(0);
+    }
+    to {
+        transform: scaleY(1);
+    }
+}
+
 .face-label {
     position: absolute;
     color: var(--color-domain-face-label);
@@ -157,8 +192,7 @@
     z-index: 10;
     font-family: Arial, sans-serif;
     opacity: 1;
-    transition: opacity 0.3s ease-in-out;
-    background-color: transparent;
+    background-color: var(--color-domain-face-label-bg);
     border: 2px solid var(--color-domain-face-label-border);
     border-radius: 4px;
     padding: 2px 6px;
@@ -169,11 +203,27 @@
     opacity: 0;
 }
 
+.face-label-spinning-out {
+    animation: face-label-spin-out 120ms ease-in forwards;
+}
+
+.face-label-spinning-in {
+    animation: face-label-spin-in 120ms ease-out forwards;
+}
+
+.face-label-spinning-out-vertical {
+    animation: face-label-spin-out-vertical 120ms ease-in forwards;
+}
+
+.face-label-spinning-in-vertical {
+    animation: face-label-spin-in-vertical 120ms ease-out forwards;
+}
+
 /* Front view (normal) */
 .face-label-front-top {
     top: 10px;
     left: 50%;
-    transform: translateX(-50%);
+    translate: -50% 0;
 }
 
 .face-label-front-bottom-left {
@@ -190,7 +240,7 @@
 .face-label-front-tilted-top {
     top: 10px;
     left: 50%;
-    transform: translateX(-50%);
+    translate: -50% 0;
 }
 
 .face-label-front-tilted-bottom-left {
@@ -207,16 +257,16 @@
 .face-label-front-pitched-middle-bottom-pitched {
     bottom: 10px;
     left: 50%;
-    transform: translateX(-50%);
+    translate: -50% 0;
 }
 
-.face-label-front-pitched-bottom-left {
-    bottom: 10px;
+.face-label-front-pitched-top-left {
+    top: 10px;
     left: 10px;
 }
 
-.face-label-front-pitched-bottom-right {
-    bottom: 10px;
+.face-label-front-pitched-top-right {
+    top: 10px;
     right: 10px;
 }
 
@@ -224,16 +274,16 @@
 .face-label-front-tilted-pitched-middle-bottom-pitched {
     bottom: 10px;
     left: 50%;
-    transform: translateX(-50%);
+    translate: -50% 0;
 }
 
-.face-label-front-tilted-pitched-bottom-left {
-    bottom: 10px;
+.face-label-front-tilted-pitched-top-left {
+    top: 10px;
     left: 10px;
 }
 
-.face-label-front-tilted-pitched-bottom-right {
-    bottom: 10px;
+.face-label-front-tilted-pitched-top-right {
+    top: 10px;
     right: 10px;
 }
 
@@ -241,7 +291,7 @@
 .face-label-back-top {
     top: 10px;
     left: 50%;
-    transform: translateX(-50%);
+    translate: -50% 0;
 }
 
 .face-label-back-bottom-left {
@@ -258,7 +308,7 @@
 .face-label-back-tilted-top {
     top: 10px;
     left: 50%;
-    transform: translateX(-50%);
+    translate: -50% 0;
 }
 
 .face-label-back-tilted-bottom-left {
@@ -275,16 +325,16 @@
 .face-label-back-pitched-middle-bottom-pitched {
     bottom: 10px;
     left: 50%;
-    transform: translateX(-50%);
+    translate: -50% 0;
 }
 
-.face-label-back-pitched-bottom-left {
-    bottom: 10px;
+.face-label-back-pitched-top-left {
+    top: 10px;
     left: 10px;
 }
 
-.face-label-back-pitched-bottom-right {
-    bottom: 10px;
+.face-label-back-pitched-top-right {
+    top: 10px;
     right: 10px;
 }
 
@@ -292,23 +342,23 @@
 .face-label-back-tilted-pitched-middle-bottom-pitched {
     bottom: 10px;
     left: 50%;
-    transform: translateX(-50%);
+    translate: -50% 0;
 }
 
-.face-label-back-tilted-pitched-bottom-left {
-    bottom: 10px;
+.face-label-back-tilted-pitched-top-left {
+    top: 10px;
     left: 10px;
 }
 
-.face-label-back-tilted-pitched-bottom-right {
-    bottom: 10px;
+.face-label-back-tilted-pitched-top-right {
+    top: 10px;
     right: 10px;
 }
 
 /* Hidden Face Labels (smaller, for faces facing away) */
 .hidden-face-label {
     position: absolute;
-    color: white;
+    color: var(--color-domain-face-label-hidden);
     background-color: var(--color-domain-face-label-hidden-bg);
     font-size: 12px;
     font-weight: bold;
@@ -316,10 +366,13 @@
     z-index: 10;
     font-family: Arial, sans-serif;
     opacity: 1;
-    transition: opacity 0.3s ease-in-out;
-    padding: 2px 4px;
+    border: 2px solid var(--color-domain-face-label-border);
     border-radius: 4px;
-    display: inline-block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
 }
 
 .hidden-face-label.fade-out {
@@ -361,13 +414,13 @@
 }
 
 /* Front view (pitched) - hidden labels */
-.hidden-face-label-front-pitched-top-left {
-    top: 10px;
+.hidden-face-label-front-pitched-bottom-left {
+    bottom: 10px;
     left: 10px;
 }
 
-.hidden-face-label-front-pitched-top-right {
-    top: 10px;
+.hidden-face-label-front-pitched-bottom-right {
+    bottom: 10px;
     right: 10px;
 }
 
@@ -378,13 +431,13 @@
 }
 
 /* Front view (tilted + pitched) - hidden labels */
-.hidden-face-label-front-tilted-pitched-top-left {
-    top: 10px;
+.hidden-face-label-front-tilted-pitched-bottom-left {
+    bottom: 10px;
     left: 10px;
 }
 
-.hidden-face-label-front-tilted-pitched-top-right {
-    top: 10px;
+.hidden-face-label-front-tilted-pitched-bottom-right {
+    bottom: 10px;
     right: 10px;
 }
 
@@ -429,13 +482,13 @@
 }
 
 /* Back view (pitched) - hidden labels */
-.hidden-face-label-back-pitched-top-left {
-    top: 10px;
+.hidden-face-label-back-pitched-bottom-left {
+    bottom: 10px;
     left: 10px;
 }
 
-.hidden-face-label-back-pitched-top-right {
-    top: 10px;
+.hidden-face-label-back-pitched-bottom-right {
+    bottom: 10px;
     right: 10px;
 }
 
@@ -446,13 +499,13 @@
 }
 
 /* Back view (tilted + pitched) - hidden labels */
-.hidden-face-label-back-tilted-pitched-top-left {
-    top: 10px;
+.hidden-face-label-back-tilted-pitched-bottom-left {
+    bottom: 10px;
     left: 10px;
 }
 
-.hidden-face-label-back-tilted-pitched-top-right {
-    top: 10px;
+.hidden-face-label-back-tilted-pitched-bottom-right {
+    bottom: 10px;
     right: 10px;
 }
 
@@ -460,4 +513,79 @@
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
+}
+
+/* -------------------------------------------------------------------------
+   Touch / pointer interaction overlays
+   ------------------------------------------------------------------------- */
+
+/* Sticker appearance when its face is selected */
+.sticker.face-selected {
+    border-color: var(--color-domain-face-selected);
+    box-shadow: inset 0 0 0 2px var(--color-domain-face-selected-glow);
+}
+
+/* Halo ring rendered on the selected face surface (inherits face transform) */
+.face.face-selected-surface::after {
+    content: '';
+    position: absolute;
+    inset: 3.33%;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle closest-side,
+        transparent calc(100% - var(--basic-face-halo-ring-width, 0px)),
+        var(--color-drag-halo-fill) calc(100% - var(--basic-face-halo-ring-width, 0px)),
+        var(--color-drag-halo-fill) calc(100% - 1px),
+        var(--color-drag-halo-stroke) calc(100% - 1px),
+        var(--color-drag-halo-stroke) 100%,
+        transparent 100%
+    );
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* Invisible drag-target covering the entire selected face (for halo drags) */
+.basic-halo-hit-target {
+    position: absolute;
+    background: transparent;
+    pointer-events: auto;
+    cursor: grab;
+    z-index: 14;
+}
+
+/* Dashed cancellation zone shown at drag origin */
+.basic-halo-cancel-zone {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 50%;
+    background: var(--color-drag-halo-zone-fill);
+    border: 2px dashed var(--color-drag-halo-zone-stroke);
+    pointer-events: none;
+    z-index: 16;
+}
+
+/* Floating label showing the inferred move during a drag */
+.basic-drag-label {
+    position: absolute;
+    padding: 4px 8px;
+    width: var(--size-tooltip-graphical-width);
+    text-align: center;
+    border-radius: 999px;
+    border: 2px solid var(--color-tooltip-border);
+    background: var(--color-tooltip-bg);
+    color: var(--color-tooltip-text);
+    font-size: var(--size-tooltip-graphical-font);
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 20;
+    white-space: nowrap;
+}
+
+/* Arms of the drag decision cross / line indicator */
+.basic-drag-decision-arm {
+    stroke: var(--color-drag-halo-zone-stroke);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 7 5;
+    filter: drop-shadow(0 0 2px var(--color-shadow-backdrop));
 }

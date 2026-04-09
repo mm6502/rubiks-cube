@@ -1,6 +1,6 @@
 # Code Quality Evaluation
 
-Last evaluated: 2026-04-03
+Last evaluated: 2026-04-09
 
 ## ✅ Strengths
 
@@ -26,11 +26,11 @@ Last evaluated: 2026-04-03
   - Null/undefined checks throughout codebase, especially in view components
 
 - Testing (9/10)
-  - 70 test files covering core functionality
+  - 76 test files covering core functionality
   - Comprehensive unit tests for critical logic (move engine, navigation, invariants, state management)
   - Well-structured tests with descriptive names and proper setup/teardown
   - Good coverage of edge cases and integration scenarios
-  - 1290 individual tests passing
+  - 1585 individual tests passing
 
 - Code Organization (9/10)
   - Clear directory structure: src/ with logical grouping
@@ -58,20 +58,22 @@ Last evaluated: 2026-04-03
   - Consider structured error types instead of generic errors
 
 - Test Coverage (8/10)
-  - Overall coverage: 90.06% stmts, 90.99% lines, 80.51% branches, 93.45% functions
-  - Branch coverage at 80.51% — above 70% threshold but below the 85% target
-  - Core modules remain excellent: cube/core (94.39% stmts, 87.98% branch), cube/utils (93.49% stmts, 88.27% branch)
+  - Overall coverage: 91.13% stmts, 92.23% lines, 81.69% branches, 95.14% functions
+  - Branch coverage at 81.69% — above 70% threshold but below the 85% target
+  - Core modules remain excellent: cube/core (94.39% stmts, 87.98% branch), cube/utils (95.33% stmts, 91.30% branch)
   - View components coverage:
-    - basic views: 88.72% stmts, 83.04% branch (good)
-    - moves views: 89.11% stmts, 74.62% branch (good, but branch depth can improve)
-    - flat views: 83.99% stmts, 67.82% branch (primary view-layer gap)
-    - circular views: 85.03% stmts, 71.53% branch (improved)
-  - application.ts at 97.24% stmts, 92.85% branch (major improvement)
-  - main.ts at 95.45% stmts, 82.92% branch (major improvement)
-  - view-manager.ts at 94.79% stmts, 90% branch (major improvement)
-  - command-manager.ts at 0% — entirely uncovered
-  - flat-view.ts at 88.51% stmts, 60.95% branch (low branch coverage)
-  - diagnostics/logger.ts at 89.28% stmts, 71.53% branch (improving but still below target)
+    - basic views: 90.97% stmts, 81.09% branch (good)
+    - moves views: 91.15% stmts, 80.59% branch (improved significantly)
+    - flat views: 92.93% stmts, 79.38% branch (major improvement from 67.82%)
+    - circular views: 86.53% stmts, 74.26% branch (improved)
+  - application.ts at 95.56% stmts, 90% branch (strong)
+  - cube-controller.ts at 98.59% stmts, 96.77% branch (excellent)
+  - main.ts at 95.45% stmts, 82.92% branch (strong)
+  - view-manager.ts at 95.19% stmts, 90.62% branch (strong)
+  - command-renderer.ts at 78.43% stmts, 72.77% branch (newly tested, was 0% as command-manager.ts)
+  - circular-touch-handler.ts at 79.45% stmts, 64.66% branch (lowest coverage file)
+  - basic touch-handler.ts at 86.59% stmts, 66.66% branch (low branch coverage)
+  - diagnostics/logger.ts at 89.28% stmts, 71.53% branch (still below target)
 
 - Component Size (8/10)
   - view-manager.ts reduced but view-manager folder still has low-coverage files
@@ -88,10 +90,10 @@ Last evaluated: 2026-04-03
 
 | Metric             | Value                                                       |
 | ------------------ | ----------------------------------------------------------- |
-| Source Files:      | 146 (75 .ts source + 70 .test.ts + 1 setup)                 |
-| Test Files:        | 70                                                          |
-| Test Count:        | 1290 passing tests                                          |
-| Test Coverage:     | 90.06% statements, 90.99% lines, 80.51% branches, 93.45% fn |
+| Source Files:      | 160 (83 .ts source + 76 .test.ts + 1 setup)                 |
+| Test Files:        | 76                                                          |
+| Test Count:        | 1585 passing tests                                          |
+| Test Coverage:     | 91.13% statements, 92.23% lines, 81.69% branches, 95.14% fn |
 | TypeScript Strict: | ✅ Enabled                                                  |
 | Linting:           | ✅ ESLint configured, no errors                             |
 | Build:             | ✅ Vite with optimizations                                  |
@@ -103,41 +105,46 @@ Last evaluated: 2026-04-03
 
 | Module             | Stmts  | Branch | Funcs  | Lines  |
 | ------------------ | ------ | ------ | ------ | ------ |
-| **All files**      | 90.06% | 80.51% | 93.45% | 90.99% |
+| **All files**      | 91.13% | 81.69% | 95.14% | 92.23% |
 | src/cube/core      | 94.39% | 87.98% | 100%   | 94.14% |
-| src/cube/utils     | 93.49% | 88.27% | 100%   | 93.48% |
-| src/interaction    | 94.26% | 90.27% | 100%   | 95.74% |
+| src/cube/utils     | 95.33% | 91.30% | 100%   | 95.55% |
+| src/interaction    | 95.18% | 91.39% | 100%   | 96.40% |
 | src/events         | 100%   | 100%   | 100%   | 100%   |
 | src/types          | 100%   | 100%   | 100%   | 100%   |
-| src/views/moves    | 89.11% | 74.62% | 83.33% | 92.08% |
-| src/views/basic    | 88.72% | 83.04% | 86.99% | 91.14% |
-| src/views/flat     | 83.99% | 67.82% | 89.15% | 84.55% |
-| src/views/circular | 85.03% | 71.53% | 93.19% | 86.21% |
-| src/view-manager   | 93.01% | 86.23% | 91.46% | 94.38% |
+| src/about          | 100%   | 100%   | 100%   | 100%   |
+| src/icons          | 100%   | 100%   | 100%   | 100%   |
+| src/views/moves    | 91.15% | 80.59% | 90%    | 93.52% |
+| src/views/basic    | 90.97% | 81.09% | 92.59% | 92.50% |
+| src/views/flat     | 92.93% | 79.38% | 96.90% | 94.61% |
+| src/views/circular | 86.53% | 74.26% | 96.60% | 88.07% |
+| src/view-manager   | 88.68% | 80.93% | 88.39% | 90.12% |
 | src/diagnostics    | 91.13% | 72.85% | 94.73% | 92.13% |
-| src (root)         | 95.76% | 89.18% | 93.22% | 96.12% |
+| src (root)         | 95.62% | 88.15% | 95.08% | 96.27% |
 
-**Notable low-coverage files:** `command-manager.ts` (0%), `flat-view.ts` (88.51% stmts / 60.95% branch), `flat-touch-handler.ts` (77.3% stmts / 62.11% branch), `moves-view.ts` (81.39% stmts / 65.21% branch), `circular-touch-handler.ts` (77.29% stmts / 62.62% branch).
+**Notable low-coverage files:** `circular-touch-handler.ts` (79.45% stmts / 64.66% branch), `basic touch-handler.ts` (86.59% stmts / 66.66% branch), `command-renderer.ts` (78.43% stmts / 72.77% branch), `diagnostics/logger.ts` (89.28% stmts / 71.53% branch), `circular-view.ts initialization.ts` (85.47% stmts / 76.81% branch).
 
 ## 🎯 Priority Recommendations
 
-1. Add tests for `command-manager.ts` (0% coverage — fully untested)
-2. Improve `flat-view.ts` branch coverage (60.95%)
-3. Expand `flat-touch-handler.ts` branch-path tests (62.11%)
-4. Add branch-focused tests for `moves-view.ts` (65.21%)
-5. Improve `circular-touch-handler.ts` edge-case branch coverage (62.62%)
-6. Raise `diagnostics/logger.ts` branch coverage from 71.53% toward 85%
-7. Push overall branch coverage from 80.51% toward the 85%+ target
+1. Improve `circular-touch-handler.ts` branch coverage (64.66% — lowest in codebase)
+2. Improve `basic touch-handler.ts` branch coverage (66.66%)
+3. Expand `command-renderer.ts` coverage (78.43% stmts, 72.77% branch)
+4. Raise `diagnostics/logger.ts` branch coverage from 71.53% toward 85%
+5. Improve `circular initialization.ts` branch coverage (76.81%)
+6. Push overall branch coverage from 81.69% toward the 85%+ target
 
-Overall Grade: A (96/100)
+Overall Grade: A (97/100)
 
-This codebase demonstrates excellent quality with strong type safety, clean architecture, and a growing test suite (1290 tests across 70 files). Key achievements:
+This codebase demonstrates excellent quality with strong type safety, clean architecture, and a growing test suite (1585 tests across 76 files). Key achievements:
 
-- 1290 passing tests (up from 1148; +142 new tests)
-- 70 test files (up from 65; +5 new test files)
+- 1585 passing tests (up from 1290; +295 new tests)
+- 76 test files (up from 70; +6 new test files)
+- 83 source files (up from 75; +8 new source files)
 - Zero TypeScript errors, clean build and linting
-- Zero TypeScript errors and clean production build
-- Root app files now have strong coverage (`application.ts`, `main.ts`, and `view-manager.ts` all improved substantially)
+- All four coverage dimensions improved: stmts 90.06→91.13%, lines 90.99→92.23%, branches 80.51→81.69%, functions 93.45→95.14%
+- Flat views saw the largest improvement: branch coverage jumped from 67.82% to 79.38%
+- Moves views branch coverage improved from 74.62% to 80.59%
+- `command-manager.ts` (previously 0%) refactored to `command-renderer.ts` and now tested at 78.43% stmts
+- cube/utils branch coverage improved from 88.27% to 91.30%
 - All metrics above the 70% threshold floor
 
-Main areas to address: overall branch coverage has improved to 80.51%, but remains below the 85% target. The highest impact opportunities are concentrated in `command-manager.ts` and interaction-heavy view files in flat, moves, and circular touch handlers.
+Main areas to address: overall branch coverage has improved to 81.69%, but remains below the 85% target. The highest impact opportunities are concentrated in touch handlers (circular at 64.66%, basic at 66.66% branch) and `command-renderer.ts`.

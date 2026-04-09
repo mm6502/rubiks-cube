@@ -95,8 +95,10 @@ export function updateStickerMappings(
  * Animations are serialized via state.animationChain so that concurrent moves
  * (rapid input or undo/redo bursts) never compose WAAPI transforms on the same
  * SVG elements simultaneously — the root cause of the Firefox sticker-teleport bug.
- * When more than one move is already waiting, the incoming move skips its animation
+ * When 2 or more moves are already waiting, the incoming move skips its animation
  * and only updates colors, preventing the queue from growing without bound.
+ * Allowing up to 2 queued moves to animate lets compound gestures (e.g. 2 axis
+ * rings selected → 2 simultaneous MOVE_REQUESTED events) play both moves visually.
  */
 export function updateSelective(
     state: CircularCubeViewInternalData,
@@ -111,9 +113,11 @@ export function updateSelective(
         // Decrement now (at execution time) and check how many moves still wait after this one.
         tracker._pendingAnimations = Math.max(0, (tracker._pendingAnimations ?? 1) - 1);
 
-        // Skip animation if there are more moves waiting — we're an intermediate step.
-        // The last move in any burst always has remainingAfterMe === 0 and will animate.
-        const skipAnimation = tracker._pendingAnimations > 0;
+        // Skip animation only when 2+ moves are still waiting after this one (3+ queued together).
+        // This lets compound gestures (e.g. 2 axis-rings selected → 2 simultaneous MOVE_REQUESTED)
+        // play both animations sequentially, while still preventing the queue from growing without
+        // bound during rapid single-move input (burst of 3+ moves skips all but the last two).
+        const skipAnimation = tracker._pendingAnimations > 1;
 
         if (!state.svgReady || !event || !state.stickerLookupMap) {
             renderState(state, event.postState);

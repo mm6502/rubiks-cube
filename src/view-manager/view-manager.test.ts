@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
+import { LayoutMode } from '@/cube/types';
 import { LogLevel, logger } from '@/diagnostics/logger';
 import { EventName, HighlightChangedEvent } from '@/types';
 import { Command, CommandCategory } from '@/types/commands';
@@ -404,7 +405,7 @@ describe('ViewManager', () => {
 
     it('should hide non-active panels in tabbed layout', () => {
         // Arrange
-        viewManager['layoutMode'] = 'tabbed';
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
         const containerA = document.createElement('div');
         const containerB = document.createElement('div');
         const stubView = { resize: vi.fn() } as any;
@@ -418,6 +419,39 @@ describe('ViewManager', () => {
         // Assert
         expect(containerA.style.display).toBe('none');
         expect(containerB.style.display).toBe('');
+    });
+
+    it('showOnlyActivePanel calls resize synchronously when panel was hidden', () => {
+        // Arrange — panel starts hidden (display: none) so it gets the sync resize treatment
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
+        const container = document.createElement('div');
+        container.style.display = 'none';
+        const view = { resize: vi.fn(), update: vi.fn() } as any;
+        viewManager['activeViews'].set('v', { view, container });
+        viewManager['focusStack'] = ['v'];
+
+        // Act
+        (viewManager as any).showOnlyActivePanel();
+
+        // Assert — resize() called synchronously (before any rAF) for a previously hidden panel
+        expect(view.resize).toHaveBeenCalled();
+    });
+
+    it('showOnlyActivePanel does not call resize synchronously when panel was already visible', () => {
+        // Arrange — panel already visible (display: '') so no extra sync resize needed
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
+        const container = document.createElement('div');
+        container.style.display = ''; // already visible
+        const view = { resize: vi.fn(), update: vi.fn() } as any;
+        viewManager['activeViews'].set('v', { view, container });
+        viewManager['focusStack'] = ['v'];
+
+        // Act
+        (viewManager as any).showOnlyActivePanel();
+
+        // Assert — resize() NOT called synchronously; only the rAF path runs
+        // (We can't check rAF in unit tests, but resize count here should be 0)
+        expect(view.resize).not.toHaveBeenCalled();
     });
 
     it('should apply tabbed layout to panels', () => {
@@ -610,6 +644,56 @@ describe('ViewManager', () => {
         expect(viewManager.handleKeyDown(new KeyboardEvent('keydown', { key: 'a' }))).toBe(false);
     });
 
+    it('handleKeyDown returns true for a matching view command binding (suppresses default on keydown)', () => {
+        // Arrange: register a Ctrl+ArrowLeft view command
+        const action = vi.fn();
+        const view = { handleKeyDown: vi.fn(() => false) } as any;
+        viewManager['activeViews'].set('v', { view, container: document.createElement('div') });
+        viewManager['focusStack'] = ['v'];
+        viewManager['commandRegistry'].set('v', [
+            {
+                id: 'rotate-left',
+                label: 'Rotate Left',
+                category: CommandCategory.VIEW,
+                action,
+                keyBindings: [{ key: 'ArrowLeft', ctrlKey: true }],
+            } as Command,
+        ]);
+
+        // Act
+        const result = viewManager.handleKeyDown(
+            new KeyboardEvent('keydown', { key: 'ArrowLeft', ctrlKey: true })
+        );
+
+        // Assert: returns true so application can call preventDefault; action not yet called
+        expect(result).toBe(true);
+        expect(action).not.toHaveBeenCalled();
+    });
+
+    it('handleKeyDown returns true for a matching controller command binding (suppresses default on keydown)', () => {
+        // Arrange: register a controller command (no active view needed)
+        const action = vi.fn();
+        viewManager['focusStack'] = [];
+        viewManager['commandRegistry'].set('controller', [
+            {
+                id: 'global-cmd',
+                label: 'Global',
+                category: CommandCategory.CUBE,
+                action,
+                keyBindings: [{ key: 'r', ctrlKey: true }],
+            } as Command,
+        ]);
+
+        // Act
+        const result = viewManager.handleKeyDown(
+            new KeyboardEvent('keydown', { key: 'r', ctrlKey: true })
+        );
+
+        // Assert: returns true; action not yet called (fires on keyUp)
+        expect(result).toBe(true);
+        expect(action).not.toHaveBeenCalled();
+    });
+
     it('handleKeyDown returns false when active view has no handleKeyDown method', () => {
         // Arrange
         const view = {} as any; // no handleKeyDown
@@ -681,7 +765,7 @@ describe('ViewManager', () => {
         const view = { setLayoutMode: vi.fn(), resize: vi.fn() } as any;
         const container = document.createElement('div');
         viewManager['activeViews'].set('v', { view, container });
-        viewManager['layoutMode'] = 'tabbed';
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
         viewManager['tabBar'] = { show: vi.fn(), hide: vi.fn(), updateTabs: vi.fn() } as any;
         viewManager['panelInteractionHandler'] = {
             setLayoutMode: vi.fn(),
@@ -693,7 +777,7 @@ describe('ViewManager', () => {
         (viewManager as any).applyLayoutMode();
 
         // Assert
-        expect(view.setLayoutMode).toHaveBeenCalledWith('tabbed');
+        expect(view.setLayoutMode).toHaveBeenCalledWith(LayoutMode.Tabbed);
     });
 
     it('applyLayoutMode calls setLayoutMode("floating") on all views in floating mode', () => {
@@ -733,7 +817,7 @@ describe('ViewManager', () => {
 
     it('handlePanelAdded applies tabbed layout and updates tabs in tabbed mode', () => {
         // Arrange
-        viewManager['layoutMode'] = 'tabbed';
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
         const container = document.createElement('div');
         viewManager['tabBar'] = { updateTabs: vi.fn() } as any;
         const spy = vi.spyOn(viewManager as any, 'applyTabbedLayoutToPanel');
@@ -854,7 +938,7 @@ describe('ViewManager', () => {
         const stubView = { resize: vi.fn() } as any;
         const container = document.createElement('div');
         viewManager['viewLifecycleManager'] = { showView: vi.fn(), hideView: vi.fn() } as any;
-        viewManager['layoutMode'] = 'tabbed';
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
         viewManager['tabBar'] = { updateTabs: vi.fn() } as any;
         viewManager['focusStack'] = ['a'];
         viewManager['activeViews'].set('a', { view: stubView, container });
@@ -870,7 +954,7 @@ describe('ViewManager', () => {
     it('showView in tabbed mode does not throw when entry is absent from activeViews', () => {
         // Arrange
         viewManager['viewLifecycleManager'] = { showView: vi.fn(), hideView: vi.fn() } as any;
-        viewManager['layoutMode'] = 'tabbed';
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
         viewManager['tabBar'] = { updateTabs: vi.fn() } as any;
 
         // Act & Assert

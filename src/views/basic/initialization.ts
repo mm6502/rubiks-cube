@@ -3,6 +3,7 @@ import { Face, ReadOnlyCubeModel, StickerId, resolveCubeColor } from '@/cube/typ
 import { CubeStateUtils } from '@/cube/utils';
 import { EventName } from '@/types';
 
+import * as navigation from './navigation';
 import * as rendering from './rendering';
 import type { BasicVariant, BasicViewInternalData } from './basic-view';
 
@@ -39,6 +40,7 @@ export function initialize(
 
     // Build the state object before attaching remaining event listeners so that
     // the closures below always reference the canonical state instance.
+    const defaultVectors = navigation.getDefaultVectors(variant);
     const state: BasicViewInternalData = {
         model,
         container,
@@ -47,14 +49,14 @@ export function initialize(
         styles,
         variant,
         viewType,
+        viewRight: defaultVectors.viewRight,
+        viewUp: defaultVectors.viewUp,
+        viewForward: defaultVectors.viewForward,
         isTilted: false,
         isPitched: false,
-        yRotation: 0,
-        xRotation: 0,
-        zRotation: 0,
         isHovered: false,
+        layoutMode: 'floating' as const,
         currentSelected: undefined,
-        pendingMoveFace: undefined,
     };
 
     // Render initial face labels
@@ -144,6 +146,7 @@ export function buildCubeFace(
 
     const faceDiv = document.createElement('div');
     faceDiv.className = `${styles.face ?? ''} ${styles[faceName] ?? ''}`;
+    faceDiv.setAttribute('data-basic-face', face);
 
     const cubeState = model.getCurrentState();
     for (let i = 0; i < 9; i++) {
@@ -153,6 +156,8 @@ export function buildCubeFace(
         const stickerElement = document.createElement('div');
         stickerElement.className = styles.sticker ?? '';
         stickerElement.setAttribute('data-sticker-id', sticker.id);
+        stickerElement.setAttribute('data-basic-face', face);
+        stickerElement.setAttribute('data-basic-pos', String(i));
         stickerElement.style.backgroundColor = resolveCubeColor(sticker.color);
 
         attachStickerListeners(stickerElement, viewType, onStickerSelected);
@@ -211,30 +216,6 @@ export function attachContainerListeners(
     container.addEventListener('mouseenter', () => {
         container.focus();
         Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: state.viewType });
-    });
-
-    cubeElement.addEventListener('mousedown', (e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        const face = target.getAttribute('data-face');
-        if (face) {
-            state.pendingMoveFace = face;
-            Application.eventBus.emit(EventName.MOVE_REQUESTED, {
-                moveNotation: face,
-                viewId: state.viewType,
-                tentative: true,
-            });
-        }
-    });
-
-    cubeElement.addEventListener('mouseup', () => {
-        if (state.pendingMoveFace) {
-            Application.eventBus.emit(EventName.MOVE_REQUESTED, {
-                moveNotation: state.pendingMoveFace,
-                viewId: state.viewType,
-                tentative: false,
-            });
-            state.pendingMoveFace = undefined;
-        }
     });
 
     cubeElement.addEventListener('mouseenter', () => {

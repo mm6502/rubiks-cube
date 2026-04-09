@@ -524,6 +524,10 @@ export class CommandRenderer {
         buttonsContainer.className = this.styles['view-commands-container'];
         buttonsContainer.setAttribute('data-view-commands-container', '');
 
+        const inlineRail = document.createElement('div');
+        inlineRail.className = this.styles['view-commands-inline'] || 'view-commands-inline';
+        inlineRail.setAttribute('data-view-commands-inline', '');
+
         const toggleButton = document.createElement('span');
         toggleButton.className = this.styles['view-commands-toggle'];
         toggleButton.textContent = '⋯';
@@ -533,22 +537,25 @@ export class CommandRenderer {
         toggleButton.setAttribute('aria-expanded', 'false');
         toggleButton.setAttribute('title', 'Show header commands');
 
-        const rail = document.createElement('div');
-        rail.className = this.styles['view-commands-scroller'];
-        rail.setAttribute('data-view-commands-rail', '');
+        const overflowDropdown = document.createElement('div');
+        overflowDropdown.className =
+            this.styles['view-commands-overflow'] || 'view-commands-overflow';
+        overflowDropdown.setAttribute('data-view-commands-overflow', '');
 
-        sortedCommands.forEach(cmd => {
+        sortedCommands.forEach((cmd, index) => {
             const button = document.createElement('button');
             button.className = this.styles['view-command-btn'];
             button.textContent = cmd.icon || cmd.label;
+            button.dataset.cmdOrder = String(index);
             const tooltip = this.buildTooltip(cmd);
             if (tooltip) button.title = tooltip;
             this.wireButton(button, cmd, tooltip);
-            rail.appendChild(button);
+            inlineRail.appendChild(button);
         });
 
         buttonsContainer.appendChild(toggleButton);
-        buttonsContainer.appendChild(rail);
+        buttonsContainer.appendChild(inlineRail);
+        buttonsContainer.appendChild(overflowDropdown);
 
         header.appendChild(buttonsContainer);
 
@@ -557,26 +564,30 @@ export class CommandRenderer {
             header as HTMLElement,
             titleElement,
             buttonsContainer,
-            rail
+            inlineRail,
+            overflowDropdown
         );
     }
 
     /**
-     * Switches header commands between inline mode and compact (toggle + collapsible rail) mode.
+     * Distributes header command buttons between the inline rail and the overflow dropdown.
+     * Buttons are shown inline as long as they fit; any that don't fit are moved to the
+     * overflow dropdown behind the ⋯ toggle. The toggle is only shown when there is overflow.
      */
     private configureHeaderCommandLayout(
         header: HTMLElement,
         titleElement: HTMLElement | null,
         buttonsContainer: HTMLElement,
-        rail: HTMLElement
+        inlineRail: HTMLElement,
+        overflowDropdown: HTMLElement
     ): void {
-        const compactClass = this.styles['view-commands-container--compact'];
+        const hasOverflowClass = this.styles['view-commands-container--has-overflow'];
         const expandedClass = this.styles['view-commands-container--expanded'];
-        const noTransitionClass = this.styles['view-commands-container--no-transition'];
+        const btnClass = this.styles['view-command-btn'];
         const toggleButton = buttonsContainer.querySelector<HTMLElement>(
             `.${this.styles['view-commands-toggle']}`
         );
-        if (!toggleButton || !compactClass || !expandedClass) return;
+        if (!toggleButton || !hasOverflowClass || !expandedClass) return;
 
         const setExpanded = (expanded: boolean): void => {
             buttonsContainer.classList.toggle(expandedClass, expanded);
@@ -590,9 +601,7 @@ export class CommandRenderer {
         toggleButton.addEventListener('click', event => {
             event.preventDefault();
             event.stopPropagation();
-
-            const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
-            setExpanded(!isExpanded);
+            setExpanded(toggleButton.getAttribute('aria-expanded') !== 'true');
         });
 
         toggleButton.addEventListener('keydown', event => {
@@ -601,62 +610,90 @@ export class CommandRenderer {
             toggleButton.click();
         });
 
-        // Prevent drag-start logic from receiving pointer-down events from toggle controls.
         toggleButton.addEventListener('pointerdown', event => event.stopPropagation());
 
         const applyLayout = (): void => {
             const headerWidth = header.clientWidth;
-            const isTabbedMode = !!header.closest(`.${this.styles['view-panel--tabbed']}`);
-            const commandCount = rail.querySelectorAll(
-                `.${this.styles['view-command-btn']}`
-            ).length;
 
-            // JSDOM reports zero-sized layout boxes; keep inline mode in that environment.
+            // JSDOM reports zero-sized layout boxes — keep everything inline.
             if (headerWidth <= 0) {
-                buttonsContainer.classList.remove(compactClass);
+                [...overflowDropdown.querySelectorAll<HTMLElement>(`.${btnClass}`)].forEach(btn =>
+                    inlineRail.appendChild(btn)
+                );
+                buttonsContainer.classList.remove(hasOverflowClass);
                 setExpanded(false);
                 return;
             }
 
-            // In tab mode, only use compact behavior when there are more than 6 header commands.
-            if (isTabbedMode && commandCount <= 6) {
-                buttonsContainer.classList.remove(compactClass);
+            // Collect every button from both containers and restore original order.
+            const allButtons = [
+                ...inlineRail.querySelectorAll<HTMLElement>(`.${btnClass}`),
+                ...overflowDropdown.querySelectorAll<HTMLElement>(`.${btnClass}`),
+            ].sort((a, b) => Number(a.dataset.cmdOrder ?? 0) - Number(b.dataset.cmdOrder ?? 0));
+            if (allButtons.length === 0) return;
+
+            // Move everything into the inline rail so we can measure natural widths.
+            allButtons.forEach(btn => inlineRail.appendChild(btn));
+
+            // Measure each button and the gap used by the flex container.
+            const railStyles = getComputedStyle(inlineRail);
+            const gap = Number.parseFloat(railStyles.columnGap || railStyles.gap || '0') || 8;
+
+            const widths = allButtons.map(btn => {
+                const r = btn.getBoundingClientRect();
+                return r.width > 0 ? r.width : btn.offsetWidth;
+            });
+
+            const isTabbedMode = !!header.closest(`.${this.styles['view-panel--tabbed']}`);
+            // In tabbed mode the title is hidden, so reserve no space for it.
+            const titleReserve = isTabbedMode ? 0 : 130;
+            const containerPadding = 24;
+            const toggleReserve = 52; // toggle width + one gap
+
+            const totalAvailable = Math.max(0, headerWidth - titleReserve - containerPadding);
+
+            const totalNeeded =
+                widths.reduce((s, w) => s + w, 0) + gap * Math.max(0, allButtons.length - 1);
+
+            if (totalNeeded <= totalAvailable) {
+                // Everything fits — no overflow needed.
+                buttonsContainer.classList.remove(hasOverflowClass);
                 setExpanded(false);
+                titleElement?.removeAttribute('title');
                 return;
             }
 
-            const titleMinimumWidth = 130;
-            const toggleAllowance = 42;
-            const compactHysteresisPx = 16;
-            const availableForRail = Math.max(
-                0,
-                headerWidth - titleMinimumWidth - toggleAllowance - 24
-            );
-            const railRequiredWidth = this.measureHeaderCommandsWidth(rail);
-            const isCompact = buttonsContainer.classList.contains(compactClass);
-            const shouldUseCompact = isCompact
-                ? railRequiredWidth > availableForRail - compactHysteresisPx
-                : railRequiredWidth > availableForRail;
+            // Fill from the END: last buttons (highest priority number) are always
+            // rightmost and stay visible longest. First buttons disappear into overflow.
+            const availableForInline = Math.max(0, totalAvailable - toggleReserve);
+            let used = 0;
+            let inlineCount = 0;
 
-            if (shouldUseCompact) {
-                const wasCompact = buttonsContainer.classList.contains(compactClass);
-                if (!wasCompact) {
-                    setExpanded(false);
-                    if (noTransitionClass) {
-                        buttonsContainer.classList.add(noTransitionClass);
-                        requestAnimationFrame(() => {
-                            buttonsContainer.classList.remove(noTransitionClass);
-                        });
-                    }
+            for (let i = allButtons.length - 1; i >= 0; i--) {
+                const cost = (inlineCount === 0 ? 0 : gap) + widths[i];
+                if (used + cost > availableForInline) break;
+                used += cost;
+                inlineCount++;
+            }
+
+            const overflowCount = allButtons.length - inlineCount;
+
+            // Distribute: first overflowCount buttons to dropdown, the rest inline (in order).
+            allButtons.forEach((btn, i) => {
+                if (i < overflowCount) {
+                    overflowDropdown.appendChild(btn);
+                } else {
+                    inlineRail.appendChild(btn);
                 }
-                buttonsContainer.classList.add(compactClass);
-                titleElement?.setAttribute('title', titleElement.textContent ?? '');
-                return;
-            }
+            });
 
-            buttonsContainer.classList.remove(compactClass);
-            if (noTransitionClass) buttonsContainer.classList.remove(noTransitionClass);
-            setExpanded(false);
+            if (overflowCount > 0) {
+                buttonsContainer.classList.add(hasOverflowClass);
+                titleElement?.setAttribute('title', titleElement.textContent ?? '');
+            } else {
+                buttonsContainer.classList.remove(hasOverflowClass);
+                setExpanded(false);
+            }
         };
 
         const existingObserver = this.headerLayoutObservers.get(header);
@@ -669,30 +706,6 @@ export class CommandRenderer {
         }
 
         applyLayout();
-    }
-
-    /**
-     * Measures the natural inline width of header command buttons, independent of scroller padding/margins.
-     */
-    private measureHeaderCommandsWidth(rail: HTMLElement): number {
-        const buttons = rail.querySelectorAll<HTMLElement>(`.${this.styles['view-command-btn']}`);
-        if (buttons.length === 0) return 0;
-
-        const railStyles = getComputedStyle(rail);
-        const gap = Number.parseFloat(railStyles.columnGap || railStyles.gap || '0') || 0;
-
-        let totalButtonWidth = 0;
-        buttons.forEach(button => {
-            const rectWidth = button.getBoundingClientRect().width;
-            const width = rectWidth > 0 ? rectWidth : button.offsetWidth;
-            totalButtonWidth += width;
-        });
-
-        // Fall back to scrollWidth in environments where layout widths are not available.
-        if (totalButtonWidth <= 0) return rail.scrollWidth;
-
-        const totalGapWidth = gap * Math.max(0, buttons.length - 1);
-        return totalButtonWidth + totalGapWidth;
     }
 
     /**

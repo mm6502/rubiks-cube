@@ -1,12 +1,12 @@
 import { Application } from '@/application';
-import { Axis, Face } from '@/cube/types';
+import { Axis, Face, LayoutMode } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { inferMoveFromDrag } from '@/interaction/move-inference';
 import { DragDirection } from '@/interaction/types';
 import { EventName } from '@/types';
 
-import { CircularTouchHandler } from './circular-touch-handler';
 import { AxisCircle } from './svg-tools';
+import { CircularTouchHandler } from './touch-handler';
 
 const styles = {
     'circular-halo': 'circular-halo',
@@ -296,7 +296,7 @@ describe('CircularTouchHandler', () => {
         // Arrange
         const handler = createHandler(fixture);
         handler.attach();
-        handler.setLayoutMode('tabbed');
+        handler.setLayoutMode(LayoutMode.Tabbed);
 
         // Act
         handler.onPointerDown(pointer('pointerdown', 14, 200, 132), fixture.uSticker);
@@ -338,7 +338,7 @@ describe('CircularTouchHandler', () => {
         // Arrange
         const handler = createHandler(fixture);
         handler.attach();
-        handler.setLayoutMode('tabbed');
+        handler.setLayoutMode(LayoutMode.Tabbed);
 
         // Act
         handler.onPointerDown(pointer('pointerdown', 15, 200, 132), fixture.uSticker);
@@ -469,6 +469,93 @@ describe('CircularTouchHandler', () => {
 
         // Assert - face stays selected after gesture
         expect(halo.getAttribute('visibility')).toBe('visible');
+
+        handler.destroy();
+    });
+
+    it('setFaceDirectMode / getFaceDirectMode round-trip', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        expect(handler.getFaceDirectMode()).toBe(false);
+        handler.setFaceDirectMode(true);
+        expect(handler.getFaceDirectMode()).toBe(true);
+        handler.setFaceDirectMode(false);
+        expect(handler.getFaceDirectMode()).toBe(false);
+
+        handler.destroy();
+    });
+
+    it('selectFace shows halo; selectFace(undefined) hides halo', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        const halo = fixture.svgRoot.querySelector(
+            `.${styles['circular-halo']}`
+        ) as SVGEllipseElement;
+
+        handler.selectFace(Face.F);
+        expect(handler.getSelectedFace()).toBe(Face.F);
+        expect(halo.getAttribute('visibility')).toBe('visible');
+
+        handler.selectFace(undefined);
+        expect(handler.getSelectedFace()).toBeUndefined();
+        expect(halo.getAttribute('visibility')).toBe('hidden');
+
+        handler.destroy();
+    });
+
+    it('setLayoutMode persists its value', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // The existing cancel-zone tests verify the visual effect;
+        // here we just verify the state is stored and applied when pointerdown fires.
+        handler.setLayoutMode(LayoutMode.Tabbed);
+        handler.onPointerDown(pointer('pointerdown', 20, 150, 220), fixture.fSticker);
+        const cancelZone = fixture.svgRoot.querySelector(
+            `.${styles['circular-cancel-zone']}`
+        ) as SVGCircleElement;
+        expect(cancelZone.getAttribute('visibility')).toBe('visible');
+        // tabbed radius is 20.8
+        expect(Number(cancelZone.getAttribute('r'))).toBeCloseTo(20.8, 4);
+        handler.onPointerUp(pointer('pointerup', 20, 150, 220), fixture.fSticker);
+
+        handler.destroy();
+    });
+
+    it('ignores second pointer while first is active', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // first pointer down
+        handler.onPointerDown(pointer('pointerdown', 30, 150, 220), fixture.fSticker);
+
+        // second pointer should be ignored
+        handler.onPointerDown(pointer('pointerdown', 31, 160, 230), fixture.fSticker);
+
+        // move and up with first pointer
+        handler.onPointerMove(pointer('pointermove', 30, 150, 160));
+        handler.onPointerUp(pointer('pointerup', 30, 150, 160), null);
+
+        handler.destroy();
+        emitSpy.mockRestore();
+    });
+
+    it('tapping background clears selected face', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // Select a face first
+        handler.selectFace(Face.F);
+        expect(handler.getSelectedFace()).toBe(Face.F);
+
+        // Tap on background
+        handler.onPointerDown(pointer('pointerdown', 40, 10, 10), fixture.background);
+        handler.onPointerUp(pointer('pointerup', 40, 10, 10), fixture.background);
+
+        expect(handler.getSelectedFace()).toBeUndefined();
 
         handler.destroy();
     });

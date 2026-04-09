@@ -1,11 +1,11 @@
 ---
-description: Rubik's Cube Solver — AI agent workspace instructions
+description: Rubik's Cube — AI agent workspace instructions
 applyTo: '**'
 ---
 
-# Rubik's Cube Solver — Agent Instructions
+# Rubik's Cube — Agent Instructions
 
-TypeScript + Vite web app that simulates and visualizes a Rubik's Cube. Compiles to a single portable HTML file. ~99% AI-written; architecture docs live in `src/docs/`.
+TypeScript + Vite web app that simulates and visualizes a Rubik's Cube. Compiles to a single portable HTML file. Architecture docs live in `src/docs/`.
 
 ---
 
@@ -157,8 +157,11 @@ Before working on domain logic, read the relevant doc(s) in `src/docs/`:
 - **`Application.eventBus` is the only event bus.** Don't create new `EventBus` instances for inter-component communication.
 - **`applyMove()` flags matter.** The `skipUndoLogic`, `hiddenMove`, and `emitEvent` boolean flags on `CubeController.applyMove()` have specific meanings — check existing usages before adding new callers.
 - **`dist/` is the single-file build output.** Don't commit `dist/` artifacts unless explicitly building a release.
-- **View face labels ≠ model face labels.** The circular view remaps face names (SVG "F" = cube model R, etc.) — see `src/docs/circular-view.md`.
+- **View face labels ≠ model face labels.** The views can remap face names / sticker ids (SVG "F" = cube model R, etc.) — see `src/docs/circular-view.md`.
 - **`isolatedModules: true`** means `const enum` from one file cannot be used in another file via re-export — use regular `enum` or `const` objects for cross-file enums.
+- **DO NOT start implementing, before you have 95% confidence in your understanding of the relevant architecture and domain concepts.** Read the docs, ask questions, and review existing code until you do.
+- **When in doubt, ask.** The architecture is complex and non-obvious; it's better to ask for clarification than to make assumptions.
+- **When you need a helper function, check if it already exists.** The codebase has many utility functions that may already do what you need; avoid creating duplicates.
 
 ---
 
@@ -168,5 +171,6 @@ Before working on domain logic, read the relevant doc(s) in `src/docs/`:
 2. **Read relevant `src/docs/` files** before touching domain logic.
 3. **Run `npm run type-check`** after every non-trivial change.
 4. **Run `npm test`** to verify nothing is broken before finishing.
-5. **Ask before** making destructive changes. The Vite dev server runs automatically via a VS Code extension — do not start it manually.
-6. **Build verification**: run `npm run build` after significant changes to confirm the single-file output still produces correctly.
+5. **Ask before** making destructive changes.
+6. **The Vite dev server runs automatically via a VS Code extension** — do not start it manually.
+7. **Build verification**: run `npm run build` after significant changes to confirm the single-file output still produces correctly.

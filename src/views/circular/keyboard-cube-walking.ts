@@ -1,45 +1,38 @@
 /*
  * Functions to help with keyboard navigation of stickers in the Circular Cube View.
  */
-import { StickerId } from '@/cube/types';
+import { Face, StickerId } from '@/cube/types';
 import { compareValues, distance2 } from '@/cube/utils';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { getAdjacentStickerOnSurface } from '@/cube/utils/surface-walking';
 import { logger } from '@/diagnostics/logger';
+import { NavDirection } from '@/types';
 
 import { CircularCubeViewInternalData } from './circular-view';
 import { AxisCircle, getCenterOfElement } from './svg-tools';
 
 /**
- * Direction enum for keyboard navigation.
- */
-export const Direction = {
-    Up: 'up',
-    Down: 'down',
-    Left: 'left',
-    Right: 'right',
-} as const;
-
-export type Direction = (typeof Direction)[keyof typeof Direction];
-
-/**
  * Check if a keyboard event is a navigation key (arrow keys).
  */
 export function isNavigationKey(event: KeyboardEvent): event is KeyboardEvent {
-    return mapKeyToDirection(event) !== undefined;
+    return mapKeyToNavDirection(event) !== undefined;
 }
 
 /**
- * Maps keyboard arrow keys to Direction enum values.
+ * Maps keyboard arrow keys to NavDirection values.
  */
-export function mapKeyToDirection(event: KeyboardEvent): Direction | undefined {
+export function mapKeyToNavDirection(event: KeyboardEvent): NavDirection | undefined {
+    if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return undefined;
+
     switch (event.key) {
         case 'ArrowUp':
-            return Direction.Up;
+            return NavDirection.Up;
         case 'ArrowDown':
-            return Direction.Down;
+            return NavDirection.Down;
         case 'ArrowLeft':
-            return Direction.Left;
+            return NavDirection.Left;
         case 'ArrowRight':
-            return Direction.Right;
+            return NavDirection.Right;
         default:
             return undefined;
     }
@@ -73,24 +66,43 @@ export function navigate(
     onSelected?: (id: StickerId) => void
 ): boolean {
     // If not a navigation key, return false.
-    const direction = mapKeyToDirection(event);
+    const direction = mapKeyToNavDirection(event);
     if (!direction) return false;
 
-    // If no sticker is selected, return false.
-    if (!state.model || !state.currentSelected) {
-        logger.error('[Circular Navigation] No sticker selected or model unavailable.');
-        return false;
+    if (!state.model) return false;
+
+    // If no sticker is selected, try to recover from spatial anchors or a default.
+    if (!state.currentSelected) {
+        if (preview) {
+            // Recovery is possible — signal that we'd handle this key.
+            return true;
+        }
+        const recovered = recoverSelection(state, onSelected);
+        if (!recovered) {
+            logger.error('[Circular Navigation] No sticker selected or model unavailable.');
+            return false;
+        }
+        return true;
     }
 
-    // Find the next sticker based on the current selection and direction.
-    const nextStickerId = findNextSticker(
-        state.currentSelected,
-        direction,
-        state.svgElementCache,
-        state.stickerIdToSvgId,
-        state.svgIdToStickerId,
-        state.axisCircles
-    );
+    let nextStickerId: StickerId | undefined;
+
+    if (state.cubeWalk) {
+        // Cube-walk: follow real cube surface topology.
+        // Arrow keys use identity mapping (no per-face remapping), matching
+        // Ctrl+Arrow keyboard-move semantics.
+        nextStickerId = navigateSurface(state, direction);
+    } else {
+        // Spatial walk: use geometric distance+angle scoring over SVG positions.
+        nextStickerId = findNextSticker(
+            state.currentSelected,
+            direction,
+            state.svgElementCache,
+            state.stickerIdToSvgId,
+            state.svgIdToStickerId,
+            state.axisCircles
+        );
+    }
 
     // If no next sticker found, return false.
     if (!nextStickerId) return false;
@@ -107,6 +119,83 @@ export function navigate(
 }
 
 /**
+ * Navigate via real cube surface topology for the circular view.
+ *
+ * Arrow keys use **identity mapping**: the NavDirection is passed directly as
+ * the face-intrinsic direction to the surface-walking utility (ArrowUp → Up, etc.).
+ * This matches the semantics of the Ctrl+Arrow keyboard moves which also pass
+ * the raw direction through without per-face remapping.
+ *
+ * The visual effect of each arrow key therefore varies per face — e.g. ArrowUp
+ * on Face L moves the cursor rightward on screen because the face's intrinsic
+ * "up" is oriented that way in the circular layout.
+ */
+function navigateSurface(
+    state: CircularCubeViewInternalData,
+    direction: NavDirection
+): StickerId | undefined {
+    if (!state.model || !state.currentSelected) return undefined;
+    const cubeState = state.model.getCurrentState();
+    return getAdjacentStickerOnSurface(cubeState, state.currentSelected, direction);
+}
+
+/**
+ * Attempt to recover a sticker selection when `currentSelected` is lost.
+ *
+ * Recovery priority:
+ * 1. Use saved spatial anchors (`selectedFace` + `selectedPosition`) to find the sticker at that position.
+ * 2. If only `selectedFace` is available, pick the center sticker of that face.
+ * 3. Last resort: pick the center sticker of Face.F (matching the initial default selection).
+ *
+ * @returns true if a sticker was recovered and selected, false otherwise.
+ */
+export function recoverSelection(
+    state: CircularCubeViewInternalData,
+    onSelected?: (id: StickerId) => void
+): boolean {
+    if (!state.model) return false;
+    const cubeState = state.model.getCurrentState?.();
+    if (!cubeState) return false;
+    const cubeSize = cubeState.cubeSize;
+    const centerPos = Math.floor((cubeSize * cubeSize) / 2);
+
+    // 1. Try exact spatial anchor (face + position).
+    if (state.selectedFace != null && state.selectedPosition != null) {
+        const sticker = CubeStateUtils.getStickerAt(
+            cubeState,
+            state.selectedFace as Face,
+            state.selectedPosition
+        );
+        if (sticker) {
+            onSelected?.(sticker.id);
+            return true;
+        }
+    }
+
+    // 2. Try center of the remembered face.
+    if (state.selectedFace != null) {
+        const sticker = CubeStateUtils.getStickerAt(
+            cubeState,
+            state.selectedFace as Face,
+            centerPos
+        );
+        if (sticker) {
+            onSelected?.(sticker.id);
+            return true;
+        }
+    }
+
+    // 3. Last resort: center of F face.
+    const sticker = CubeStateUtils.getStickerAt(cubeState, Face.F, centerPos);
+    if (sticker) {
+        onSelected?.(sticker.id);
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Finds the next sticker ID based on the current sticker ID and the direction of movement.
  * Returns the next sticker ID or undefined if not found.
  * @param currentStickerId - The current sticker ID.
@@ -118,7 +207,7 @@ export function navigate(
  */
 export function findNextSticker(
     currentStickerId: StickerId,
-    direction: Direction,
+    direction: NavDirection,
     svgElementCache: Map<string, SVGElement>,
     stickerIdToSvgId: Map<StickerId, string>,
     svgIdToStickerId: Map<string, StickerId>,
@@ -215,7 +304,7 @@ function selectBestCandidate(
 function getScoredElements(
     svgElementCache: Map<string, SVGElement>,
     currentSvgElement: SVGElement,
-    direction: Direction
+    direction: NavDirection
 ) {
     // Score all other SVG elements as candidates.
     var scoredElements = Array.from(svgElementCache.values())
@@ -251,7 +340,7 @@ function getScoredElements(
 function scoreCandidate(
     currentSvgElement: SVGElement,
     candidateSvgElement: SVGElement,
-    direction: Direction
+    direction: NavDirection
 ): WalkingScore {
     // Compute distance
     let distance = computeDistanceBetweenElements(currentSvgElement, candidateSvgElement);
@@ -294,7 +383,7 @@ function computeDistanceBetweenElements(
 function computeAngleClosenessBetweenElements(
     currentSvgElement: SVGElement,
     candidateSvgElement: SVGElement,
-    direction: Direction
+    direction: NavDirection
 ): number {
     const centerCurrent = getCenterOfElement(currentSvgElement);
     const centerCandidate = getCenterOfElement(candidateSvgElement);
@@ -308,16 +397,16 @@ function computeAngleClosenessBetweenElements(
     let desiredAngle: number;
 
     switch (direction) {
-        case Direction.Up:
+        case NavDirection.Up:
             desiredAngle = -Math.PI / 2;
             break;
-        case Direction.Down:
+        case NavDirection.Down:
             desiredAngle = Math.PI / 2;
             break;
-        case Direction.Left:
+        case NavDirection.Left:
             desiredAngle = Math.PI;
             break;
-        case Direction.Right:
+        case NavDirection.Right:
             desiredAngle = 0;
             break;
         default:

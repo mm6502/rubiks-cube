@@ -63,7 +63,7 @@
     --palette-domain-cube-interior: #222222;
     --palette-domain-sticker-border: #333333;
     --palette-domain-sticker-center: #000000;
-    --palette-domain-face-selected: #0c7e52;
+    --palette-domain-face-selected: var(--palette-cyan-500);
     --palette-btn-move-icon-highlight: #a72517;
 }
 // #endregion Layer 1: Primitive palette
@@ -126,6 +126,8 @@
     // § Borders
     // Accented UI elements (tooltips, active tabs, etc.).
     --color-border-strong: lime;
+    // Subtle outline for inactive floating panels.
+    --color-border-subtle: lime;
 
     // § Shadows
     --color-shadow-primary: var(--color-surface-tint-strong);
@@ -212,7 +214,9 @@
     // § Legend / face labels
     --color-domain-face-label: var(--palette-gray-550);
     --color-domain-face-label-border: var(--palette-gray-550);
+    --color-domain-face-label-bg: transparent;
     --color-domain-face-label-hidden-bg: var(--palette-gray-550);
+    --color-domain-face-label-hidden: var(--color-text-on-accent);
 
     // § Drag interaction
     --color-drag-halo-stroke: color-mix(in srgb, var(--palette-cyan-400) 75%, transparent);
@@ -244,6 +248,7 @@
 
     // § Borders
     --color-border-strong: var(--palette-indigo-600);
+    --color-border-subtle: var(--palette-indigo-500);
 
     // § View title bar
     --color-view-title-bar-bg: var(--palette-indigo-500);
@@ -289,6 +294,7 @@
 
     // § Borders
     --color-border-strong: var(--palette-navy-500);
+    --color-border-subtle: var(--palette-navy-700);
 
     // § View title bar
     --color-view-title-bar-bg: var(--palette-navy-800);
@@ -311,5 +317,14 @@
     --color-view-selection-tab-active-text: var(--palette-near-black);
     --color-view-selection-tab-active-border: var(--color-toggle-btn-active-border);
     --color-view-selection-tab-scrollbar-thumb: var(--palette-slate-500);
+
+    // § Legend / face labels — swap light/dark semantics for dark theme:
+    // visible labels get a light background ("in the light"),
+    // hidden labels get a near-black background ("in the dark").
+    --color-domain-face-label-bg: var(--palette-gray-500);
+    --color-domain-face-label: var(--palette-text-on-accent);
+    --color-domain-face-label-border: var(--palette-gray-500);
+    --color-domain-face-label-hidden-bg: var(--palette-near-black);
+    --color-domain-face-label-hidden: var(--palette-gray-400);
 }
 // #endregion Layer 3: Dark theme

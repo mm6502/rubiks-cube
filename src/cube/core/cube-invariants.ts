@@ -24,7 +24,7 @@ import {
     rotatePosition3D,
     toActual,
     toCentered,
-    vectorsEqual,
+    vectorsEqual3,
 } from '@/cube/utils/math';
 import { logger } from '@/diagnostics/logger';
 
@@ -1105,10 +1105,10 @@ function computePermutationParity(perm: readonly number[]): number {
  * @internal
  */
 export function computeEdgeOrientationDelta(rotated: Vector3[], target: Vector3[]): number {
-    if (vectorsEqual(rotated[0], target[0]) && vectorsEqual(rotated[1], target[1])) {
+    if (vectorsEqual3(rotated[0], target[0]) && vectorsEqual3(rotated[1], target[1])) {
         return 0;
     }
-    if (vectorsEqual(rotated[0], target[1]) && vectorsEqual(rotated[1], target[0])) {
+    if (vectorsEqual3(rotated[0], target[1]) && vectorsEqual3(rotated[1], target[0])) {
         return 1;
     }
     throw new Error('Unable to determine edge orientation delta');
@@ -1126,7 +1126,7 @@ export function computeCenterOrientationDelta(rotated: Vector3[], target: Vector
     }
 
     for (const vector of rotated) {
-        const match = target.some(candidate => vectorsEqual(vector, candidate));
+        const match = target.some(candidate => vectorsEqual3(vector, candidate));
         if (!match) {
             throw new Error('Unable to match rotated center normal to target normal');
         }

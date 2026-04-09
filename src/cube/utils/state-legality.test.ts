@@ -228,4 +228,101 @@ describe('checkStateLegality', () => {
             report.issues.some(issue => issue.code === LegalityIssueCode.COLOR_COUNT_MISMATCH)
         ).toBe(true);
     });
+
+    // -----------------------------------------------------------------------
+    // SLOT_MISMATCH — corner error paths
+    // -----------------------------------------------------------------------
+
+    it('detects SLOT_MISMATCH when a corner cubie is placed at an out-of-bounds position (catch block)', () => {
+        // Assign a corner cubie the position {x:5,y:5,z:5} which is outside
+        // the 3×3 cube.  getCanonicalIndex will throw, hitting the catch block
+        // in buildCornerPermutation.
+        const manager = new StateManager(3);
+        const state = manager.getCurrentState();
+        const corner = Array.from(state.cubiesById.values()).find(
+            c => c.type === CubieType.CORNER
+        )!;
+
+        // Bypass createCubieFromCubie to avoid position-validation errors — we
+        // deliberately want an out-of-bounds position so getCanonicalIndex throws.
+        const badCorner = { ...corner, position: { x: 5, y: 5, z: 5 } };
+        const badState = { ...state, cubiesById: state.cubiesById.set(corner.id, badCorner) };
+
+        const report = checkStateLegality(badState);
+
+        expect(report.isLegal).toBe(false);
+        expect(report.issues.some(i => i.code === LegalityIssueCode.SLOT_MISMATCH)).toBe(true);
+    });
+
+    it('detects SLOT_MISMATCH (incomplete permutation) when two corners share the same slot', () => {
+        // Move cornerA to cornerB's position without touching cornerB.
+        // Now both cubies write to slotB; slotA stays -1 → "incomplete permutation".
+        const manager = new StateManager(3);
+        const state = manager.getCurrentState();
+        const corners = Array.from(state.cubiesById.values()).filter(
+            c => c.type === CubieType.CORNER
+        );
+        const [cornerA, cornerB] = corners;
+
+        const movedA = { ...cornerA, position: { ...cornerB.position } };
+        const badState = { ...state, cubiesById: state.cubiesById.set(cornerA.id, movedA) };
+
+        const report = checkStateLegality(badState);
+
+        expect(report.isLegal).toBe(false);
+        expect(report.issues.some(i => i.code === LegalityIssueCode.SLOT_MISMATCH)).toBe(true);
+    });
+
+    // -----------------------------------------------------------------------
+    // SLOT_MISMATCH — edge error paths
+    // -----------------------------------------------------------------------
+
+    it('detects SLOT_MISMATCH when an edge cubie is placed at an out-of-bounds position (catch block)', () => {
+        const manager = new StateManager(3);
+        const state = manager.getCurrentState();
+        const edge = Array.from(state.cubiesById.values()).find(c => c.type === CubieType.EDGE)!;
+
+        const badEdge = { ...edge, position: { x: 5, y: 5, z: 5 } };
+        const badState = { ...state, cubiesById: state.cubiesById.set(edge.id, badEdge) };
+
+        const report = checkStateLegality(badState);
+
+        expect(report.isLegal).toBe(false);
+        expect(report.issues.some(i => i.code === LegalityIssueCode.SLOT_MISMATCH)).toBe(true);
+    });
+
+    it('detects SLOT_MISMATCH (incomplete permutation) when two edges share the same slot', () => {
+        const manager = new StateManager(3);
+        const state = manager.getCurrentState();
+        const edges = Array.from(state.cubiesById.values()).filter(c => c.type === CubieType.EDGE);
+        const [edgeA, edgeB] = edges;
+
+        const movedA = { ...edgeA, position: { ...edgeB.position } };
+        const badState = { ...state, cubiesById: state.cubiesById.set(edgeA.id, movedA) };
+
+        const report = checkStateLegality(badState);
+
+        expect(report.isLegal).toBe(false);
+        expect(report.issues.some(i => i.code === LegalityIssueCode.SLOT_MISMATCH)).toBe(true);
+    });
+
+    it('detects SLOT_MISMATCH when an edge cubie occupies a center position (isWithinBounds false)', () => {
+        // Put an edge cubie at a center position. Its slot canonical index will
+        // resolve to a center index, which is outside [0, edgeCount) →
+        // isWithinBounds returns false.
+        const manager = new StateManager(3);
+        const state = manager.getCurrentState();
+        const edge = Array.from(state.cubiesById.values()).find(c => c.type === CubieType.EDGE)!;
+        const center = Array.from(state.cubiesById.values()).find(
+            c => c.type === CubieType.CENTER
+        )!;
+
+        const movedEdge = { ...edge, position: { ...center.position } };
+        const badState = { ...state, cubiesById: state.cubiesById.set(edge.id, movedEdge) };
+
+        const report = checkStateLegality(badState);
+
+        expect(report.isLegal).toBe(false);
+        expect(report.issues.some(i => i.code === LegalityIssueCode.SLOT_MISMATCH)).toBe(true);
+    });
 });

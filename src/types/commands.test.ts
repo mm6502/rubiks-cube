@@ -44,13 +44,13 @@ describe('commands', () => {
             label: 'Flip View',
             category: CommandCategory.VIEW,
             icon: '⇅',
-            tooltip: 'Flip the cube view upside down (180° rotation)',
+            tooltip: 'Flip the cube view upside down (180° rotation).',
             action: () => {},
         };
 
         // Act & Assert
         expect(command.icon).toBe('⇅');
-        expect(command.tooltip).toBe('Flip the cube view upside down (180° rotation)');
+        expect(command.tooltip).toBe('Flip the cube view upside down (180° rotation).');
     });
 
     it('should validate CommandCategory type', () => {

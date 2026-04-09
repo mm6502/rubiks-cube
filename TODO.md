@@ -4,10 +4,10 @@ If there are no tasks listed below, it means there are no immediate plans for ne
 
 ## Current tasks
 
-- [ ] Debug / Fix Basic view (cube walking, rotations, face labels)
-- [ ] Add mouse/touch support for performing moves in Basic view
+(nothing atm)
 
-## Future tasks
+## Future Tasks
 
-- [ ] Remove `overrides.flatted` from `package.json` once `@vitest/ui` ships with `flatted >=3.4.2`.
-  - Reason: CVE [GHSA-rf6f-7fwh-wjgh](https://github.com/advisories/GHSA-rf6f-7fwh-wjgh) — prototype pollution via `flatted`'s `parse()`. Dev-only risk (vitest UI reporter), not in the production bundle. Override is a temporary workaround until upstream fixes the transitive dep.
+This section outlines tasks that may be addressed in the future, though they are not currently scheduled for implementation. Examples include resolving package overrides due to security concerns.
+
+Currently, there are no items in this category.
