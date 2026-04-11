@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Map as IMap } from 'immutable';
 
+import * as keyboardMoves from '@/interaction/keyboard-moves';
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
 import { CubeState, Cubie, CubieId, LayoutMode, PositionKey, StickerId } from '@/cube/types';
@@ -281,11 +282,12 @@ describe('CircularCubeView (unit)', () => {
         expect(view.getViewType()).toBe('circular');
         expect(view.getMinimumSize()).toEqual({ width: 300, height: 300 });
         const commands = view.getCommands();
-        expect(commands).toHaveLength(6);
+        expect(commands).toHaveLength(7);
         expect(commands.map(c => c.id)).toContain('circular.undo');
         expect(commands.map(c => c.id)).toContain('circular.redo');
         expect(commands.map(c => c.id)).toContain('circular-view.pan-mode');
         expect(commands.map(c => c.id)).toContain('circular-view.reset-zoom');
+        expect(commands.map(c => c.id)).toContain('circular-view.ghost-hints');
         expect(commands.map(c => c.id)).toContain('circular-view.face-direct-mode');
         expect(commands.map(c => c.id)).toContain('circular-view.cube-walk');
     });
@@ -572,6 +574,204 @@ describe('CircularCubeView (unit)', () => {
     it('getState includes cubeWalk', () => {
         const state = view.getState();
         expect(state.cubeWalk).toBe(true);
+    });
+
+    // ─── handleFaceSelectKey ─────────────────────────────────────────────────
+
+    it('face-select key toggles face selection via touchHandler', () => {
+        // Arrange
+        const handler = {
+            getSelectedFace: vi.fn().mockReturnValue(undefined),
+            selectFace: vi.fn(),
+            getFaceDirectMode: vi.fn().mockReturnValue(false),
+            setFaceDirectMode: vi.fn(),
+            setLayoutMode: vi.fn(),
+        } as any;
+        (view as any).touchHandler = handler;
+        (view as any).state.currentSelected = 'sticker-F4';
+        (view as any).state.model = {
+            getCurrentState: () => mockState,
+            getMoveHistory: () => ({ canUndo: () => false, canRedo: () => false }),
+        };
+
+        vi.spyOn(CubeStateUtils, 'getStickerById').mockReturnValue({
+            currentFace: 'F',
+        } as any);
+        vi.spyOn(keyboardMoves, 'isFaceSelectKey').mockReturnValue(true);
+        vi.spyOn(keyboardMoves, 'isKeyboardMoveKey').mockReturnValue(false);
+
+        // Act
+        const evt = new KeyboardEvent('keyup', { key: ' ' });
+        view.handleKeyUp(evt);
+
+        // Assert — selectFace should have been called with the sticker's face
+        expect(handler.selectFace).toHaveBeenCalledWith('F');
+    });
+
+    it('face-select key deselects face when already selected', () => {
+        const handler = {
+            getSelectedFace: vi.fn().mockReturnValue('F'),
+            selectFace: vi.fn(),
+            getFaceDirectMode: vi.fn().mockReturnValue(false),
+        } as any;
+        (view as any).touchHandler = handler;
+        (view as any).state.currentSelected = 'sticker-F4';
+        (view as any).state.model = {
+            getCurrentState: () => mockState,
+            getMoveHistory: () => ({}),
+        };
+
+        vi.spyOn(CubeStateUtils, 'getStickerById').mockReturnValue({
+            currentFace: 'F',
+        } as any);
+        vi.spyOn(keyboardMoves, 'isFaceSelectKey').mockReturnValue(true);
+        vi.spyOn(keyboardMoves, 'isKeyboardMoveKey').mockReturnValue(false);
+
+        const evt = new KeyboardEvent('keyup', { key: ' ' });
+        view.handleKeyUp(evt);
+
+        expect(handler.selectFace).toHaveBeenCalledWith(undefined);
+    });
+
+    it('face-select key returns false when no sticker is selected', () => {
+        (view as any).state.currentSelected = undefined;
+        vi.spyOn(keyboardMoves, 'isFaceSelectKey').mockReturnValue(true);
+
+        const result = view.handleKeyUp(new KeyboardEvent('keyup', { key: ' ' }));
+        expect(result).toBe(false);
+    });
+
+    // ─── handleKeyboardMove ──────────────────────────────────────────────────
+
+    it('keyboard move emits MOVE_REQUESTED when notation is inferred', () => {
+        const handler = {
+            getSelectedFace: vi.fn().mockReturnValue('F'),
+            getFaceDirectMode: vi.fn().mockReturnValue(false),
+        } as any;
+        (view as any).touchHandler = handler;
+        (view as any).state.currentSelected = 'sticker-F4';
+        (view as any).state.model = {
+            getCurrentState: () => mockState,
+            getMoveHistory: () => ({}),
+        };
+
+        vi.spyOn(keyboardMoves, 'isFaceSelectKey').mockReturnValue(false);
+        vi.spyOn(keyboardMoves, 'isKeyboardMoveKey').mockReturnValue(true);
+        vi.spyOn(keyboardMoves, 'mapArrowToDirection').mockReturnValue('up' as any);
+        vi.spyOn(keyboardMoves, 'inferKeyboardMove').mockReturnValue('R');
+
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        const evt = new KeyboardEvent('keyup', { key: 'ArrowUp', ctrlKey: true });
+        view.handleKeyUp(evt);
+
+        expect(emitSpy).toHaveBeenCalledWith(EventName.MOVE_REQUESTED, {
+            moveNotation: 'R',
+            viewId: 'circular',
+            tentative: false,
+        });
+    });
+
+    it('keyboard move does nothing when no direction mapped', () => {
+        const handler = {
+            getSelectedFace: vi.fn(),
+            getFaceDirectMode: vi.fn(),
+        } as any;
+        (view as any).touchHandler = handler;
+        (view as any).state.currentSelected = 'sticker-F4';
+        (view as any).state.model = {
+            getCurrentState: () => mockState,
+            getMoveHistory: () => ({}),
+        };
+
+        vi.spyOn(keyboardMoves, 'isFaceSelectKey').mockReturnValue(false);
+        vi.spyOn(keyboardMoves, 'isKeyboardMoveKey').mockReturnValue(true);
+        vi.spyOn(keyboardMoves, 'mapArrowToDirection').mockReturnValue(undefined as any);
+
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        view.handleKeyUp(new KeyboardEvent('keyup', { key: 'ArrowUp', ctrlKey: true }));
+
+        expect(emitSpy).not.toHaveBeenCalledWith(EventName.MOVE_REQUESTED, expect.anything());
+    });
+
+    // ─── ghost-hints command ─────────────────────────────────────────────────
+
+    it('ghost-hints command toggles showGhosts and calls animateGhostToggle', () => {
+        vi.spyOn(rendering, 'animateGhostToggle').mockResolvedValue(undefined);
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+        // Ensure default state
+        (view as any).state.showGhosts = false;
+
+        const ghostCmd = view.getCommands().find(c => c.id === 'circular-view.ghost-hints')!;
+        expect(ghostCmd.isActive!()).toBe(false);
+
+        ghostCmd.action();
+
+        expect((view as any).state.showGhosts).toBe(true);
+        expect(ghostCmd.isActive!()).toBe(true);
+        expect(rendering.animateGhostToggle).toHaveBeenCalledWith((view as any).state);
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_STATE_CHANGED, {
+            viewType: 'circular',
+        });
+    });
+
+    // ─── setState ────────────────────────────────────────────────────────────
+
+    it('setState with showGhosts calls setGhostVisibility', () => {
+        vi.spyOn(rendering, 'setGhostVisibility').mockImplementation(() => {});
+
+        view.setState({ showGhosts: true });
+
+        expect((view as any).state.showGhosts).toBe(true);
+        expect(rendering.setGhostVisibility).toHaveBeenCalledWith((view as any).state);
+    });
+
+    it('setState with faceDirectMode delegates to touchHandler', () => {
+        const handler = { setFaceDirectMode: vi.fn() } as any;
+        (view as any).touchHandler = handler;
+
+        view.setState({ faceDirectMode: true });
+
+        expect(handler.setFaceDirectMode).toHaveBeenCalledWith(true);
+    });
+
+    it('setState with panMode sets zoomPan gesture mode', () => {
+        const fakeZoom = { setGestureMode: vi.fn() } as any;
+        (view as any).zoomPan = fakeZoom;
+
+        view.setState({ panMode: true });
+
+        expect((view as any).panMode).toBe(true);
+        expect(fakeZoom.setGestureMode).toHaveBeenCalledWith('legacy');
+    });
+
+    it('setState ignores invalid input', () => {
+        expect(() => view.setState(null)).not.toThrow();
+        expect(() => view.setState(42)).not.toThrow();
+        expect(() => view.setState('string')).not.toThrow();
+    });
+
+    // ─── restoreSelection success path ───────────────────────────────────────
+
+    it('restoreSelection updates selection after update', () => {
+        const fakeState: any = {
+            svgReady: true,
+            selectedFace: 'F',
+            selectedPosition: 4,
+            model: {
+                getCurrentState: () => mockState,
+            },
+        };
+        (view as any).state = fakeState;
+
+        vi.spyOn(rendering, 'renderState').mockImplementation(() => {});
+        vi.spyOn(CubeStateUtils, 'getStickerAt').mockReturnValue({ id: 'sticker-F4' } as any);
+        const updateSelectedSpy = vi.spyOn(view, 'updateSelected').mockImplementation(() => {});
+
+        view.update({ getCurrentState: () => mockState } as any);
+
+        expect(updateSelectedSpy).toHaveBeenCalledWith('sticker-F4');
     });
 
     it('setState restores cubeWalk', () => {

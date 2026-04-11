@@ -1,4 +1,4 @@
-// Rubik's Cube Solver - Main Entry Point (v1)
+// Rubik's Cube - Main Entry Point (v1)
 // Application initialization and DOM setup
 import { Application } from './application';
 import { logger } from './diagnostics/logger';
@@ -33,7 +33,7 @@ export function onDomReady() {
     setupSystemThemeListener();
 
     // Log application start.
-    logger.log("Rubik's Cube Solver v1");
+    logger.log("Rubik's Cube v1");
 
     // Initialize the main application.
     const app = new Application();

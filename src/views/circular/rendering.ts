@@ -1,4 +1,6 @@
-import { Color, ColorMap, CubeState, FACE_COLORS, StickerId } from '@/cube/types';
+import { getCubeInvariants } from '@/cube/core/cube-invariants';
+import { getMoveDefinition } from '@/cube/core/move-engine';
+import { Axis, Color, ColorMap, CubeState, FACE_COLORS, StickerId } from '@/cube/types';
 import { CubieType, Face } from '@/cube/types';
 import { CubeStateUtils, getPositionKey } from '@/cube/utils';
 import { MoveExecutedEvent } from '@/types';
@@ -49,7 +51,69 @@ export function renderState(state: CircularCubeViewInternalData, cubeState: Cube
             }
         }
     }
+
+    // Sync ghost hint stickers: copy fill from their source stickers.
+    updateGhostStickers(state);
 }
+
+/**
+ * Copy the fill color from each ghost sticker's source element.
+ * Ghost stickers are semi-transparent, non-interactive hints placed
+ * at the far side of axis-circle gaps.
+ */
+function updateGhostStickers(state: CircularCubeViewInternalData): void {
+    if (!state.svgRoot || !state.showGhosts) return;
+    state.ghostElements ??= Array.from(
+        state.svgRoot.querySelectorAll<SVGCircleElement>('circle.ghost-sticker')
+    );
+    for (const ghost of state.ghostElements) {
+        const sourceId = ghost.getAttribute('data-ghost-source');
+        if (!sourceId) continue;
+        const source = state.svgElementCache.get(sourceId);
+        if (source) ghost.setAttribute('fill', source.getAttribute('fill') ?? '');
+    }
+}
+
+/**
+ * Show or hide ghost hint stickers based on the showGhosts flag.
+ */
+export function setGhostVisibility(state: CircularCubeViewInternalData): void {
+    if (!state.svgRoot) return;
+    const wrapper = state.svgRoot.querySelector<SVGGElement>('.ghost-sticker-wrapper');
+    if (wrapper) wrapper.style.display = state.showGhosts ? '' : 'none';
+}
+
+/**
+ * Set the opacity of ghost hint stickers.
+ */
+export function setGhostOpacity(state: CircularCubeViewInternalData, opacity: number): void {
+    if (!state.svgRoot) return;
+    state.ghostElements ??= Array.from(
+        state.svgRoot.querySelectorAll<SVGCircleElement>('circle.ghost-sticker')
+    );
+    for (const ghost of state.ghostElements) {
+        ghost.style.opacity = opacity.toString();
+    }
+}
+
+/*
+ * Public API: ghost-toggle animation
+ *
+ * `animateGhostToggle` implements the user-facing animation for showing/hiding
+ * ghost hint stickers. The implementation lives in `animations.ts` because it
+ * relies on axis-circle math and other low-level helpers. We intentionally
+ * re-export it here so callers (for example, the view command toolbar) can
+ * import from a single, higher-level module (`rendering`) instead of depending
+ * directly on animation internals.
+ *
+ * Reasons to prefer this re-export:
+ * - Avoids spreading low-level dependencies across many callers.
+ * - Reduces the chance of accidental circular imports (`animations` already
+ *   imports view/types in order to type `CircularCubeViewInternalData`).
+ * - Keeps the view surface (`rendering`) as the documented, stable API for
+ *   rendering-related effects.
+ */
+export { animateGhostToggle } from './animations';
 
 /**
  * Update sticker mappings (data attributes and reverse maps) for a given cube state.
@@ -89,49 +153,97 @@ export function updateStickerMappings(
 }
 
 /**
- * UpdateSelective: handles animated update behavior. Caller should pass callbacks
- * for selection handling and a getFillColor helper.
+ * Resolve the axis of a move from a MoveExecutedEvent.
+ * Returns undefined if the axis cannot be determined.
+ */
+function getMoveAxis(event: MoveExecutedEvent): Axis | undefined {
+    if (event.moveDetails?.definition?.axis) return event.moveDetails.definition.axis;
+    try {
+        const invariants = getCubeInvariants(event.preState.cubeSize);
+        return getMoveDefinition(invariants, event.moveDetails.notation).axis;
+    } catch {
+        return undefined;
+    }
+}
+
+/** All three axes for iteration. */
+const ALL_AXES: Axis[] = [Axis.X, Axis.Y, Axis.Z];
+
+/**
+ * Extended tracker state attached to CircularCubeViewInternalData at runtime.
+ * Tracks per-axis pending animation counts and the latest postState per axis
+ * so that only the last finishing animation in a concurrent same-axis group
+ * triggers renderState.
+ */
+type AnimationTracker = CircularCubeViewInternalData & {
+    _axisPending?: Record<Axis, number>;
+    _latestPostState?: CubeState;
+    _pendingTotal?: number;
+};
+
+/**
+ * UpdateSelective: handles animated update behavior with per-axis parallelism.
  *
- * Animations are serialized via state.animationChain so that concurrent moves
- * (rapid input or undo/redo bursts) never compose WAAPI transforms on the same
- * SVG elements simultaneously — the root cause of the Firefox sticker-teleport bug.
- * When 2 or more moves are already waiting, the incoming move skips its animation
- * and only updates colors, preventing the queue from growing without bound.
- * Allowing up to 2 queued moves to animate lets compound gestures (e.g. 2 axis
- * rings selected → 2 simultaneous MOVE_REQUESTED events) play both moves visually.
+ * Moves on the **same** axis animate in parallel — their stickers are disjoint,
+ * so concurrent WAAPI transforms never collide. Moves on **different** axes are
+ * serialized because they share edge/corner stickers.
+ *
+ * When 2+ moves on the same axis are already queued, additional incoming moves
+ * skip their animation and only update colors, preventing unbounded queues.
  */
 export function updateSelective(
     state: CircularCubeViewInternalData,
     event: MoveExecutedEvent
 ): Promise<void> {
-    // Count how many moves are already queued by tagging the chain with a counter.
-    // We use a lightweight wrapper object attached to the state for this purpose.
-    const tracker = state as CircularCubeViewInternalData & { _pendingAnimations?: number };
-    tracker._pendingAnimations = (tracker._pendingAnimations ?? 0) + 1;
+    const axis = getMoveAxis(event);
+    const tracker = state as AnimationTracker;
 
-    state.animationChain = state.animationChain.then(async () => {
-        // Decrement now (at execution time) and check how many moves still wait after this one.
-        tracker._pendingAnimations = Math.max(0, (tracker._pendingAnimations ?? 1) - 1);
+    // Initialize per-axis tracking if needed.
+    tracker._axisPending ??= { X: 0, Y: 0, Z: 0 };
+    tracker._pendingTotal ??= 0;
 
-        // Skip animation only when 2+ moves are still waiting after this one (3+ queued together).
-        // This lets compound gestures (e.g. 2 axis-rings selected → 2 simultaneous MOVE_REQUESTED)
-        // play both animations sequentially, while still preventing the queue from growing without
-        // bound during rapid single-move input (burst of 3+ moves skips all but the last two).
-        const skipAnimation = tracker._pendingAnimations > 1;
+    // If axis is unknown, fall back to fully serial behaviour on all axes.
+    if (!axis) {
+        state.animationChain = Promise.all(ALL_AXES.map(a => state.axisAnimationChains[a])).then(
+            async () => {
+                renderState(state, event.postState);
+            }
+        );
+        for (const a of ALL_AXES) state.axisAnimationChains[a] = state.animationChain;
+        return state.animationChain;
+    }
+
+    // Track this move.
+    const moveAxis = axis; // Capture narrowed axis for closures.
+    tracker._axisPending[moveAxis]++;
+    tracker._pendingTotal++;
+    tracker._latestPostState = event.postState;
+
+    // This animation must wait for all OTHER axis chains (cross-axis serialization)
+    // but NOT for its own axis chain (same-axis parallelism).
+    const otherAxes = ALL_AXES.filter(a => a !== moveAxis);
+    const prerequisite = Promise.all(otherAxes.map(a => state.axisAnimationChains[a]));
+
+    const thisAnimation = prerequisite.then(async () => {
+        const pending = tracker._axisPending![moveAxis];
+
+        // Skip animation when 2+ same-axis moves are still waiting after this one,
+        // preventing unbounded queue growth during rapid input.
+        const skipAnimation = pending > 2;
 
         if (!state.svgReady || !event || !state.stickerLookupMap) {
-            renderState(state, event.postState);
+            finishAnimation();
             return;
         }
 
         const movedCubies = event.moveDetails?.movedCubies?.after;
         if (!movedCubies || movedCubies.length === 0 || skipAnimation) {
-            renderState(state, event.postState);
+            finishAnimation();
             return;
         }
 
         if (!state.svgRoot) {
-            renderState(state, event.postState);
+            finishAnimation();
             return;
         }
 
@@ -147,18 +259,47 @@ export function updateSelective(
         // Clear selection during animation
         highlights.removeSelectionHighlight(state, state.styles);
 
-        // Ensure mappings reflect PRE-state
+        // Set ghosts transparent during animation
+        setGhostOpacity(state, 0);
+
+        // Ensure mappings reflect PRE-state for this move's stickers.
+        // Same-axis moves have disjoint stickers, so concurrent mapping
+        // updates do not conflict.
         updateStickerMappings(state, event.preState);
 
         // Run animation
         await animateMove(event, state.svgRoot!, state.axisCircles, state.stickerLookupMap!);
 
-        // After animation completes, update to post-state
-        renderState(state, event.postState);
+        finishAnimation(stickerAfter?.id);
 
-        // Restore selection
-        highlights.updateSelected(state, state.styles, stickerAfter?.id);
+        function finishAnimation(restoreSelectionId?: StickerId) {
+            tracker._axisPending![moveAxis]--;
+            tracker._pendingTotal!--;
+
+            // Only the last finishing animation renders the final state.
+            // Use the latest postState which includes all applied moves.
+            if (tracker._pendingTotal! <= 0) {
+                tracker._pendingTotal = 0;
+                setGhostOpacity(state, 0.4);
+                renderState(state, tracker._latestPostState ?? event.postState);
+                if (restoreSelectionId) {
+                    highlights.updateSelected(state, state.styles, restoreSelectionId);
+                }
+            }
+        }
     });
+
+    // Update this axis chain: include the new animation alongside any existing
+    // concurrent same-axis animations.
+    state.axisAnimationChains[moveAxis] = Promise.all([
+        state.axisAnimationChains[moveAxis],
+        thisAnimation,
+    ]).then(() => {});
+
+    // Derive the global animationChain for external callers (e.g. tests).
+    state.animationChain = Promise.all(ALL_AXES.map(a => state.axisAnimationChains[a])).then(
+        () => {}
+    );
 
     return state.animationChain;
 }

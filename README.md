@@ -2,9 +2,9 @@
 
 ![CI](https://github.com/mm6502/rubiks-cube/actions/workflows/ci.yml/badge.svg) ![Deploy](https://github.com/mm6502/rubiks-cube/actions/workflows/deploy.yml/badge.svg) ![License](https://img.shields.io/badge/license-EUPL_1.2-blue.svg)
 
-An implementation of a Rubik's Cube solver with multiple visualization modes. Written in TypeScript and compiled with Vite to a single HTML file for portability / easy deployment.
+An implementation of a Rubik's Cube with multiple visualization modes. Written in TypeScript and compiled with Vite to a single HTML file for portability / easy deployment.
 
-![Rubik's Cube Solver](public/og-image.png)
+![Rubik's Cube](public/og-image.png)
 
 ## Quickstart (for Users)
 
@@ -18,7 +18,7 @@ See [quickstart-contributors.md](src/docs/quickstart-contributors.md) for develo
 
 ## Background and motivation
 
-This project was created as a fun side project. The goal was to create a portable, easy-to-use Rubik's Cube solver that could run entirely in the browser without any server-side components, with multiple visualization options to explore different ways of representing the cube. I wanted to see the Circular view in action, as I had not seen that representation implemented elsewhere before (not that I had looked very hard).
+This project was created as a fun side project. The goal was to create a portable, easy-to-use Rubik's Cube that could run entirely in the browser without any server-side components, with multiple visualization options to explore different ways of representing the cube. I wanted to see the Circular view in action, as I had not seen that representation implemented elsewhere before (not that I had looked very hard).
 
 Almost all of the code (99%) was written by an AI agent (Claude Sonnet 4.5) in a pair-programming style, with the human author providing high-level design, architecture, and guidance, while the AI generated most of the implementation code based on prompts and feedback.
 

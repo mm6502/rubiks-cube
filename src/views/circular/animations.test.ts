@@ -1075,5 +1075,300 @@ describe('Face Animation', () => {
             // Assert
             expect((Element.prototype as any).animate).toHaveBeenCalled();
         });
+
+        it('animateMove falls back to getCubeInvariants when moveDetails.definition is missing', async () => {
+            // Arrange
+            const fakeAnimation = {
+                finished: Promise.resolve(),
+                cancel: vi.fn(),
+            } as unknown as Animation;
+            (Element.prototype as any).animate = vi.fn(() => fakeAnimation);
+
+            const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+
+            // Sticker for U face
+            const sticker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            sticker.classList.add('sticker');
+            sticker.setAttribute('data-sticker-id', 'su');
+            sticker.setAttribute('id', 'su');
+            sticker.setAttribute('data-face', Face.U);
+            sticker.setAttribute('data-pos', '4');
+            sticker.setAttribute('cx', '100');
+            sticker.setAttribute('cy', '100');
+            svgRoot.appendChild(sticker);
+
+            const target = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            target.setAttribute('id', 'tu');
+            target.setAttribute('cx', '100');
+            target.setAttribute('cy', '100');
+            svgRoot.appendChild(target);
+
+            const elements = new Map<string, Element>([
+                ['su', sticker],
+                ['tu', target],
+            ]);
+            svgRoot.querySelector = vi.fn(
+                (sel: string) => elements.get(sel.replace('#', '')) ?? null
+            );
+
+            const position = { x: 1, y: 2, z: 1 } as Position3D;
+            const cubie = {
+                position,
+                stickers: new Map([[Face.U, { id: 'su', currentFace: Face.U, facePosition: 4 }]]),
+            };
+
+            const stickerLookupMap = new Map([
+                [getPositionKey(position), new Map([[Face.U, 'tu']])],
+            ]);
+
+            // No definition, only notation — forces the invariants fallback path
+            const event: MoveExecutedEvent = {
+                moveDetails: { notation: 'U' } as any,
+                preState: { cubeSize: 3 } as any,
+                postState: {
+                    cubeSize: 3,
+                    cubiesById: new Map().set('cu', cubie),
+                    cubiesByPosition: IMap(),
+                    timestamp: 0,
+                } as any,
+            };
+
+            // Act
+            await animateMove(event, svgRoot, [], stickerLookupMap as any);
+
+            // Assert — should still produce animation
+            expect((Element.prototype as any).animate).toHaveBeenCalled();
+        });
+
+        it('animateMove returns early when moveDefinition cannot be resolved', async () => {
+            // Arrange — moveDefinition is explicitly undefined, treated as null
+            const event: MoveExecutedEvent = {
+                moveDetails: { definition: undefined, notation: 'U' } as any,
+                preState: { cubeSize: 3 } as any,
+                postState: {
+                    cubeSize: 3,
+                    cubiesById: IMap(),
+                    cubiesByPosition: IMap(),
+                    timestamp: 0,
+                } as any,
+            };
+
+            // Act & Assert — svgRoot is null, so it returns early even after resolving the move
+            await expect(animateMove(event, null as any, [], new Map())).resolves.toBeUndefined();
+        });
+
+        it('adjacent sticker animation uses inverted angle for F/B face', async () => {
+            // Arrange
+            const fakeAnimation = {
+                finished: Promise.resolve(),
+                cancel: vi.fn(),
+            } as unknown as Animation;
+            const animateSpy = vi.fn(() => fakeAnimation);
+            (Element.prototype as any).animate = animateSpy;
+
+            const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+
+            // Adjacent sticker on U face lying on the Z-axis circle
+            const adj = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            adj.classList.add('sticker');
+            adj.setAttribute('data-sticker-id', 'adj1');
+            adj.setAttribute('data-face', Face.U);
+            adj.setAttribute('cx', '150');
+            adj.setAttribute('cy', '100');
+            svgRoot.appendChild(adj);
+
+            const target = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            target.id = 'adj-tgt';
+            target.setAttribute('cx', '100');
+            target.setAttribute('cy', '150');
+            svgRoot.appendChild(target);
+
+            const pos = { x: 1, y: 2, z: 0 } as Position3D;
+            const cubie = {
+                position: pos,
+                stickers: new Map([[Face.U, { id: 'adj1', currentFace: Face.U, facePosition: 0 }]]),
+            };
+
+            const postState = {
+                cubeSize: 3,
+                cubiesById: IMap().set('c-adj', cubie),
+                cubiesByPosition: IMap(),
+                timestamp: 0,
+            } as unknown as CubeState;
+
+            const stickerLookupMap = new Map([
+                [getPositionKey(pos), new Map([[Face.U, 'adj-tgt']])],
+            ]);
+            const axisCircles: AxisCircle[] = [
+                { id: 'z0', axis: Axis.Z, layer: 0, cx: 100, cy: 100, r: 50 },
+            ];
+
+            const move: MoveDefinition = { name: 'F', axis: Axis.Z, layerIndices: [0], angle: 90 };
+
+            // Act
+            await animateFaceRotation(
+                Face.F,
+                [],
+                move,
+                postState,
+                svgRoot,
+                axisCircles,
+                stickerLookupMap as any,
+                { duration: 10, easing: 'ease-out', steps: 5 }
+            );
+
+            // Assert — animation should have been called on the adjacent sticker
+            expect(animateSpy).toHaveBeenCalled();
+        });
+    });
+
+    describe('animateGhostToggle', () => {
+        afterEach(() => {
+            delete (Element.prototype as any).animate;
+            vi.restoreAllMocks();
+        });
+
+        it('toggle ON: animates ghosts from source to destination', async () => {
+            // Arrange
+            const fakeAnimation = {
+                finished: Promise.resolve(),
+                cancel: vi.fn(),
+            } as unknown as Animation;
+            (Element.prototype as any).animate = vi.fn(() => fakeAnimation);
+
+            const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+
+            // Ghost sticker wrapper
+            const wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            wrapper.classList.add('ghost-sticker-wrapper');
+            svgRoot.appendChild(wrapper);
+
+            // Source sticker
+            const source = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            source.setAttribute('cx', '100');
+            source.setAttribute('cy', '100');
+            source.setAttribute('fill', '#ff0000');
+
+            // Ghost sticker on an axis circle
+            const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            ghost.classList.add('ghost-sticker');
+            ghost.setAttribute('data-ghost-source', 'src1');
+            ghost.setAttribute('cx', '150');
+            ghost.setAttribute('cy', '100');
+            wrapper.appendChild(ghost);
+
+            const axisCircles: AxisCircle[] = [
+                { id: 'z0', axis: Axis.Z, layer: 0, cx: 100, cy: 100, r: 50 },
+            ];
+
+            const state = {
+                svgRoot,
+                showGhosts: true,
+                axisCircles,
+                svgElementCache: new Map([['src1', source]]),
+                ghostElements: undefined,
+            } as any;
+
+            // Act
+            const { animateGhostToggle } = await import('./animations');
+            await animateGhostToggle(state);
+
+            // Assert
+            expect((Element.prototype as any).animate).toHaveBeenCalled();
+            expect(ghost.style.opacity).toBe('0.4');
+        });
+
+        it('toggle ON: uses straight-line fallback when ghost is not on any axis circle', async () => {
+            // Arrange
+            const fakeAnimation = {
+                finished: Promise.resolve(),
+                cancel: vi.fn(),
+            } as unknown as Animation;
+            (Element.prototype as any).animate = vi.fn(() => fakeAnimation);
+
+            const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+            const wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            wrapper.classList.add('ghost-sticker-wrapper');
+            svgRoot.appendChild(wrapper);
+
+            const source = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            source.setAttribute('cx', '50');
+            source.setAttribute('cy', '50');
+            source.setAttribute('fill', '#00ff00');
+
+            const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            ghost.classList.add('ghost-sticker');
+            ghost.setAttribute('data-ghost-source', 'src2');
+            ghost.setAttribute('cx', '200');
+            ghost.setAttribute('cy', '200');
+            wrapper.appendChild(ghost);
+
+            const state = {
+                svgRoot,
+                showGhosts: true,
+                axisCircles: [], // No axis circles → fallback
+                svgElementCache: new Map([['src2', source]]),
+                ghostElements: undefined,
+            } as any;
+
+            // Act
+            const { animateGhostToggle } = await import('./animations');
+            await animateGhostToggle(state);
+
+            // Assert — straight-line fallback used
+            expect((Element.prototype as any).animate).toHaveBeenCalled();
+            expect(ghost.style.opacity).toBe('0.4');
+        });
+
+        it('toggle OFF: fades out ghosts and hides wrapper', async () => {
+            // Arrange
+            const fakeAnimation = {
+                finished: Promise.resolve(),
+                cancel: vi.fn(),
+            } as unknown as Animation;
+            (Element.prototype as any).animate = vi.fn(() => fakeAnimation);
+
+            const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+            const wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            wrapper.classList.add('ghost-sticker-wrapper');
+            svgRoot.appendChild(wrapper);
+
+            const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            ghost.classList.add('ghost-sticker');
+            ghost.setAttribute('data-ghost-source', 'src3');
+            ghost.setAttribute('cx', '100');
+            ghost.setAttribute('cy', '100');
+            ghost.style.opacity = '0.4';
+            wrapper.appendChild(ghost);
+
+            const state = {
+                svgRoot,
+                showGhosts: false,
+                axisCircles: [],
+                svgElementCache: new Map(),
+                ghostElements: undefined,
+            } as any;
+
+            // Act
+            const { animateGhostToggle } = await import('./animations');
+            await animateGhostToggle(state);
+
+            // Assert
+            expect(ghost.style.opacity).toBe('0');
+            expect(wrapper.style.display).toBe('none');
+        });
+
+        it('returns early when svgRoot is missing', async () => {
+            const state = { svgRoot: null, showGhosts: true } as any;
+            const { animateGhostToggle } = await import('./animations');
+            await expect(animateGhostToggle(state)).resolves.toBeUndefined();
+        });
+
+        it('returns early when ghost wrapper is missing', async () => {
+            const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+            const state = { svgRoot, showGhosts: true, ghostElements: undefined } as any;
+            const { animateGhostToggle } = await import('./animations');
+            await expect(animateGhostToggle(state)).resolves.toBeUndefined();
+        });
     });
 });

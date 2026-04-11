@@ -32,7 +32,7 @@ import {
     buildFaceScreenBasisFromHint,
     mapDirectionToFaceBasis,
 } from './direction-mapping';
-import { AxisCircle } from './svg-tools';
+import { AxisCircle, getCenterOfElement } from './svg-tools';
 
 type CircularTouchHandlerOptions = {
     svgRoot: SVGSVGElement;
@@ -117,6 +117,8 @@ export class CircularTouchHandler {
     private dragCrossGroupEl: SVGGElement;
     private dragCrossPrimaryEl: SVGLineElement;
     private dragCrossSecondaryEl: SVGLineElement;
+    private axisDetectionBands: Map<Axis, { bandEl: SVGPathElement; clipEl: SVGClipPathElement }>;
+    private previewAxisKeys: Set<string> | undefined;
 
     constructor(options: CircularTouchHandlerOptions) {
         this.svgRoot = options.svgRoot;
@@ -172,6 +174,26 @@ export class CircularTouchHandler {
         this.dragCrossGroupEl.appendChild(this.dragCrossPrimaryEl);
         this.dragCrossGroupEl.appendChild(this.dragCrossSecondaryEl);
 
+        // One detection band + clipPath per axis. Each clip is a single half-plane box
+        // aligned with the triangle edge that faces that axis.
+        this.axisDetectionBands = new Map<
+            Axis,
+            { bandEl: SVGPathElement; clipEl: SVGClipPathElement }
+        >();
+        const uid = Math.random().toString(36).slice(2, 8);
+        for (const axis of [Axis.X, Axis.Y, Axis.Z] as Axis[]) {
+            const bandEl = document.createElementNS(SVG_NS, 'path');
+            bandEl.classList.add(this.styles['circular-debug-band'] ?? 'circular-debug-band');
+            bandEl.setAttribute('visibility', 'hidden');
+            bandEl.setAttribute('pointer-events', 'none');
+            bandEl.setAttribute('aria-hidden', 'true');
+
+            const clipEl = document.createElementNS(SVG_NS, 'clipPath');
+            clipEl.id = `detection-band-clip-${axis}-${uid}`;
+
+            this.axisDetectionBands.set(axis, { bandEl, clipEl });
+        }
+
         this.dragStateMachine = new DragStateMachine(
             {
                 onDragUpdate: gesture => this.onDragUpdate(gesture),
@@ -185,6 +207,19 @@ export class CircularTouchHandler {
     }
 
     attach(): void {
+        // Install per-axis clip paths into <defs> and wire each to its band.
+        const defs =
+            this.svgRoot.querySelector('defs') ??
+            this.svgRoot.insertBefore(
+                document.createElementNS(SVG_NS, 'defs'),
+                this.svgRoot.firstChild
+            );
+        for (const [axis, { bandEl, clipEl }] of this.axisDetectionBands) {
+            defs.appendChild(clipEl);
+            this.updateDetectionBandClip(axis, clipEl);
+            bandEl.setAttribute('clip-path', `url(#${clipEl.id})`);
+            this.svgRoot.appendChild(bandEl);
+        }
         this.svgRoot.appendChild(this.haloEl);
         this.svgRoot.appendChild(this.faceOverlayEl);
         this.svgRoot.appendChild(this.cancelZoneEl);
@@ -230,6 +265,10 @@ export class CircularTouchHandler {
         this.cancelZoneEl.remove();
         this.dragCrossGroupEl.remove();
         this.dragLabelEl.remove();
+        for (const { bandEl, clipEl } of this.axisDetectionBands.values()) {
+            bandEl.remove();
+            clipEl.remove();
+        }
     }
 
     onPointerDown(event: PointerEvent, target: EventTarget | null): void {
@@ -294,6 +333,7 @@ export class CircularTouchHandler {
         }
 
         if (hit.kind === HitKind.AXIS_CIRCLE) {
+            this.showAxisCirclePreview(hit.axis.key);
             this.setupAxisCircleGuideLine(hit.axis, event.clientX, event.clientY);
             this.dragStateMachine.onPointerDown(event, {
                 rotationCenter: hit.axis.circleCenterClient,
@@ -319,6 +359,13 @@ export class CircularTouchHandler {
 
         if (hit.kind === HitKind.BACKGROUND) {
             this.setupBackgroundGuideLine(event.clientX, event.clientY);
+            // Visual preview: highlight all three circles for the nearest axis
+            const svgPoint = this.clientToSvgPoint(event.clientX, event.clientY);
+            const axisCenters = collectAxisCentersByAxis(this.axisCircles);
+            const nearestAxis = getNearestAxisByPoint(svgPoint, axisCenters);
+            if (nearestAxis) {
+                this.showAxisPreview(nearestAxis);
+            }
         }
 
         this.dragStateMachine.onPointerDown(event);
@@ -345,6 +392,8 @@ export class CircularTouchHandler {
         this.hideDragLabel();
         this.hideCancelZone();
         this.hideDragDecisionCross();
+        this.hideDetectionBand();
+        this.hideAxisPreviewAll();
     }
 
     onPointerCancel(event: PointerEvent): void {
@@ -355,6 +404,8 @@ export class CircularTouchHandler {
         this.hideDragLabel();
         this.hideCancelZone();
         this.hideDragDecisionCross();
+        this.hideDetectionBand();
+        this.hideAxisPreviewAll();
     }
 
     private handleTap(hit: InteractionStart): void {
@@ -410,7 +461,9 @@ export class CircularTouchHandler {
         }
 
         const label =
-            notations.length === 1 ? notations[0] : `${notations[0]} +${notations.length - 1}`;
+            notations.length <= 2
+                ? notations.join('+')
+                : `${notations[0]} +${notations.length - 1}`;
         this.showDragLabel(label, gesture.current.x, gesture.current.y);
     }
 
@@ -807,6 +860,13 @@ export class CircularTouchHandler {
             return { kind: HitKind.FACE_ELLIPSE, face: faceEllipse };
         }
 
+        // The interior triangle formed by the L, B and D face-ellipse centres is a
+        // dead zone: axis-circle proximity detection and background dragging should
+        // not fire there because the zones bleed into this empty region.
+        if (this.isInLbdDeadZone(clientX, clientY)) {
+            return { kind: HitKind.NONE };
+        }
+
         const axis = this.getAxisHit(element, clientX, clientY);
         if (axis) {
             return { kind: HitKind.AXIS_CIRCLE, axis };
@@ -995,6 +1055,10 @@ export class CircularTouchHandler {
             }
 
             const svgPoint = this.clientToSvgPoint(clientX, clientY);
+
+            // Show debug band for primary element hit.
+            this.showDetectionBandForCircle(axisCircle);
+
             return {
                 axis,
                 layer,
@@ -1004,41 +1068,63 @@ export class CircularTouchHandler {
             };
         }
 
-        // Fallback: proximity-based detection to cover gaps between concentric rings.
-        // The rings are spaced 15 SVG units apart; absorb up to half that gap (7.5) on each
-        // side so there are no dead zones between or just outside the outermost ring.
-        const PROXIMITY_THRESHOLD = 7.5;
+        // Fallback: proximity-based detection with biased boundaries so that
+        // the middle slice circles (S/M/E — layer === 1) get 3/4 of the
+        // space between adjacent rings. The inner/outer rings receive the
+        // remaining quarter and are shifted toward the middle ring.
         const svgPoint = this.clientToSvgPoint(clientX, clientY);
 
-        let bestCircle: AxisCircle | undefined;
-        let bestProximity = Infinity;
+        // Group circles by axis and compute radial boundaries for each circle.
+        const byAxis: Record<string, AxisCircle[]> = { X: [], Y: [], Z: [] };
+        for (const c of this.axisCircles) {
+            byAxis[c.axis.toUpperCase()]?.push(c);
+        }
 
-        for (const axisCircle of this.axisCircles) {
-            const dx = svgPoint.x - axisCircle.cx;
-            const dy = svgPoint.y - axisCircle.cy;
-            const d = Math.sqrt(dx * dx + dy * dy);
-            const proximity = Math.abs(d - axisCircle.r);
-            if (proximity <= PROXIMITY_THRESHOLD && proximity < bestProximity) {
-                bestProximity = proximity;
-                bestCircle = axisCircle;
+        // Find nearest axis group center for this point and use that group's boundaries.
+        const axisCenters = collectAxisCentersByAxis(this.axisCircles);
+        const nearestAxis = getNearestAxisByPoint(svgPoint, axisCenters);
+        if (!nearestAxis) return undefined;
+
+        const group = (byAxis[nearestAxis.toUpperCase()] || []).slice().sort((a, b) => a.r - b.r);
+        if (group.length === 0) return undefined;
+
+        // Compute adjacent gaps and biased boundaries.
+        const boundaries = computeBiasedBoundaries(group);
+
+        // Determine which ring domain contains the radial distance
+        const dx = svgPoint.x - group[0].cx;
+        const dy = svgPoint.y - group[0].cy;
+        const d = Math.sqrt(dx * dx + dy * dy);
+
+        let chosen: AxisCircle | undefined;
+        let chosenLow = 0;
+        let chosenHigh = 0;
+        for (let i = 0; i < group.length; i += 1) {
+            const low = boundaries[i];
+            const high = boundaries[i + 1];
+            if (d >= low && d <= high) {
+                chosen = group[i];
+                chosenLow = low;
+                chosenHigh = high;
+                break;
             }
         }
 
-        if (!bestCircle) {
+        if (!chosen) {
             return undefined;
         }
 
-        const el = this.svgRoot.getElementById(bestCircle.id) as SVGCircleElement | null;
-        if (!el) {
-            return undefined;
-        }
+        this.showDetectionBand(chosen.cx, chosen.cy, chosenLow, chosenHigh, chosen.axis);
+
+        const el = this.svgRoot.getElementById(chosen.id) as SVGCircleElement | null;
+        if (!el) return undefined;
 
         return {
-            axis: bestCircle.axis,
-            layer: bestCircle.layer,
-            key: getAxisCircleKey(bestCircle.axis, bestCircle.layer),
+            axis: chosen.axis,
+            layer: chosen.layer,
+            key: getAxisCircleKey(chosen.axis, chosen.layer),
             element: el,
-            circleCenterClient: this.svgToClientPoint(bestCircle.cx, bestCircle.cy, svgPoint),
+            circleCenterClient: this.svgToClientPoint(chosen.cx, chosen.cy, svgPoint),
         };
     }
 
@@ -1077,7 +1163,9 @@ export class CircularTouchHandler {
             return [axisToWholeCubeNotation(fullAxis, isClockwise)];
         }
 
-        return selected.sort(compareAxisLayer).map(entry => {
+        const sorted = selected.sort(compareAxisLayer);
+        if (!isClockwise) sorted.reverse();
+        return sorted.map(entry => {
             // Normalize to the canonical axis direction so all selected layers rotate
             // in the same physical direction regardless of their face convention:
             //   Z canonical = F (layer 0); B (last layer) has opposite CW convention
@@ -1263,6 +1351,108 @@ export class CircularTouchHandler {
         return element === this.haloEl || element === this.faceOverlayEl;
     }
 
+    /**
+     * Returns true when the SVG point falls inside the dead-zone triangle formed
+     * by the centres of the L, B and D face ellipses. Axis-circle proximity
+     * detection and background drag should be suppressed in this region.
+     */
+    /**
+     * Compute the three vertices of the LBD dead-zone triangle from the face
+     * label elements in the SVG, or return undefined when they are not present.
+     */
+    private getLbdTrianglePoints():
+        | { topLeft: Point2D; topRight: Point2D; bottom: Point2D }
+        | undefined {
+        const getLabelGeometry = (id: string) => {
+            const group = this.svgRoot.querySelector(`#${id}`) as SVGGElement | null;
+            if (!group) return undefined;
+            const rect = group.querySelector('rect') as SVGElement | null;
+            if (!rect) return undefined;
+            // getCenterOfElement reads cx/cy; on <rect> those are absent → returns {0,0},
+            // which is the correct local-space centre for a rect centred at the origin.
+            const localCenter = getCenterOfElement(rect);
+            const t = group.getAttribute('transform') ?? '';
+            const m = t.match(/translate\(\s*([\d.+-]+)[\s,]+([\d.+-]+)\s*\)/);
+            if (!m) return undefined;
+            const center = { x: Number(m[1]) + localCenter.x, y: Number(m[2]) + localCenter.y };
+            const hw = parseFloat(rect.getAttribute('width') ?? '20') / 2;
+            const hh = parseFloat(rect.getAttribute('height') ?? '20') / 2;
+            return { center, hw, hh };
+        };
+
+        const l = getLabelGeometry('face-label-L');
+        const b = getLabelGeometry('face-label-B');
+        const d = getLabelGeometry('face-label-D');
+        if (!l || !b || !d) return undefined;
+
+        return {
+            topLeft: { x: l.center.x - l.hw, y: l.center.y - l.hh },
+            topRight: { x: b.center.x + b.hw, y: b.center.y - b.hh },
+            bottom: { x: d.center.x, y: d.center.y + d.hh },
+        };
+    }
+
+    private isInLbdDeadZone(clientX: number, clientY: number): boolean {
+        const pts = this.getLbdTrianglePoints();
+        if (!pts) return false;
+        const p = this.clientToSvgPoint(clientX, clientY);
+        return isPointInTriangle(p, pts.topLeft, pts.topRight, pts.bottom);
+    }
+
+    /** Keep the detection-band clip path in sync with the LBD triangle geometry. */
+    private updateDetectionBandClip(axis: Axis, clipEl: SVGClipPathElement): void {
+        // Clear previous children.
+        while (clipEl.firstChild) clipEl.removeChild(clipEl.firstChild);
+
+        const mkPath = (d: string) => {
+            const el = document.createElementNS(SVG_NS, 'path');
+            el.setAttribute('d', d);
+            return el;
+        };
+
+        const pts = this.getLbdTrianglePoints();
+
+        if (!pts) {
+            // Labels not found – show full coverage (no clipping).
+            clipEl.appendChild(mkPath('M -9999 -9999 L 9999 -9999 L 9999 9999 L -9999 9999 Z'));
+            return;
+        }
+
+        const { topLeft, topRight, bottom } = pts;
+
+        // Each axis is associated with the ONE triangle edge that faces its side of the view.
+        // Y (top):   top edge   topLeft  → topRight  (exterior = north / above)
+        // X (right): right edge topRight → bottom    (exterior = east / right)
+        // Z (left):  left edge  bottom   → topLeft   (exterior = west / left)
+        const edgeByAxis: Record<Axis, { a: Point2D; b: Point2D }> = {
+            [Axis.Y]: { a: topLeft, b: topRight },
+            [Axis.X]: { a: topRight, b: bottom },
+            [Axis.Z]: { a: bottom, b: topLeft },
+        };
+
+        const { a, b } = edgeByAxis[axis];
+        const FAR = 9999;
+        const dx = b.x - a.x,
+            dy = b.y - a.y;
+        const len = Math.hypot(dx, dy) || 1;
+        // Outward normal for a CW-wound triangle edge (a→b): (dy, −dx).
+        const ex = (dx / len) * FAR,
+            ey = (dy / len) * FAR;
+        const nx = (dy / len) * FAR,
+            ny = -(dx / len) * FAR;
+        // Extend edge endpoints far along the edge, then push the far side out by the normal.
+        const p1x = a.x - ex,
+            p1y = a.y - ey;
+        const p2x = b.x + ex,
+            p2y = b.y + ey;
+        clipEl.appendChild(
+            mkPath(
+                `M ${p1x} ${p1y} L ${p2x} ${p2y}` +
+                    ` L ${p2x + nx} ${p2y + ny} L ${p1x + nx} ${p1y + ny} Z`
+            )
+        );
+    }
+
     private get commitThresholdPx(): number {
         return this.layoutMode === LayoutMode.Tabbed
             ? COMMIT_DISTANCE_TABBED_PX
@@ -1281,6 +1471,108 @@ export class CircularTouchHandler {
 
     private hideCancelZone(): void {
         this.cancelZoneEl.setAttribute('visibility', 'hidden');
+    }
+
+    private showDetectionBand(
+        cx: number,
+        cy: number,
+        innerR: number,
+        outerR: number,
+        axis: Axis
+    ): void {
+        // Rebuild this axis's clip now that labels are guaranteed to be in the DOM.
+        const entry = this.axisDetectionBands.get(axis);
+        if (!entry) return;
+        this.updateDetectionBandClip(axis, entry.clipEl);
+
+        // Draw an annular ring (donut) using two concentric arcs.
+        // Outer arc clockwise, inner arc counter-clockwise, forming a closed ring.
+        const d = [
+            `M ${cx + outerR} ${cy}`,
+            `A ${outerR} ${outerR} 0 1 1 ${cx - outerR} ${cy}`,
+            `A ${outerR} ${outerR} 0 1 1 ${cx + outerR} ${cy}`,
+            `M ${cx + innerR} ${cy}`,
+            `A ${innerR} ${innerR} 0 1 0 ${cx - innerR} ${cy}`,
+            `A ${innerR} ${innerR} 0 1 0 ${cx + innerR} ${cy}`,
+            'Z',
+        ].join(' ');
+        entry.bandEl.setAttribute('d', d);
+        // Hide all other bands, show only this one.
+        for (const [a, { bandEl }] of this.axisDetectionBands) {
+            bandEl.setAttribute('visibility', a === axis ? 'visible' : 'hidden');
+        }
+    }
+
+    private hideDetectionBand(): void {
+        for (const { bandEl } of this.axisDetectionBands.values()) {
+            bandEl.setAttribute('visibility', 'hidden');
+        }
+    }
+
+    /** Compute the biased radial boundaries for a given axis circle and show the debug band. */
+    private showDetectionBandForCircle(target: AxisCircle): void {
+        const group = this.axisCircles
+            .filter(c => c.axis === target.axis)
+            .sort((a, b) => a.r - b.r);
+        if (group.length === 0) return;
+
+        const boundaries = computeBiasedBoundaries(group);
+
+        const idx = group.findIndex(c => c.layer === target.layer);
+        if (idx < 0) return;
+
+        this.showDetectionBand(
+            target.cx,
+            target.cy,
+            boundaries[idx],
+            boundaries[idx + 1],
+            target.axis
+        );
+    }
+
+    /** Highlight specific axis circles as a transient preview without touching selectedAxisCircles. */
+    private showAxisKeysPreview(keys: Iterable<string>): void {
+        const className = this.styles['circular-axis-selected'] ?? 'circular-axis-selected';
+        this.previewAxisKeys ??= new Set<string>();
+        for (const key of keys) {
+            const el = this.getAxisCircleElementByKey(key);
+            if (!el) continue;
+            el.classList.add(className);
+            this.previewAxisKeys.add(key);
+        }
+    }
+
+    /** Preview all circles of an entire axis (e.g. whole-cube background drag). */
+    private showAxisPreview(axis: Axis): void {
+        const cubeSize = this.getCubeSize();
+        const keys = Array.from({ length: cubeSize }, (_, layer) => getAxisCircleKey(axis, layer));
+        this.showAxisKeysPreview(keys);
+    }
+
+    /**
+     * Preview the circle(s) that will move on drag commit:
+     * - If the hit circle is part of a multi-circle selection → preview all selected circles.
+     * - Otherwise → preview only the hit circle.
+     */
+    private showAxisCirclePreview(hitKey: string): void {
+        const keys =
+            this.selectedAxisCircles.has(hitKey) && this.selectedAxisCircles.size > 1
+                ? this.selectedAxisCircles
+                : [hitKey];
+        this.showAxisKeysPreview(keys);
+    }
+
+    private hideAxisPreviewAll(): void {
+        if (!this.previewAxisKeys || this.previewAxisKeys.size === 0) return;
+        const className = this.styles['circular-axis-selected'] ?? 'circular-axis-selected';
+        for (const key of Array.from(this.previewAxisKeys)) {
+            // Do not remove the visual class from actually selected axis circles.
+            if (this.selectedAxisCircles.has(key)) continue;
+            const el = this.getAxisCircleElementByKey(key);
+            if (!el) continue;
+            el.classList.remove(className);
+        }
+        this.previewAxisKeys.clear();
     }
 
     private showDragLabel(label: string, clientX: number, clientY: number): void {
@@ -1546,6 +1838,77 @@ function compareAxisLayer(
 function circleProximity(point: Point2D, circle: AxisCircle): number {
     const distance = distance2(point, { x: circle.cx, y: circle.cy });
     return Math.abs(distance - circle.r);
+}
+
+/**
+ * Returns true when point `p` lies inside (or on the edge of) the triangle
+ * defined by vertices a, b, c using the sign-of-cross-product method.
+ */
+function isPointInTriangle(p: Point2D, a: Point2D, b: Point2D, c: Point2D): boolean {
+    const sign = (p1: Point2D, p2: Point2D, p3: Point2D) =>
+        (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+    const d1 = sign(p, a, b);
+    const d2 = sign(p, b, c);
+    const d3 = sign(p, c, a);
+    const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+    const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+    return !(hasNeg && hasPos);
+}
+
+/**
+ * Compute radial boundaries for an axis group of circles sorted by ascending radius.
+ *
+ * The middle layer (layer === 1) gets 2/3 of each adjacent gap; the inner/outer layers
+ * get the remaining 1/3 from the gap side. The free-side extensions of the inner and
+ * outer circles are sized so that every band has the same total width as the middle band.
+ *
+ * Returns N+1 boundary values for N circles: [innerEdge, b01, b12, ..., outerEdge].
+ */
+function computeBiasedBoundaries(group: AxisCircle[]): number[] {
+    const MIDDLE_SHARE = 2 / 3;
+
+    if (group.length <= 1) {
+        return [group[0]?.r ?? 0, group[0]?.r ?? 0];
+    }
+
+    // Step 1: compute inter-circle boundaries (N-1 values).
+    const interBoundaries: number[] = [];
+    for (let i = 0; i < group.length - 1; i += 1) {
+        const a = group[i];
+        const b = group[i + 1];
+        const gap = b.r - a.r;
+        if (b.layer === 1) {
+            // Middle is the upper neighbour → it gets MIDDLE_SHARE of this gap.
+            interBoundaries.push(a.r + (1 - MIDDLE_SHARE) * gap);
+        } else if (a.layer === 1) {
+            // Middle is the lower neighbour → it gets MIDDLE_SHARE of this gap.
+            interBoundaries.push(a.r + MIDDLE_SHARE * gap);
+        } else {
+            interBoundaries.push(a.r + 0.5 * gap);
+        }
+    }
+
+    // Step 2: compute the middle-circle band width.
+    const midIdx = group.findIndex(c => c.layer === 1);
+    let middleBandWidth: number;
+    if (midIdx >= 1 && midIdx <= interBoundaries.length - 1) {
+        // Middle band spans from interBoundaries[midIdx-1] to interBoundaries[midIdx].
+        middleBandWidth = interBoundaries[midIdx] - interBoundaries[midIdx - 1];
+    } else {
+        // Fallback: use the first gap.
+        middleBandWidth = group[1].r - group[0].r;
+    }
+
+    // Step 3: extend innermost and outermost so every band has `middleBandWidth`.
+    // First circle's share from the gap = interBoundaries[0] - group[0].r
+    const firstGapShare = interBoundaries[0] - group[0].r;
+    const innerEdge = group[0].r - (middleBandWidth - firstGapShare);
+
+    // Last circle's share from the gap = group[last].r - interBoundaries[last]
+    const lastGapShare = group[group.length - 1].r - interBoundaries[interBoundaries.length - 1];
+    const outerEdge = group[group.length - 1].r + (middleBandWidth - lastGapShare);
+
+    return [Math.max(0, innerEdge), ...interBoundaries, outerEdge];
 }
 
 function orientedTangentAtPoint(

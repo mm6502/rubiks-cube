@@ -1,5 +1,5 @@
 import { Application } from '@/application';
-import { CubeView, Face, ReadOnlyCubeModel, StickerId } from '@/cube/types';
+import { Axis, CubeView, Face, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { Size2D } from '@/cube/types/cubie';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
@@ -106,14 +106,24 @@ export type CircularCubeViewInternalData = {
      * Each updateSelective call chains onto this promise.
      */
     animationChain: Promise<void>;
+    /**
+     * Per-axis animation chains. Moves on the same axis animate in parallel
+     * (their stickers are disjoint), while moves on different axes are serialized.
+     */
+    axisAnimationChains: Record<Axis, Promise<void>>;
     /** Whether keyboard walking follows real cube surface topology. */
     cubeWalk: boolean;
+    /** Whether ghost hint stickers are visible. */
+    showGhosts: boolean;
+    /** Cached ghost-sticker SVG elements (lazily populated by rendering). */
+    ghostElements?: SVGCircleElement[];
 };
 
 export type CircularViewState = {
     faceDirectMode: boolean;
     panMode: boolean;
     cubeWalk: boolean;
+    showGhosts: boolean;
 };
 
 // Circular View: inline SVG + per-sticker manipulation and simple animations
@@ -133,7 +143,9 @@ export class CircularCubeView implements CubeView {
         svgIdToStickerId: new Map<string, StickerId>(),
         stickerIdToSvgId: new Map<StickerId, string>(),
         animationChain: Promise.resolve(),
+        axisAnimationChains: { X: Promise.resolve(), Y: Promise.resolve(), Z: Promise.resolve() },
         cubeWalk: true,
+        showGhosts: true,
     };
 
     /** Zoom/pan controller — set up in create(), torn down in destroy(). */
@@ -341,7 +353,7 @@ export class CircularCubeView implements CubeView {
                 id: 'circular-view.pan-mode',
                 label: 'Pan Mode',
                 category: CommandCategory.VIEW,
-                keyBindings: [{ key: '5', ctrlKey: true }],
+                keyBindings: [{ key: '6', ctrlKey: true }],
                 icon: '✥',
                 tooltip: 'Drag to pan/zoom. Disables move gestures until toggled off.',
                 showInHeader: true,
@@ -359,12 +371,30 @@ export class CircularCubeView implements CubeView {
                 id: 'circular-view.reset-zoom',
                 label: 'Reset View',
                 category: CommandCategory.VIEW,
-                keyBindings: [{ key: 'Home' }, { key: '4', ctrlKey: true }],
+                keyBindings: [{ key: 'Home' }, { key: '5', ctrlKey: true }],
                 icon: '⊙',
                 tooltip: 'Reset zoom and pan to default.',
                 showInHeader: true,
                 priority: 590,
                 action: () => this.zoomPan?.reset(),
+            },
+            {
+                id: 'circular-view.ghost-hints',
+                label: 'Ghost Hints',
+                category: CommandCategory.VIEW,
+                icon: '👻',
+                keyBindings: [{ key: '4', ctrlKey: true }],
+                showInHeader: true,
+                priority: 600,
+                tooltip: 'Show semi-transparent hint stickers on the far side of each axis circle.',
+                isActive: () => this.state.showGhosts,
+                action: () => {
+                    this.state.showGhosts = !this.state.showGhosts;
+                    void rendering.animateGhostToggle(this.state);
+                    Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
+                        viewType: this.getViewType(),
+                    });
+                },
             },
             {
                 id: 'circular-view.cube-walk',
@@ -437,6 +467,7 @@ export class CircularCubeView implements CubeView {
             faceDirectMode: this.touchHandler?.getFaceDirectMode() ?? false,
             panMode: this.panMode,
             cubeWalk: this.state.cubeWalk,
+            showGhosts: this.state.showGhosts,
         };
     }
 
@@ -452,6 +483,10 @@ export class CircularCubeView implements CubeView {
         }
         if (typeof s['cubeWalk'] === 'boolean') {
             this.state.cubeWalk = s['cubeWalk'];
+        }
+        if (typeof s['showGhosts'] === 'boolean') {
+            this.state.showGhosts = s['showGhosts'];
+            rendering.setGhostVisibility(this.state);
         }
     }
 

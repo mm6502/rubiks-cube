@@ -118,7 +118,13 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId: new Map(),
                 axisCircles: [],
                 animationChain: Promise.resolve(),
+                axisAnimationChains: {
+                    X: Promise.resolve(),
+                    Y: Promise.resolve(),
+                    Z: Promise.resolve(),
+                },
                 cubeWalk: false,
+                showGhosts: true,
             } as CircularCubeViewInternalData;
 
             // Set current selection on state (moved into state)
@@ -145,7 +151,13 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId: new Map(),
                 axisCircles: [],
                 animationChain: Promise.resolve(),
+                axisAnimationChains: {
+                    X: Promise.resolve(),
+                    Y: Promise.resolve(),
+                    Z: Promise.resolve(),
+                },
                 cubeWalk: false,
+                showGhosts: true,
             } as CircularCubeViewInternalData;
 
             // Act
@@ -169,7 +181,13 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId: new Map(),
                 axisCircles: [],
                 animationChain: Promise.resolve(),
+                axisAnimationChains: {
+                    X: Promise.resolve(),
+                    Y: Promise.resolve(),
+                    Z: Promise.resolve(),
+                },
                 cubeWalk: false,
+                showGhosts: true,
             } as CircularCubeViewInternalData;
 
             // Set current selection on state (moved into state)
@@ -207,7 +225,13 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId,
                 axisCircles: [] as AxisCircle[],
                 animationChain: Promise.resolve(),
+                axisAnimationChains: {
+                    X: Promise.resolve(),
+                    Y: Promise.resolve(),
+                    Z: Promise.resolve(),
+                },
                 cubeWalk: false,
+                showGhosts: true,
             } as CircularCubeViewInternalData;
 
             // Set current selection on state
@@ -671,6 +695,11 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId: new Map(),
                 axisCircles: [],
                 animationChain: Promise.resolve(),
+                axisAnimationChains: {
+                    X: Promise.resolve(),
+                    Y: Promise.resolve(),
+                    Z: Promise.resolve(),
+                },
                 cubeWalk: false,
                 ...overrides,
             } as CircularCubeViewInternalData;
@@ -756,6 +785,11 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId: new Map(),
                 axisCircles: [],
                 animationChain: Promise.resolve(),
+                axisAnimationChains: {
+                    X: Promise.resolve(),
+                    Y: Promise.resolve(),
+                    Z: Promise.resolve(),
+                },
                 cubeWalk: false,
                 ...overrides,
             } as CircularCubeViewInternalData;
@@ -845,7 +879,13 @@ describe('keyboard-cube-walking', () => {
                 svgIdToStickerId: new Map(),
                 axisCircles: [],
                 animationChain: Promise.resolve(),
+                axisAnimationChains: {
+                    X: Promise.resolve(),
+                    Y: Promise.resolve(),
+                    Z: Promise.resolve(),
+                },
                 cubeWalk: true,
+                showGhosts: true,
                 currentSelected: currentStickerId,
             } as CircularCubeViewInternalData;
         }

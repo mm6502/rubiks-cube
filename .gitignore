@@ -8,6 +8,7 @@ dist/
 coverage/
 
 # Environment files
+.debug/
 .env
 .env.local
 

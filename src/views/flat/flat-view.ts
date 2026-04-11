@@ -10,6 +10,7 @@ import {
 } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils, createFlatView } from '@/cube/utils/state-conversion';
+import { getAdjacentStickerOnSurface } from '@/cube/utils/surface-walking';
 import { computeAvailableContentSize } from '@/cube/utils/view-utils';
 import {
     inferKeyboardMove,
@@ -17,13 +18,18 @@ import {
     isKeyboardMoveKey,
     mapArrowToDirection,
 } from '@/interaction/keyboard-moves';
-import { CANCEL_ZONE_RADIUS_BASE_PX, CANCEL_ZONE_TABBED_MULTIPLIER } from '@/interaction/types';
+import {
+    CANCEL_ZONE_RADIUS_BASE_PX,
+    CANCEL_ZONE_TABBED_MULTIPLIER,
+    DragDirection,
+} from '@/interaction/types';
 import {
     Command,
     CommandCategory,
     EventName,
     MoveExecutedEvent,
     MoveRequestedEvent,
+    NavDirection,
 } from '@/types';
 
 import { isNavigationKey, navigate } from './navigation';
@@ -32,6 +38,7 @@ import { FlatTouchHandler } from './touch-handler';
 export type FlatViewState = {
     faceDirectMode: boolean;
     cubeWalk: boolean;
+    showGhosts: boolean;
 };
 
 /**
@@ -59,7 +66,89 @@ export type FlatViewInternalData = {
     legendElement: HTMLElement | null;
     /** Whether keyboard walking follows real cube surface topology. */
     cubeWalk: boolean;
+    /** Whether ghost edge-hint stickers are visible. */
+    showGhosts: boolean;
+    /** Cached ghost sticker elements for fast colour sync. */
+    ghostElements: HTMLElement[];
 };
+
+/**
+ * Describes one ghost strip: a row/column of 3 semi-transparent stickers
+ * placed just outside a face edge to hint at the cube-adjacent face that
+ * is not visually adjacent in the T-shaped layout.
+ */
+type GhostEdge = {
+    /** Face that owns this ghost strip (the strip is rendered outside this face). */
+    face: Face;
+    /** Which edge of the owning face the strip sits on. */
+    edge: 'top' | 'bottom' | 'left' | 'right';
+    /** Source face whose stickers provide the ghost colours. */
+    sourceFace: Face;
+    /** Ordered source sticker positions (length 3 for a 3×3 cube). */
+    sourcePositions: number[];
+};
+
+/**
+ * All 14 ghost strips (7 non-adjacent cube-edge pairs × 2 directions).
+ *
+ * T-layout adjacency (already connected, no ghosts needed):
+ *   U↔F (U bottom / F top), F↔L, F↔R, F↔D, R↔B
+ *
+ * Non-adjacent cube-edge pairs that need ghosts:
+ *   U↔L, U↔R, U↔B, D↔L, D↔R, D↔B, L↔B
+ */
+const GHOST_EDGES: GhostEdge[] = [
+    // U-L: U left col ↔ L top row
+    { face: Face.U, edge: 'left', sourceFace: Face.L, sourcePositions: [0, 1, 2] },
+    { face: Face.L, edge: 'top', sourceFace: Face.U, sourcePositions: [0, 3, 6] },
+    // U-R: U right col ↔ R top row
+    { face: Face.U, edge: 'right', sourceFace: Face.R, sourcePositions: [2, 1, 0] },
+    { face: Face.R, edge: 'top', sourceFace: Face.U, sourcePositions: [8, 5, 2] },
+    // U-B: U top row ↔ B top row (reversed)
+    { face: Face.U, edge: 'top', sourceFace: Face.B, sourcePositions: [2, 1, 0] },
+    { face: Face.B, edge: 'top', sourceFace: Face.U, sourcePositions: [2, 1, 0] },
+    // D-L: D left col ↔ L bottom row
+    { face: Face.D, edge: 'left', sourceFace: Face.L, sourcePositions: [8, 7, 6] },
+    { face: Face.L, edge: 'bottom', sourceFace: Face.D, sourcePositions: [6, 3, 0] },
+    // D-R: D right col ↔ R bottom row
+    { face: Face.D, edge: 'right', sourceFace: Face.R, sourcePositions: [6, 7, 8] },
+    { face: Face.R, edge: 'bottom', sourceFace: Face.D, sourcePositions: [2, 5, 8] },
+    // D-B: D bottom row ↔ B bottom row (reversed)
+    { face: Face.D, edge: 'bottom', sourceFace: Face.B, sourcePositions: [8, 7, 6] },
+    { face: Face.B, edge: 'bottom', sourceFace: Face.D, sourcePositions: [8, 7, 6] },
+    // L-B: L left col ↔ B right col
+    { face: Face.L, edge: 'left', sourceFace: Face.B, sourcePositions: [2, 5, 8] },
+    { face: Face.B, edge: 'right', sourceFace: Face.L, sourcePositions: [0, 3, 6] },
+];
+
+/**
+ * Remap a {@link DragDirection} for the +90° CW visual rotation applied on
+ * mobile / portrait viewports.
+ *
+ * When the flat grid is rotated 90° clockwise the on-screen swipe directions
+ * no longer correspond 1-to-1 with the logical cube directions.  This function
+ * converts a screen-space direction into the logical direction the cube model
+ * expects:
+ *
+ * | Screen direction | Logical direction |
+ * |------------------|-------------------|
+ * | UP               | LEFT              |
+ * | RIGHT            | UP                |
+ * | DOWN             | RIGHT             |
+ * | LEFT (default)   | DOWN              |
+ */
+function remapDragDirectionForRotation(dir: DragDirection): DragDirection {
+    switch (dir) {
+        case DragDirection.UP:
+            return DragDirection.LEFT;
+        case DragDirection.RIGHT:
+            return DragDirection.UP;
+        case DragDirection.DOWN:
+            return DragDirection.RIGHT;
+        default:
+            return DragDirection.DOWN;
+    }
+}
 
 // Flat T-shaped Cube Visualization
 export class FlatView implements CubeView {
@@ -84,6 +173,8 @@ export class FlatView implements CubeView {
             isRotated: false,
             legendElement: null,
             cubeWalk: true,
+            showGhosts: true,
+            ghostElements: [],
         };
         this.legendPointerDownBound = this.handleLegendPointerDown.bind(this);
         this.legendPointerMoveBound = this.handleLegendPointerMove.bind(this);
@@ -163,6 +254,9 @@ export class FlatView implements CubeView {
 
         this.state.container.appendChild(flatContainer);
 
+        // Create ghost strips on all non-layout-adjacent edges
+        this.createGhostStrips();
+
         this.touchHandler = new FlatTouchHandler({
             host: flatContainer,
             styles: this.state.styles,
@@ -181,6 +275,121 @@ export class FlatView implements CubeView {
         // Default selection: F4 sticker.
         const f4 = CubeStateUtils.getStickerAt(_model.getCurrentState(), Face.F, 4);
         if (f4) this.updateSelected(f4.id);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Ghost sticker helpers                                               */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Build all ghost strips and attach them to the appropriate face elements.
+     * Each strip is a small row/column of `<div>`s positioned just outside the
+     * face boundary using absolute positioning + `top/bottom/left/right: 100%`.
+     */
+    private createGhostStrips(): void {
+        if (!this.state.container) return;
+
+        this.state.ghostElements = [];
+
+        for (const ge of GHOST_EDGES) {
+            // Find the face element that owns this ghost strip
+            const faceEl = this.state.container.querySelector(
+                `.${this.state.styles['flat-face']}:has(.${this.state.styles['flat-sticker']}[data-face="${ge.face}"])`
+            ) as HTMLElement | null;
+            if (!faceEl) continue;
+
+            const strip = document.createElement('div');
+            strip.className = this.state.styles['flat-ghost-strip'];
+            strip.setAttribute('data-edge', ge.edge);
+            strip.setAttribute('aria-hidden', 'true');
+
+            for (const srcPos of ge.sourcePositions) {
+                const ghost = document.createElement('div');
+                ghost.className = this.state.styles['flat-ghost-sticker'];
+                ghost.setAttribute('data-ghost-source-face', ge.sourceFace);
+                ghost.setAttribute('data-ghost-source-pos', srcPos.toString());
+                strip.appendChild(ghost);
+                this.state.ghostElements.push(ghost);
+            }
+
+            faceEl.appendChild(strip);
+        }
+
+        // Initial colour sync and visibility
+        this.updateGhostStickers();
+        this.setGhostVisibility(this.state.showGhosts);
+    }
+
+    /** Copy the background colour of each source sticker to its ghost. */
+    private updateGhostStickers(): void {
+        if (!this.state.showGhosts || !this.state.container) return;
+
+        for (const ghost of this.state.ghostElements) {
+            const face = ghost.getAttribute('data-ghost-source-face');
+            const pos = ghost.getAttribute('data-ghost-source-pos');
+            if (!face || !pos) continue;
+
+            const sourceEl = this.state.container.querySelector(
+                `.${this.state.styles['flat-sticker']}[data-face="${face}"][data-pos="${pos}"]`
+            ) as HTMLElement | null;
+            if (sourceEl) {
+                ghost.style.backgroundColor = sourceEl.style.backgroundColor;
+            }
+        }
+    }
+
+    /** Show or hide all ghost strips, with an optional fade animation. */
+    private setGhostVisibility(visible: boolean, animate = false): void {
+        if (!this.state.container) return;
+        const strips = this.state.container.querySelectorAll<HTMLElement>(
+            `.${this.state.styles['flat-ghost-strip']}`
+        );
+
+        if (!animate) {
+            for (const strip of strips) {
+                strip.style.display = visible ? '' : 'none';
+                for (const child of strip.children) {
+                    (child as HTMLElement).style.opacity = visible ? '' : '0';
+                }
+            }
+            return;
+        }
+
+        if (visible) {
+            // Make strips visible first with opacity 0, then fade in
+            for (const strip of strips) {
+                strip.style.display = '';
+                for (const child of strip.children) {
+                    (child as HTMLElement).style.opacity = '0';
+                }
+            }
+            // Force reflow so the browser registers opacity 0 before transitioning
+            void this.state.container.offsetHeight;
+            for (const strip of strips) {
+                for (const child of strip.children) {
+                    (child as HTMLElement).style.opacity = '';
+                }
+            }
+        } else {
+            // Fade out, then hide strips after the transition ends
+            for (const strip of strips) {
+                for (const child of strip.children) {
+                    (child as HTMLElement).style.opacity = '0';
+                }
+            }
+            const first = strips[0]?.querySelector(`.${this.state.styles['flat-ghost-sticker']}`);
+            if (first) {
+                const hide = () => {
+                    for (const strip of strips) strip.style.display = 'none';
+                    first.removeEventListener('transitionend', hide);
+                };
+                first.addEventListener('transitionend', hide, { once: true });
+                // Fallback in case transitionend doesn't fire (e.g. zero-duration)
+                setTimeout(hide, 400);
+            } else {
+                for (const strip of strips) strip.style.display = 'none';
+            }
+        }
     }
 
     private createFaceElement(face: Face, faceGrid: FaceGrid): HTMLElement {
@@ -271,6 +480,7 @@ export class FlatView implements CubeView {
         });
 
         this.restoreSelection();
+        this.updateGhostStickers();
     }
 
     public updateSelective(event?: MoveExecutedEvent): void {
@@ -331,6 +541,7 @@ export class FlatView implements CubeView {
         });
 
         this.restoreSelection();
+        this.updateGhostStickers();
     }
 
     updateHighlight(highlightedSticker?: StickerId): void {
@@ -343,6 +554,15 @@ export class FlatView implements CubeView {
                 el.classList.remove(this.state.styles.highlighted);
             });
 
+        // Remove previous adjacent highlights
+        this.state.container
+            ?.querySelectorAll(
+                `.${this.state.styles['flat-sticker']}.${this.state.styles['adjacent-highlight']}`
+            )
+            .forEach(el => {
+                el.classList.remove(this.state.styles['adjacent-highlight']);
+            });
+
         if (highlightedSticker && this.state.container) {
             const sticker = this.state.container.querySelector(
                 `.${this.state.styles['flat-sticker']}[data-sticker-id="${highlightedSticker}"]`
@@ -350,6 +570,9 @@ export class FlatView implements CubeView {
             if (sticker) {
                 sticker.classList.add(this.state.styles.highlighted);
             }
+
+            // Highlight adjacent stickers subtly
+            this.applyAdjacentClass(highlightedSticker, 'adjacent-highlight');
         }
     }
 
@@ -361,6 +584,15 @@ export class FlatView implements CubeView {
             )
             .forEach(el => {
                 el.classList.remove(this.state.styles.selected);
+            });
+
+        // Remove previous adjacent selections
+        this.state.container
+            ?.querySelectorAll(
+                `.${this.state.styles['flat-sticker']}.${this.state.styles.adjacent}`
+            )
+            .forEach(el => {
+                el.classList.remove(this.state.styles.adjacent);
             });
 
         // For navigation purposes, keep track of face:pos format
@@ -382,11 +614,48 @@ export class FlatView implements CubeView {
                         this.state.selectedPosition = stickerObj.facePosition;
                     }
                 }
+
+                // Mark adjacent stickers subtly
+                this.applyAdjacentClass(selectedSticker, 'adjacent');
             }
         } else {
             this.state.currentSelected = undefined;
             this.state.selectedFace = undefined;
             this.state.selectedPosition = undefined;
+        }
+    }
+
+    /**
+     * Apply a CSS class to surface-adjacent stickers that lie on a different face.
+     */
+    private applyAdjacentClass(stickerId: StickerId, className: string): void {
+        if (!this.state.model || !this.state.container) return;
+
+        const cubeState = this.state.model.getCurrentState();
+        const sourceSticker = CubeStateUtils.getStickerById(cubeState, stickerId);
+        if (!sourceSticker) return;
+
+        const sourceFace = sourceSticker.currentFace;
+        const directions = [
+            NavDirection.Up,
+            NavDirection.Down,
+            NavDirection.Left,
+            NavDirection.Right,
+        ];
+
+        for (const dir of directions) {
+            const adjId = getAdjacentStickerOnSurface(cubeState, stickerId, dir);
+            if (!adjId) continue;
+
+            const adjSticker = CubeStateUtils.getStickerById(cubeState, adjId);
+            if (!adjSticker || adjSticker.currentFace === sourceFace) continue;
+
+            const adjEl = this.state.container.querySelector(
+                `.${this.state.styles['flat-sticker']}[data-sticker-id="${adjId}"]`
+            ) as HTMLElement | null;
+            if (adjEl) {
+                adjEl.classList.add(this.state.styles[className]);
+            }
         }
     }
 
@@ -422,6 +691,7 @@ export class FlatView implements CubeView {
                 this.state.currentSelected,
                 this.state.model,
                 this.state.cubeWalk,
+                this.state.isRotated,
                 id => this.updateSelected(id)
             );
         }
@@ -456,6 +726,7 @@ export class FlatView implements CubeView {
             direction,
             doubleTurn: event.shiftKey,
             model: this.state.model,
+            remapDirection: this.state.isRotated ? remapDragDirectionForRotation : undefined,
         });
         if (!notation) return;
 
@@ -578,6 +849,26 @@ export class FlatView implements CubeView {
                             viewType: this.getViewType(),
                         });
                     }
+                },
+            },
+            {
+                id: 'flat.ghost-hints',
+                label: 'Ghost Hints',
+                category: CommandCategory.VIEW,
+                icon: '👻',
+                keyBindings: [{ key: '4', ctrlKey: true }],
+                showInHeader: true,
+                priority: 870,
+                tooltip:
+                    'Show semi-transparent hint stickers on edges where cube-adjacent faces are not visually adjacent.',
+                isActive: () => this.state.showGhosts,
+                action: () => {
+                    this.state.showGhosts = !this.state.showGhosts;
+                    if (this.state.showGhosts) this.updateGhostStickers();
+                    this.setGhostVisibility(this.state.showGhosts, true);
+                    Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
+                        viewType: this.getViewType(),
+                    });
                 },
             },
             {
@@ -741,6 +1032,7 @@ export class FlatView implements CubeView {
         return {
             faceDirectMode: this.touchHandler?.isFaceDirectMode() ?? false,
             cubeWalk: this.state.cubeWalk,
+            showGhosts: this.state.showGhosts,
         };
     }
 
@@ -750,5 +1042,10 @@ export class FlatView implements CubeView {
         if (typeof s['faceDirectMode'] === 'boolean')
             this.touchHandler?.setFaceDirectMode(s['faceDirectMode']);
         if (typeof s['cubeWalk'] === 'boolean') this.state.cubeWalk = s['cubeWalk'];
+        if (typeof s['showGhosts'] === 'boolean') {
+            this.state.showGhosts = s['showGhosts'];
+            this.setGhostVisibility(this.state.showGhosts);
+            if (this.state.showGhosts) this.updateGhostStickers();
+        }
     }
 }

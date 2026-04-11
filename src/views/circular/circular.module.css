@@ -29,7 +29,7 @@
 .circular-drag-label {
     position: absolute;
     padding: 4px 8px;
-    width: var(--size-tooltip-graphical-width);
+    white-space: nowrap;
     text-align: center;
     border-radius: 999px;
     border: 1px solid var(--color-tooltip-border);
@@ -51,7 +51,7 @@
 .circular-axis-selected {
     stroke: var(--highlight-selected) !important;
     stroke-width: 2.5 !important;
-    stroke-dasharray: 5 3;
+    stroke-dasharray: none;
 }
 
 .circular-cancel-zone {
@@ -71,4 +71,11 @@
     stroke-width: 3;
     stroke-linecap: round;
     stroke-dasharray: 7 5;
+}
+
+.circular-debug-band {
+    fill: rgba(0, 210, 210, 0.1);
+    stroke: rgba(0, 210, 210, 0.25);
+    stroke-width: 0.5;
+    pointer-events: none;
 }

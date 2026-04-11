@@ -2,23 +2,31 @@
 import { Face, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { getAdjacentStickerOnSurface } from '@/cube/utils/surface-walking';
+import { mapArrowToDirection } from '@/interaction/keyboard-moves';
 import { NavDirection } from '@/types';
+
+/**
+ * Remap a NavDirection for the +90° visual rotation used on mobile.
+ * Press ArrowUp on screen → logical Left, etc.
+ */
+function remapNavDirectionForRotation(dir: NavDirection): NavDirection {
+    switch (dir) {
+        case NavDirection.Up:
+            return NavDirection.Left;
+        case NavDirection.Right:
+            return NavDirection.Up;
+        case NavDirection.Down:
+            return NavDirection.Right;
+        case NavDirection.Left:
+            return NavDirection.Down;
+        default:
+            return dir;
+    }
+}
 
 function mapKeyToNavDirection(event: KeyboardEvent): NavDirection | undefined {
     if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return undefined;
-
-    switch (event.key) {
-        case 'ArrowUp':
-            return NavDirection.Up;
-        case 'ArrowDown':
-            return NavDirection.Down;
-        case 'ArrowLeft':
-            return NavDirection.Left;
-        case 'ArrowRight':
-            return NavDirection.Right;
-        default:
-            return undefined;
-    }
+    return mapArrowToDirection(event) as NavDirection | undefined;
 }
 
 /**
@@ -140,6 +148,8 @@ export function isNavigationKey(event: KeyboardEvent): boolean {
  *
  * @param cubeWalk - When true, walks across real cube surfaces; when false,
  *   walks within the T-shaped layout (stops at layout edges).
+ * @param isRotated - When true, remaps arrow key directions to account for
+ *   the +90° visual rotation used in portrait/mobile mode.
  *
  * @internal This function is exported for testing purposes only and should not be used outside this module.
  */
@@ -149,6 +159,7 @@ export function navigate(
     currentSelected: StickerId | undefined,
     model: ReadOnlyCubeModel | null,
     cubeWalk: boolean = true,
+    isRotated: boolean = false,
     onSelected?: (id: StickerId) => void
 ): boolean {
     // Preconditions: must have a currently selected sticker.
@@ -160,8 +171,10 @@ export function navigate(
     if (!currentSticker) return false;
 
     // Get the adjacent position based on the key pressed.
-    const dir = mapKeyToNavDirection(event);
+    let dir = mapKeyToNavDirection(event);
     if (!dir) return false;
+
+    if (isRotated) dir = remapNavDirectionForRotation(dir);
 
     let newStickerId: StickerId | undefined;
 

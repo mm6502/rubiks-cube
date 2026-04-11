@@ -18,7 +18,7 @@
             "name": "Debug in Edge (Vite)",
             "url": "http://localhost:5173",
             "webRoot": "${workspaceFolder}",
-            "userDataDir": "${workspaceFolder}/.vscode/edge-debug-profile",
+            "userDataDir": "${workspaceFolder}/.debug/edge-profile",
             "cleanUp": "wholeBrowser"
         },
         {

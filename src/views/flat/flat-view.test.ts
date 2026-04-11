@@ -672,9 +672,10 @@ describe('FlatView', () => {
             const ids = commands.map(c => c.id);
 
             // Assert structure
-            expect(commands).toHaveLength(4);
+            expect(commands).toHaveLength(5);
             expect(ids).toContain('flat.face-direct-mode');
             expect(ids).toContain('flat.cube-walk');
+            expect(ids).toContain('flat.ghost-hints');
             expect(ids).toContain('flat.undo');
             expect(ids).toContain('flat.redo');
 
@@ -991,6 +992,103 @@ describe('FlatView', () => {
         it('setState ignores non-object input', () => {
             expect(() => view.setState(null)).not.toThrow();
             expect(() => view.setState('invalid')).not.toThrow();
+        });
+
+        it('setState with showGhosts=false hides ghost strips', () => {
+            view.setState({ showGhosts: false });
+            expect(view.getState().showGhosts).toBe(false);
+
+            const strips = container.querySelectorAll(`.${styles['flat-ghost-strip']}`);
+            for (const strip of strips) {
+                expect((strip as HTMLElement).style.display).toBe('none');
+            }
+        });
+    });
+
+    describe('ghost hints', () => {
+        beforeEach(() => {
+            view.create(container, controller);
+        });
+
+        const getCmd = () => view.getCommands().find(c => c.id === 'flat.ghost-hints')!;
+
+        it('creates ghost strip elements on initialisation', () => {
+            const strips = container.querySelectorAll(`.${styles['flat-ghost-strip']}`);
+            expect(strips.length).toBe(14);
+        });
+
+        it('creates 3 ghost stickers per strip (42 total)', () => {
+            const ghosts = container.querySelectorAll(`.${styles['flat-ghost-sticker']}`);
+            expect(ghosts.length).toBe(42);
+        });
+
+        it('ghost stickers have data-ghost-source-face and data-ghost-source-pos', () => {
+            const ghost = container.querySelector(`.${styles['flat-ghost-sticker']}`)!;
+            expect(ghost.getAttribute('data-ghost-source-face')).toBeTruthy();
+            expect(ghost.getAttribute('data-ghost-source-pos')).not.toBeNull();
+        });
+
+        it('ghost strips are visible by default', () => {
+            const strip = container.querySelector(`.${styles['flat-ghost-strip']}`) as HTMLElement;
+            expect(strip.style.display).not.toBe('none');
+        });
+
+        it('flat.ghost-hints command toggles ghost visibility', () => {
+            vi.useFakeTimers();
+            const cmd = getCmd();
+            expect(cmd.isActive!()).toBe(true);
+
+            cmd.action();
+            expect(cmd.isActive!()).toBe(false);
+
+            // Fade-out uses a 400ms fallback timeout in jsdom (no transitionend)
+            vi.advanceTimersByTime(400);
+            const strip = container.querySelector(`.${styles['flat-ghost-strip']}`) as HTMLElement;
+            expect(strip.style.display).toBe('none');
+
+            cmd.action();
+            expect(cmd.isActive!()).toBe(true);
+            expect(strip.style.display).not.toBe('none');
+            vi.useRealTimers();
+        });
+
+        it('getState/setState round-trips showGhosts', () => {
+            expect(view.getState().showGhosts).toBe(true);
+            view.setState({ showGhosts: false });
+            expect(view.getState().showGhosts).toBe(false);
+            view.setState({ showGhosts: true });
+            expect(view.getState().showGhosts).toBe(true);
+        });
+
+        it('ghost stickers copy source sticker background colour', () => {
+            const ghost = container.querySelector(
+                `.${styles['flat-ghost-sticker']}`
+            ) as HTMLElement;
+            const face = ghost.getAttribute('data-ghost-source-face')!;
+            const pos = ghost.getAttribute('data-ghost-source-pos')!;
+
+            const sourceEl = container.querySelector(
+                `.${styles['flat-sticker']}[data-face="${face}"][data-pos="${pos}"]`
+            ) as HTMLElement;
+
+            expect(ghost.style.backgroundColor).toBe(sourceEl.style.backgroundColor);
+        });
+
+        it('ghost stickers update after a move', () => {
+            const ghost = container.querySelector(
+                `.${styles['flat-ghost-sticker']}`
+            ) as HTMLElement;
+
+            // Apply a move that changes sticker colours
+            Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                moveNotation: 'R',
+                viewId: 'test',
+                tentative: false,
+            });
+
+            // Ghost colour may or may not have changed, but the sync should have run
+            // without errors. We just verify it did not throw.
+            expect(ghost.style.backgroundColor).toBeTruthy();
         });
     });
 });

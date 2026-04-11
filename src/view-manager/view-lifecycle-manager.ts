@@ -22,6 +22,7 @@ export class ViewLifecycleManager {
     private onUpdateFocus: (viewId: string) => void;
     private getLayoutMode: () => LayoutMode;
     private onPanelAdded: ((viewType: string, container: HTMLElement) => void) | undefined;
+    private onPanelRemoved: ((viewType: string) => void) | undefined;
 
     constructor(
         cubeModel: CubeModel,
@@ -34,6 +35,7 @@ export class ViewLifecycleManager {
             onUpdateFocus: (viewId: string) => void;
             getLayoutMode: () => LayoutMode;
             onPanelAdded?: (viewType: string, container: HTMLElement) => void;
+            onPanelRemoved?: (viewType: string) => void;
         }
     ) {
         this.cubeModel = cubeModel;
@@ -45,6 +47,7 @@ export class ViewLifecycleManager {
         this.onUpdateFocus = callbacks.onUpdateFocus;
         this.getLayoutMode = callbacks.getLayoutMode;
         this.onPanelAdded = callbacks.onPanelAdded;
+        this.onPanelRemoved = callbacks.onPanelRemoved;
 
         // Subscribe to view state change events for immediate persistence.
         Application.eventBus.on(
@@ -259,6 +262,9 @@ export class ViewLifecycleManager {
 
             // Update global commands since active view may have changed.
             this.commandManager.renderGlobalCommands();
+
+            // Notify parent so the tab bar is updated.
+            this.onPanelRemoved?.(viewType);
         }
     }
 

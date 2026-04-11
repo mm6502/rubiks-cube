@@ -4,7 +4,7 @@ Thank you for your interest in contributing! This document covers how to get sta
 
 ## Getting Started
 
-**Prerequisites:** Node.js 16+, npm, a modern code editor (VS Code recommended), and a modern browser (Edge or Firefox).
+**Prerequisites:** Node.js 20.19+ or 22.12+, npm, a modern code editor (VS Code recommended), and a modern browser (Edge or Firefox).
 
 ```bash
 git clone https://github.com/mm6502/rubiks-cube.git
@@ -44,7 +44,7 @@ Individual commands:
 - **Tests**: co-located with source (`foo.ts` → `foo.test.ts`). Coverage thresholds are enforced at 70% lines/functions/branches/statements.
 - **Formatting**: Prettier is enforced as an ESLint rule. Run `npm run format` to auto-fix.
 
-See [AGENTS.md](AGENTS.md) for a more detailed breakdown of conventions and common pitfalls.
+See [AGENTS.md](.github/AGENTS.md) for a breakdown of conventions and common pitfalls.
 
 ## Architecture Notes
 

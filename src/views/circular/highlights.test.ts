@@ -23,7 +23,13 @@ describe('highlights helpers', () => {
             svgIdToStickerId: new Map<string, StickerId>(),
             stickerIdToSvgId: new Map<StickerId, string>(),
             animationChain: Promise.resolve(),
+            axisAnimationChains: {
+                X: Promise.resolve(),
+                Y: Promise.resolve(),
+                Z: Promise.resolve(),
+            },
             cubeWalk: false,
+            showGhosts: true,
         } as CircularCubeViewInternalData;
     });
 

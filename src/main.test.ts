@@ -132,7 +132,7 @@ describe('onDomReady', () => {
         main.onDomReady();
 
         // Assert
-        expect(logger.log).toHaveBeenCalledWith("Rubik's Cube Solver v1");
+        expect(logger.log).toHaveBeenCalledWith("Rubik's Cube v1");
         expect(Application).toHaveBeenCalledTimes(1);
         expect(logger.log).toHaveBeenCalledWith('Application initialized');
     });

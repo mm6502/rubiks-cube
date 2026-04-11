@@ -28,6 +28,11 @@ describe('rendering utilities', () => {
             svgIdToStickerId: new Map<string, StickerId>(),
             stickerIdToSvgId: new Map<StickerId, string>(),
             animationChain: Promise.resolve(),
+            axisAnimationChains: {
+                X: Promise.resolve(),
+                Y: Promise.resolve(),
+                Z: Promise.resolve(),
+            },
         } as unknown as CircularCubeViewInternalData;
     });
 
@@ -164,7 +169,11 @@ describe('rendering utilities', () => {
         const postState = preState;
 
         const event: any = {
-            moveDetails: { movedCubies: { after: [{}] } },
+            moveDetails: {
+                movedCubies: { after: [{}] },
+                notation: 'U',
+                definition: { axis: 'Y', layerIndices: [2], angle: 90 },
+            },
             preState,
             postState,
         };
@@ -274,5 +283,147 @@ describe('rendering utilities', () => {
         await expect(rendering.updateSelective(state, event)).resolves.toBeUndefined();
         // renderState path was taken: fill attribute set on the circle
         expect(circle.getAttribute('fill')).toBe(ColorMap[Color.WHITE]);
+    });
+
+    it('setGhostVisibility shows wrapper when showGhosts is true', () => {
+        // Arrange
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        const wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        wrapper.classList.add('ghost-sticker-wrapper');
+        wrapper.style.display = 'none';
+        svgRoot.appendChild(wrapper);
+
+        state.svgRoot = svgRoot;
+        state.showGhosts = true;
+
+        // Act
+        rendering.setGhostVisibility(state);
+
+        // Assert
+        expect(wrapper.style.display).toBe('');
+    });
+
+    it('setGhostVisibility hides wrapper when showGhosts is false', () => {
+        // Arrange
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        const wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        wrapper.classList.add('ghost-sticker-wrapper');
+        svgRoot.appendChild(wrapper);
+
+        state.svgRoot = svgRoot;
+        state.showGhosts = false;
+
+        // Act
+        rendering.setGhostVisibility(state);
+
+        // Assert
+        expect(wrapper.style.display).toBe('none');
+    });
+
+    it('setGhostVisibility is a no-op when svgRoot is missing', () => {
+        state.svgRoot = undefined as any;
+        expect(() => rendering.setGhostVisibility(state)).not.toThrow();
+    });
+
+    it('setGhostOpacity sets opacity on all ghost stickers', () => {
+        // Arrange
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        const ghost1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghost1.classList.add('ghost-sticker');
+        const ghost2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghost2.classList.add('ghost-sticker');
+        svgRoot.appendChild(ghost1);
+        svgRoot.appendChild(ghost2);
+
+        state.svgRoot = svgRoot;
+        state.ghostElements = undefined;
+
+        // Act
+        rendering.setGhostOpacity(state, 0.4);
+
+        // Assert
+        expect(ghost1.style.opacity).toBe('0.4');
+        expect(ghost2.style.opacity).toBe('0.4');
+    });
+
+    it('setGhostOpacity is a no-op when svgRoot is missing', () => {
+        state.svgRoot = undefined as any;
+        expect(() => rendering.setGhostOpacity(state, 0.5)).not.toThrow();
+    });
+
+    it('renderState updates ghost stickers from their source elements', () => {
+        // Arrange
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+
+        // Source sticker
+        const source = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        source.setAttribute('fill', '#ff0000');
+        state.svgElementCache.set('svg1', source);
+
+        // Ghost sticker
+        const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghost.classList.add('ghost-sticker');
+        ghost.setAttribute('data-ghost-source', 'svg1');
+        svgRoot.appendChild(ghost);
+
+        state.svgRoot = svgRoot;
+        state.showGhosts = true;
+        state.ghostElements = undefined;
+
+        // Create a cubie
+        const position: Position3D = { x: 0, y: 1, z: 0 } as any;
+        const cubie: any = {
+            type: CubieType.CORNER,
+            position,
+            stickers: new Map([
+                [Face.U, { id: 'st1', currentFace: Face.U, facePosition: 0, color: Color.WHITE }],
+            ]),
+        };
+        state.stickerLookupMap!.set(getPositionKey(position, 3), new Map([[Face.U, 'svg1']]));
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: new Map().set('c1', cubie) as any,
+            cubiesByPosition: new Map() as any,
+            timestamp: 0,
+        } as any;
+
+        // Act
+        rendering.renderState(state, cubeState);
+
+        // Assert — ghost should copy fill from source
+        expect(ghost.getAttribute('fill')).toBe(source.getAttribute('fill'));
+    });
+
+    it('updateSelective skips animation when 3+ moves are queued simultaneously', async () => {
+        // Arrange
+        const animSpy = vi.spyOn(animations, 'animateMove').mockResolvedValue(undefined as any);
+
+        state.svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        state.svgReady = true;
+        state.stickerLookupMap = new Map();
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const makeEvent = (): any => ({
+            moveDetails: { movedCubies: { after: [{}] } },
+            preState: cubeState,
+            postState: cubeState,
+        });
+
+        // Act — queue 3 moves simultaneously
+        const p1 = rendering.updateSelective(state, makeEvent());
+        const p2 = rendering.updateSelective(state, makeEvent());
+        const p3 = rendering.updateSelective(state, makeEvent());
+        await Promise.all([p1, p2, p3]);
+
+        // Assert — at most 2 should animate, the rest fall through to renderState
+        // The exact count depends on timing, but we should not have 3 animations
+        expect(animSpy.mock.calls.length).toBeLessThanOrEqual(2);
     });
 });

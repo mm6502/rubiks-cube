@@ -18,6 +18,7 @@ Last quality snapshot: 2026-04-03 (1290 tests passing; coverage: 90.06% stmts, 8
 - [x] (Apr 2026) Fix Basic view (rotations, face labels)
 - [x] (Apr 2026) Fix Basic view (cube walking)
 - [x] (Apr 2026) Enable Arrow Keys to perform moves with selected cubie (all views)
+- [x] (Apr 2026) Ghost hint stickers (Flat and Circular views)
 
 🚧 **Planned**
 

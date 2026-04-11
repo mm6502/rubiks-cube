@@ -109,6 +109,12 @@ export class ViewManager implements CommandManager {
             throw new Error('Visualizations container not found');
         }
 
+        // Clear any stale view panels that the browser may have serialized into the
+        // saved HTML when the user used "Save Page As".  Without this, reopening a
+        // saved file would leave the old (non-functional) panel DOM in place and
+        // then append a fresh duplicate on top of it.
+        this.visualizationsContainer.innerHTML = '';
+
         // Create tab bar (hidden by default; JS shows it in tabbed layout mode)
         this.tabBar = new TabBar(
             this.visualizationsContainer,
@@ -156,6 +162,10 @@ export class ViewManager implements CommandManager {
                 onUpdateFocus: viewId => this.updateFocus(viewId),
                 getLayoutMode: () => this.layoutMode,
                 onPanelAdded: (_viewType, container) => this.handlePanelAdded(container),
+                onPanelRemoved: () => {
+                    this.tabBar?.updateTabs(this.activeViews);
+                    this.showOnlyActivePanel();
+                },
             }
         );
 

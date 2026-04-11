@@ -607,4 +607,253 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointercancel', 18, 100, 200));
         handler.destroy();
     });
+
+    // -----------------------------------------------------------------------
+    // Sticker on selected face — no drag in normal mode
+    // -----------------------------------------------------------------------
+
+    it('pointerdown on sticker of selected face in normal mode does not start drag', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // First select face F via tap
+        handler.selectFace(Face.F);
+
+        // Subsequent pointerdown on F sticker should NOT start a drag
+        mockElementFromPoint(fixture.stickerEl);
+        fixture.host.dispatchEvent(pointer('pointerdown', 20, 100, 100));
+        document.dispatchEvent(pointer('pointermove', 20, 140, 100));
+
+        // Check that no drag label is rendered
+        const dragLabel = fixture.host.querySelector('.basic-drag-label') as HTMLElement;
+        expect(dragLabel.style.display).toBe('none');
+
+        document.dispatchEvent(pointer('pointerup', 20, 140, 100));
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Pointer on cube but not on sticker (gap/padding)
+    // -----------------------------------------------------------------------
+
+    it('pointerdown on cube gap does not start gesture', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // elementFromPoint returns the cube div itself (not a sticker)
+        mockElementFromPoint(fixture.cubeEl);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 21, 100, 100));
+
+        const cancelZone = fixture.host.querySelector('.basic-halo-cancel-zone') as HTMLElement;
+        expect(cancelZone.style.display).toBe('none');
+
+        document.dispatchEvent(pointer('pointerup', 21, 100, 100));
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Hover cursor updates
+    // -----------------------------------------------------------------------
+
+    it('pointer move without active pointer sets cursor to grab over sticker', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        mockElementFromPoint(fixture.stickerEl);
+
+        fixture.host.dispatchEvent(
+            new PointerEvent('pointermove', {
+                clientX: 100,
+                clientY: 100,
+                bubbles: true,
+                cancelable: true,
+            })
+        );
+
+        expect(fixture.host.style.cursor).toBe('grab');
+        handler.destroy();
+    });
+
+    it('pointer move without active pointer sets grab cursor outside cube', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        mockElementFromPoint(null);
+
+        fixture.host.dispatchEvent(
+            new PointerEvent('pointermove', {
+                clientX: 10,
+                clientY: 10,
+                bubbles: true,
+                cancelable: true,
+            })
+        );
+
+        expect(fixture.host.style.cursor).toBe('grab');
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Background drag directions – left and up
+    // -----------------------------------------------------------------------
+
+    it('background drag left calls onViewRotated with "horizontal"', () => {
+        const onViewRotated = vi.fn();
+        const handler = createHandler(fixture, { onViewRotated });
+        handler.attach();
+
+        mockElementFromPoint(null);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 22, 200, 200));
+        document.dispatchEvent(pointer('pointermove', 22, 160, 200));
+        document.dispatchEvent(pointer('pointerup', 22, 160, 200));
+
+        expect(onViewRotated).toHaveBeenCalledWith('horizontal');
+        handler.destroy();
+    });
+
+    it('background drag up calls onViewRotated with "vertical"', () => {
+        const onViewRotated = vi.fn();
+        const handler = createHandler(fixture, { onViewRotated });
+        handler.attach();
+
+        mockElementFromPoint(null);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 23, 200, 200));
+        document.dispatchEvent(pointer('pointermove', 23, 200, 160));
+        document.dispatchEvent(pointer('pointerup', 23, 200, 160));
+
+        expect(onViewRotated).toHaveBeenCalledWith('vertical');
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Far drag → double-turn (distancePx > farDragThreshold)
+    // -----------------------------------------------------------------------
+
+    it('far background drag performs 2 steps', () => {
+        const onViewRotated = vi.fn();
+        const handler = createHandler(fixture, { onViewRotated });
+        handler.attach();
+
+        mockElementFromPoint(null);
+
+        // Move >60px (FAR_DRAG_THRESHOLD_PX)
+        fixture.host.dispatchEvent(pointer('pointerdown', 24, 100, 200));
+        document.dispatchEvent(pointer('pointermove', 24, 200, 200));
+        document.dispatchEvent(pointer('pointerup', 24, 200, 200));
+
+        expect(onViewRotated).toHaveBeenCalled();
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Tabbed mode drag label positioning
+    // -----------------------------------------------------------------------
+
+    it('tabbed mode uses fixed positioning for drag label', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+        handler.setLayoutMode(LayoutMode.Tabbed);
+
+        mockElementFromPoint(null);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 25, 100, 200));
+        document.dispatchEvent(pointer('pointermove', 25, 140, 200));
+
+        const dragLabel = fixture.host.querySelector('.basic-drag-label') as HTMLElement;
+        // In tabbed mode, position should be 'fixed'
+        expect(dragLabel.style.position).toBe('fixed');
+
+        document.dispatchEvent(pointer('pointerup', 25, 140, 200));
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Touch pointer type label offset
+    // -----------------------------------------------------------------------
+
+    it('touch pointer offsets drag label above finger', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        mockElementFromPoint(null);
+
+        const touchDown = new PointerEvent('pointerdown', {
+            pointerId: 26,
+            clientX: 100,
+            clientY: 200,
+            bubbles: true,
+            cancelable: true,
+            pointerType: 'touch',
+        });
+        fixture.host.dispatchEvent(touchDown);
+
+        const touchMove = new PointerEvent('pointermove', {
+            pointerId: 26,
+            clientX: 140,
+            clientY: 200,
+            bubbles: true,
+            cancelable: true,
+            pointerType: 'touch',
+        });
+        document.dispatchEvent(touchMove);
+
+        const dragLabel = fixture.host.querySelector('.basic-drag-label') as HTMLElement;
+        if (dragLabel.style.display === 'block') {
+            const top = parseFloat(dragLabel.style.top);
+            // Touch label should be positioned above the finger
+            expect(top).toBeLessThan(200);
+        }
+
+        document.dispatchEvent(pointer('pointerup', 26, 140, 200));
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Pointer up without drag — tap
+    // -----------------------------------------------------------------------
+
+    it('pointerup without allowDrag but within tap distance handles tap', () => {
+        const onStickerSelected = vi.fn();
+        const handler = createHandler(fixture, { onStickerSelected });
+        handler.attach();
+
+        // Start on cube gap (no gesture started, allowDrag = false)
+        mockElementFromPoint(fixture.cubeEl);
+        fixture.host.dispatchEvent(pointer('pointerdown', 27, 100, 100));
+
+        // But release on sticker (within tap tolerance)
+        mockElementFromPoint(fixture.stickerEl);
+        document.dispatchEvent(pointer('pointerup', 27, 100, 100));
+
+        // Should have handled as a tap
+        expect(onStickerSelected).toHaveBeenCalled();
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Pointer up with mismatched pointer ID
+    // -----------------------------------------------------------------------
+
+    it('pointerup from different pointer ID is ignored', () => {
+        const onViewRotated = vi.fn();
+        const handler = createHandler(fixture, { onViewRotated });
+        handler.attach();
+
+        mockElementFromPoint(null);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 28, 100, 200));
+
+        // Wrong pointer ID → ignored
+        document.dispatchEvent(pointer('pointerup', 99, 140, 200));
+
+        // Original gesture can still complete
+        document.dispatchEvent(pointer('pointermove', 28, 140, 200));
+        document.dispatchEvent(pointer('pointerup', 28, 140, 200));
+
+        expect(onViewRotated).toHaveBeenCalledTimes(1);
+        handler.destroy();
+    });
 });

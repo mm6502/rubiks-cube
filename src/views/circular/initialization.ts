@@ -224,7 +224,9 @@ export function initialize(
         svgIdToStickerId: new Map<string, StickerId>(),
         stickerIdToSvgId: new Map<StickerId, string>(),
         animationChain: Promise.resolve(),
+        axisAnimationChains: { X: Promise.resolve(), Y: Promise.resolve(), Z: Promise.resolve() },
         cubeWalk: true,
+        showGhosts: true,
     };
 
     // Store references

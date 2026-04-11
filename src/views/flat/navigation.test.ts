@@ -461,6 +461,7 @@ describe('FlatViewNavigation', () => {
                 'sticker-1' as StickerId,
                 model,
                 false,
+                false,
                 onSelectedSpy
             );
 
@@ -500,7 +501,7 @@ describe('FlatViewNavigation', () => {
         ): { result: boolean; selectedId?: StickerId } {
             const event = new KeyboardEvent('keydown', { key });
             let selectedId: StickerId | undefined;
-            const result = navigate(event, preview, startStickerId, model, true, id => {
+            const result = navigate(event, preview, startStickerId, model, true, false, id => {
                 selectedId = id;
             });
             return { result, selectedId };
