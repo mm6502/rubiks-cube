@@ -17,6 +17,7 @@ import {
     mapArrowToDirection,
 } from '@/interaction/keyboard-moves';
 import {
+    BasicViewResetLinkedEvent,
     BasicViewRotationLinkedEvent,
     Command,
     CommandCategory,
@@ -80,13 +81,14 @@ export type BasicViewInternalData = {
     layoutMode: LayoutMode;
     currentSelected?: StickerId;
     selectedFace?: string;
-    selectedPosition?: number;
+    selectedCubiePosition?: Vector3;
 };
 
 export class BasicView implements CubeView {
     private state: BasicViewInternalData;
     private touchHandler: BasicTouchHandler | null = null;
     private linkedRotationListener: ((e: BasicViewRotationLinkedEvent) => void) | null = null;
+    private linkedResetListener: ((e: BasicViewResetLinkedEvent) => void) | null = null;
 
     constructor(config?: { viewType?: string }) {
         const viewType = config?.viewType === 'basic-back' ? 'basic-back' : 'basic-front';
@@ -160,6 +162,11 @@ export class BasicView implements CubeView {
                 action: () => {
                     this.resetView();
                     this.emitStateChanged();
+                    if (isLinked()) {
+                        Application.eventBus.emit(EventName.BASIC_VIEW_RESET_LINKED, {
+                            sourceViewType: this.state.viewType,
+                        });
+                    }
                 },
             },
             {
@@ -366,9 +373,18 @@ export class BasicView implements CubeView {
             getCubeSize: () => this.state.model?.getCurrentState().cubeSize ?? 3,
             getState: () => this.state,
             onStickerSelected: id => this.updateSelected(id as StickerId | undefined),
-            onViewRotated: (direction: 'horizontal' | 'vertical') => {
+            onViewRotated: (direction: 'horizontal' | 'vertical', rotation, steps) => {
                 rendering.updateRotation(this.state);
                 rendering.updateFaceLabels(this.state, direction);
+                this.emitStateChanged();
+                if (isLinked()) {
+                    for (let i = 0; i < steps; i++) {
+                        Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
+                            rotation,
+                            sourceViewType: this.state.viewType,
+                        });
+                    }
+                }
             },
             viewId: this.state.viewType,
             adapter,
@@ -379,16 +395,16 @@ export class BasicView implements CubeView {
         this.linkedRotationListener = (event: BasicViewRotationLinkedEvent) => {
             if (event.sourceViewType === this.state.viewType) return;
             switch (event.rotation) {
-                case 'left':
+                case ViewRotation.Left:
                     this.rotateViewLeft();
                     break;
-                case 'right':
+                case ViewRotation.Right:
                     this.rotateViewRight();
                     break;
-                case 'up':
+                case ViewRotation.Up:
                     this.rotateViewUp();
                     break;
-                case 'down':
+                case ViewRotation.Down:
                     this.rotateViewDown();
                     break;
             }
@@ -396,9 +412,18 @@ export class BasicView implements CubeView {
         };
         Application.eventBus.on(EventName.BASIC_VIEW_ROTATION_LINKED, this.linkedRotationListener);
 
-        // Default selection: F4 sticker.
-        const f4 = CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, 4);
-        if (f4) this.updateSelected(f4.id);
+        // Subscribe to linked reset events from the peer view.
+        this.linkedResetListener = (event: BasicViewResetLinkedEvent) => {
+            if (event.sourceViewType === this.state.viewType) return;
+            this.resetView();
+            this.emitStateChanged();
+        };
+        Application.eventBus.on(EventName.BASIC_VIEW_RESET_LINKED, this.linkedResetListener);
+
+        // Default selection: center sticker of the variant's front face.
+        const defaultFace = this.state.variant === BasicVariant.Back ? Face.B : Face.F;
+        const center = CubeStateUtils.getStickerAt(model.getCurrentState(), defaultFace, 4);
+        if (center) this.updateSelected(center.id);
     }
 
     update(model: ReadOnlyCubeModel): void {
@@ -424,17 +449,20 @@ export class BasicView implements CubeView {
     private restoreSelection(): void {
         if (
             this.state.selectedFace == null ||
-            this.state.selectedPosition == null ||
+            this.state.selectedCubiePosition == null ||
             !this.state.model
         )
             return;
-        const sticker = CubeStateUtils.getStickerAt(
-            this.state.model.getCurrentState(),
-            this.state.selectedFace,
-            this.state.selectedPosition
+        const cubeState = this.state.model.getCurrentState();
+        const cubie = CubeStateUtils.getCubieAtPosition(
+            cubeState,
+            this.state.selectedCubiePosition
         );
-        if (sticker) {
-            this.updateSelected(sticker.id);
+        if (cubie) {
+            const sticker = cubie.stickers.find(s => s.currentFace === this.state.selectedFace);
+            if (sticker) {
+                this.updateSelected(sticker.id);
+            }
         }
     }
 
@@ -667,6 +695,10 @@ export class BasicView implements CubeView {
                 this.linkedRotationListener
             );
             this.linkedRotationListener = null;
+        }
+        if (this.linkedResetListener) {
+            Application.eventBus.off(EventName.BASIC_VIEW_RESET_LINKED, this.linkedResetListener);
+            this.linkedResetListener = null;
         }
         this.touchHandler?.destroy();
         this.touchHandler = null;

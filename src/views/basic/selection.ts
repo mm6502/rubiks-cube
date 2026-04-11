@@ -34,17 +34,18 @@ export function updateSelected(state: BasicViewInternalData, selectedSticker?: S
     state.currentSelected = selectedSticker;
 
     if (selectedSticker && state.model) {
-        const stickerObj = CubeStateUtils.getStickerById(
-            state.model.getCurrentState(),
-            selectedSticker
-        );
+        const cubeState = state.model.getCurrentState();
+        const stickerObj = CubeStateUtils.getStickerById(cubeState, selectedSticker);
         if (stickerObj) {
-            state.selectedFace = stickerObj.currentFace;
-            state.selectedPosition = stickerObj.facePosition;
+            const cubie = CubeStateUtils.getCubieById(cubeState, stickerObj.cubieId);
+            if (cubie) {
+                state.selectedCubiePosition = cubie.position;
+                state.selectedFace = stickerObj.currentFace;
+            }
         }
     } else {
+        state.selectedCubiePosition = undefined;
         state.selectedFace = undefined;
-        state.selectedPosition = undefined;
     }
 
     if (selectedSticker && state.container) {

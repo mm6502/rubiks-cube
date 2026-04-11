@@ -25,3 +25,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Demo video output
+scripts/demo-video/output/

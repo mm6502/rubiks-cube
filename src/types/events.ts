@@ -40,6 +40,7 @@ export const EventName = {
     STATE_EXPORT_REQUESTED: 'stateExportRequested',
     STATE_IMPORT_REQUESTED: 'stateImportRequested',
     BASIC_VIEW_ROTATION_LINKED: 'basicViewRotationLinked',
+    BASIC_VIEW_RESET_LINKED: 'basicViewResetLinked',
 } as const;
 
 /**
@@ -243,6 +244,17 @@ export interface BasicViewRotationLinkedEvent {
 }
 
 /**
+ * Event emitted when a Basic view reset-view is applied and linked rotation is enabled.
+ * Allows the peer view (front/back) to reset its orientation too.
+ */
+export interface BasicViewResetLinkedEvent {
+    /**
+     * View type of the view that originated the reset.
+     */
+    sourceViewType: string;
+}
+
+/**
  * Union type for all event payloads.
  * Used by the EventBus for type-safe event emission and handling.
  * Each event name maps to its corresponding payload type.
@@ -259,4 +271,5 @@ export type EventPayload =
     | StorageClearRequestedEvent
     | StateExportRequestedEvent
     | StateImportRequestedEvent
-    | BasicViewRotationLinkedEvent;
+    | BasicViewRotationLinkedEvent
+    | BasicViewResetLinkedEvent;

@@ -113,6 +113,30 @@ describe('BasicView - command actions', () => {
         );
     });
 
+    it('reset-view emits BASIC_VIEW_RESET_LINKED when linked', () => {
+        vi.spyOn(linkedRotations, 'isLinked').mockReturnValue(true);
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        getCmd('reset-view').action();
+
+        expect(emitSpy).toHaveBeenCalledWith(
+            EventName.BASIC_VIEW_RESET_LINKED,
+            expect.objectContaining({ sourceViewType: 'basic-front' })
+        );
+    });
+
+    it('reset-view does not emit BASIC_VIEW_RESET_LINKED when not linked', () => {
+        vi.spyOn(linkedRotations, 'isLinked').mockReturnValue(false);
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        getCmd('reset-view').action();
+
+        expect(emitSpy).not.toHaveBeenCalledWith(
+            EventName.BASIC_VIEW_RESET_LINKED,
+            expect.anything()
+        );
+    });
+
     // -----------------------------------------------------------------------
     // align-cube-to-view command
     // -----------------------------------------------------------------------
@@ -319,6 +343,57 @@ describe('BasicView – linked rotation listener', () => {
         expect(() => {
             Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
                 rotation: 'right',
+                sourceViewType: 'basic-back',
+            });
+        }).not.toThrow();
+    });
+});
+
+describe('BasicView – linked reset listener', () => {
+    let view: BasicView;
+    let model: CubeController;
+
+    beforeEach(() => {
+        model = new CubeController();
+        view = new BasicView({ viewType: 'basic-front' });
+        const container = document.createElement('div');
+        view.create(container, model);
+    });
+
+    afterEach(() => {
+        view.destroy();
+        Application.eventBus.removeAllListeners();
+        vi.restoreAllMocks();
+    });
+
+    it('responds to BASIC_VIEW_RESET_LINKED from a different view', () => {
+        // Rotate so the view is no longer in default orientation
+        view.rotateViewLeft();
+        const defaultForward = { x: 0, y: 0, z: 1 };
+
+        Application.eventBus.emit(EventName.BASIC_VIEW_RESET_LINKED, {
+            sourceViewType: 'basic-back',
+        });
+
+        expect((view as any).state.viewForward).toEqual(defaultForward);
+    });
+
+    it('ignores BASIC_VIEW_RESET_LINKED from same view', () => {
+        view.rotateViewLeft();
+        const rotatedForward = { ...(view as any).state.viewForward };
+
+        Application.eventBus.emit(EventName.BASIC_VIEW_RESET_LINKED, {
+            sourceViewType: 'basic-front', // same view
+        });
+
+        expect((view as any).state.viewForward).toEqual(rotatedForward);
+    });
+
+    it('destroy() removes BASIC_VIEW_RESET_LINKED listener', () => {
+        view.destroy();
+
+        expect(() => {
+            Application.eventBus.emit(EventName.BASIC_VIEW_RESET_LINKED, {
                 sourceViewType: 'basic-back',
             });
         }).not.toThrow();

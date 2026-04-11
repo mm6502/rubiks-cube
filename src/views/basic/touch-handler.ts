@@ -15,6 +15,7 @@ import {
     ViewInteractionAdapter,
 } from '@/interaction/types';
 import { EventName, MoveRequestedEvent } from '@/types';
+import { ViewRotation } from '@/types/geometry';
 
 import * as navigation from './navigation';
 import type { BasicViewInternalData } from './basic-view';
@@ -49,7 +50,11 @@ export type BasicTouchHandlerOptions = {
      * Called after a background drag changes the view orientation.
      * Should re-run rendering.updateRotation + rendering.updateFaceLabels.
      */
-    onViewRotated: (direction: 'horizontal' | 'vertical') => void;
+    onViewRotated: (
+        direction: 'horizontal' | 'vertical',
+        rotation: ViewRotation,
+        steps: number
+    ) => void;
     /** View identifier used in MOVE_REQUESTED events. */
     viewId: string;
     /** Adapter for direction remapping. */
@@ -76,7 +81,11 @@ export class BasicTouchHandler {
     private readonly getCubeSize: () => number;
     private readonly getState: () => BasicViewInternalData;
     private readonly onStickerSelected: (stickerId?: string) => void;
-    private readonly onViewRotated: (direction: 'horizontal' | 'vertical') => void;
+    private readonly onViewRotated: (
+        direction: 'horizontal' | 'vertical',
+        rotation: ViewRotation,
+        steps: number
+    ) => void;
     private readonly viewId: string;
     private readonly adapter: ViewInteractionAdapter;
 
@@ -654,10 +663,21 @@ export class BasicTouchHandler {
             }
         }
 
+        const rotation =
+            gesture.direction === DragDirection.RIGHT
+                ? ViewRotation.Right
+                : gesture.direction === DragDirection.LEFT
+                  ? ViewRotation.Left
+                  : gesture.direction === DragDirection.DOWN
+                    ? ViewRotation.Down
+                    : ViewRotation.Up;
+
         this.onViewRotated(
             gesture.direction === DragDirection.UP || gesture.direction === DragDirection.DOWN
                 ? 'vertical'
-                : 'horizontal'
+                : 'horizontal',
+            rotation,
+            steps
         );
     }
 

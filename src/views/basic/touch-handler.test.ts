@@ -353,7 +353,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 5, 140, 200));
         document.dispatchEvent(pointer('pointerup', 5, 140, 200));
 
-        expect(onViewRotated).toHaveBeenCalledWith('horizontal');
+        expect(onViewRotated).toHaveBeenCalledWith('horizontal', 'right', 1);
         handler.destroy();
     });
 
@@ -368,7 +368,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 6, 100, 140));
         document.dispatchEvent(pointer('pointerup', 6, 100, 140));
 
-        expect(onViewRotated).toHaveBeenCalledWith('vertical');
+        expect(onViewRotated).toHaveBeenCalledWith('vertical', 'down', 1);
         handler.destroy();
     });
 
@@ -709,7 +709,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 22, 160, 200));
         document.dispatchEvent(pointer('pointerup', 22, 160, 200));
 
-        expect(onViewRotated).toHaveBeenCalledWith('horizontal');
+        expect(onViewRotated).toHaveBeenCalledWith('horizontal', 'left', 1);
         handler.destroy();
     });
 
@@ -724,7 +724,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 23, 200, 160));
         document.dispatchEvent(pointer('pointerup', 23, 200, 160));
 
-        expect(onViewRotated).toHaveBeenCalledWith('vertical');
+        expect(onViewRotated).toHaveBeenCalledWith('vertical', 'up', 1);
         handler.destroy();
     });
 
@@ -744,7 +744,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 24, 200, 200));
         document.dispatchEvent(pointer('pointerup', 24, 200, 200));
 
-        expect(onViewRotated).toHaveBeenCalled();
+        expect(onViewRotated).toHaveBeenCalledWith('horizontal', 'right', 2);
         handler.destroy();
     });
 

@@ -8,9 +8,11 @@ An implementation of a Rubik's Cube with multiple visualization modes. Written i
 
 ## Quickstart (for Users)
 
-Try it out directly in your browser by opening the `dist/index.html` file after building the project, or visit the [live demo](https://mm6502.github.io/rubiks-cube).
+Try it out directly in your browser by opening the `dist/index.html` file after building the project, or visit the [live app](https://mm6502.github.io/rubiks-cube).
 
 Prerequisities: A modern web browser (tested on Edge and Firefox).
+
+[![Demo](./public/demo-snapshots.gif)](https://youtu.be/5i4UG5ouV-I)
 
 ## Quickstart (for Contributors)
 

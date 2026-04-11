@@ -11,6 +11,7 @@
     "scripts": {
         "all": "cls && npm run lint:imports && cls && npm run format && cls && npm run type-check && cls && npm run test:coverage && npm run build",
         "all2": "npm run lint:imports && npm run format && npm run type-check && npm run test:coverage && npm run build",
+        "demo": "npx tsx scripts/demo-video/record-demo.ts",
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
@@ -25,6 +26,7 @@
         "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md,css,scss,html}\" \"scripts/**/*.{ts,tsx,js,jsx,json,md,cjs,mjs}\" \".vscode/**/*.{json,md}\" \"*.{ts,js,json,md,cjs,html}\" --end-of-line lf --no-error-on-unmatched-pattern"
     },
     "devDependencies": {
+        "@playwright/test": "^1.59.1",
         "@resvg/resvg-js": "^2.6.2",
         "@trivago/prettier-plugin-sort-imports": "^6.0.2",
         "@types/node": "^25.0.1",
@@ -39,6 +41,7 @@
         "prettier": "^3.8.1",
         "prettier-plugin-organize-imports": "^4.3.0",
         "sass": "^1.98.0",
+        "sharp": "^0.34.5",
         "typescript": "^6.0.2",
         "vite": "^8.0.3",
         "vite-plugin-singlefile": "^2.3.2",
