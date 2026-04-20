@@ -85,10 +85,10 @@ function svgToCubeMapping(
     // Based on which axis is null and the SVG face label, determine position and actual cube face
     if (x === null && y !== null && z !== null) {
         // X is null → sticker on L or R face
-        if (svgFace === 'L') {
+        if (svgFace === Face.L) {
             cubePosition = { x: 0, y, z };
             cubeFace = Face.L;
-        } else if (svgFace === 'R') {
+        } else if (svgFace === Face.R) {
             cubePosition = { x: 2, y, z };
             cubeFace = Face.R;
         } else {
@@ -97,10 +97,10 @@ function svgToCubeMapping(
         }
     } else if (y === null && x !== null && z !== null) {
         // Y is null → sticker on D or U face
-        if (svgFace === 'D') {
+        if (svgFace === Face.D) {
             cubePosition = { x, y: 0, z };
             cubeFace = Face.D;
-        } else if (svgFace === 'U') {
+        } else if (svgFace === Face.U) {
             cubePosition = { x, y: 2, z };
             cubeFace = Face.U;
         } else {
@@ -109,10 +109,10 @@ function svgToCubeMapping(
         }
     } else if (z === null && x !== null && y !== null) {
         // Z is null → sticker on F or B face
-        if (svgFace === 'F') {
+        if (svgFace === Face.F) {
             cubePosition = { x, y, z: 0 };
             cubeFace = Face.F;
-        } else if (svgFace === 'B') {
+        } else if (svgFace === Face.B) {
             cubePosition = { x, y, z: 2 };
             cubeFace = Face.B;
         } else {
@@ -227,6 +227,9 @@ export function initialize(
         axisAnimationChains: { X: Promise.resolve(), Y: Promise.resolve(), Z: Promise.resolve() },
         cubeWalk: true,
         showGhosts: true,
+        zoomPan: null,
+        touchHandler: null,
+        panMode: false,
     };
 
     // Store references

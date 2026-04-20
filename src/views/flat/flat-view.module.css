@@ -207,69 +207,6 @@
     background-color: var(--color-domain-face-label-bg);
 }
 
-/* Ghost hint stickers — semi-transparent edge stickers showing cube-adjacent neighbours */
-.flat-ghost-strip {
-    position: absolute;
-    display: flex;
-    pointer-events: none;
-    z-index: 0;
-}
-
-.flat-ghost-strip[data-edge='top'],
-.flat-ghost-strip[data-edge='bottom'] {
-    flex-direction: row;
-    left: 0;
-    right: 0;
-}
-
-.flat-ghost-strip[data-edge='top'] {
-    bottom: 100%;
-}
-
-.flat-ghost-strip[data-edge='bottom'] {
-    top: 100%;
-}
-
-.flat-ghost-strip[data-edge='left'],
-.flat-ghost-strip[data-edge='right'] {
-    flex-direction: column;
-    top: 0;
-    bottom: 0;
-}
-
-.flat-ghost-strip[data-edge='left'] {
-    right: 100%;
-}
-
-.flat-ghost-strip[data-edge='right'] {
-    left: 100%;
-}
-
-.flat-ghost-sticker {
-    flex: 1;
-    opacity: 0.4;
-    border-radius: 3px;
-    border: 1px solid var(--color-flat-sticker-border);
-    pointer-events: none;
-    transition:
-        background-color 0.3s ease,
-        opacity 0.3s ease;
-    forced-color-adjust: none;
-    color-scheme: only light;
-}
-
-.flat-ghost-strip[data-edge='top'] .flat-ghost-sticker,
-.flat-ghost-strip[data-edge='bottom'] .flat-ghost-sticker {
-    height: 6px;
-    margin: 0 1px;
-}
-
-.flat-ghost-strip[data-edge='left'] .flat-ghost-sticker,
-.flat-ghost-strip[data-edge='right'] .flat-ghost-sticker {
-    width: 6px;
-    margin: 1px 0;
-}
-
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .flat-container {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { canColorizeOutput, detectOS } from './global';
+import { canColorizeOutput, detectOS, isTouchDevice, slugify } from './global';
 
 describe('detectOS', () => {
     const originalNavigator = globalThis.navigator;
@@ -142,5 +142,53 @@ describe('canColorizeOutput', () => {
 
         // Assert
         expect(result).toBe(true);
+    });
+});
+
+describe('isTouchDevice', () => {
+    it('should return false in jsdom (no coarse pointer)', () => {
+        const result = isTouchDevice();
+        expect(result).toBe(false);
+    });
+
+    it('should return false when matchMedia is not a function', () => {
+        const original = window.matchMedia;
+        Object.defineProperty(window, 'matchMedia', { value: undefined, writable: true });
+        try {
+            expect(isTouchDevice()).toBe(false);
+        } finally {
+            Object.defineProperty(window, 'matchMedia', { value: original, writable: true });
+        }
+    });
+
+    it('should return true when pointer is coarse', () => {
+        const original = window.matchMedia;
+        Object.defineProperty(window, 'matchMedia', {
+            value: (query: string) => ({ matches: query === '(pointer: coarse)' }),
+            writable: true,
+        });
+        try {
+            expect(isTouchDevice()).toBe(true);
+        } finally {
+            Object.defineProperty(window, 'matchMedia', { value: original, writable: true });
+        }
+    });
+});
+
+describe('slugify', () => {
+    it('should convert text to lowercase hyphenated slug', () => {
+        expect(slugify('Hello World')).toBe('hello-world');
+    });
+
+    it('should remove special characters', () => {
+        expect(slugify('Hello, World!')).toBe('hello-world');
+    });
+
+    it('should trim whitespace', () => {
+        expect(slugify('  hello  ')).toBe('hello');
+    });
+
+    it('should collapse multiple spaces', () => {
+        expect(slugify('hello   world')).toBe('hello-world');
     });
 });

@@ -4,11 +4,13 @@ import { Axis, Face } from '@/cube/types';
 
 import {
     type AxisCircle,
+    clientToSvgPoint,
     getAxisCirclesAtPoint,
     getAxisCirclesForElement,
     getCenterOfElement,
     getStickersForFace,
     isPointOnCircle,
+    svgToClientPoint,
 } from './svg-tools';
 
 describe('svg-tools', () => {
@@ -291,6 +293,128 @@ describe('svg-tools', () => {
             // Assert
             expect(result).toHaveLength(2);
             expect(result).toEqual([sticker1, sticker2]);
+        });
+    });
+
+    describe('clientToSvgPoint', () => {
+        it('should return raw client coordinates when createSVGPoint is unavailable', () => {
+            const svgRoot = document.createElementNS(
+                'http://www.w3.org/2000/svg',
+                'svg'
+            ) as SVGSVGElement;
+            // Remove createSVGPoint to simulate unsupported environment
+            (svgRoot as any).createSVGPoint = undefined;
+
+            const result = clientToSvgPoint(svgRoot, 42, 99);
+
+            expect(result).toEqual({ x: 42, y: 99 });
+        });
+
+        it('should return raw client coordinates when getScreenCTM returns null', () => {
+            const svgRoot = document.createElementNS(
+                'http://www.w3.org/2000/svg',
+                'svg'
+            ) as SVGSVGElement;
+
+            // Provide createSVGPoint but make getScreenCTM return null
+            (svgRoot as any).createSVGPoint = () => ({ x: 0, y: 0 });
+            (svgRoot as any).getScreenCTM = () => null;
+
+            const result = clientToSvgPoint(svgRoot, 10, 20);
+
+            expect(result).toEqual({ x: 10, y: 20 });
+        });
+
+        it('should transform coordinates when CTM inverse is available', () => {
+            const svgRoot = document.createElementNS(
+                'http://www.w3.org/2000/svg',
+                'svg'
+            ) as SVGSVGElement;
+
+            const mockPoint = { x: 0, y: 0, matrixTransform: (_m: any) => ({ x: 5, y: 15 }) };
+            (svgRoot as any).createSVGPoint = () => mockPoint;
+            (svgRoot as any).getScreenCTM = () => ({
+                inverse: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }),
+            });
+
+            const result = clientToSvgPoint(svgRoot, 10, 20);
+
+            expect(result).toEqual({ x: 5, y: 15 });
+        });
+
+        it('should return raw coordinates when CTM inverse throws', () => {
+            const svgRoot = document.createElementNS(
+                'http://www.w3.org/2000/svg',
+                'svg'
+            ) as SVGSVGElement;
+
+            const mockPoint = { x: 0, y: 0 };
+            (svgRoot as any).createSVGPoint = () => mockPoint;
+            (svgRoot as any).getScreenCTM = () => ({
+                inverse: () => undefined,
+            });
+
+            const result = clientToSvgPoint(svgRoot, 10, 20);
+
+            // Since inverse() returns undefined (falsy), it falls back
+            expect(result).toEqual({ x: 10, y: 20 });
+        });
+    });
+
+    describe('svgToClientPoint', () => {
+        it('should return fallback when createSVGPoint is unavailable', () => {
+            const svgRoot = document.createElementNS(
+                'http://www.w3.org/2000/svg',
+                'svg'
+            ) as SVGSVGElement;
+            (svgRoot as any).createSVGPoint = undefined;
+
+            const fallback = { x: 99, y: 88 };
+            const result = svgToClientPoint(svgRoot, 10, 20, fallback);
+
+            expect(result).toEqual({ x: 99, y: 88 });
+        });
+
+        it('should return fallback when getScreenCTM returns null', () => {
+            const svgRoot = document.createElementNS(
+                'http://www.w3.org/2000/svg',
+                'svg'
+            ) as SVGSVGElement;
+
+            (svgRoot as any).createSVGPoint = () => ({ x: 0, y: 0 });
+            (svgRoot as any).getScreenCTM = () => null;
+
+            const fallback = { x: 77, y: 66 };
+            const result = svgToClientPoint(svgRoot, 10, 20, fallback);
+
+            expect(result).toEqual({ x: 77, y: 66 });
+        });
+
+        it('should transform coordinates when CTM is available', () => {
+            const svgRoot = document.createElementNS(
+                'http://www.w3.org/2000/svg',
+                'svg'
+            ) as SVGSVGElement;
+
+            const mockPoint = {
+                x: 0,
+                y: 0,
+                matrixTransform: (_m: any) => ({ x: 30, y: 40 }),
+            };
+            (svgRoot as any).createSVGPoint = () => mockPoint;
+            (svgRoot as any).getScreenCTM = () => ({
+                a: 2,
+                b: 0,
+                c: 0,
+                d: 2,
+                e: 0,
+                f: 0,
+            });
+
+            const fallback = { x: 0, y: 0 };
+            const result = svgToClientPoint(svgRoot, 10, 20, fallback);
+
+            expect(result).toEqual({ x: 30, y: 40 });
         });
     });
 });

@@ -30,6 +30,9 @@ describe('highlights helpers', () => {
             },
             cubeWalk: false,
             showGhosts: true,
+            zoomPan: null,
+            touchHandler: null,
+            panMode: false,
         } as CircularCubeViewInternalData;
     });
 

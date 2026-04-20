@@ -61,10 +61,6 @@
     z-index: 0;
 }
 
-.cube:hover {
-    /* Hover effect handled by JavaScript to work with dynamic rotation */
-}
-
 .face {
     position: absolute;
     width: 300px;

@@ -299,27 +299,27 @@ describe('CommandRenderer', () => {
             expect(labelSpan?.className).toContain('btn-icon-label-bottom');
         });
 
-        it('should sort commands by priority', () => {
+        it('should sort commands by displayOrder', () => {
             const commands: Command[] = [
                 {
                     id: 'low-priority',
                     label: 'Low Priority',
                     action: vi.fn(),
-                    priority: 200,
+                    displayOrder: 200,
                     category: CommandCategory.CUBE,
                 },
                 {
                     id: 'high-priority',
                     label: 'High Priority',
                     action: vi.fn(),
-                    priority: 50,
+                    displayOrder: 50,
                     category: CommandCategory.CUBE,
                 },
                 {
                     id: 'medium-priority',
                     label: 'Medium Priority',
                     action: vi.fn(),
-                    priority: 100,
+                    displayOrder: 100,
                     category: CommandCategory.CUBE,
                 },
             ];
@@ -873,7 +873,7 @@ describe('CommandRenderer', () => {
             expect(containers.length).toBe(1);
         });
 
-        it('should sort header commands by priority', () => {
+        it('should sort header commands by displayOrder', () => {
             commandRegistry.set('view1', [
                 {
                     id: 'low-priority2',
@@ -881,7 +881,7 @@ describe('CommandRenderer', () => {
                     action: vi.fn(),
                     category: 'view',
                     showInHeader: true,
-                    priority: 200,
+                    displayOrder: 200,
                 },
                 {
                     id: 'high-priority2',
@@ -889,7 +889,7 @@ describe('CommandRenderer', () => {
                     action: vi.fn(),
                     category: 'view',
                     showInHeader: true,
-                    priority: 50,
+                    displayOrder: 50,
                 },
             ]);
 

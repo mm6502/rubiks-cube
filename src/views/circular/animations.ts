@@ -579,7 +579,6 @@ function animateAdjacentStickersAroundAxis(
 // ---------------------------------------------------------------------------
 
 const GHOST_TOGGLE_DURATION = 400;
-const GHOST_TOGGLE_STEPS = 10;
 
 /**
  * Animate ghost stickers when toggled on or off.
@@ -606,8 +605,7 @@ export async function animateGhostToggle(state: CircularCubeViewInternalData): P
     if (!wrapper) return;
 
     if (state.showGhosts) {
-        // --- Toggle ON: arc from source to destination along axis circle ---
-        // Ensure ghost fills match their sources before showing them.
+        // --- Toggle ON: show immediately (no animation) ---
         for (const ghost of state.ghostElements) {
             const sourceId = ghost.getAttribute('data-ghost-source');
             if (!sourceId) continue;
@@ -615,53 +613,10 @@ export async function animateGhostToggle(state: CircularCubeViewInternalData): P
             if (source) ghost.setAttribute('fill', source.getAttribute('fill') ?? '');
         }
         wrapper.style.display = '';
-
-        const animations: Animation[] = [];
-        for (const ghost of state.ghostElements) {
-            const sourceId = ghost.getAttribute('data-ghost-source');
-            if (!sourceId) continue;
-            const source = state.svgElementCache.get(sourceId);
-            if (!source) continue;
-
-            const srcCenter = getCenterOfElement(source);
-            const dstCenter = getCenterOfElement(ghost);
-
-            // Find the axis circle this ghost lies on.
-            const axisCircle = findAxisCircleForPoint(dstCenter, state.axisCircles);
-
-            if (axisCircle) {
-                // Curved motion along the axis circle (same technique as move animations).
-                const anim = createArcAnimation(
-                    ghost,
-                    srcCenter,
-                    dstCenter,
-                    axisCircle,
-                    GHOST_TOGGLE_DURATION,
-                    GHOST_TOGGLE_STEPS
-                );
-                animations.push(anim);
-            } else {
-                // Fallback: straight-line translate.
-                const dx = srcCenter.x - dstCenter.x;
-                const dy = srcCenter.y - dstCenter.y;
-                const anim = ghost.animate(
-                    [
-                        { transform: `translate(${dx}px, ${dy}px)`, opacity: 1 },
-                        { transform: 'translate(0, 0)', opacity: 0.4 },
-                    ],
-                    { duration: GHOST_TOGGLE_DURATION, easing: 'ease-out', fill: 'forwards' }
-                );
-                animations.push(anim);
-            }
-        }
-
-        await Promise.all(animations.map(a => a.finished));
-        // Commit final styles and remove animation fill.
         for (const ghost of state.ghostElements) {
             ghost.style.opacity = '0.4';
             ghost.style.transform = '';
         }
-        for (const a of animations) a.cancel();
     } else {
         // --- Toggle OFF: fade out in place ---
         const animations: Animation[] = [];
@@ -681,77 +636,4 @@ export async function animateGhostToggle(state: CircularCubeViewInternalData): P
         for (const a of animations) a.cancel();
         wrapper.style.display = 'none';
     }
-}
-
-/**
- * Find the axis circle that a point lies on.
- */
-function findAxisCircleForPoint(point: Vector2, axisCircles: AxisCircle[]): AxisCircle | undefined {
-    for (const circle of axisCircles) {
-        if (isPointOnCircle(point, circle)) return circle;
-    }
-    return undefined;
-}
-
-/**
- * Create a WAAPI animation that moves an element along an axis-circle arc
- * from `src` to `dst`, fading opacity from 1 → 0.4.
- *
- * Uses the same pivot-based rotate technique as the adjacent-sticker move
- * animation to stay consistent and work correctly in Firefox.
- */
-function createArcAnimation(
-    element: SVGCircleElement,
-    src: Vector2,
-    dst: Vector2,
-    circle: AxisCircle,
-    duration: number,
-    steps: number
-): Animation {
-    // Angles relative to axis-circle center.
-    const srcAngle = Math.atan2(src.y - circle.cy, src.x - circle.cx);
-    const dstAngle = Math.atan2(dst.y - circle.cy, dst.x - circle.cx);
-
-    // Choose the shorter arc.
-    let angleDiff = dstAngle - srcAngle;
-    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-
-    // The element's resting position is `dst`. We animate a transform that
-    // starts offset (at src relative to circle center) and ends at identity.
-    // We build multi-step keyframes to follow the arc.
-    const dstDist = Math.sqrt((dst.x - circle.cx) ** 2 + (dst.y - circle.cy) ** 2);
-    const srcDist = Math.sqrt((src.x - circle.cx) ** 2 + (src.y - circle.cy) ** 2);
-    const dstCx = parseFloat(element.getAttribute('cx') || '0');
-    const dstCy = parseFloat(element.getAttribute('cy') || '0');
-
-    const keyframes: Keyframe[] = [];
-    for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-
-        // Interpolate angle along the arc.
-        const angle = srcAngle + angleDiff * t;
-        // Interpolate distance (src and dst may differ slightly in radius).
-        const dist = srcDist + (dstDist - srcDist) * t;
-
-        // World position at this step.
-        const x = circle.cx + dist * Math.cos(angle);
-        const y = circle.cy + dist * Math.sin(angle);
-
-        // Translate relative to the element's native cx/cy.
-        const tx = x - dstCx;
-        const ty = y - dstCy;
-
-        keyframes.push({
-            transform: `translate(${tx}px, ${ty}px)`,
-            opacity: 1 - 0.6 * t, // 1 → 0.4
-            offset: t,
-        });
-    }
-
-    return element.animate(keyframes, {
-        duration,
-        easing: 'linear',
-        fill: 'forwards',
-    });
 }

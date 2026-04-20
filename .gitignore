@@ -28,3 +28,7 @@ Thumbs.db
 
 # Demo video output
 scripts/demo-video/output/
+
+# .github agent/skills files
+.github/agents/
+.github/skills/

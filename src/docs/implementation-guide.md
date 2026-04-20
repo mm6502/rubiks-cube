@@ -1,6 +1,7 @@
 # Implementation Guide
 
-This guide provides detailed implementation information for working with the Rubik's Cube codebase.
+This guide provides detailed implementation information for working with the
+Rubik's Cube codebase.
 
 ## File Organization
 
@@ -143,7 +144,10 @@ const currentState: CubeState = stateManager.getCurrentState();
 
 ```typescript
 // StateManager is the ONLY component that mutates state
-const moveResult: MoveResult = moveEngine.executeMove(moveDefinition, currentState);
+const moveResult: MoveResult = moveEngine.executeMove(
+  moveDefinition,
+  currentState
+);
 stateManager.applyMoveResult(moveResult);
 ```
 
@@ -181,7 +185,10 @@ const cubies: ReadonlyCubie[] = LayerManager.getSliceCubies(
 ```typescript
 // Get all cubies affected by a move (including virtual centers if whole-cube)
 const moveDefinition: MoveDefinition = moveEngine.getMoveDefinition('R');
-const affectedCubies: ReadonlyCubie[] = LayerManager.getCubiesForMove(moveDefinition, state);
+const affectedCubies: ReadonlyCubie[] = LayerManager.getCubiesForMove(
+  moveDefinition,
+  state
+);
 
 // For standard moves: returns physical cubies in the layer
 // For whole-cube rotations (x, y, z): includes all virtual centers
@@ -296,7 +303,8 @@ const rTable: MoveTable = invariants.moveTables.get('R')!;
 
 ```typescript
 // Fine-grained cubie subtypes
-const category: CubieSubType = invariants.cubieCategoriesByIndex[canonicalIndex];
+const category: CubieSubType =
+  invariants.cubieCategoriesByIndex[canonicalIndex];
 
 // Possible values:
 // - CubieSubType.CORNER
@@ -392,7 +400,8 @@ const state: CubeState | null = StatePersistence.stringToState(stateString);
 
 ```typescript
 // Check validity before parsing
-const validation: ValidationResult = StatePersistence.validateStateString(stateString);
+const validation: ValidationResult =
+  StatePersistence.validateStateString(stateString);
 
 if (validation.valid) {
   const state = StatePersistence.stringToState(stateString);
@@ -495,7 +504,11 @@ const faceGrids: Map<Face, Color[][]> = createFlatView(state);
 **Validate State:**
 
 ```typescript
-import { checkCornerTwist, checkEdgeFlip, isStateLegal } from '@/cube/utils/state-legality';
+import {
+  checkCornerTwist,
+  checkEdgeFlip,
+  isStateLegal,
+} from '@/cube/utils/state-legality';
 
 // Full legality check
 const legal: boolean = isStateLegal(state);
@@ -637,7 +650,10 @@ function processCorners(state: CubeState) {
   const invariants = getCubeInvariants(state.cubeSize);
 
   // Get corner positions
-  const cornerPositions = invariants.canonicalPositions.slice(0, invariants.cornerCount);
+  const cornerPositions = invariants.canonicalPositions.slice(
+    0,
+    invariants.cornerCount
+  );
 
   // Access corners from state
   for (const position of cornerPositions) {

@@ -2,7 +2,10 @@
 
 ## Overview
 
-The Circular View displays the Rubik's Cube state using a conceptual SVG representation based on three sets of concentric circles representing the X, Y, and Z axes. Each sticker is positioned at the intersection of two axis circles, creating a unique coordinate-based visualization.
+The Circular View displays the Rubik's Cube state using a conceptual SVG
+representation based on three sets of concentric circles representing the X, Y,
+and Z axes. Each sticker is positioned at the intersection of two axis circles,
+creating a unique coordinate-based visualization.
 
 ## SVG Structure
 
@@ -28,25 +31,34 @@ Each sticker is represented by a `<circle>` element with:
 - `id="sticker-{FACE}-{POSITION}"` format
 - `cx` and `cy` attributes defining its center position
 
-The face labels in the SVG IDs directly correspond to the cube model face names (see Face Mapping section below).
+The face labels in the SVG IDs directly correspond to the cube model face names
+(see Face Mapping section below).
 
 ## Coordinate System Mapping
 
 ### Circle Intersection Logic
 
-Each sticker lies at the intersection of exactly **two axis circles**. The intersection determines the sticker's cube position:
+Each sticker lies at the intersection of exactly **two axis circles**. The
+intersection determines the sticker's cube position:
 
-1. **Parse axis circles**: Extract center coordinates (cx, cy) and radius (r) for each layer circle
-2. **Check intersections**: For each sticker, determine which two axis circles it lies on by testing if the sticker's position is within tolerance of the circle's radius
-3. **Derive coordinates**: The two intersecting circles give two coordinates; the third coordinate is determined by the face
+1. **Parse axis circles**: Extract center coordinates (cx, cy) and radius (r)
+   for each layer circle
+2. **Check intersections**: For each sticker, determine which two axis circles
+   it lies on by testing if the sticker's position is within tolerance of the
+   circle's radius
+3. **Derive coordinates**: The two intersecting circles give two coordinates;
+   the third coordinate is determined by the face
 
 ### Coordinate Patterns
 
 Based on which axis is **not** represented (null) in the intersection:
 
-- **x is null** (sticker on y and z circles) → Face is **L** (x=0) or **R** (x=2)
-- **y is null** (sticker on x and z circles) → Face is **D** (y=0) or **U** (y=2)
-- **z is null** (sticker on x and y circles) → Face is **F** (z=0) or **B** (z=2)
+- **x is null** (sticker on y and z circles) → Face is **L** (x=0) or **R**
+  (x=2)
+- **y is null** (sticker on x and z circles) → Face is **D** (y=0) or **U**
+  (y=2)
+- **z is null** (sticker on x and y circles) → Face is **F** (z=0) or **B**
+  (z=2)
 
 ### Example Mappings
 
@@ -86,9 +98,12 @@ This mapping is implemented in the `svgToCubeMapping()` function.
 The sticker lookup map is built at runtime by parsing the SVG:
 
 1. **`parseAxisCircles()`**: Extract all axis circle elements and their geometry
-2. **`computeAxisCoords()`**: For each sticker, determine which axis circles it intersects
-3. **`svgToCubeMapping()`**: Convert SVG face label + axis coords → cube position + cube face
-4. **`buildStickerLookupMap()`**: Create a map structure: `position → face → SVG element ID`
+2. **`computeAxisCoords()`**: For each sticker, determine which axis circles it
+   intersects
+3. **`svgToCubeMapping()`**: Convert SVG face label + axis coords → cube
+   position + cube face
+4. **`buildStickerLookupMap()`**: Create a map structure:
+   `position → face → SVG element ID`
 
 ### Lookup Map Structure
 
@@ -102,7 +117,8 @@ Where:
 - `Face` = Cube model face enum (U, D, F, B, L, R)
 - `svgElementId` = SVG element ID (e.g., `sticker-R-0`)
 
-This allows O(1) lookup: given a cube cubie at position (x,y,z) with a sticker on face F, quickly find which SVG element to update.
+This allows O(1) lookup: given a cube cubie at position (x,y,z) with a sticker
+on face F, quickly find which SVG element to update.
 
 ## Rendering Updates
 
@@ -130,8 +146,10 @@ This allows O(1) lookup: given a cube cubie at position (x,y,z) with a sticker o
 
 The circular view is designed to support animations in the future:
 
-- **Face stickers** (those at constant coordinate): Rotate in place around the face center
-- **Adjacent layer stickers**: Rotate along the appropriate axis circle path during moves
+- **Face stickers** (those at constant coordinate): Rotate in place around the
+  face center
+- **Adjacent layer stickers**: Rotate along the appropriate axis circle path
+  during moves
 
 The axis circle geometry is already available for computing rotation arcs.
 
@@ -146,7 +164,10 @@ Potential configurable options:
 
 ## Touch and Mouse Interaction
 
-All pointer input (mouse and touch) for move gestures is handled by `CircularTouchHandler`. Pan/zoom is kept in `ZoomPanController` (triggered by middle-mouse, Ctrl+drag, or two-finger drag). Left-button/single-touch drags on interactive elements are forwarded to the touch handler.
+All pointer input (mouse and touch) for move gestures is handled by
+`CircularTouchHandler`. Pan/zoom is kept in `ZoomPanController` (triggered by
+middle-mouse, Ctrl+drag, or two-finger drag). Left-button/single-touch drags on
+interactive elements are forwarded to the touch handler.
 
 ### Hit Testing
 
@@ -162,38 +183,64 @@ All pointer input (mouse and touch) for move gestures is handled by `CircularTou
 
 ### Sticker Drag → Move
 
-When a drag starts on a sticker the handler pre-computes all four possible moves at pointer-down time using the **face-local basis** at that point:
+When a drag starts on a sticker the handler pre-computes all four possible moves
+at pointer-down time using the **face-local basis** at that point:
 
-1. **Basis derivation**: `buildCrossingBasisAtPoint()` finds the two axis circles nearest to the sticker's SVG position and computes their local tangents — one tangent becomes `upDir`, the other `rightDir`. Falls back to static `FACE_TOP_DIRECTION_HINTS` when the sticker is too far from any crossing.
-2. **Move pre-computation**: `inferMoveFromDrag()` is called once for each of the four cardinal directions (up / down / left / right) using the live sticker face, row, and column resolved from the current `CubeState`. All four resulting WCA notation strings are cached in `pendingStickerCross`.
-3. **Zone inference**: On gesture commit, the raw SVG delta vector is dotted against `upDir` and `rightDir`. The dominant component selects `upMove` / `downMove` / `rightMove` / `leftMove` respectively.
+1. **Basis derivation**: `buildCrossingBasisAtPoint()` finds the two axis
+   circles nearest to the sticker's SVG position and computes their local
+   tangents — one tangent becomes `upDir`, the other `rightDir`. Falls back to
+   static `FACE_TOP_DIRECTION_HINTS` when the sticker is too far from any
+   crossing.
+2. **Move pre-computation**: `inferMoveFromDrag()` is called once for each of
+   the four cardinal directions (up / down / left / right) using the live
+   sticker face, row, and column resolved from the current `CubeState`. All four
+   resulting WCA notation strings are cached in `pendingStickerCross`.
+3. **Zone inference**: On gesture commit, the raw SVG delta vector is dotted
+   against `upDir` and `rightDir`. The dominant component selects `upMove` /
+   `downMove` / `rightMove` / `leftMove` respectively.
 
-Sticker face / row / col are resolved from the live `CubeState` (not from SVG attributes) so they reflect the current scrambled state. The lookup uses `CubeStateUtils.getStickerById` keyed on the `data-sticker-id` attribute.
+Sticker face / row / col are resolved from the live `CubeState` (not from SVG
+attributes) so they reflect the current scrambled state. The lookup uses
+`CubeStateUtils.getStickerById` keyed on the `data-sticker-id` attribute.
 
 ### Visual Cross Hint
 
-On pointer-down on a sticker, a semi-transparent dashed cross is drawn centred on the touch point. The arms are the **zone boundaries** (bisectors between adjacent drag directions), so the centre of each sector aligns with a circle-tangent drag direction. Arm length is `34 SVG units` in floating mode and `64 SVG units` in tab mode (large enough to avoid finger obstruction on touch).
+On pointer-down on a sticker, a semi-transparent dashed cross is drawn centred
+on the touch point. The arms are the **zone boundaries** (bisectors between
+adjacent drag directions), so the centre of each sector aligns with a
+circle-tangent drag direction. Arm length is `34 SVG units` in floating mode and
+`64 SVG units` in tab mode (large enough to avoid finger obstruction on touch).
 
 The cross is hidden immediately on pointer-up or cancel.
 
 ### Face Selection (Halo)
 
-Tapping a sticker or face ellipse toggles face selection. When a face is selected:
+Tapping a sticker or face ellipse toggles face selection. When a face is
+selected:
 
 - An SVG ellipse halo ring is shown around it.
-- A transparent overlay ellipse absorbs pointer-events so that dragging anywhere on the selected face triggers halo rotation, not a sticker move.
-- Dragging the halo uses angular displacement (atan2) to decide CW/CCW face rotation.
+- A transparent overlay ellipse absorbs pointer-events so that dragging anywhere
+  on the selected face triggers halo rotation, not a sticker move.
+- Dragging the halo uses angular displacement (atan2) to decide CW/CCW face
+  rotation.
 
 ### Axis Circle Multi-Select and Drag
 
-- **Tap**: toggles selection of an axis circle (CSS class `circular-axis-selected`). Tapping a circle from a different axis clears the previous selection.
-- **Swipe-through**: drag ≈ 0 angular displacement from start circle to a different circle — selects both.
-- **Drag on selected circle**: rotates all co-selected circles with the same CW/CCW flag. If all three layers of one axis are selected an equivalent whole-cube notation (`x`/`x'`) is emitted instead of three individual moves.
-- **Tap elsewhere** (background/sticker/face ellipse): clears all axis circle selections.
+- **Tap**: toggles selection of an axis circle (CSS class
+  `circular-axis-selected`). Tapping a circle from a different axis clears the
+  previous selection.
+- **Swipe-through**: drag ≈ 0 angular displacement from start circle to a
+  different circle — selects both.
+- **Drag on selected circle**: rotates all co-selected circles with the same
+  CW/CCW flag. If all three layers of one axis are selected an equivalent
+  whole-cube notation (`x`/`x'`) is emitted instead of three individual moves.
+- **Tap elsewhere** (background/sticker/face ellipse): clears all axis circle
+  selections.
 
 ### Background Drag → Whole-Cube Rotation
 
-The SVG plane is divided into three sectors, one per axis, by Voronoi proximity to the three axis circle centres:
+The SVG plane is divided into three sectors, one per axis, by Voronoi proximity
+to the three axis circle centres:
 
 | Sector centre (approx SVG coords) | Whole-cube move |
 | --------------------------------- | --------------- |
@@ -201,23 +248,32 @@ The SVG plane is divided into three sectors, one per axis, by Voronoi proximity 
 | X `(250, 219)` — lower-right      | `x` / `x'`      |
 | Z `(150, 219)` — lower-left       | `z` / `z'`      |
 
-CW/CCW is resolved from the 2D cross product of the vector from the nearest axis centre to the drag start point and the normalised drag vector.
+CW/CCW is resolved from the 2D cross product of the vector from the nearest axis
+centre to the drag start point and the normalised drag vector.
 
 ### Face-Direct Mode
 
-When `setFaceDirectMode(true)` is active, dragging on any sticker or face ellipse immediately rotates that face without requiring prior face selection. The face is temporarily activated for the duration of the gesture and the previous selection is restored afterward.
+When `setFaceDirectMode(true)` is active, dragging on any sticker or face
+ellipse immediately rotates that face without requiring prior face selection.
+The face is temporarily activated for the duration of the gesture and the
+previous selection is restored afterward.
 
 ### Interaction Adapter
 
-`createCircularInteractionAdapter()` returns a `ViewInteractionAdapter` that encapsulates all circular-view-specific inference (axis notation, whole-cube notation, face direction mapping). The handler calls the adapter for non-sticker paths so the inference logic can be tested and overridden independently.
+`createCircularInteractionAdapter()` returns a `ViewInteractionAdapter` that
+encapsulates all circular-view-specific inference (axis notation, whole-cube
+notation, face direction mapping). The handler calls the adapter for non-sticker
+paths so the inference logic can be tested and overridden independently.
 
 ## Related Files
 
 - `src/views/circular/index.ts` - View entry point and registration
 - `src/views/circular/circular-view.ts` - Main view class
 - `src/views/circular/circular-touch-handler.ts` - All pointer/touch interaction
-- `src/views/circular/zoom-pan.ts` - Pan and zoom (delegates move gestures to touch handler)
-- `src/views/circular/initialization.ts` - SVG parsing and sticker lookup map construction
+- `src/views/circular/zoom-pan.ts` - Pan and zoom (delegates move gestures to
+  touch handler)
+- `src/views/circular/initialization.ts` - SVG parsing and sticker lookup map
+  construction
 - `src/views/circular/rendering.ts` - State rendering and selective updates
 - `src/views/circular/svg-tools.ts` - Coordinate mapping and intersection logic
 - `src/views/circular/animations.ts` - Move animation support

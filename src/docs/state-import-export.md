@@ -2,14 +2,16 @@
 
 ## Overview
 
-The Rubik's Cube application provides comprehensive state persistence, allowing users to:
+The Rubik's Cube application provides comprehensive state persistence, allowing
+users to:
 
 - **Automatically save** cube states when closing the application
 - **Automatically restore** the last cube state when reopening the application
 - **Manually export** cube states as plain text files for backup or sharing
 - **Manually import** cube states from plain text files
 
-This enables users to preserve their progress, share interesting cube configurations, and work across multiple sessions without losing data.
+This enables users to preserve their progress, share interesting cube
+configurations, and work across multiple sessions without losing data.
 
 ## String Format
 
@@ -43,14 +45,16 @@ R U R' U'
 
 ### Components
 
-1. **StatePersistence** ([src/cube/core/state-persistence.ts](../cube/core/state-persistence.ts))
+1. **StatePersistence**
+   ([src/cube/core/state-persistence.ts](../cube/core/state-persistence.ts))
    - Core module for serialization and storage
    - Handles localStorage operations
    - Provides import/export functionality
    - Manages file download/upload
    - Uses string format (not JSON)
 
-2. **StateManager** ([src/cube/core/state-manager.ts](../cube/core/state-manager.ts))
+2. **StateManager**
+   ([src/cube/core/state-manager.ts](../cube/core/state-manager.ts))
    - Extended with `importState()` and `exportState()` methods
    - Validates imported states before applying
    - Ensures state integrity
@@ -72,8 +76,10 @@ R U R' U'
 
 The application automatically saves the cube state in two scenarios:
 
-1. **On Application Exit**: When the browser window is closed or refreshed, the current cube state is saved to localStorage
-2. **Periodic Auto-Save**: Every 30 seconds, the current state is automatically saved to prevent data loss
+1. **On Application Exit**: When the browser window is closed or refreshed, the
+   current cube state is saved to localStorage
+2. **Periodic Auto-Save**: Every 30 seconds, the current state is automatically
+   saved to prevent data loss
 
 On application startup, if a saved state exists, it is automatically restored.
 
@@ -148,7 +154,8 @@ The serialization preserves:
 **`stringToState(stateString: string): { state: CubeState; moveHistory?: MoveHistory } | null`**
 
 - Reconstructs a CubeState from a string
-- Returns object with state and optional MoveHistory instance, or `null` on error
+- Returns object with state and optional MoveHistory instance, or `null` on
+  error
 - Uses `MoveHistory.deserialize()` for move history parsing
 - Validates format and cube size
 
@@ -203,7 +210,8 @@ The serialization preserves:
 **`uploadState(): Promise<{ state: CubeState; moveHistory?: MoveHistory } | null>`**
 
 - Opens file picker to upload a state file
-- Returns a promise resolving to object with state and optional MoveHistory instance
+- Returns a promise resolving to object with state and optional MoveHistory
+  instance
 - Uses `MoveHistory.deserialize()` to reconstruct move history
 - Accepts `.txt` and `.cube` files
 
@@ -263,7 +271,8 @@ All errors are logged to the console for debugging.
 
 ## Testing
 
-Comprehensive test suite in [state-persistence.test.ts](../cube/core/state-persistence.test.ts) covers:
+Comprehensive test suite in
+[state-persistence.test.ts](../cube/core/state-persistence.test.ts) covers:
 
 - Save/load operations
 - Export/import functionality

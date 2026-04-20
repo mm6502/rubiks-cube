@@ -1273,51 +1273,11 @@ describe('Face Animation', () => {
             const { animateGhostToggle } = await import('./animations');
             await animateGhostToggle(state);
 
-            // Assert
-            expect((Element.prototype as any).animate).toHaveBeenCalled();
+            // Assert — no animation, just immediate show
+            expect((Element.prototype as any).animate).not.toHaveBeenCalled();
             expect(ghost.style.opacity).toBe('0.4');
-        });
-
-        it('toggle ON: uses straight-line fallback when ghost is not on any axis circle', async () => {
-            // Arrange
-            const fakeAnimation = {
-                finished: Promise.resolve(),
-                cancel: vi.fn(),
-            } as unknown as Animation;
-            (Element.prototype as any).animate = vi.fn(() => fakeAnimation);
-
-            const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
-            const wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            wrapper.classList.add('ghost-sticker-wrapper');
-            svgRoot.appendChild(wrapper);
-
-            const source = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            source.setAttribute('cx', '50');
-            source.setAttribute('cy', '50');
-            source.setAttribute('fill', '#00ff00');
-
-            const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            ghost.classList.add('ghost-sticker');
-            ghost.setAttribute('data-ghost-source', 'src2');
-            ghost.setAttribute('cx', '200');
-            ghost.setAttribute('cy', '200');
-            wrapper.appendChild(ghost);
-
-            const state = {
-                svgRoot,
-                showGhosts: true,
-                axisCircles: [], // No axis circles → fallback
-                svgElementCache: new Map([['src2', source]]),
-                ghostElements: undefined,
-            } as any;
-
-            // Act
-            const { animateGhostToggle } = await import('./animations');
-            await animateGhostToggle(state);
-
-            // Assert — straight-line fallback used
-            expect((Element.prototype as any).animate).toHaveBeenCalled();
-            expect(ghost.style.opacity).toBe('0.4');
+            expect(ghost.getAttribute('fill')).toBe('#ff0000');
+            expect(wrapper.style.display).toBe('');
         });
 
         it('toggle OFF: fades out ghosts and hides wrapper', async () => {

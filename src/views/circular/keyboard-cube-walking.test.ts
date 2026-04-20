@@ -125,6 +125,9 @@ describe('keyboard-cube-walking', () => {
                 },
                 cubeWalk: false,
                 showGhosts: true,
+                zoomPan: null,
+                touchHandler: null,
+                panMode: false,
             } as CircularCubeViewInternalData;
 
             // Set current selection on state (moved into state)
@@ -158,6 +161,9 @@ describe('keyboard-cube-walking', () => {
                 },
                 cubeWalk: false,
                 showGhosts: true,
+                zoomPan: null,
+                touchHandler: null,
+                panMode: false,
             } as CircularCubeViewInternalData;
 
             // Act
@@ -188,6 +194,9 @@ describe('keyboard-cube-walking', () => {
                 },
                 cubeWalk: false,
                 showGhosts: true,
+                zoomPan: null,
+                touchHandler: null,
+                panMode: false,
             } as CircularCubeViewInternalData;
 
             // Set current selection on state (moved into state)
@@ -232,6 +241,9 @@ describe('keyboard-cube-walking', () => {
                 },
                 cubeWalk: false,
                 showGhosts: true,
+                zoomPan: null,
+                touchHandler: null,
+                panMode: false,
             } as CircularCubeViewInternalData;
 
             // Set current selection on state
@@ -886,6 +898,9 @@ describe('keyboard-cube-walking', () => {
                 },
                 cubeWalk: true,
                 showGhosts: true,
+                zoomPan: null,
+                touchHandler: null,
+                panMode: false,
                 currentSelected: currentStickerId,
             } as CircularCubeViewInternalData;
         }

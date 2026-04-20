@@ -12,6 +12,9 @@
         "all": "cls && npm run lint:imports && cls && npm run format && cls && npm run type-check && cls && npm run test:coverage && npm run build",
         "all2": "npm run lint:imports && npm run format && npm run type-check && npm run test:coverage && npm run build",
         "demo": "npx tsx scripts/demo-video/record-demo.ts",
+        "demo:video": "npx tsx scripts/demo-video/record-demo.ts --mode video",
+        "demo:snapshots": "npx tsx scripts/demo-video/record-demo.ts --mode snapshots",
+        "demo:assemble": "npx tsx scripts/demo-video/record-demo.ts --mode assemble",
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
@@ -22,10 +25,14 @@
         "test:coverage:ui": "vitest --ui --coverage",
         "test:watch": "vitest",
         "lint:imports": "npx eslint --fix",
-        "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md,css,scss,html}\" \"scripts/**/*.{ts,tsx,js,jsx,json,md,cjs,mjs}\" \".vscode/**/*.{json,md}\" \"*.{ts,js,json,md,cjs,html}\" --end-of-line lf --no-error-on-unmatched-pattern",
-        "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,md,css,scss,html}\" \"scripts/**/*.{ts,tsx,js,jsx,json,md,cjs,mjs}\" \".vscode/**/*.{json,md}\" \"*.{ts,js,json,md,cjs,html}\" --end-of-line lf --no-error-on-unmatched-pattern"
+        "format": "prettier --write . --no-error-on-unmatched-pattern",
+        "format:check": "prettier --check . --no-error-on-unmatched-pattern",
+        "ce:install": "compound-plugin install compound-engineering --to copilot",
+        "ce:sync": "compound-plugin sync",
+        "ce:help": "compound-plugin --help"
     },
     "devDependencies": {
+        "@every-env/compound-plugin": "^2.68.1",
         "@playwright/test": "^1.59.1",
         "@resvg/resvg-js": "^2.6.2",
         "@trivago/prettier-plugin-sort-imports": "^6.0.2",

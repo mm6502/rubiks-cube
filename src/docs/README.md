@@ -1,6 +1,7 @@
 # Rubik's Cube Architecture Documentation
 
-This directory contains comprehensive documentation for the 3D coordinate-based Rubik's Cube system.
+This directory contains comprehensive documentation for the 3D coordinate-based
+Rubik's Cube system.
 
 ## Documentation Overview
 
@@ -17,7 +18,8 @@ Learn about:
 - Type system overview
 - Future enhancements
 
-**Start here if:** You want to understand the overall system design and architectural decisions.
+**Start here if:** You want to understand the overall system design and
+architectural decisions.
 
 ### 📐 [Coordinate System](./coordinate-system.md)
 
@@ -33,7 +35,8 @@ Learn about:
 - Lazy layer evaluation
 - Unified Face/Layer/Plane types for better type safety
 
-**Start here if:** You need to understand how cubies are identified and organized in 3D space.
+**Start here if:** You need to understand how cubies are identified and
+organized in 3D space.
 
 ### 🎯 [Move Notation](./move-notation.md)
 
@@ -48,7 +51,8 @@ Learn about:
 - Coordinate mapping for each move type
 - Move normalization rules
 
-**Start here if:** You need to understand how moves are specified or want to implement move parsing.
+**Start here if:** You need to understand how moves are specified or want to
+implement move parsing.
 
 ### 🎯 [Discrete Orientation System](./discrete-orientation-system.md)
 
@@ -61,7 +65,8 @@ Learn about:
 - Pre-computed move tables and orientation deltas
 - Cubology invariants (corner twist, edge flip, permutation parity)
 
-**Start here if:** You need to understand how cubie orientations work or how move tables are validated.
+**Start here if:** You need to understand how cubie orientations work or how
+move tables are validated.
 
 ### 💾 [State Import/Export System](./state-import-export.md)
 
@@ -76,7 +81,8 @@ Learn about:
 - API reference for StatePersistence
 - Error handling and validation
 
-**Start here if:** You need to understand how cube states are saved, loaded, or shared.
+**Start here if:** You need to understand how cube states are saved, loaded, or
+shared.
 
 ### 🎮 [Commanding and Eventing System](./commanding-and-eventing-system.md)
 
@@ -89,7 +95,8 @@ Learn about:
 - Animation coordination
 - Keyboard and mouse event management
 
-**Start here if:** You need to understand how user interactions are handled across views.
+**Start here if:** You need to understand how user interactions are handled
+across views.
 
 ### 🖥️ [User Interface Design](./user-interface-design.md)
 
@@ -102,7 +109,8 @@ Learn about:
 - View discovery mechanism
 - Available actions and commands
 
-**Start here if:** You need to understand the UI design and user interface components.
+**Start here if:** You need to understand the UI design and user interface
+components.
 
 ### 🔵 [Circular View](./circular-view.md)
 
@@ -115,7 +123,8 @@ Learn about:
 - Runtime initialization and sticker lookup
 - Selective (move-based) rendering updates
 
-**Start here if:** You are working on or contributing to the circular view implementation.
+**Start here if:** You are working on or contributing to the circular view
+implementation.
 
 ### 🚀 [Quickstart for Contributors](./quickstart-contributors.md)
 
@@ -128,7 +137,8 @@ Learn about:
 - Build system and deployment
 - Debugging in VS Code
 
-**Start here if:** You are new to the codebase and want to get up and running quickly.
+**Start here if:** You are new to the codebase and want to get up and running
+quickly.
 
 ### 🔧 [Implementation Guide](./implementation-guide.md)
 
@@ -143,4 +153,5 @@ Learn about:
 - Testing and debugging tips
 - Performance optimization guidelines
 
-**Start here if:** You're implementing features or need detailed API information.
+**Start here if:** You're implementing features or need detailed API
+information.

@@ -2,15 +2,20 @@
 
 ## Official Standard Reference
 
-This document describes Rubik's cube move notation based on the official World Cube Association (WCA) regulations.
+This document describes Rubik's cube move notation based on the official World
+Cube Association (WCA) regulations.
 
-> **Official Reference:** World > Cube Association Regulations, > Article 12: Notation
+> **Official Reference:** World > Cube Association Regulations, > Article 12:
+> Notation
 >
-> **URL:** <https://www.worldcubeassociation.org/regulations/#article-12-notation>
+> **URL:**
+> <https://www.worldcubeassociation.org/regulations/#article-12-notation>
 >
 > **Version:** July 17, 2025
 
-The WCA is the governing body for official Rubik's cube competitions worldwide, and their regulations establish the authoritative standard for move notation used in competitive solving.
+The WCA is the governing body for official Rubik's cube competitions worldwide,
+and their regulations establish the authoritative standard for move notation
+used in competitive solving.
 
 ---
 
@@ -19,8 +24,10 @@ The WCA is the governing body for official Rubik's cube competitions worldwide, 
 This document covers:
 
 1. **WCA Standard Notation** - Officially defined moves per WCA regulations
-2. **Community Extensions** - Widely used notations not officially in WCA regulations
-3. **Project Extensions** - Custom notations and implementation details for this project
+2. **Community Extensions** - Widely used notations not officially in WCA
+   regulations
+3. **Project Extensions** - Custom notations and implementation details for this
+   project
 
 ---
 
@@ -52,13 +59,15 @@ This document covers:
 | **x', y', z'** | 90° counter-clockwise rotation        |
 | **x2, y2, z2** | 180° rotation                         |
 
-WCA defines: x = same direction as R or L', y = same direction as U or D', z = same direction as F or B'
+WCA defines: x = same direction as R or L', y = same direction as U or D', z =
+same direction as F or B'
 
 ---
 
 ## Community Extensions
 
-These notations are widely used in the speedcubing community but are not officially defined in WCA regulations for 3×3×3.
+These notations are widely used in the speedcubing community but are not
+officially defined in WCA regulations for 3×3×3.
 
 ### Slice Moves (3×3×3)
 
@@ -70,7 +79,8 @@ These notations are widely used in the speedcubing community but are not officia
 | **M', E', S'** | Counter-clockwise rotation                     |                              |
 | **M2, E2, S2** | 180° rotation                                  |                              |
 
-> **Note**: Slice moves follow the direction of the first (layer 0) face on their axis:
+> **Note**: Slice moves follow the direction of the first (layer 0) face on
+> their axis:
 >
 > - M rotates like L (not R)
 > - E rotates like D (not U)
@@ -98,7 +108,8 @@ All rotations are defined relative to the cube's coordinate system:
 - **Y-axis**: Bottom (-Y) to Top (+Y)
 - **Z-axis**: Front (-Z) to Back (+Z)
 
-**Clockwise (CW)** means clockwise when viewed from negative to positive on the axis of rotation.
+**Clockwise (CW)** means clockwise when viewed from negative to positive on the
+axis of rotation.
 
 ### Face-to-Axis Mapping
 
@@ -111,7 +122,8 @@ All rotations are defined relative to the cube's coordinate system:
 | **F** | Z    | 0          | Rotate front face clockwise  | CW from -Z to +Z   |
 | **B** | Z    | cubeSize-1 | Rotate back face clockwise   | CCW from -Z to +Z  |
 
-**Important**: External move behavior remains identical. Only the internal coordinate-based description changes.
+**Important**: External move behavior remains identical. Only the internal
+coordinate-based description changes.
 
 ### Extended Slice Moves (4×4+)
 
@@ -125,7 +137,9 @@ For cubes larger than 3×3, slices are numbered from the outer layer inward.
 
 ### Alternative Layer Notation
 
-> **Status: Planned — Not Yet Implemented.** The notations in this section (Indexed Face Layers, Axis Notation, Two-Axis Notation) are design proposals. The parser does not currently support them.
+> **Status: Planned — Not Yet Implemented.** The notations in this section
+> (Indexed Face Layers, Axis Notation, Two-Axis Notation) are design proposals.
+> The parser does not currently support them.
 
 #### Indexed Face Layers
 
@@ -166,9 +180,12 @@ Specify plane by intersection of two axes (must include index).
 
 ## Notation Normalization
 
-> **Status: Planned — Not Yet Implemented.** The normalization rules described below are a design proposal. The current parser only normalizes apostrophe character variants.
+> **Status: Planned — Not Yet Implemented.** The normalization rules described
+> below are a design proposal. The current parser only normalizes apostrophe
+> character variants.
 
-For consistency in move history and algorithms, alternative notations should be normalized to standard form:
+For consistency in move history and algorithms, alternative notations should be
+normalized to standard form:
 
 ### Normalization Rules
 
@@ -221,7 +238,8 @@ Use parentheses for repeated sequences:
 
 ### Even-Sized Cubes (4×4, 6×6, etc.)
 
-Even-sized cubes have no fixed center cubies and may require **parity algorithms**:
+Even-sized cubes have no fixed center cubies and may require **parity
+algorithms**:
 
 - **OLL Parity**: Single edge appears flipped
 - **PLL Parity**: Two edges need to swap
@@ -282,11 +300,13 @@ R U R' U'           // Outer layer
 
 ### Parser Requirements
 
-1. Support face moves, wide moves, slice moves, cube rotations, and their modifiers (`'`, `2`)
+1. Support face moves, wide moves, slice moves, cube rotations, and their
+   modifiers (`'`, `2`)
 2. Normalize apostrophe character variants to standard `'`
 3. Validate moves against pre-built move tables for the current cube size
 
-> **Note:** Sequence parsing (comments, whitespace splitting, grouping, and repetition) is not yet implemented. Moves are currently parsed individually.
+> **Note:** Sequence parsing (comments, whitespace splitting, grouping, and
+> repetition) is not yet implemented. Moves are currently parsed individually.
 
 ### Move Validation
 

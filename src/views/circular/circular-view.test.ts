@@ -298,7 +298,7 @@ describe('CircularCubeView (unit)', () => {
             getFaceDirectMode: vi.fn().mockReturnValue(false),
             setFaceDirectMode: vi.fn(),
         } as any;
-        (view as any).touchHandler = handler;
+        (view as any).state.touchHandler = handler;
 
         const commands = view.getCommands();
         const faceModeCommand = commands.find(c => c.id === 'circular-view.face-direct-mode');
@@ -356,6 +356,9 @@ describe('CircularCubeView (unit)', () => {
             stickerIdToSvgId: new Map(),
             styles: {},
             axisCircles: [],
+            zoomPan: null,
+            touchHandler: null,
+            panMode: false,
         };
         vi.spyOn(initialization, 'initialize').mockReturnValue(fakeState);
         vi.spyOn(initialization, 'attachStickerEventListeners').mockImplementation(() => {});
@@ -365,8 +368,8 @@ describe('CircularCubeView (unit)', () => {
         expect(() => view.create(container, mockModel)).not.toThrow();
 
         // Assert — zoom/pan and touch handler remain null
-        expect((view as any).zoomPan).toBeNull();
-        expect((view as any).touchHandler).toBeNull();
+        expect((view as any).state.zoomPan).toBeNull();
+        expect((view as any).state.touchHandler).toBeNull();
     });
 
     // ─── create: if (f4) branch ───────────────────────────────────────────────
@@ -400,7 +403,7 @@ describe('CircularCubeView (unit)', () => {
     it('setLayoutMode delegates to touchHandler', () => {
         // Arrange
         const fakeHandler = { setLayoutMode: vi.fn() } as any;
-        (view as any).touchHandler = fakeHandler;
+        (view as any).state.touchHandler = fakeHandler;
 
         // Act
         view.setLayoutMode(LayoutMode.Tabbed);
@@ -484,22 +487,22 @@ describe('CircularCubeView (unit)', () => {
         expect(panCmd.isActive!()).toBe(false);
 
         // Flip
-        (view as any).panMode = true;
+        (view as any).state.panMode = true;
         expect(panCmd.isActive!()).toBe(true);
     });
 
     it('pan-mode second toggle reverts to delegated-left-drag', () => {
         // Arrange — start with panMode already on
-        (view as any).panMode = true;
+        (view as any).state.panMode = true;
         const fakeZoom = { setGestureMode: vi.fn() } as any;
-        (view as any).zoomPan = fakeZoom;
+        (view as any).state.zoomPan = fakeZoom;
         const panCmd = view.getCommands().find(c => c.id === 'circular-view.pan-mode')!;
 
         // Act — toggle off
         panCmd.action();
 
         // Assert
-        expect((view as any).panMode).toBe(false);
+        expect((view as any).state.panMode).toBe(false);
         expect(fakeZoom.setGestureMode).toHaveBeenCalledWith('delegated-left-drag');
     });
 
@@ -507,7 +510,7 @@ describe('CircularCubeView (unit)', () => {
 
     it('face-direct-mode isActive returns false when touchHandler is null', () => {
         // Arrange
-        (view as any).touchHandler = null;
+        (view as any).state.touchHandler = null;
         const faceCmd = view.getCommands().find(c => c.id === 'circular-view.face-direct-mode')!;
 
         // Act & Assert
@@ -516,7 +519,7 @@ describe('CircularCubeView (unit)', () => {
 
     it('face-direct-mode action is a no-op when touchHandler is null', () => {
         // Arrange
-        (view as any).touchHandler = null;
+        (view as any).state.touchHandler = null;
         const faceCmd = view.getCommands().find(c => c.id === 'circular-view.face-direct-mode')!;
 
         // Act & Assert — should not throw
@@ -530,9 +533,9 @@ describe('CircularCubeView (unit)', () => {
         const fakeZoom = { destroy: vi.fn() } as any;
         const fakeTouch = { destroy: vi.fn() } as any;
         const fakeContainer = document.createElement('div');
-        (view as any).zoomPan = fakeZoom;
-        (view as any).touchHandler = fakeTouch;
-        (view as any).state = { container: fakeContainer, svgRoot: {} };
+        (view as any).state.zoomPan = fakeZoom;
+        (view as any).state.touchHandler = fakeTouch;
+        (view as any).state = { ...(view as any).state, container: fakeContainer, svgRoot: {} };
 
         // Act
         view.destroy();
@@ -540,8 +543,8 @@ describe('CircularCubeView (unit)', () => {
         // Assert
         expect(fakeZoom.destroy).toHaveBeenCalled();
         expect(fakeTouch.destroy).toHaveBeenCalled();
-        expect((view as any).zoomPan).toBeNull();
-        expect((view as any).touchHandler).toBeNull();
+        expect((view as any).state.zoomPan).toBeNull();
+        expect((view as any).state.touchHandler).toBeNull();
     });
 
     // ─── cube-walk command ────────────────────────────────────────────────────
@@ -587,7 +590,7 @@ describe('CircularCubeView (unit)', () => {
             setFaceDirectMode: vi.fn(),
             setLayoutMode: vi.fn(),
         } as any;
-        (view as any).touchHandler = handler;
+        (view as any).state.touchHandler = handler;
         (view as any).state.currentSelected = 'sticker-F4';
         (view as any).state.model = {
             getCurrentState: () => mockState,
@@ -614,7 +617,7 @@ describe('CircularCubeView (unit)', () => {
             selectFace: vi.fn(),
             getFaceDirectMode: vi.fn().mockReturnValue(false),
         } as any;
-        (view as any).touchHandler = handler;
+        (view as any).state.touchHandler = handler;
         (view as any).state.currentSelected = 'sticker-F4';
         (view as any).state.model = {
             getCurrentState: () => mockState,
@@ -648,7 +651,7 @@ describe('CircularCubeView (unit)', () => {
             getSelectedFace: vi.fn().mockReturnValue('F'),
             getFaceDirectMode: vi.fn().mockReturnValue(false),
         } as any;
-        (view as any).touchHandler = handler;
+        (view as any).state.touchHandler = handler;
         (view as any).state.currentSelected = 'sticker-F4';
         (view as any).state.model = {
             getCurrentState: () => mockState,
@@ -677,7 +680,7 @@ describe('CircularCubeView (unit)', () => {
             getSelectedFace: vi.fn(),
             getFaceDirectMode: vi.fn(),
         } as any;
-        (view as any).touchHandler = handler;
+        (view as any).state.touchHandler = handler;
         (view as any).state.currentSelected = 'sticker-F4';
         (view as any).state.model = {
             getCurrentState: () => mockState,
@@ -729,7 +732,7 @@ describe('CircularCubeView (unit)', () => {
 
     it('setState with faceDirectMode delegates to touchHandler', () => {
         const handler = { setFaceDirectMode: vi.fn() } as any;
-        (view as any).touchHandler = handler;
+        (view as any).state.touchHandler = handler;
 
         view.setState({ faceDirectMode: true });
 
@@ -738,11 +741,11 @@ describe('CircularCubeView (unit)', () => {
 
     it('setState with panMode sets zoomPan gesture mode', () => {
         const fakeZoom = { setGestureMode: vi.fn() } as any;
-        (view as any).zoomPan = fakeZoom;
+        (view as any).state.zoomPan = fakeZoom;
 
         view.setState({ panMode: true });
 
-        expect((view as any).panMode).toBe(true);
+        expect((view as any).state.panMode).toBe(true);
         expect(fakeZoom.setGestureMode).toHaveBeenCalledWith('legacy');
     });
 
@@ -783,28 +786,28 @@ describe('CircularCubeView (unit)', () => {
 
     it('setState with panMode=true calls zoomPan.setGestureMode("legacy")', () => {
         const fakeZoom = { setGestureMode: vi.fn() } as any;
-        (view as any).zoomPan = fakeZoom;
+        (view as any).state.zoomPan = fakeZoom;
 
         view.setState({ panMode: true });
 
-        expect((view as any).panMode).toBe(true);
+        expect((view as any).state.panMode).toBe(true);
         expect(fakeZoom.setGestureMode).toHaveBeenCalledWith('legacy');
     });
 
     it('setState with panMode=false calls zoomPan.setGestureMode("delegated-left-drag")', () => {
-        (view as any).panMode = true; // start in pan mode
+        (view as any).state.panMode = true; // start in pan mode
         const fakeZoom = { setGestureMode: vi.fn() } as any;
-        (view as any).zoomPan = fakeZoom;
+        (view as any).state.zoomPan = fakeZoom;
 
         view.setState({ panMode: false });
 
-        expect((view as any).panMode).toBe(false);
+        expect((view as any).state.panMode).toBe(false);
         expect(fakeZoom.setGestureMode).toHaveBeenCalledWith('delegated-left-drag');
     });
 
     it('setState with faceDirectMode calls touchHandler.setFaceDirectMode', () => {
         const fakeHandler = { setFaceDirectMode: vi.fn() } as any;
-        (view as any).touchHandler = fakeHandler;
+        (view as any).state.touchHandler = fakeHandler;
 
         view.setState({ faceDirectMode: true });
 
@@ -812,26 +815,27 @@ describe('CircularCubeView (unit)', () => {
     });
 
     it('setState ignores panMode when zoomPan is null', () => {
-        (view as any).zoomPan = null;
+        (view as any).state.zoomPan = null;
         expect(() => view.setState({ panMode: true })).not.toThrow();
     });
 
     it('setState ignores faceDirectMode when touchHandler is null', () => {
-        (view as any).touchHandler = null;
+        (view as any).state.touchHandler = null;
         expect(() => view.setState({ faceDirectMode: true })).not.toThrow();
     });
 
-    // ─── destroy with faceLabelResetTimer ─────────────────────────────────────
+    // ─── destroy with faceLabelTilt timer ───────────────────────────────────
 
-    it('destroy clears faceLabelResetTimer when set', () => {
+    it('destroy clears faceLabelTilt timer when set', () => {
         vi.useFakeTimers();
-        (view as any).faceLabelResetTimer = setTimeout(() => {}, 9999);
+        const tilt = (view as any).faceLabelTilt;
+        tilt['timer'] = setTimeout(() => {}, 9999);
         const fakeState = { container: null, svgRoot: undefined };
         (view as any).state = fakeState;
 
         view.destroy();
 
-        expect((view as any).faceLabelResetTimer).toBeNull();
+        expect(tilt['timer']).toBeNull();
         vi.useRealTimers();
     });
 
@@ -878,7 +882,7 @@ describe('CircularCubeView (unit)', () => {
             getSelectedFace: vi.fn().mockReturnValue(undefined),
             getFaceDirectMode: vi.fn().mockReturnValue(false),
         };
-        (view as any).touchHandler = fakeHandler;
+        (view as any).state.touchHandler = fakeHandler;
 
         const emitSpy = vi.spyOn(Application.eventBus, 'emit');
 
@@ -901,6 +905,7 @@ describe('CircularCubeView (unit)', () => {
         for (const face of ['U', 'D', 'L', 'R', 'F', 'B']) {
             const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             el.id = `face-label-${face}`;
+            el.setAttribute('transform', 'translate(100,200)');
             svg.appendChild(el);
         }
         (view as any).state.svgRoot = svg;

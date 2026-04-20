@@ -114,6 +114,17 @@ export class DragStateMachine {
         return this.active?.isDragging ?? false;
     }
 
+    /**
+     * Update the rotation center used for angular displacement computation
+     * while a drag is in progress. No-op if no pointer is being tracked.
+     */
+    setRotationCenter(center: Point2D): void {
+        if (!this.active) {
+            return;
+        }
+        this.active.rotationCenter = center;
+    }
+
     private buildGesture(state: ActivePointerState): DragGesture {
         const deltaX = state.current.x - state.start.x;
         const deltaY = state.current.y - state.start.y;

@@ -174,9 +174,9 @@ export class CommandRenderer {
         return { parentKey, subLabel };
     }
 
-    /** Returns a copy of commands sorted ascending by priority (lower number = higher priority). */
-    private sortByPriority(commands: Command[]): Command[] {
-        return [...commands].sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
+    /** Returns a copy of commands sorted ascending by displayOrder (lower number = further left). */
+    private sortByDisplayOrder(commands: Command[]): Command[] {
+        return [...commands].sort((a, b) => (a.displayOrder ?? 100) - (b.displayOrder ?? 100));
     }
 
     /** Derives the group layout from the first command that declares one, falling back to 'flow'. */
@@ -320,7 +320,7 @@ export class CommandRenderer {
      * @param commands - Commands to render
      */
     renderCommandButtons(container: HTMLElement, commands: Command[]): void {
-        const sorted = this.sortByPriority(commands);
+        const sorted = this.sortByDisplayOrder(commands);
         sorted.forEach(cmd => container.appendChild(this.createCommandButton(cmd)));
     }
 
@@ -481,7 +481,7 @@ export class CommandRenderer {
             return;
         }
 
-        const sortedCommands = this.sortByPriority(allCommands);
+        const sortedCommands = this.sortByDisplayOrder(allCommands);
         const { parentMap, ungrouped } = this.groupCommands(sortedCommands);
         this.renderGroupedCommands(viewActionsEl, parentMap, ungrouped, false, sortedCommands);
 
@@ -517,7 +517,7 @@ export class CommandRenderer {
         );
         if (viewCommands.length === 0) return;
 
-        const sortedCommands = this.sortByPriority(viewCommands);
+        const sortedCommands = this.sortByDisplayOrder(viewCommands);
 
         // Create container for header command controls
         const buttonsContainer = document.createElement('div');
@@ -547,6 +547,9 @@ export class CommandRenderer {
             button.className = this.styles['view-command-btn'];
             button.textContent = cmd.icon || cmd.label;
             button.dataset.cmdOrder = String(index);
+            button.dataset.overflowPriority = String(
+                cmd.overflowPriority ?? cmd.displayOrder ?? 100
+            );
             const tooltip = this.buildTooltip(cmd);
             if (tooltip) button.title = tooltip;
             this.wireButton(button, cmd, tooltip);
@@ -663,29 +666,43 @@ export class CommandRenderer {
                 return;
             }
 
-            // Fill from the END: last buttons (highest priority number) are always
-            // rightmost and stay visible longest. First buttons disappear into overflow.
+            // Determine which buttons survive overflow using overflowPriority.
+            // Higher overflowPriority values survive longer. Buttons are greedily
+            // included by descending overflowPriority until space runs out, then
+            // placed back in display order (cmdOrder) for rendering.
             const availableForInline = Math.max(0, totalAvailable - toggleReserve);
-            let used = 0;
-            let inlineCount = 0;
 
-            for (let i = allButtons.length - 1; i >= 0; i--) {
-                const cost = (inlineCount === 0 ? 0 : gap) + widths[i];
+            // Build an index array sorted by overflowPriority descending (highest survives).
+            // Tiebreak by index descending so buttons at the same priority level
+            // overflow in a stable, predictable order (leftmost overflows first).
+            const byOverflow = allButtons
+                .map((btn, i) => ({
+                    index: i,
+                    width: widths[i],
+                    overflowPriority: Number(btn.dataset.overflowPriority ?? 0),
+                }))
+                .sort((a, b) => b.overflowPriority - a.overflowPriority || b.index - a.index);
+
+            const inlineSet = new Set<number>();
+            let used = 0;
+
+            for (const entry of byOverflow) {
+                const cost = (inlineSet.size === 0 ? 0 : gap) + entry.width;
                 if (used + cost > availableForInline) break;
                 used += cost;
-                inlineCount++;
+                inlineSet.add(entry.index);
             }
 
-            const overflowCount = allButtons.length - inlineCount;
-
-            // Distribute: first overflowCount buttons to dropdown, the rest inline (in order).
+            // Distribute buttons maintaining display order (cmdOrder).
             allButtons.forEach((btn, i) => {
-                if (i < overflowCount) {
-                    overflowDropdown.appendChild(btn);
-                } else {
+                if (inlineSet.has(i)) {
                     inlineRail.appendChild(btn);
+                } else {
+                    overflowDropdown.appendChild(btn);
                 }
             });
+
+            const overflowCount = allButtons.length - inlineSet.size;
 
             if (overflowCount > 0) {
                 buttonsContainer.classList.add(hasOverflowClass);

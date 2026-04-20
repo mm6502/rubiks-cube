@@ -68,7 +68,8 @@ export type LabelPosition =
  * @property {string} [tooltip] - Optional tooltip for button.
  * @property {string} [group] - Optional group identifier for organizing related commands together. Supports hierarchical group paths separated by '/'. Example: `Moves/Basic`, `Moves/Extended`, `Whole Cube Rotations`.
  * @property {boolean} [showInHeader] - Whether to show in view header. If false (default), shows only in view actions panel.
- * @property {number} [priority] - Display priority (lower numbers = higher priority). Used to determine which buttons to hide when space is limited. Default is 100.
+ * @property {number} [displayOrder] - Display order for button positioning (lower numbers = further left). Default is 100.
+ * @property {number} [overflowPriority] - Overflow survival priority (higher numbers survive longer when space is limited). When absent, falls back to displayOrder. Use this to keep a button visible during overflow independently of its left-to-right position.
  * @property {LabelPosition} [labelPosition] - Position for rendering label text over icon. Only applies when icon is present. Options: 'top-left', 'top-right', 'bottom-left', 'bottom-right', 'center', 'none'. Default is 'none'.
  * @property {() => boolean} [isActive] - Optional function returning whether this command is currently toggled on. When provided, the button renders with `aria-pressed` and an active/highlighted style.
  * @property {() => boolean} [isEnabled] - Optional function returning whether this command is currently available. When provided, the button is rendered as `disabled` when it returns false.
@@ -83,7 +84,8 @@ export type Command = {
     tooltip?: string; // Optional tooltip for button
     group?: string; // Optional group identifier for organizing related commands
     showInHeader?: boolean; // Whether to show in view header (default: false, shows only in view actions)
-    priority?: number; // Display priority (lower = higher priority), default 100
+    displayOrder?: number; // Display order for button positioning (lower = further left), default 100
+    overflowPriority?: number; // Overflow survival priority (higher = survives longer). Falls back to displayOrder.
     labelPosition?: LabelPosition; // Position for label text over icon (default: 'none')
     isActive?: () => boolean; // Optional toggle-state getter; when present the button renders with aria-pressed
     isEnabled?: () => boolean; // Optional availability getter; when present the button is disabled when it returns false

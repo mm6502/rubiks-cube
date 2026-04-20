@@ -73,6 +73,14 @@
     stroke-dasharray: 7 5;
 }
 
+.circular-fretboard-line {
+    stroke: var(--color-drag-halo-zone-stroke);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 7 5;
+    opacity: 0.7;
+}
+
 .circular-debug-band {
     fill: rgba(0, 210, 210, 0.1);
     stroke: rgba(0, 210, 210, 0.25);

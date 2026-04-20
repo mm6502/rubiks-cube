@@ -1,29 +1,17 @@
-import { Application } from '@/application';
 import { Axis, CubeView, Face, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { Size2D } from '@/cube/types/cubie';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
-import {
-    inferKeyboardMove,
-    isFaceSelectKey,
-    isKeyboardMoveKey,
-    mapArrowToDirection,
-} from '@/interaction/keyboard-moves';
-import {
-    Command,
-    CommandCategory,
-    EventName,
-    MoveExecutedEvent,
-    MoveRequestedEvent,
-} from '@/types';
+import { Command, MoveExecutedEvent } from '@/types';
 
 import * as highlights from './highlights';
 import * as initialization from './initialization';
 import * as rendering from './rendering';
 import styles from './circular.module.css';
-import { FACE_TOP_DIRECTION_HINTS, tiltAngleFromHint } from './direction-mapping';
+import { getCommands, getState, setState } from './commands';
+import { FaceLabelTiltController } from './face-label-tilt';
 import { StickerLookupMap } from './initialization';
-import { isNavigationKey, navigate } from './keyboard-cube-walking';
+import { handleKeyPress } from './keyboard-actions';
 import { AxisCircle } from './svg-tools';
 import { CircularTouchHandler } from './touch-handler';
 import { ZoomPanController } from './zoom-pan';
@@ -117,6 +105,12 @@ export type CircularCubeViewInternalData = {
     showGhosts: boolean;
     /** Cached ghost-sticker SVG elements (lazily populated by rendering). */
     ghostElements?: SVGCircleElement[];
+    /** Zoom/pan controller — set up in create(), torn down in destroy(). */
+    zoomPan: ZoomPanController | null;
+    /** Touch handler for drag gestures and face selection. */
+    touchHandler: CircularTouchHandler | null;
+    /** Whether left-drag pans instead of performing move gestures. */
+    panMode: boolean;
 };
 
 export type CircularViewState = {
@@ -146,15 +140,13 @@ export class CircularCubeView implements CubeView {
         axisAnimationChains: { X: Promise.resolve(), Y: Promise.resolve(), Z: Promise.resolve() },
         cubeWalk: true,
         showGhosts: true,
+        zoomPan: null,
+        touchHandler: null,
+        panMode: false,
     };
 
-    /** Zoom/pan controller — set up in create(), torn down in destroy(). */
-    private zoomPan: ZoomPanController | null = null;
-    private touchHandler: CircularTouchHandler | null = null;
-    /** When true, left-drag pans instead of performing move gestures. */
-    private panMode = false;
-    /** Timer to revert face label tilt after keyboard idle. */
-    private faceLabelResetTimer: ReturnType<typeof setTimeout> | null = null;
+    /** Controller for face-label tilt animations. */
+    private faceLabelTilt = new FaceLabelTiltController(() => this.state.svgRoot);
 
     create(container: HTMLElement, model: ReadOnlyCubeModel): void {
         const state = initialization.initialize(container, model, styles);
@@ -176,7 +168,7 @@ export class CircularCubeView implements CubeView {
         const clipEl = container.querySelector<HTMLElement>('[data-role="clip-container"]');
         const transformEl = container.querySelector<HTMLElement>('[data-role="transform-target"]');
         if (clipEl && transformEl && this.state.svgRoot) {
-            this.touchHandler = new CircularTouchHandler({
+            this.state.touchHandler = new CircularTouchHandler({
                 svgRoot: this.state.svgRoot,
                 host: clipEl,
                 styles,
@@ -188,17 +180,18 @@ export class CircularCubeView implements CubeView {
                     this.updateSelected(stickerId as StickerId | undefined),
                 /* c8 ignore stop */
             });
-            this.touchHandler.attach();
+            this.state.touchHandler.attach();
 
-            this.zoomPan = new ZoomPanController(clipEl, transformEl, {
+            this.state.zoomPan = new ZoomPanController(clipEl, transformEl, {
                 gestureMode: 'delegated-left-drag',
                 pointerDelegate: {
                     /* c8 ignore start */
                     onPointerDown: (event, target) =>
-                        this.touchHandler?.onPointerDown(event, target),
-                    onPointerMove: event => this.touchHandler?.onPointerMove(event),
-                    onPointerUp: (event, target) => this.touchHandler?.onPointerUp(event, target),
-                    onPointerCancel: event => this.touchHandler?.onPointerCancel(event),
+                        this.state.touchHandler?.onPointerDown(event, target),
+                    onPointerMove: event => this.state.touchHandler?.onPointerMove(event),
+                    onPointerUp: (event, target) =>
+                        this.state.touchHandler?.onPointerUp(event, target),
+                    onPointerCancel: event => this.state.touchHandler?.onPointerCancel(event),
                     /* c8 ignore stop */
                 },
                 /* c8 ignore next */
@@ -219,7 +212,7 @@ export class CircularCubeView implements CubeView {
     setLayoutMode(mode: LayoutMode): void {
         // Gesture routing remains unchanged; we only adjust interaction affordances
         // (such as drag-label placement) for tabbed/mobile layouts.
-        this.touchHandler?.setLayoutMode(mode);
+        this.state.touchHandler?.setLayoutMode(mode);
     }
 
     update(model: ReadOnlyCubeModel): void {
@@ -264,230 +257,35 @@ export class CircularCubeView implements CubeView {
     }
 
     handleKeyDown(event: KeyboardEvent): boolean {
-        return this.handleKeyPress(event, true);
+        return handleKeyPress(
+            event,
+            true,
+            this.state,
+            id => this.updateSelected(id),
+            () => this.faceLabelTilt.flash()
+        );
     }
 
     handleKeyUp(event: KeyboardEvent): boolean {
-        return this.handleKeyPress(event, false);
-    }
-
-    /**
-     * Separate method to handle key presses, with a preview mode for keydown pre-checking.
-     * @param event - The keyboard event to handle.
-     * @param preview - If true, only check if the event would be handled without actually performing the action (used for keydown pre-checking).
-     * @returns true if the event was handled (i.e., it was a navigation key and navigation succeeded), false otherwise.
-     */
-    private handleKeyPress(event: KeyboardEvent, preview: boolean = false): boolean {
-        // Face selection toggle (Space or Backtick).
-        if (isFaceSelectKey(event)) {
-            if (!preview) {
-                this.handleFaceSelectKey();
-                this.flashFaceLabelTilt();
-            }
-            return this.state.currentSelected !== undefined;
-        }
-
-        // Keyboard move (Ctrl+Arrow, optionally +Shift for 180°).
-        if (isKeyboardMoveKey(event)) {
-            if (!preview) {
-                this.handleKeyboardMove(event);
-                this.flashFaceLabelTilt();
-            }
-            return this.state.currentSelected !== undefined;
-        }
-
-        // Plain arrow keys — sticker navigation.
-        if (!isNavigationKey(event)) return false;
-
-        const handled = navigate(
+        return handleKeyPress(
             event,
-            preview,
+            false,
             this.state,
-            /* c8 ignore next */ id => this.updateSelected(id)
+            id => this.updateSelected(id),
+            () => this.faceLabelTilt.flash()
         );
-        if (handled && !preview) this.flashFaceLabelTilt();
-        return handled;
-    }
-
-    private handleFaceSelectKey(): void {
-        if (!this.state.currentSelected || !this.state.model || !this.touchHandler) return;
-
-        const sticker = CubeStateUtils.getStickerById(
-            this.state.model.getCurrentState(),
-            this.state.currentSelected
-        );
-        if (!sticker) return;
-
-        const face = sticker.currentFace as Face;
-        const current = this.touchHandler.getSelectedFace();
-        this.touchHandler.selectFace(current === face ? undefined : face);
-    }
-
-    private handleKeyboardMove(event: KeyboardEvent): void {
-        if (!this.state.currentSelected || !this.state.model || !this.touchHandler) return;
-
-        const direction = mapArrowToDirection(event);
-        if (!direction) return;
-
-        const notation = inferKeyboardMove({
-            stickerId: this.state.currentSelected,
-            selectedFace: this.touchHandler.getSelectedFace(),
-            faceDirectMode: this.touchHandler.getFaceDirectMode(),
-            direction,
-            doubleTurn: event.shiftKey,
-            model: this.state.model,
-        });
-        if (!notation) return;
-
-        const payload: MoveRequestedEvent = {
-            moveNotation: notation,
-            viewId: 'circular',
-            tentative: false,
-        };
-        Application.eventBus.emit(EventName.MOVE_REQUESTED, payload);
     }
 
     getCommands(): Command[] {
-        return [
-            {
-                id: 'circular-view.pan-mode',
-                label: 'Pan Mode',
-                category: CommandCategory.VIEW,
-                keyBindings: [{ key: '6', ctrlKey: true }],
-                icon: '✥',
-                tooltip: 'Drag to pan/zoom. Disables move gestures until toggled off.',
-                showInHeader: true,
-                priority: 580,
-                action: () => {
-                    this.panMode = !this.panMode;
-                    this.zoomPan?.setGestureMode(this.panMode ? 'legacy' : 'delegated-left-drag');
-                    Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
-                        viewType: this.getViewType(),
-                    });
-                },
-                isActive: () => this.panMode,
-            },
-            {
-                id: 'circular-view.reset-zoom',
-                label: 'Reset View',
-                category: CommandCategory.VIEW,
-                keyBindings: [{ key: 'Home' }, { key: '5', ctrlKey: true }],
-                icon: '⊙',
-                tooltip: 'Reset zoom and pan to default.',
-                showInHeader: true,
-                priority: 590,
-                action: () => this.zoomPan?.reset(),
-            },
-            {
-                id: 'circular-view.ghost-hints',
-                label: 'Ghost Hints',
-                category: CommandCategory.VIEW,
-                icon: '👻',
-                keyBindings: [{ key: '4', ctrlKey: true }],
-                showInHeader: true,
-                priority: 600,
-                tooltip: 'Show semi-transparent hint stickers on the far side of each axis circle.',
-                isActive: () => this.state.showGhosts,
-                action: () => {
-                    this.state.showGhosts = !this.state.showGhosts;
-                    void rendering.animateGhostToggle(this.state);
-                    Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
-                        viewType: this.getViewType(),
-                    });
-                },
-            },
-            {
-                id: 'circular-view.cube-walk',
-                label: 'Cube Walk',
-                category: CommandCategory.VIEW,
-                icon: '⊕',
-                keyBindings: [{ key: '3', ctrlKey: true }],
-                showInHeader: true,
-                priority: 880,
-                tooltip:
-                    'Arrow-key navigation follows real cube surface — walking off an edge lands on the adjacent face.',
-                isActive: () => this.state.cubeWalk,
-                action: () => {
-                    this.state.cubeWalk = !this.state.cubeWalk;
-                    Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
-                        viewType: this.getViewType(),
-                    });
-                },
-            },
-            {
-                id: 'circular-view.face-direct-mode',
-                label: 'Face Mode',
-                category: CommandCategory.VIEW,
-                keyBindings: [{ key: '2', ctrlKey: true }],
-                icon: '◎',
-                tooltip:
-                    'Drag face ellipses to rotate that face directly (without selecting first).',
-                showInHeader: true,
-                priority: 890,
-                action: () => {
-                    const handler = this.touchHandler;
-                    if (handler) {
-                        handler.setFaceDirectMode(!handler.getFaceDirectMode());
-                        Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
-                            viewType: this.getViewType(),
-                        });
-                    }
-                },
-                isActive: () => this.touchHandler?.getFaceDirectMode() ?? false,
-            },
-            {
-                id: 'circular.undo',
-                label: 'Undo',
-                category: CommandCategory.VIEW,
-                showInHeader: true,
-                icon: '↩',
-                tooltip: 'Undo last move.',
-                keyBindings: [{ key: '[' }, { key: ',' }],
-                priority: 900,
-                action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
-                isEnabled: () => this.state.model?.getMoveHistory().canUndo() ?? false,
-            },
-            {
-                id: 'circular.redo',
-                label: 'Redo',
-                category: CommandCategory.VIEW,
-                showInHeader: true,
-                icon: '↪',
-                tooltip: 'Redo last undone move.',
-                keyBindings: [{ key: ']' }, { key: '.' }],
-                priority: 901,
-                action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
-                isEnabled: () => this.state.model?.getMoveHistory().canRedo() ?? false,
-            },
-        ];
+        return getCommands(this.state);
     }
 
     getState(): CircularViewState {
-        return {
-            faceDirectMode: this.touchHandler?.getFaceDirectMode() ?? false,
-            panMode: this.panMode,
-            cubeWalk: this.state.cubeWalk,
-            showGhosts: this.state.showGhosts,
-        };
+        return getState(this.state);
     }
 
     setState(state: unknown): void {
-        if (!state || typeof state !== 'object') return;
-        const s = state as Record<string, unknown>;
-        if (typeof s['panMode'] === 'boolean') {
-            this.panMode = s['panMode'];
-            this.zoomPan?.setGestureMode(this.panMode ? 'legacy' : 'delegated-left-drag');
-        }
-        if (typeof s['faceDirectMode'] === 'boolean') {
-            this.touchHandler?.setFaceDirectMode(s['faceDirectMode']);
-        }
-        if (typeof s['cubeWalk'] === 'boolean') {
-            this.state.cubeWalk = s['cubeWalk'];
-        }
-        if (typeof s['showGhosts'] === 'boolean') {
-            this.state.showGhosts = s['showGhosts'];
-            rendering.setGhostVisibility(this.state);
-        }
+        setState(this.state, state);
     }
 
     resize(): void {
@@ -503,62 +301,14 @@ export class CircularCubeView implements CubeView {
     }
 
     destroy(): void {
-        if (this.faceLabelResetTimer) clearTimeout(this.faceLabelResetTimer);
-        this.faceLabelResetTimer = null;
-        this.zoomPan?.destroy();
-        this.zoomPan = null;
-        this.touchHandler?.destroy();
-        this.touchHandler = null;
+        this.faceLabelTilt.destroy();
+        this.state.zoomPan?.destroy();
+        this.state.zoomPan = null;
+        this.state.touchHandler?.destroy();
+        this.state.touchHandler = null;
         if (this.state.container) {
             this.state.container.innerHTML = '';
         }
         this.state.svgRoot = undefined;
-    }
-
-    // ── Face-label tilt helpers ──────────────────────────────────────────
-
-    /**
-     * Per-face translate origin (tx, ty) and tilt angle (degrees).
-     * The angle is derived from {@link FACE_TOP_DIRECTION_HINTS} via
-     * {@link tiltAngleFromHint} so it stays in sync with the direction system.
-     */
-    private static readonly FACE_LABEL_TRANSFORMS: Record<
-        string,
-        { tx: number; ty: number; angle: number }
-    > = {
-        U: { tx: 200, ty: 115, angle: tiltAngleFromHint(FACE_TOP_DIRECTION_HINTS[Face.U]) },
-        D: { tx: 200, ty: 326, angle: tiltAngleFromHint(FACE_TOP_DIRECTION_HINTS[Face.D]) },
-        L: { tx: 85, ty: 120, angle: tiltAngleFromHint(FACE_TOP_DIRECTION_HINTS[Face.L]) },
-        B: { tx: 315, ty: 120, angle: tiltAngleFromHint(FACE_TOP_DIRECTION_HINTS[Face.B]) },
-        F: { tx: 133, ty: 228, angle: tiltAngleFromHint(FACE_TOP_DIRECTION_HINTS[Face.F]) },
-        R: { tx: 267, ty: 228, angle: tiltAngleFromHint(FACE_TOP_DIRECTION_HINTS[Face.R]) },
-    };
-
-    private static readonly FACE_LABEL_RESET_MS = 1500;
-
-    /** Tilt all face labels and schedule a reset after idle. */
-    private flashFaceLabelTilt(): void {
-        this.setFaceLabelRotations(true);
-        if (this.faceLabelResetTimer) clearTimeout(this.faceLabelResetTimer);
-        this.faceLabelResetTimer = setTimeout(
-            () => this.setFaceLabelRotations(false),
-            CircularCubeView.FACE_LABEL_RESET_MS
-        );
-    }
-
-    /** Apply or remove tilt rotation on every face label element. */
-    private setFaceLabelRotations(tilted: boolean): void {
-        const svg = this.state.svgRoot;
-        if (!svg) return;
-        for (const [face, { tx, ty, angle }] of Object.entries(
-            CircularCubeView.FACE_LABEL_TRANSFORMS
-        )) {
-            const el = svg.getElementById(`face-label-${face}`);
-            if (!el) continue;
-            el.setAttribute(
-                'transform',
-                tilted ? `translate(${tx},${ty}) rotate(${angle})` : `translate(${tx},${ty})`
-            );
-        }
     }
 }

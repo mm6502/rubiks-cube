@@ -17,7 +17,9 @@ The cube uses a right-handed 3D coordinate system with origin at (0,0,0).
 
 ### Face-to-Coordinate Mapping
 
-**Important**: Layer numbering is **viewer-dependent** - layers are numbered from the viewer's perspective when looking at each face. This means opposite faces share the same physical planes but number them in reverse order.
+**Important**: Layer numbering is **viewer-dependent** - layers are numbered
+from the viewer's perspective when looking at each face. This means opposite
+faces share the same physical planes but number them in reverse order.
 
 | Face          | Coordinate Plane | Index Range                       |
 | ------------- | ---------------- | --------------------------------- |
@@ -47,10 +49,13 @@ The cube uses a right-handed 3D coordinate system with origin at (0,0,0).
 
 ### Axis-Based Rotation Definition
 
-All rotations are defined relative to the cube's coordinate system with consistent direction semantics:
+All rotations are defined relative to the cube's coordinate system with
+consistent direction semantics:
 
-- **Clockwise (CW)**: Clockwise when viewed from negative to positive on the axis of rotation
-- **Counter-Clockwise (CCW)**: Counter-clockwise when viewed from negative to positive on the axis of rotation
+- **Clockwise (CW)**: Clockwise when viewed from negative to positive on the
+  axis of rotation
+- **Counter-Clockwise (CCW)**: Counter-clockwise when viewed from negative to
+  positive on the axis of rotation
 
 ### Face Rotation Mapping
 
@@ -63,7 +68,8 @@ All rotations are defined relative to the cube's coordinate system with consiste
 | **F** | Z    | 0          | Rotate front face clockwise  | CW from -Z to +Z   |
 | **B** | Z    | cubeSize-1 | Rotate back face clockwise   | CCW from -Z to +Z  |
 
-**Important**: External move behavior remains identical. Only the internal coordinate-based description changes to provide consistent axis-based semantics.
+**Important**: External move behavior remains identical. Only the internal
+coordinate-based description changes to provide consistent axis-based semantics.
 
 ## ID Conventions
 
@@ -161,7 +167,9 @@ function getCubieType(position: Position3D, cubeSize: number): CubieType {
   // Convert to centered coordinates for easier extreme detection
   const centered = toCentered(position, cubeSize);
   const maxCoord = (cubeSize - 1) / 2;
-  const extremes = [centered.x, centered.y, centered.z].filter(value => isExtreme(value, maxCoord));
+  const extremes = [centered.x, centered.y, centered.z].filter(value =>
+    isExtreme(value, maxCoord)
+  );
 
   if (extremes.length === 3) return CubieType.CORNER;
   if (extremes.length === 2) return CubieType.EDGE;
@@ -172,7 +180,8 @@ function getCubieType(position: Position3D, cubeSize: number): CubieType {
 
 ### Virtual Centers
 
-In addition to physical cubies, the system maintains **virtual center cubies** for each face:
+In addition to physical cubies, the system maintains **virtual center cubies**
+for each face:
 
 - **Purpose**: Track face identity through whole-cube rotations
 - **Count**: 6 virtual cubies (one per face: F, U, R, B, L, D)
@@ -221,12 +230,15 @@ In addition to physical cubies, the system maintains **virtual center cubies** f
 
 ### Lazy Evaluation
 
-Layers are **not stored** in memory. Instead, they are computed on-demand by filtering cubies based on coordinates. All LayerManager methods are **static** and operate on CubeState.
+Layers are **not stored** in memory. Instead, they are computed on-demand by
+filtering cubies based on coordinates. All LayerManager methods are **static**
+and operate on CubeState.
 
 ### Benefits of Lazy Evaluation
 
 1. **Memory Efficiency**: No redundant storage of layer memberships
-2. **Always Current**: Layer contents automatically reflect current cubie positions
+2. **Always Current**: Layer contents automatically reflect current cubie
+   positions
 3. **Dynamic Cube Sizes**: Works for any cube size without pre-computation
 4. **Flexibility**: Easy to query arbitrary slices and layers
 
@@ -264,11 +276,17 @@ const isWholeCube = LayerManager.isWholeCubeRotation(move); // true for x, y, z
 
 ### Architectural Overview
 
-The Rubik's Cube type system has been designed with a unified approach that supports Faces, Layers, and Planes through a hierarchical, object-based model. This design eliminates string literals for Faces, Planes, and Layers, enhancing type safety, code clarity, and maintainability. The system is based on the existing codebase in `CubeController.ts` and related type definitions, with notation standards aligned to the [Move Notation](./move-notation.md) document.
+The Rubik's Cube type system has been designed with a unified approach that
+supports Faces, Layers, and Planes through a hierarchical, object-based model.
+This design eliminates string literals for Faces, Planes, and Layers, enhancing
+type safety, code clarity, and maintainability. The system is based on the
+existing codebase in `CubeController.ts` and related type definitions, with
+notation standards aligned to the [Move Notation](./move-notation.md) document.
 
 ### Current Unified Type System
 
-The system now relies on the shared `MoveDefinition` structure from `cube/core/cube-invariants` to describe rotations:
+The system now relies on the shared `MoveDefinition` structure from
+`cube/core/cube-invariants` to describe rotations:
 
 ```typescript
 interface MoveDefinition {
@@ -279,38 +297,57 @@ interface MoveDefinition {
 }
 ```
 
-This replaces the `AxisRotation` abstraction and provides a single source of truth for:
+This replaces the `AxisRotation` abstraction and provides a single source of
+truth for:
 
 - **Face rotations**: `layerIndices` contains one outer-layer index
 - **Layer rotations**: `layerIndices` enumerates the specific layers
 - **Whole-axis rotations**: `layerIndices` enumerates every layer on the axis
 
-The direction of rotation is encoded by the `angle` sign, so no separate `RotationDirection` enum is needed. Consumers derive clockwise/counter-clockwise semantics directly from the angle and axis.
+The direction of rotation is encoded by the `angle` sign, so no separate
+`RotationDirection` enum is needed. Consumers derive clockwise/counter-clockwise
+semantics directly from the angle and axis.
 
 #### Integration with Existing Code
 
-- `CubeController` and `MoveEngine` fetch canonical `MoveDefinition` instances from the invariants map.
-- `LayerManager` enumerates affected cubies using `MoveDefinition.layerIndices`, including virtual centers.
-- String-based layer identifiers have been removed from the core path; tests and utilities consume `MoveDefinition` objects instead.
+- `CubeController` and `MoveEngine` fetch canonical `MoveDefinition` instances
+  from the invariants map.
+- `LayerManager` enumerates affected cubies using `MoveDefinition.layerIndices`,
+  including virtual centers.
+- String-based layer identifiers have been removed from the core path; tests and
+  utilities consume `MoveDefinition` objects instead.
 
 ### Architectural Benefits
 
-- **Type Safety**: Eliminates string literals and runtime errors; TypeScript catches mismatches at compile time.
-- **Clarity/Maintainability**: Explicit relationships between Faces/Layers/Planes; readable code (e.g., `if (target.kind === 'layer')`). Combines Plane and direction into a single, coherent rotation specification. Uses named interfaces for better type documentation and IntelliSense support.
-- **Extensibility**: Easy addition of new concepts (e.g., arbitrary depths for larger cubes).
-- **Consistency**: Aligns with recent const object refactoring (e.g., Face). Uses named const objects for kind literals, following the same pattern as other enums in the codebase.
-- **Reduced Boilerplate**: Less regex parsing and assertions; type-driven validation. No need to handle direction separately in move objects.
+- **Type Safety**: Eliminates string literals and runtime errors; TypeScript
+  catches mismatches at compile time.
+- **Clarity/Maintainability**: Explicit relationships between
+  Faces/Layers/Planes; readable code (e.g., `if (target.kind === 'layer')`).
+  Combines Plane and direction into a single, coherent rotation specification.
+  Uses named interfaces for better type documentation and IntelliSense support.
+- **Extensibility**: Easy addition of new concepts (e.g., arbitrary depths for
+  larger cubes).
+- **Consistency**: Aligns with recent const object refactoring (e.g., Face).
+  Uses named const objects for kind literals, following the same pattern as
+  other enums in the codebase.
+- **Reduced Boilerplate**: Less regex parsing and assertions; type-driven
+  validation. No need to handle direction separately in move objects.
 
 ### Design Considerations
 
-- **Complexity**: Adds cognitive/performance overhead (object creation vs. strings).
-- **Backward Compatibility**: Backward compatibility is not needed, but requires migration/refactoring; potential breaking changes.
-- **Notation Mapping**: Rubik's notation (e.g., `M`) doesn't map directly to hierarchy; may need special handling.
-- **Performance**: Increased memory usage for large simulations (though minor for 3x3).
+- **Complexity**: Adds cognitive/performance overhead (object creation vs.
+  strings).
+- **Backward Compatibility**: Backward compatibility is not needed, but requires
+  migration/refactoring; potential breaking changes.
+- **Notation Mapping**: Rubik's notation (e.g., `M`) doesn't map directly to
+  hierarchy; may need special handling.
+- **Performance**: Increased memory usage for large simulations (though minor
+  for 3x3).
 - **Adoption**: Views/events need updates; consistency enforcement challenging.
 
 ## Related Documentation
 
 - [Move Notation](./move-notation.md) - How moves are specified and parsed
-- [Discrete Orientation System](./discrete-orientation-system.md) - How cubie orientations work
+- [Discrete Orientation System](./discrete-orientation-system.md) - How cubie
+  orientations work
 - [Architecture Overview](./architecture-overview.md) - Overall system design

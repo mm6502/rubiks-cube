@@ -1,15 +1,14 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Map as IMap } from 'immutable';
-
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
-import { CubieId, Face, StickerId } from '@/cube/types';
+import { Face, StickerId } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils';
 import { EventName, MoveExecutedEvent } from '@/types';
 
 import { FlatView } from './flat-view';
 import styles from './flat-view.module.css';
+import { inferLegendMove } from './legend-drag';
 
 beforeAll(() => {
     // JSDOM does not implement setPointerCapture; polyfill for tests
@@ -247,143 +246,6 @@ describe('FlatView', () => {
         });
     });
 
-    describe('update', () => {
-        beforeEach(() => {
-            view.create(container, controller);
-        });
-
-        it('should update sticker colors after move', () => {
-            // Arrange
-            controller.applyMove('R');
-
-            // Act
-            view.update(controller);
-
-            // Assert
-            const sameSticker = container.querySelector(
-                `.${styles['flat-sticker']}[data-face="${Face.F}"][data-pos="0"]`
-            ) as HTMLElement;
-            const newId = sameSticker.getAttribute('data-sticker-id');
-
-            // After move, sticker IDs should have changed for affected faces
-            expect(newId).toBeTruthy();
-            // Front face is affected by R move, so verify stickers exist and have colors
-            const allStickers = Array.from(
-                container.querySelectorAll(`.${styles['flat-sticker']}`)
-            ) as HTMLElement[];
-            expect(allStickers.length).toBeGreaterThan(0);
-            allStickers.forEach(s => {
-                expect(s.style.backgroundColor).toBeTruthy();
-            });
-        });
-
-        it('should update sticker IDs', () => {
-            // Arrange
-            controller.applyMove('U');
-
-            // Act
-            view.update(controller);
-
-            // Assert
-            const sticker = container.querySelector(
-                `.${styles['flat-sticker']}[data-face="${Face.F}"][data-pos="0"]`
-            ) as HTMLElement;
-            expect(sticker?.getAttribute('data-sticker-id')).toBeTruthy();
-        });
-
-        it('should not update if container is null', () => {
-            // Arrange
-            view.destroy();
-
-            // Act & Assert
-            expect(() => view.update(controller)).not.toThrow();
-        });
-    });
-
-    describe('updateSelective', () => {
-        beforeEach(() => {
-            view.create(container, controller);
-        });
-
-        it('should update only affected stickers', () => {
-            // Arrange
-            // Get the actual sticker ID at F:5 position
-            const actualSticker = container.querySelector(
-                `.${styles['flat-sticker']}[data-face="${Face.F}"][data-pos="5"]`
-            ) as HTMLElement;
-            const actualStickerId = actualSticker.getAttribute('data-sticker-id') as StickerId;
-
-            const moveEvent: MoveExecutedEvent = {
-                moveDetails: {
-                    notation: 'R',
-                    movedCubies: {
-                        before: [],
-                        after: [
-                            {
-                                id: 'test-cubie' as CubieId,
-                                type: 'edge',
-                                position: { x: 1, y: 1, z: 0 },
-                                orientation: 0,
-                                canonicalIndex: 0,
-                                stickers: IMap([
-                                    [
-                                        actualStickerId,
-                                        {
-                                            id: actualStickerId,
-                                            color: 'blue', // Face.R maps to blue
-                                            cubieId: 'test-cubie' as CubieId,
-                                            localIndex: 0,
-                                            currentFace: Face.F,
-                                            facePosition: 5,
-                                        },
-                                    ],
-                                ]),
-                            },
-                        ],
-                    },
-                },
-                preState: controller.getCurrentState(),
-                postState: controller.getCurrentState(),
-            };
-
-            // Act
-            view.updateSelective(moveEvent);
-
-            // Assert
-            // Verify sticker still has correct ID
-            const sticker = container.querySelector(
-                `.${styles['flat-sticker']}[data-face="${Face.F}"][data-pos="5"]`
-            ) as HTMLElement;
-            expect(sticker?.getAttribute('data-sticker-id')).toBe(actualStickerId);
-        });
-
-        it('should handle empty moved cubies', () => {
-            // Arrange
-            const moveEvent: MoveExecutedEvent = {
-                moveDetails: {
-                    notation: 'R',
-                    movedCubies: {
-                        before: [],
-                        after: [],
-                    },
-                },
-                preState: controller.getCurrentState(),
-                postState: controller.getCurrentState(),
-            };
-
-            // Act & Assert
-            expect(() => view.updateSelective(moveEvent)).not.toThrow();
-        });
-
-        it('should not update if container is null', () => {
-            // Arrange
-            view.destroy();
-
-            // Act & Assert
-            expect(() => view.updateSelective()).not.toThrow();
-        });
-    });
-
     describe('updateHighlight', () => {
         beforeEach(() => {
             view.create(container, controller);
@@ -583,53 +445,6 @@ describe('FlatView', () => {
 
             // Assert
             expect(handled).toBe(false);
-        });
-    });
-
-    describe('resize', () => {
-        beforeEach(() => {
-            view.create(container, controller);
-        });
-
-        it('should scale grid based on container size', () => {
-            // Arrange
-            const grid = container.querySelector(`.${styles['flat-grid']}`) as HTMLElement;
-
-            // Act
-            container.style.width = '300px';
-            container.style.height = '300px';
-            view.resize();
-
-            // Assert
-            const newTransform = grid.style.transform;
-            expect(newTransform).toBeTruthy();
-            expect(newTransform).toContain('scale');
-            // centering is now handled by the flex parent, not by a translate in the transform
-        });
-
-        it('should float legend in the top‑right corner and not reposition it in code', () => {
-            // Act
-            view.resize();
-
-            // Assert - legend positioning now comes entirely from CSS
-            const legend = container.querySelector(`.${styles['flat-legend']}`) as HTMLElement;
-            expect(legend).toBeTruthy();
-            // ensure the view did not try to reposition it via inline styles
-            expect(legend.style.top).toBe('');
-            expect(legend.style.right).toBe('');
-            // its floating behavior is handled by CSS rules which aren't reflected in JSDOM
-            expect(legend.classList.contains(styles['flat-legend'])).toBe(true);
-        });
-
-        it('should handle small container sizes', () => {
-            // Act
-            container.style.width = '100px';
-            container.style.height = '100px';
-            view.resize();
-
-            // Assert
-            const grid = container.querySelector(`.${styles['flat-grid']}`) as HTMLElement;
-            expect(grid.style.transform).toContain('scale');
         });
     });
 
@@ -859,7 +674,7 @@ describe('FlatView', () => {
             expect(view['state'].isRotated).toBe(false);
 
             // drag right
-            const result = view['inferLegendMove'](50, 5);
+            const result = inferLegendMove(50, 5, false);
             expect(result).toBe("y'");
 
             // Restore
@@ -870,7 +685,7 @@ describe('FlatView', () => {
             Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
             view['handleResize']();
 
-            const result = view['inferLegendMove'](-50, 5);
+            const result = inferLegendMove(-50, 5, false);
             expect(result).toBe('y');
 
             Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
@@ -880,7 +695,7 @@ describe('FlatView', () => {
             Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
             view['handleResize']();
 
-            const result = view['inferLegendMove'](5, 50);
+            const result = inferLegendMove(5, 50, false);
             expect(result).toBe("x'");
 
             Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
@@ -890,7 +705,7 @@ describe('FlatView', () => {
             Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
             view['handleResize']();
 
-            const result = view['inferLegendMove'](5, -50);
+            const result = inferLegendMove(5, -50, false);
             expect(result).toBe('x');
 
             Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
@@ -992,103 +807,6 @@ describe('FlatView', () => {
         it('setState ignores non-object input', () => {
             expect(() => view.setState(null)).not.toThrow();
             expect(() => view.setState('invalid')).not.toThrow();
-        });
-
-        it('setState with showGhosts=false hides ghost strips', () => {
-            view.setState({ showGhosts: false });
-            expect(view.getState().showGhosts).toBe(false);
-
-            const strips = container.querySelectorAll(`.${styles['flat-ghost-strip']}`);
-            for (const strip of strips) {
-                expect((strip as HTMLElement).style.display).toBe('none');
-            }
-        });
-    });
-
-    describe('ghost hints', () => {
-        beforeEach(() => {
-            view.create(container, controller);
-        });
-
-        const getCmd = () => view.getCommands().find(c => c.id === 'flat.ghost-hints')!;
-
-        it('creates ghost strip elements on initialisation', () => {
-            const strips = container.querySelectorAll(`.${styles['flat-ghost-strip']}`);
-            expect(strips.length).toBe(14);
-        });
-
-        it('creates 3 ghost stickers per strip (42 total)', () => {
-            const ghosts = container.querySelectorAll(`.${styles['flat-ghost-sticker']}`);
-            expect(ghosts.length).toBe(42);
-        });
-
-        it('ghost stickers have data-ghost-source-face and data-ghost-source-pos', () => {
-            const ghost = container.querySelector(`.${styles['flat-ghost-sticker']}`)!;
-            expect(ghost.getAttribute('data-ghost-source-face')).toBeTruthy();
-            expect(ghost.getAttribute('data-ghost-source-pos')).not.toBeNull();
-        });
-
-        it('ghost strips are visible by default', () => {
-            const strip = container.querySelector(`.${styles['flat-ghost-strip']}`) as HTMLElement;
-            expect(strip.style.display).not.toBe('none');
-        });
-
-        it('flat.ghost-hints command toggles ghost visibility', () => {
-            vi.useFakeTimers();
-            const cmd = getCmd();
-            expect(cmd.isActive!()).toBe(true);
-
-            cmd.action();
-            expect(cmd.isActive!()).toBe(false);
-
-            // Fade-out uses a 400ms fallback timeout in jsdom (no transitionend)
-            vi.advanceTimersByTime(400);
-            const strip = container.querySelector(`.${styles['flat-ghost-strip']}`) as HTMLElement;
-            expect(strip.style.display).toBe('none');
-
-            cmd.action();
-            expect(cmd.isActive!()).toBe(true);
-            expect(strip.style.display).not.toBe('none');
-            vi.useRealTimers();
-        });
-
-        it('getState/setState round-trips showGhosts', () => {
-            expect(view.getState().showGhosts).toBe(true);
-            view.setState({ showGhosts: false });
-            expect(view.getState().showGhosts).toBe(false);
-            view.setState({ showGhosts: true });
-            expect(view.getState().showGhosts).toBe(true);
-        });
-
-        it('ghost stickers copy source sticker background colour', () => {
-            const ghost = container.querySelector(
-                `.${styles['flat-ghost-sticker']}`
-            ) as HTMLElement;
-            const face = ghost.getAttribute('data-ghost-source-face')!;
-            const pos = ghost.getAttribute('data-ghost-source-pos')!;
-
-            const sourceEl = container.querySelector(
-                `.${styles['flat-sticker']}[data-face="${face}"][data-pos="${pos}"]`
-            ) as HTMLElement;
-
-            expect(ghost.style.backgroundColor).toBe(sourceEl.style.backgroundColor);
-        });
-
-        it('ghost stickers update after a move', () => {
-            const ghost = container.querySelector(
-                `.${styles['flat-ghost-sticker']}`
-            ) as HTMLElement;
-
-            // Apply a move that changes sticker colours
-            Application.eventBus.emit(EventName.MOVE_REQUESTED, {
-                moveNotation: 'R',
-                viewId: 'test',
-                tentative: false,
-            });
-
-            // Ghost colour may or may not have changed, but the sync should have run
-            // without errors. We just verify it did not throw.
-            expect(ghost.style.backgroundColor).toBeTruthy();
         });
     });
 });

@@ -173,10 +173,10 @@ describe('MovesView', () => {
             const undo = commands.find(c => c.id === 'moves.undo')!;
             const redo = commands.find(c => c.id === 'moves.redo')!;
             expect(undo.showInHeader).toBe(true);
-            expect(undo.priority).toBe(900);
+            expect(undo.displayOrder).toBe(900);
             expect(undo.icon).toBe('↩');
             expect(redo.showInHeader).toBe(true);
-            expect(redo.priority).toBe(901);
+            expect(redo.displayOrder).toBe(901);
             expect(redo.icon).toBe('↪');
         });
 
@@ -348,6 +348,56 @@ describe('MovesView', () => {
             view.destroy();
 
             expect(cancelSpy).toHaveBeenCalled();
+        });
+    });
+
+    describe('setState after create()', () => {
+        it('setState with renderer updates renderer showAsIcons', () => {
+            // Arrange
+            view.create(container, controller.getReadOnlyModel());
+
+            // Act
+            view.setState({ showAsIcons: true });
+
+            // Assert
+            expect(view.getState().showAsIcons).toBe(true);
+        });
+
+        it('setState ignores non-boolean showAsIcons', () => {
+            // Arrange
+            view.create(container, controller.getReadOnlyModel());
+
+            // Act
+            view.setState({ showAsIcons: 'yes' });
+
+            // Assert
+            expect(view.getState().showAsIcons).toBe(false);
+        });
+
+        it('undo command action emits UNDO_REQUESTED', () => {
+            // Arrange
+            view.create(container, controller.getReadOnlyModel());
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+            const undo = view.getCommands().find(c => c.id === 'moves.undo')!;
+
+            // Act
+            undo.action();
+
+            // Assert
+            expect(emitSpy).toHaveBeenCalledWith(EventName.UNDO_REQUESTED, {});
+        });
+
+        it('redo command action emits REDO_REQUESTED', () => {
+            // Arrange
+            view.create(container, controller.getReadOnlyModel());
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+            const redo = view.getCommands().find(c => c.id === 'moves.redo')!;
+
+            // Act
+            redo.action();
+
+            // Assert
+            expect(emitSpy).toHaveBeenCalledWith(EventName.REDO_REQUESTED, {});
         });
     });
 });

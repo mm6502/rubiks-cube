@@ -1,5 +1,8 @@
-dist
 node_modules
 coverage
+public
+dist
+.github/*
+!.github/AGENTS.md
 *.html
 package-lock.json

@@ -13,14 +13,12 @@
             "files": "*.md",
             "options": {
                 "tabWidth": 2,
-                "proseWrap": "never"
+                "proseWrap": "always",
+                "printWidth": 80
             }
         }
     ],
-    "plugins": [
-        "prettier-plugin-organize-imports",
-        "@trivago/prettier-plugin-sort-imports"
-    ],
+    "plugins": ["prettier-plugin-organize-imports", "@trivago/prettier-plugin-sort-imports"],
     "importOrder": [
         "<BUILTIN_MODULES>",
         "^vi|vitest$",

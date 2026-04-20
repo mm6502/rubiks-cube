@@ -2,7 +2,11 @@
 
 ## Overview
 
-As of December 2025, the Rubik's Cube implementation uses a **discrete cubie model** with integer orientations instead of geometric rotations (Euler angles/quaternions). This provides deterministic state transitions, eliminates floating-point drift, and enables compatibility with standard solving algorithms.
+As of December 2025, the Rubik's Cube implementation uses a **discrete cubie
+model** with integer orientations instead of geometric rotations (Euler
+angles/quaternions). This provides deterministic state transitions, eliminates
+floating-point drift, and enables compatibility with standard solving
+algorithms.
 
 ## Core Concepts
 
@@ -10,19 +14,25 @@ As of December 2025, the Rubik's Cube implementation uses a **discrete cubie mod
 
 Each cubie type has a specific orientation domain:
 
-- **Corners**: `orientation ∈ {0, 1, 2}` - represents cyclic permutation of stickers
+- **Corners**: `orientation ∈ {0, 1, 2}` - represents cyclic permutation of
+  stickers
 - **Edges**: `orientation ∈ {0, 1}` - represents flip state
-- **Centers**: `orientation = 0` (always, centers don't rotate on standard cubes)
+- **Centers**: `orientation = 0` (always, centers don't rotate on standard
+  cubes)
 
 ### What Orientation Represents
 
-Orientation encodes **how the stickers are permuted** relative to the solved (canonical) state at that position.
+Orientation encodes **how the stickers are permuted** relative to the solved
+(canonical) state at that position.
 
 **For Corners:**
 
-- `orientation = 0`: Sticker at localIndex 0 appears on the first canonical face (standard position)
-- `orientation = 1`: Sticker at localIndex 1 appears on the first canonical face (clockwise twist)
-- `orientation = 2`: Sticker at localIndex 2 appears on the first canonical face (counter-clockwise twist)
+- `orientation = 0`: Sticker at localIndex 0 appears on the first canonical face
+  (standard position)
+- `orientation = 1`: Sticker at localIndex 1 appears on the first canonical face
+  (clockwise twist)
+- `orientation = 2`: Sticker at localIndex 2 appears on the first canonical face
+  (counter-clockwise twist)
 
 **For Edges:**
 
@@ -33,7 +43,8 @@ Orientation encodes **how the stickers are permuted** relative to the solved (ca
 
 ### Local Index
 
-Each sticker has a `localIndex` that represents its position in the **canonical face order** at that location:
+Each sticker has a `localIndex` that represents its position in the **canonical
+face order** at that location:
 
 **For a corner at position UFL (Up-Front-Left):**
 
@@ -53,7 +64,11 @@ Each sticker has a `localIndex` that represents its position in the **canonical 
 The current face on which a sticker appears is computed dynamically:
 
 ```typescript
-function computeStickerFace(cubie: Cubie, sticker: Sticker, cubeSize: number): Face {
+function computeStickerFace(
+  cubie: Cubie,
+  sticker: Sticker,
+  cubeSize: number
+): Face {
   // Get the canonical face list for this position
   const availableFaces = getFacesAtPosition(cubie.position, cubeSize);
 
@@ -100,7 +115,8 @@ sticker1: localIndex=1, color=RED   → face = availableFaces[(1+1)%3] = L
 sticker2: localIndex=2, color=GREEN → face = availableFaces[(2+1)%3] = U
 ```
 
-Now the white sticker appears on the front face, red on left, green on up - the corner is twisted clockwise!
+Now the white sticker appears on the front face, red on left, green on up - the
+corner is twisted clockwise!
 
 ## Move Execution
 
@@ -172,13 +188,15 @@ function applyMove(state: CubeState, moveTable: MoveTable): void {
 
 ### Corner Twist Invariant
 
-For any valid Rubik's cube state, the sum of all corner orientations must be divisible by 3:
+For any valid Rubik's cube state, the sum of all corner orientations must be
+divisible by 3:
 
 ```typescript
 Σ(corner orientations) ≡ 0 (mod 3)
 ```
 
-**Why?** Physically twisting one corner requires twisting at least two others to maintain the cube's structure.
+**Why?** Physically twisting one corner requires twisting at least two others to
+maintain the cube's structure.
 
 **In Move Tables:** Each move's orientation deltas must sum to 0 mod 3:
 
@@ -198,7 +216,8 @@ The number of flipped edges must be even:
 
 **Why?** Flipping one edge requires flipping at least one other edge.
 
-**In Move Tables:** Each move's flip flags must sum to 0 mod 2 (even number of flips).
+**In Move Tables:** Each move's flip flags must sum to 0 mod 2 (even number of
+flips).
 
 ### Permutation Parity
 
@@ -210,13 +229,16 @@ parity(corner permutation) = parity(edge permutation)
 
 **Why?** Both are linked by the physical mechanism of the cube.
 
-These invariants are **enforced during move table generation** and **checked during state import** to ensure only valid cube states exist in the system.
+These invariants are **enforced during move table generation** and **checked
+during state import** to ensure only valid cube states exist in the system.
 
 ## Corner Orientation Lookup Tables
 
 ### Why Lookup Tables?
 
-Due to an architectural decision (stickers indexed by position-dependent canonical order), corner orientations **cannot be computed geometrically**. Instead, they use pre-defined values based on standard cubing conventions.
+Due to an architectural decision (stickers indexed by position-dependent
+canonical order), corner orientations **cannot be computed geometrically**.
+Instead, they use pre-defined values based on standard cubing conventions.
 
 ### The Architectural Limitation
 
@@ -231,7 +253,9 @@ The face sets are **different** (F ≠ B), so the formula:
 face = availableFaces[(localIndex + orientation) % 3];
 ```
 
-...cannot produce a consistent orientation value that works at both positions. The cyclic permutation formula assumes `availableFaces` is constant, but it changes when corners move.
+...cannot produce a consistent orientation value that works at both positions.
+The cyclic permutation formula assumes `availableFaces` is constant, but it
+changes when corners move.
 
 ### Solution: Pre-Computed Tables
 
@@ -283,12 +307,16 @@ The table values correspond to these positions.
 
 ## State Import (Cube Scanning)
 
-When importing a cube state from 54 sticker colors, orientations must be **computed** from the color pattern:
+When importing a cube state from 54 sticker colors, orientations must be
+**computed** from the color pattern:
 
 ### Algorithm
 
 ```typescript
-function computeOrientation(cubie: CornerCubie, stickerColors: Color[]): number {
+function computeOrientation(
+  cubie: CornerCubie,
+  stickerColors: Color[]
+): number {
   // Find which sticker is on the U or D face
   const uOrDIndex = stickerColors.findIndex(c => c === WHITE || c === YELLOW);
 
@@ -300,14 +328,18 @@ function computeOrientation(cubie: CornerCubie, stickerColors: Color[]): number 
 **For edges:**
 
 ```typescript
-function computeEdgeOrientation(cubie: EdgeCubie, stickerColors: Color[]): number {
+function computeEdgeOrientation(
+  cubie: EdgeCubie,
+  stickerColors: Color[]
+): number {
   // Determine if edge is flipped based on which color is on which axis
   const shouldBeFirst = determineCanonicalFirst(stickerColors);
   return stickerColors[0] === shouldBeFirst ? 0 : 1;
 }
 ```
 
-This is the **only time** orientations are calculated rather than looked up from tables.
+This is the **only time** orientations are calculated rather than looked up from
+tables.
 
 ## Implementation Files
 
@@ -315,7 +347,8 @@ This is the **only time** orientations are calculated rather than looked up from
 - **Orientation Application**: `src/cube/core/move-engine.ts`
 - **Face Computation**: `src/cube/types/sticker.ts`
 - **State Validation**: `src/cube/utils/state-legality.ts`
-- **Tests**: `src/cube/core/cube-invariants.test.ts`, `src/cube/utils/state-conversion.test.ts`
+- **Tests**: `src/cube/core/cube-invariants.test.ts`,
+  `src/cube/utils/state-conversion.test.ts`
 
 ## Related Documentation
 

@@ -1,17 +1,18 @@
 # og-image scripts
 
-Scripts for generating and exporting `scripts/og-image/og-image.svg` and its PNG derivative.
+Scripts for generating and exporting `scripts/og-image/og-image.svg` and its PNG
+derivative.
 
 ---
 
 ## Files
 
-| File | Purpose |
-| --- | --- |
-| `compute-cube-camera.cjs` | Projects the 3D cube faces into SVG elements and prints them to stdout |
-| `apply-cube-output.cjs` | Reads `cube-output.txt`, applies it to `og-image.source.svg`, and writes `og-image.svg` |
-| `svg-to-png.cjs` | Converts `og-image.svg` → `og-image.png` using `@resvg/resvg-js` |
-| `cube-output.txt` | Intermediate file — captured stdout from `compute-cube-camera.cjs` (git-ignored) |
+| File                      | Purpose                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `compute-cube-camera.cjs` | Projects the 3D cube faces into SVG elements and prints them to stdout                  |
+| `apply-cube-output.cjs`   | Reads `cube-output.txt`, applies it to `og-image.source.svg`, and writes `og-image.svg` |
+| `svg-to-png.cjs`          | Converts `og-image.svg` → `og-image.png` using `@resvg/resvg-js`                        |
+| `cube-output.txt`         | Intermediate file — captured stdout from `compute-cube-camera.cjs` (git-ignored)        |
 
 ---
 
@@ -37,7 +38,9 @@ The output files are:
 
 ## Customising the camera angle
 
-`compute-cube-camera.cjs` accepts an optional camera position, look-at target, and up-vector as command-line arguments (all in world units, cube occupies 0–3 on each axis):
+`compute-cube-camera.cjs` accepts an optional camera position, look-at target,
+and up-vector as command-line arguments (all in world units, cube occupies 0–3
+on each axis):
 
 ```sh
 node scripts/og-image/compute-cube-camera.cjs \
@@ -46,7 +49,8 @@ node scripts/og-image/compute-cube-camera.cjs \
   upX  upY  upZ
 ```
 
-Defaults (`[8, 7, -10]` → `[1, 1, 1]` → `[0, 1, 0]`) reproduce the Basic view angle (approximately `rotateX(-25°) rotateY(-35°)`).
+Defaults (`[8, 7, -10]` → `[1, 1, 1]` → `[0, 1, 0]`) reproduce the Basic view
+angle (approximately `rotateX(-25°) rotateY(-35°)`).
 
 ---
 

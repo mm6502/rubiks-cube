@@ -187,186 +187,181 @@ export class ZoomPanController {
         const { signal } = this.abort;
         const el = this.clipEl;
 
-        // ── Wheel zoom ──────────────────────────────────────────────────────
-        el.addEventListener(
-            'wheel',
-            (e: WheelEvent) => {
-                e.preventDefault();
-                const rect = el.getBoundingClientRect();
-                const factor = 1 - e.deltaY * WHEEL_SENSITIVITY;
-                this.zoomAround(e.clientX - rect.left, e.clientY - rect.top, factor);
-            },
-            { signal, passive: false }
-        );
+        el.addEventListener('wheel', this.onWheel, { signal, passive: false });
+        el.addEventListener('mousedown', this.onMouseDown, { signal, capture: true });
+        el.addEventListener('pointerdown', this.onPointerDown, { signal, capture: true });
+        el.addEventListener('pointermove', this.onPointerMove, { signal });
+        el.addEventListener('pointerup', this.onPointerEnd, { signal });
+        el.addEventListener('pointercancel', this.onPointerEnd, { signal });
+        el.addEventListener('dblclick', () => this.reset(), { signal });
+        el.addEventListener('click', this.onClickCapture, { signal, capture: true });
+    }
 
-        // ── Middle-button auto-scroll suppression ──────────────────────────
-        // Chrome activates its native auto-scroll mode on `mousedown` with
-        // button 1, which captures all subsequent pointer events before they
-        // reach our `pointermove` listener.  Calling `pointerdown.preventDefault()`
-        // should (per spec) suppress `mousedown`, but Chrome DevTools' touch
-        // simulation layer can bypass that.  Belt-and-suspenders: also listen on
-        // the raw `mousedown` event and prevent its default there.
-        // capture:true ensures this fires even if a descendant calls stopPropagation().
-        el.addEventListener(
-            'mousedown',
-            (e: MouseEvent) => {
-                if (e.button === 1) e.preventDefault();
-            },
-            { signal, capture: true }
-        );
+    /** Zoom toward/away from the cursor on each wheel tick. */
+    private readonly onWheel = (e: WheelEvent): void => {
+        e.preventDefault();
+        const rect = this.clipEl.getBoundingClientRect();
+        const factor = 1 - e.deltaY * WHEEL_SENSITIVITY;
+        this.zoomAround(e.clientX - rect.left, e.clientY - rect.top, factor);
+    };
 
-        // ── Pointer down ────────────────────────────────────────────────────
-        // Capture-phase so we see the event before any inner element can stop it.
-        el.addEventListener(
-            'pointerdown',
-            (e: PointerEvent) => {
-                if (this.shouldDelegatePointerDown(e)) {
-                    // Second touch while a move gesture is in progress: cancel the
-                    // gesture and promote both fingers to pan/zoom instead.
-                    if (this.maybeSwitchToGesturePanWithSecondTouch(e)) {
-                        return;
-                    }
+    /**
+     * Suppress Chrome's native middle-button auto-scroll.
+     *
+     * Chrome activates auto-scroll on `mousedown` with button 1, capturing all
+     * subsequent pointer events before our `pointermove` listener sees them.
+     * `pointerdown.preventDefault()` should suppress `mousedown` per spec, but
+     * Chrome DevTools' touch-simulation layer can bypass that — so we also
+     * intercept the raw `mousedown` in the capture phase as a belt-and-suspenders fix.
+     */
+    private readonly onMouseDown = (e: MouseEvent): void => {
+        if (e.button === 1) e.preventDefault();
+    };
 
-                    this.delegatedPointers.add(e.pointerId);
-                    this.delegatedPointerPositions.set(e.pointerId, { x: e.clientX, y: e.clientY });
-                    this.pointerDelegate?.onPointerDown(e, e.target);
-                    return;
-                }
-
-                this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-                this.hasDragged = false;
-
-                // Prevent Chrome's native middle-button auto-scroll from capturing
-                // subsequent pointer events and suppressing pointermove delivery.
-                if (e.button === 1) {
-                    e.preventDefault();
-                }
-
-                if (this.activePointers.size === 1) {
-                    this.startX = this.lastX = e.clientX;
-                    this.startY = this.lastY = e.clientY;
-                } else if (this.activePointers.size === 2) {
-                    const pts = [...this.activePointers.values()];
-                    this.lastPinchDist = ZoomPanController.dist(pts[0], pts[1]);
-                    this.lastPinchCenter = ZoomPanController.midpoint(pts[0], pts[1]);
-                }
-            },
-            { signal, capture: true }
-        );
-
-        // ── Pointer move ────────────────────────────────────────────────────
-        el.addEventListener(
-            'pointermove',
-            (e: PointerEvent) => {
-                if (this.delegatedPointers.has(e.pointerId)) {
-                    this.delegatedPointerPositions.set(e.pointerId, { x: e.clientX, y: e.clientY });
-                    this.pointerDelegate?.onPointerMove(e);
-                    return;
-                }
-
-                if (!this.activePointers.has(e.pointerId)) return;
-                const previousPoint = this.activePointers.get(e.pointerId);
-                if (!previousPoint) return;
-                this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-                // Promote to drag once threshold is crossed.
-                if (
-                    !this.hasDragged &&
-                    Math.hypot(e.clientX - this.startX, e.clientY - this.startY) > DRAG_THRESHOLD
-                ) {
-                    this.hasDragged = true;
-                    // Reset lastX/Y so first pan delta is zero.
-                    this.lastX = e.clientX;
-                    this.lastY = e.clientY;
-                    el.setPointerCapture(e.pointerId);
-                    el.style.cursor = 'grabbing';
-                }
-
-                if (!this.hasDragged) return;
-
-                if (this.activePointers.size >= 2) {
-                    // Two-finger pinch + pan.
-                    const pts = [...this.activePointers.values()];
-                    const newDist = ZoomPanController.dist(pts[0], pts[1]);
-                    const newCenter = ZoomPanController.midpoint(pts[0], pts[1]);
-
-                    if (this.lastPinchDist > 0 && this.lastPinchCenter) {
-                        this.applyTwoPointerGesture(
-                            this.lastPinchCenter,
-                            newCenter,
-                            this.lastPinchDist,
-                            newDist
-                        );
-                    }
-
-                    this.lastPinchDist = newDist;
-                    this.lastPinchCenter = newCenter;
-                } else {
-                    // Single-pointer pan.
-                    this.tx += e.clientX - this.lastX;
-                    this.ty += e.clientY - this.lastY;
-                    this.applyTransform();
-                }
-
-                this.lastX = e.clientX;
-                this.lastY = e.clientY;
-            },
-            { signal }
-        );
-
-        // ── Pointer up / cancel ─────────────────────────────────────────────
-        const endPointer = (e: PointerEvent): void => {
-            if (this.delegatedPointers.has(e.pointerId)) {
-                this.delegatedPointers.delete(e.pointerId);
-                this.delegatedPointerPositions.delete(e.pointerId);
-
-                if (e.type === 'pointercancel') {
-                    this.pointerDelegate?.onPointerCancel(e);
-                } else {
-                    this.pointerDelegate?.onPointerUp(e, e.target);
-                }
+    /** Begin a pan/pinch gesture, or delegate to the move-interaction handler. */
+    private readonly onPointerDown = (e: PointerEvent): void => {
+        if (this.shouldDelegatePointerDown(e)) {
+            // Second touch while a move gesture is in progress: cancel the
+            // gesture and promote both fingers to pan/zoom instead.
+            if (this.maybeSwitchToGesturePanWithSecondTouch(e)) {
                 return;
             }
 
-            this.activePointers.delete(e.pointerId);
-            if (this.activePointers.size === 0) {
-                el.style.cursor = 'grab';
-                this.lastPinchDist = 0;
-                this.lastPinchCenter = null;
-            } else if (this.activePointers.size === 1) {
-                // Transition from pinch back to single-finger pan.
-                const [ptr] = this.activePointers.values();
-                this.lastX = ptr.x;
-                this.lastY = ptr.y;
-                this.startX = ptr.x;
-                this.startY = ptr.y;
-                this.hasDragged = false;
-                this.lastPinchDist = 0;
-                this.lastPinchCenter = null;
+            this.delegatedPointers.add(e.pointerId);
+            this.delegatedPointerPositions.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            this.pointerDelegate?.onPointerDown(e, e.target);
+            return;
+        }
+
+        this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        this.hasDragged = false;
+
+        // Prevent Chrome's native middle-button auto-scroll from capturing
+        // subsequent pointer events and suppressing pointermove delivery.
+        if (e.button === 1) {
+            e.preventDefault();
+        }
+
+        if (this.activePointers.size === 1) {
+            this.startX = this.lastX = e.clientX;
+            this.startY = this.lastY = e.clientY;
+        } else if (this.activePointers.size === 2) {
+            const pts = [...this.activePointers.values()];
+            this.lastPinchDist = ZoomPanController.dist(pts[0], pts[1]);
+            this.lastPinchCenter = ZoomPanController.midpoint(pts[0], pts[1]);
+        }
+    };
+
+    /** Track drag/pinch deltas and apply pan or two-finger zoom. */
+    private readonly onPointerMove = (e: PointerEvent): void => {
+        if (this.delegatedPointers.has(e.pointerId)) {
+            this.delegatedPointerPositions.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            this.pointerDelegate?.onPointerMove(e);
+            return;
+        }
+
+        if (!this.activePointers.has(e.pointerId)) return;
+        const previousPoint = this.activePointers.get(e.pointerId);
+        if (!previousPoint) return;
+        this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        // Promote to drag once threshold is crossed.
+        if (
+            !this.hasDragged &&
+            Math.hypot(e.clientX - this.startX, e.clientY - this.startY) > DRAG_THRESHOLD
+        ) {
+            this.hasDragged = true;
+            // Reset lastX/Y so first pan delta is zero.
+            this.lastX = e.clientX;
+            this.lastY = e.clientY;
+            this.clipEl.setPointerCapture(e.pointerId);
+            this.clipEl.style.cursor = 'grabbing';
+        }
+
+        if (!this.hasDragged) return;
+
+        if (this.activePointers.size >= 2) {
+            // Two-finger pinch + pan.
+            const pts = [...this.activePointers.values()];
+            const newDist = ZoomPanController.dist(pts[0], pts[1]);
+            const newCenter = ZoomPanController.midpoint(pts[0], pts[1]);
+
+            if (this.lastPinchDist > 0 && this.lastPinchCenter) {
+                this.applyTwoPointerGesture(
+                    this.lastPinchCenter,
+                    newCenter,
+                    this.lastPinchDist,
+                    newDist
+                );
             }
-        };
-        el.addEventListener('pointerup', endPointer, { signal });
-        el.addEventListener('pointercancel', endPointer, { signal });
 
-        // ── Double-click / double-tap to reset ──────────────────────────────
-        el.addEventListener('dblclick', () => this.reset(), { signal });
+            this.lastPinchDist = newDist;
+            this.lastPinchCenter = newCenter;
+        } else {
+            // Single-pointer pan.
+            this.tx += e.clientX - this.lastX;
+            this.ty += e.clientY - this.lastY;
+            this.applyTransform();
+        }
 
-        // ── Suppress sticker click events after a drag ──────────────────────
-        // Runs in capture phase so it fires before the sticker's bubble-phase
-        // click listener, preventing accidental sticker selection after a pan.
-        el.addEventListener(
-            'click',
-            (e: MouseEvent) => {
-                if (this.hasDragged) {
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                    this.hasDragged = false;
-                }
-            },
-            { signal, capture: true }
-        );
-    }
+        this.lastX = e.clientX;
+        this.lastY = e.clientY;
+    };
 
+    /** Clean up pointer state on up/cancel; transition pinch → single-finger pan if needed. */
+    private readonly onPointerEnd = (e: PointerEvent): void => {
+        if (this.delegatedPointers.has(e.pointerId)) {
+            this.delegatedPointers.delete(e.pointerId);
+            this.delegatedPointerPositions.delete(e.pointerId);
+
+            if (e.type === 'pointercancel') {
+                this.pointerDelegate?.onPointerCancel(e);
+            } else {
+                this.pointerDelegate?.onPointerUp(e, e.target);
+            }
+            return;
+        }
+
+        this.activePointers.delete(e.pointerId);
+        if (this.activePointers.size === 0) {
+            this.clipEl.style.cursor = 'grab';
+            this.lastPinchDist = 0;
+            this.lastPinchCenter = null;
+        } else if (this.activePointers.size === 1) {
+            // Transition from pinch back to single-finger pan.
+            const [ptr] = this.activePointers.values();
+            this.lastX = ptr.x;
+            this.lastY = ptr.y;
+            this.startX = ptr.x;
+            this.startY = ptr.y;
+            this.hasDragged = false;
+            this.lastPinchDist = 0;
+            this.lastPinchCenter = null;
+        }
+    };
+
+    /**
+     * Suppress sticker click events after a drag.
+     *
+     * Runs in the capture phase so it fires before any bubble-phase click
+     * listener, preventing accidental sticker selection after a pan gesture.
+     */
+    private readonly onClickCapture = (e: MouseEvent): void => {
+        if (this.hasDragged) {
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            this.hasDragged = false;
+        }
+    };
+
+    /**
+     * Decide whether a pointer-down event should be forwarded to the delegate
+     * (move-interaction handler) rather than starting a pan/zoom gesture.
+     *
+     * Returns `true` for left-click/touch in `delegated-left-drag` mode when
+     * the target passes the delegate filter. Middle-click, Ctrl+click, and
+     * non-left buttons are kept for panning.
+     */
     private shouldDelegatePointerDown(event: PointerEvent): boolean {
         if (this.gestureMode !== 'delegated-left-drag') {
             return false;

@@ -2,9 +2,13 @@
 
 ## System Design Philosophy
 
-The Rubik's Cube application is built on a **discrete cubie model** architecture with clear separation of concerns. The design supports cubes of any size (n×n×n where n ≥ 2) and provides both legacy 2D face-based views and modern 3D coordinate-based views.
+The Rubik's Cube application is built on a **discrete cubie model** architecture
+with clear separation of concerns. The design supports cubes of any size (n×n×n
+where n ≥ 2) and provides both legacy 2D face-based views and modern 3D
+coordinate-based views.
 
-Uses a **discrete cubie model** that with integer orientations and lookup tables for cubies transformations. This provides:
+Uses a **discrete cubie model** that with integer orientations and lookup tables
+for cubies transformations. This provides:
 
 - Deterministic state transitions (no floating-point drift)
 - Easy implementation of solving algorithms
@@ -14,17 +18,22 @@ Uses a **discrete cubie model** that with integer orientations and lookup tables
 ## Core Principles
 
 1. **3D Coordinate System**: All cubies identified by (x, y, z) coordinates
-2. **Discrete Orientations**: Corner orientations ∈ {0,1,2}, edge orientations ∈ {0,1}
-3. **Permutation-Based Moves**: Moves defined as permutations with orientation deltas
+2. **Discrete Orientations**: Corner orientations ∈ {0,1,2}, edge orientations ∈
+   {0,1}
+3. **Permutation-Based Moves**: Moves defined as permutations with orientation
+   deltas
 4. **Cubology Invariants**: Corner twist sum mod 3 = 0, edge flip parity = even
 5. **State Immutability**: Original state never modified after creation
-6. **Generic Cube Sizes**: All algorithms work for any n ≥ 2 (with size-specific lookup tables)
+6. **Generic Cube Sizes**: All algorithms work for any n ≥ 2 (with size-specific
+   lookup tables)
 7. **Type Safety**: Full TypeScript type coverage with zero compilation errors
-8. **Separation of Logic and Rendering**: Cube state is pure logic, 3D transforms derived on-demand
+8. **Separation of Logic and Rendering**: Cube state is pure logic, 3D
+   transforms derived on-demand
 
 ## Move Execution Pattern
 
-The system uses a **compute-then-apply** pattern to eliminate bidirectional coupling:
+The system uses a **compute-then-apply** pattern to eliminate bidirectional
+coupling:
 
 ```typescript
 // MoveEngine computes the transformation (pure function)
@@ -109,7 +118,9 @@ const postState = stateManager.getCurrentState();
 - Create stickers with proper localIndex and colors
 - Initialize all cubies in solved state (orientation = 0)
 
-**Virtual Centers**: Creates one virtual cubie per face (F, U, R, B, L, D) to track face identity through moves, enabling proper center piece tracking even after rotations.
+**Virtual Centers**: Creates one virtual cubie per face (F, U, R, B, L, D) to
+track face identity through moves, enabling proper center piece tracking even
+after rotations.
 
 **File**: `src/cube/core/cubie-manager.ts`
 
@@ -125,7 +136,9 @@ const postState = stateManager.getCurrentState();
 - Deep copy states when needed
 - Track state changes with timestamps
 
-**Design Pattern**: StateManager is the **only component that mutates cube state**. All other components (MoveEngine, LayerManager, etc.) are pure functions or operate on read-only views. This ensures:
+**Design Pattern**: StateManager is the **only component that mutates cube
+state**. All other components (MoveEngine, LayerManager, etc.) are pure
+functions or operate on read-only views. This ensures:
 
 - Clear ownership of mutations
 - Predictable state changes
@@ -146,7 +159,9 @@ const postState = stateManager.getCurrentState();
 - Support multi-layer moves (e.g., wide turns)
 - Provide layer validation
 
-**Design Note**: All methods are static and accept `CubeState` as a parameter, making LayerManager a stateless utility. Operates on read-only cubie collections for maximum flexibility.
+**Design Note**: All methods are static and accept `CubeState` as a parameter,
+making LayerManager a stateless utility. Operates on read-only cubie collections
+for maximum flexibility.
 
 **File**: `src/cube/core/layer-manager.ts`
 
@@ -162,7 +177,8 @@ const postState = stateManager.getCurrentState();
 - Support dry-run move simulations
 - Maintain move definition registry
 
-**Design Pattern**: MoveEngine computes transformations as **pure functions** without side effects.
+**Design Pattern**: MoveEngine computes transformations as **pure functions**
+without side effects.
 
 Pattern:
 
@@ -195,7 +211,8 @@ stateManager.applyMoveResult(result);
 - Cache invariants per cube size for performance
 - Store move definitions with axis, layers, and rotation metadata
 
-**Move Tables**: Each move has pre-computed permutations and orientation deltas ensuring:
+**Move Tables**: Each move has pre-computed permutations and orientation deltas
+ensuring:
 
 - Deterministic transformations
 - Guaranteed cubology invariants
@@ -223,7 +240,8 @@ stateManager.applyMoveResult(result);
 - Truncate future moves when branching
 - Export/import move sequences
 
-**Design**: Uses simple string-based storage for compatibility with standard cube notation and easy serialization.
+**Design**: Uses simple string-based storage for compatibility with standard
+cube notation and easy serialization.
 
 **File**: `src/cube/core/move-history.ts`
 
@@ -315,13 +333,16 @@ interface CubeState {
 
 ### Orientation Semantics
 
-The discrete orientation system encodes how stickers are permuted relative to the canonical (solved) configuration:
+The discrete orientation system encodes how stickers are permuted relative to
+the canonical (solved) configuration:
 
 **For Corners:**
 
 - `orientation = 0`: Sticker at localIndex 0 appears on first canonical face
-- `orientation = 1`: Sticker at localIndex 1 appears on first canonical face (clockwise twist)
-- `orientation = 2`: Sticker at localIndex 2 appears on first canonical face (counter-clockwise twist)
+- `orientation = 1`: Sticker at localIndex 1 appears on first canonical face
+  (clockwise twist)
+- `orientation = 2`: Sticker at localIndex 2 appears on first canonical face
+  (counter-clockwise twist)
 
 **For Edges:**
 
@@ -410,7 +431,8 @@ See [Coordinate System](./coordinate-system.md) for details.
 
 ### View Update
 
-Views receive detailed state change notifications through the enhanced `MoveExecutedEvent`:
+Views receive detailed state change notifications through the enhanced
+`MoveExecutedEvent`:
 
 ```plaintext
 1. View receives MoveExecutedEvent with:
@@ -474,7 +496,9 @@ The architecture supports any cube size n ≥ 2:
 - More complex algorithms
 - Parity cases (future implementation)
 
-**Automatic Scaling**: All core components automatically handle different sizes without code changes. Views are currently hardcoded for 3×3×3 (reading `cubeSize` from state is future-proofing only).
+**Automatic Scaling**: All core components automatically handle different sizes
+without code changes. Views are currently hardcoded for 3×3×3 (reading
+`cubeSize` from state is future-proofing only).
 
 ## Performance Characteristics
 
@@ -498,12 +522,16 @@ The architecture supports any cube size n ≥ 2:
 - Lazy layer evaluation (computed when needed)
 - ID-based lookups (O(1) cubie/sticker access)
 - Type determination from coordinates (no lookup tables)
-- **Enhanced Event System**: Selective view updates reduce DOM operations from O(n²) to O(k) where k is moved cubies
+- **Enhanced Event System**: Selective view updates reduce DOM operations from
+  O(n²) to O(k) where k is moved cubies
 - **Readonly States**: Compile-time safety prevents accidental mutations
-- **Delta Updates**: Optional delta-only mode for memory efficiency with large cubes
+- **Delta Updates**: Optional delta-only mode for memory efficiency with large
+  cubes
 
 ## Related Documentation
 
-- [Coordinate System](./coordinate-system.md) - 3D coordinate conventions and ID formats
+- [Coordinate System](./coordinate-system.md) - 3D coordinate conventions and ID
+  formats
 - [Move Notation](./move-notation.md) - How moves are specified and parsed
-- [Discrete Orientation System](./discrete-orientation-system.md) - How orientations are calculated and managed
+- [Discrete Orientation System](./discrete-orientation-system.md) - How
+  orientations are calculated and managed

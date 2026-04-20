@@ -77,3 +77,63 @@ export function getStickersForFace(svgRoot: SVGSVGElement, face: Face): SVGCircl
         svgRoot.querySelectorAll<SVGCircleElement>(`circle.sticker[data-face="${face}"]`)
     );
 }
+
+/**
+ * Convert a point from client (screen) coordinates to SVG user-space coordinates.
+ *
+ * Uses the SVG element's current transformation matrix (CTM) to map the
+ * client-space position into the coordinate system used by SVG child elements.
+ * Falls back to returning the raw client coordinates when `createSVGPoint` or
+ * the inverse CTM is unavailable (e.g. detached SVG elements).
+ */
+export function clientToSvgPoint(
+    svgRoot: SVGSVGElement,
+    clientX: number,
+    clientY: number
+): Vector2 {
+    if (!svgRoot.createSVGPoint) {
+        return { x: clientX, y: clientY };
+    }
+
+    const point = svgRoot.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+
+    const inverse = svgRoot.getScreenCTM()?.inverse();
+    if (!inverse) {
+        return { x: clientX, y: clientY };
+    }
+
+    const transformed = point.matrixTransform(inverse);
+    return { x: transformed.x, y: transformed.y };
+}
+
+/**
+ * Convert a point from SVG user-space coordinates to client (screen) coordinates.
+ *
+ * Uses the SVG element's current transformation matrix (CTM) to map an SVG-space
+ * position into the client coordinate system used by pointer events and layout.
+ * Falls back to `fallback` when `createSVGPoint` or the CTM is unavailable.
+ */
+export function svgToClientPoint(
+    svgRoot: SVGSVGElement,
+    svgX: number,
+    svgY: number,
+    fallback: Vector2
+): Vector2 {
+    if (!svgRoot.createSVGPoint) {
+        return fallback;
+    }
+
+    const point = svgRoot.createSVGPoint();
+    point.x = svgX;
+    point.y = svgY;
+
+    const ctm = svgRoot.getScreenCTM();
+    if (!ctm) {
+        return fallback;
+    }
+
+    const transformed = point.matrixTransform(ctm);
+    return { x: transformed.x, y: transformed.y };
+}

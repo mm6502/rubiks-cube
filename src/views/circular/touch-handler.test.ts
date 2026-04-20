@@ -237,16 +237,16 @@ describe('CircularTouchHandler', () => {
         const x0 = fixture.axisElements['X-0'];
 
         // Act: select layers on both ends
-        handler.onPointerDown(pointer('pointerdown', 7, 300, 219), x2);
-        handler.onPointerUp(pointer('pointerup', 7, 300, 219), x2);
+        handler.onPointerDown(pointer('pointerdown', 7, 320, 219), x2);
+        handler.onPointerUp(pointer('pointerup', 7, 320, 219), x2);
 
         handler.onPointerDown(pointer('pointerdown', 8, 150, 219), x0);
         handler.onPointerUp(pointer('pointerup', 8, 150, 219), x0);
 
-        // Act: drag one selected layer
-        handler.onPointerDown(pointer('pointerdown', 9, 300, 219), x2);
-        handler.onPointerMove(pointer('pointermove', 9, 280, 239));
-        handler.onPointerUp(pointer('pointerup', 9, 280, 239), x2);
+        // Act: drag one selected layer (tangential, staying within X-2 detection band)
+        handler.onPointerDown(pointer('pointerdown', 9, 320, 219), x2);
+        handler.onPointerMove(pointer('pointermove', 9, 300, 255));
+        handler.onPointerUp(pointer('pointerup', 9, 300, 255), x2);
 
         // Assert
         const moveNotations = emitSpy.mock.calls
@@ -269,13 +269,13 @@ describe('CircularTouchHandler', () => {
         // Select layers 0 and 2
         handler.onPointerDown(pointer('pointerdown', 7, 150, 219), x0);
         handler.onPointerUp(pointer('pointerup', 7, 150, 219), x0);
-        handler.onPointerDown(pointer('pointerdown', 8, 300, 219), x2);
-        handler.onPointerUp(pointer('pointerup', 8, 300, 219), x2);
+        handler.onPointerDown(pointer('pointerdown', 8, 320, 219), x2);
+        handler.onPointerUp(pointer('pointerup', 8, 320, 219), x2);
 
-        // CW drag (positive angular displacement)
-        handler.onPointerDown(pointer('pointerdown', 9, 300, 219), x2);
-        handler.onPointerMove(pointer('pointermove', 9, 280, 239));
-        handler.onPointerUp(pointer('pointerup', 9, 280, 239), x2);
+        // CW drag (positive angular displacement, staying within X-2 detection band)
+        handler.onPointerDown(pointer('pointerdown', 9, 320, 219), x2);
+        handler.onPointerMove(pointer('pointermove', 9, 300, 255));
+        handler.onPointerUp(pointer('pointerup', 9, 300, 255), x2);
 
         const moveNotations = emitSpy.mock.calls
             .filter(call => call[0] === EventName.MOVE_REQUESTED)
@@ -298,13 +298,13 @@ describe('CircularTouchHandler', () => {
         // Select layers 0 and 2
         handler.onPointerDown(pointer('pointerdown', 7, 150, 219), x0);
         handler.onPointerUp(pointer('pointerup', 7, 150, 219), x0);
-        handler.onPointerDown(pointer('pointerdown', 8, 300, 219), x2);
-        handler.onPointerUp(pointer('pointerup', 8, 300, 219), x2);
+        handler.onPointerDown(pointer('pointerdown', 8, 320, 219), x2);
+        handler.onPointerUp(pointer('pointerup', 8, 320, 219), x2);
 
-        // CCW drag (negative angular displacement) — drag upward from right side
-        handler.onPointerDown(pointer('pointerdown', 9, 300, 219), x2);
-        handler.onPointerMove(pointer('pointermove', 9, 280, 199));
-        handler.onPointerUp(pointer('pointerup', 9, 280, 199), x2);
+        // CCW drag (negative angular displacement, staying within X-2 detection band)
+        handler.onPointerDown(pointer('pointerdown', 9, 320, 219), x2);
+        handler.onPointerMove(pointer('pointermove', 9, 300, 183));
+        handler.onPointerUp(pointer('pointerup', 9, 300, 183), x2);
 
         const moveNotations = emitSpy.mock.calls
             .filter(call => call[0] === EventName.MOVE_REQUESTED)
@@ -924,14 +924,14 @@ describe('CircularTouchHandler', () => {
         const x2 = fixture.axisElements['X-2'];
 
         // Select both circles
-        handler.onPointerDown(pointer('pointerdown', 66, 300, 219), x2);
-        handler.onPointerUp(pointer('pointerup', 66, 300, 219), x2);
+        handler.onPointerDown(pointer('pointerdown', 66, 320, 219), x2);
+        handler.onPointerUp(pointer('pointerup', 66, 320, 219), x2);
         handler.onPointerDown(pointer('pointerdown', 67, 150, 219), x0);
         handler.onPointerUp(pointer('pointerup', 67, 150, 219), x0);
 
-        // Act — drag to show label
-        handler.onPointerDown(pointer('pointerdown', 68, 300, 219), x2);
-        handler.onPointerMove(pointer('pointermove', 68, 280, 249));
+        // Act — drag to show label (tangential, staying within X-2 detection band)
+        handler.onPointerDown(pointer('pointerdown', 68, 320, 219), x2);
+        handler.onPointerMove(pointer('pointermove', 68, 300, 255));
 
         // Assert — drag label shows both move notations, space-separated (e.g. "L' R")
         const dragLabel = fixture.host.querySelector(
@@ -940,7 +940,7 @@ describe('CircularTouchHandler', () => {
         expect(dragLabel.style.display).toBe('block');
         expect(dragLabel.textContent).toMatch(/\S+[+]\S+/);
 
-        handler.onPointerUp(pointer('pointerup', 68, 280, 249), x2);
+        handler.onPointerUp(pointer('pointerup', 68, 300, 255), x2);
         handler.destroy();
     });
 

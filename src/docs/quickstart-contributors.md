@@ -95,7 +95,8 @@
    npm run build
    ```
 
-   Creates a single HTML file in the `dist/` directory with all CSS and JavaScript inlined.
+   Creates a single HTML file in the `dist/` directory with all CSS and
+   JavaScript inlined.
 
 2. **Preview Build**
 
@@ -107,7 +108,8 @@
 
 ## Build System
 
-This project uses **Vite** with the `vite-plugin-singlefile` plugin to create a single, self-contained HTML file that includes:
+This project uses **Vite** with the `vite-plugin-singlefile` plugin to create a
+single, self-contained HTML file that includes:
 
 - All TypeScript code compiled and bundled into JavaScript
 - All CSS styles inlined
@@ -137,7 +139,8 @@ The application follows a clean MVC-like architecture:
 - **Model**: `src/cube/` — Core cube state, move engine, and utilities
 - **View**: Multiple view implementations in `src/views/` directory
 - **Controller**: `src/cube-controller.ts` — User interaction handling
-- **View Manager**: `src/view-manager/` — Orchestrates multiple views and their lifecycle
+- **View Manager**: `src/view-manager/` — Orchestrates multiple views and their
+  lifecycle
 
 ## Browser Compatibility
 
@@ -147,10 +150,12 @@ The application follows a clean MVC-like architecture:
 ## Debugging in VS Code
 
 1. Start the Vite dev server and debug from VS Code:
-   - Open the Run view and choose "Launch Edge (Vite)". This runs `npm run dev` and opens Edge at `http://localhost:5173`.
+   - Open the Run view and choose "Launch Edge (Vite)". This runs `npm run dev`
+     and opens Edge at `http://localhost:5173`.
 
 2. Attach to an existing Edge instance:
-   - Start Edge with remote debugging: `"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --remote-debugging-port=9222`.
+   - Start Edge with remote debugging:
+     `"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --remote-debugging-port=9222`.
    - In VS Code choose "Attach to Edge (remote)".
 
 3. Manual dev server:
@@ -161,4 +166,7 @@ npm run dev
 
 Then start the debugger without the preLaunchTask.
 
-Note: Vite will try the default port (`5173`) but will automatically pick the next available port if it's in use. When that happens the server prints the actual URL (e.g. `Local: http://localhost:5173/`). Use that URL in your browser or update `/.vscode/launch.json` accordingly.
+Note: Vite will try the default port (`5173`) but will automatically pick the
+next available port if it's in use. When that happens the server prints the
+actual URL (e.g. `Local: http://localhost:5173/`). Use that URL in your browser
+or update `/.vscode/launch.json` accordingly.
