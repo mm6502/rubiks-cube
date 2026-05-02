@@ -101,14 +101,23 @@ export function handleResize(state: FlatViewInternalData): void {
 
     const available = computeAvailableContentSize(state.container);
 
+    // Ghost strips extend ~11px beyond the grid on each outer edge (9px sticker + 2px gap).
+    // Account for this overflow so the scaled grid + ghosts fit within the clipped area.
+    const ghostMargin = 24; // 12px per side
     const isMobile = window.innerWidth < 769;
     let scale: number;
     let transform: string;
     if (isMobile) {
-        scale = Math.min(available.width / 300, available.height / 400);
+        scale = Math.min(
+            available.width / (300 + ghostMargin),
+            available.height / (400 + ghostMargin)
+        );
         transform = `rotate(90deg) scale(${Math.max(scale, 0.1)})`;
     } else {
-        scale = Math.min(available.width / 400, available.height / 300);
+        scale = Math.min(
+            available.width / (400 + ghostMargin),
+            available.height / (300 + ghostMargin)
+        );
         transform = `scale(${Math.max(scale, 0.1)})`;
     }
 

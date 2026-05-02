@@ -1264,6 +1264,7 @@ describe('Face Animation', () => {
             const state = {
                 svgRoot,
                 showGhosts: true,
+                ghostOpacityIndex: 1,
                 axisCircles,
                 svgElementCache: new Map([['src1', source]]),
                 ghostElements: undefined,
@@ -1273,9 +1274,9 @@ describe('Face Animation', () => {
             const { animateGhostToggle } = await import('./animations');
             await animateGhostToggle(state);
 
-            // Assert — no animation, just immediate show
-            expect((Element.prototype as any).animate).not.toHaveBeenCalled();
-            expect(ghost.style.opacity).toBe('0.4');
+            // Assert — fade-in animation from 0 to target opacity
+            expect((Element.prototype as any).animate).toHaveBeenCalled();
+            expect(ghost.style.opacity).toBe('0.75');
             expect(ghost.getAttribute('fill')).toBe('#ff0000');
             expect(wrapper.style.display).toBe('');
         });

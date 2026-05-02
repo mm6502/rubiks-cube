@@ -31,8 +31,8 @@ export const BASIC_VIEW_ANGLES = {
 export const BASIC_VIEW_SCALE = {
     /** Scale used in Tabbed layout mode — more breathing room for drag. */
     TABBED: 0.5,
-    /** Scale used in all other layout modes. */
-    DEFAULT: 0.6,
+    /** Scale used in all other layout modes (leaves room for ghost stickers). */
+    DEFAULT: 0.55,
     /** CSS transform scale applied on mouse hover (desktop/floating only). */
     HOVER: 1.05,
 } as const;

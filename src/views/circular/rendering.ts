@@ -1,13 +1,14 @@
 import { getCubeInvariants } from '@/cube/core/cube-invariants';
 import { getMoveDefinition } from '@/cube/core/move-engine';
 import { Axis, Color, ColorMap, CubeState, FACE_COLORS, StickerId } from '@/cube/types';
-import { CubieType, Face } from '@/cube/types';
+import { CubieType, Face, ReadonlyCubie } from '@/cube/types';
 import { CubeStateUtils, getPositionKey } from '@/cube/utils';
 import { MoveExecutedEvent } from '@/types';
 
 import * as highlights from './highlights';
 import { animateMove } from './animations';
 import { CircularCubeViewInternalData } from './circular-view';
+import { GHOST_OPACITY_LEVELS } from './constants';
 
 /**
  * Sets the fill attribute for a sticker SVG element if present in cache
@@ -62,7 +63,7 @@ export function renderState(state: CircularCubeViewInternalData, cubeState: Cube
  * at the far side of axis-circle gaps.
  */
 function updateGhostStickers(state: CircularCubeViewInternalData): void {
-    if (!state.svgRoot || !state.showGhosts) return;
+    if (!state.svgRoot) return;
     state.ghostElements ??= Array.from(
         state.svgRoot.querySelectorAll<SVGCircleElement>('circle.ghost-sticker')
     );
@@ -80,7 +81,12 @@ function updateGhostStickers(state: CircularCubeViewInternalData): void {
 export function setGhostVisibility(state: CircularCubeViewInternalData): void {
     if (!state.svgRoot) return;
     const wrapper = state.svgRoot.querySelector<SVGGElement>('.ghost-sticker-wrapper');
-    if (wrapper) wrapper.style.display = state.showGhosts ? '' : 'none';
+    if (!wrapper) return;
+    wrapper.style.display = state.showGhosts ? '' : 'none';
+    if (state.showGhosts) {
+        const opacity = GHOST_OPACITY_LEVELS[state.ghostOpacityIndex] ?? 0.75;
+        setGhostOpacity(state, opacity);
+    }
 }
 
 /**
@@ -94,6 +100,33 @@ export function setGhostOpacity(state: CircularCubeViewInternalData, opacity: nu
     for (const ghost of state.ghostElements) {
         ghost.style.opacity = opacity.toString();
     }
+}
+
+/**
+ * Returns the subset of ghost sticker elements whose source sticker is part of
+ * the given moved cubies. Only these ghosts need to be hidden during a move
+ * animation — ghosts for unaffected faces should remain visible.
+ */
+function collectAffectedGhostElements(
+    state: CircularCubeViewInternalData,
+    movedCubies: ReadonlyCubie[]
+): SVGCircleElement[] {
+    if (!state.svgRoot) return [];
+    state.ghostElements ??= Array.from(
+        state.svgRoot.querySelectorAll<SVGCircleElement>('circle.ghost-sticker')
+    );
+    const affectedIds = new Set<StickerId>();
+    for (const cubie of movedCubies) {
+        for (const sticker of cubie.stickers.values()) {
+            affectedIds.add(sticker.id);
+        }
+    }
+    return state.ghostElements.filter(ghost => {
+        const sourceId = ghost.getAttribute('data-ghost-source');
+        if (!sourceId) return false;
+        const stickerId = state.svgIdToStickerId.get(sourceId);
+        return stickerId !== undefined && affectedIds.has(stickerId);
+    });
 }
 
 /*
@@ -259,8 +292,13 @@ export function updateSelective(
         // Clear selection during animation
         highlights.removeSelectionHighlight(state, state.styles);
 
-        // Set ghosts transparent during animation
-        setGhostOpacity(state, 0);
+        // Hide only the ghost stickers whose source is part of this move.
+        if (state.showGhosts) {
+            const affectedGhosts = collectAffectedGhostElements(state, movedCubies);
+            for (const ghost of affectedGhosts) {
+                ghost.style.opacity = '0';
+            }
+        }
 
         // Ensure mappings reflect PRE-state for this move's stickers.
         // Same-axis moves have disjoint stickers, so concurrent mapping
@@ -280,8 +318,10 @@ export function updateSelective(
             // Use the latest postState which includes all applied moves.
             if (tracker._pendingTotal! <= 0) {
                 tracker._pendingTotal = 0;
-                setGhostOpacity(state, 0.4);
+                const targetOpacity = GHOST_OPACITY_LEVELS[state.ghostOpacityIndex] ?? 0.75;
+                // Render first so ghost sticker colors are updated before they become visible.
                 renderState(state, tracker._latestPostState ?? event.postState);
+                setGhostOpacity(state, targetOpacity);
                 if (restoreSelectionId) {
                     highlights.updateSelected(state, state.styles, restoreSelectionId);
                 }

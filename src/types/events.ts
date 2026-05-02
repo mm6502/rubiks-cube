@@ -41,6 +41,7 @@ export const EventName = {
     STATE_IMPORT_REQUESTED: 'stateImportRequested',
     BASIC_VIEW_ROTATION_LINKED: 'basicViewRotationLinked',
     BASIC_VIEW_RESET_LINKED: 'basicViewResetLinked',
+    BASIC_VIEW_GHOST_TOGGLED: 'basicViewGhostToggled',
 } as const;
 
 /**
@@ -255,6 +256,16 @@ export interface BasicViewResetLinkedEvent {
 }
 
 /**
+ * Event emitted when ghost hints visibility is toggled in a Basic view.
+ * Allows the peer view to sync its ghost state.
+ */
+export interface BasicViewGhostToggledEvent {
+    sourceViewType: string;
+    visible: boolean;
+    opacityIndex: number;
+}
+
+/**
  * Union type for all event payloads.
  * Used by the EventBus for type-safe event emission and handling.
  * Each event name maps to its corresponding payload type.
@@ -272,4 +283,5 @@ export type EventPayload =
     | StateExportRequestedEvent
     | StateImportRequestedEvent
     | BasicViewRotationLinkedEvent
-    | BasicViewResetLinkedEvent;
+    | BasicViewResetLinkedEvent
+    | BasicViewGhostToggledEvent;

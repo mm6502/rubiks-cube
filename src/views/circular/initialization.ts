@@ -227,6 +227,7 @@ export function initialize(
         axisAnimationChains: { X: Promise.resolve(), Y: Promise.resolve(), Z: Promise.resolve() },
         cubeWalk: true,
         showGhosts: true,
+        ghostOpacityIndex: 0,
         zoomPan: null,
         touchHandler: null,
         panMode: false,

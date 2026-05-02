@@ -106,6 +106,7 @@ describe('BasicView core API', () => {
             isPitched: false,
             faceDirectMode: false,
             linked: true,
+            ghostOpacityIndex: 0,
         });
 
         // Arrange: fresh view

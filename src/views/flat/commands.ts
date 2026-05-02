@@ -134,9 +134,9 @@ export function getCommands(ctx: FlatCommandContext): Command[] {
             label: 'Cube Walk',
             category: CommandCategory.VIEW,
             icon: '⊕',
-            keyBindings: [{ key: '3', ctrlKey: true }],
+            keyBindings: [{ key: '4', ctrlKey: true }],
             showInHeader: true,
-            displayOrder: 880,
+            displayOrder: 870,
             tooltip:
                 'Arrow-key navigation follows real cube surface — walking off an edge lands on the adjacent face.',
             isActive: () => ctx.state.cubeWalk,
@@ -169,9 +169,9 @@ export function getCommands(ctx: FlatCommandContext): Command[] {
             label: 'Ghost Hints',
             category: CommandCategory.VIEW,
             icon: '👻',
-            keyBindings: [{ key: '4', ctrlKey: true }],
+            keyBindings: [{ key: '3', ctrlKey: true }],
             showInHeader: true,
-            displayOrder: 870,
+            displayOrder: 880,
             tooltip:
                 'Show semi-transparent hint stickers on edges where cube-adjacent faces are not visually adjacent.',
             isActive: () => ctx.isGhostVisible(),

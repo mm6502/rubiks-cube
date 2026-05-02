@@ -6,6 +6,7 @@ import { getFaceRotationAxis, getPositionKey } from '@/cube/utils';
 import { MoveExecutedEvent } from '@/types';
 
 import { CircularCubeViewInternalData } from './circular-view';
+import { GHOST_OPACITY_LEVELS } from './constants';
 import { StickerLookupMap } from './initialization';
 import { AxisCircle, getCenterOfElement, getStickersForFace, isPointOnCircle } from './svg-tools';
 
@@ -605,7 +606,8 @@ export async function animateGhostToggle(state: CircularCubeViewInternalData): P
     if (!wrapper) return;
 
     if (state.showGhosts) {
-        // --- Toggle ON: show immediately (no animation) ---
+        // --- Toggle ON / opacity change: show at current level ---
+        const targetOpacity = String(GHOST_OPACITY_LEVELS[state.ghostOpacityIndex] ?? 0.75);
         for (const ghost of state.ghostElements) {
             const sourceId = ghost.getAttribute('data-ghost-source');
             if (!sourceId) continue;
@@ -613,15 +615,38 @@ export async function animateGhostToggle(state: CircularCubeViewInternalData): P
             if (source) ghost.setAttribute('fill', source.getAttribute('fill') ?? '');
         }
         wrapper.style.display = '';
-        for (const ghost of state.ghostElements) {
-            ghost.style.opacity = '0.4';
-            ghost.style.transform = '';
+
+        // Fade in from 0 to target opacity
+        const startOpacity = parseFloat(state.ghostElements[0]?.style.opacity || '0');
+        if (startOpacity < parseFloat(targetOpacity)) {
+            const animations: Animation[] = [];
+            for (const ghost of state.ghostElements) {
+                ghost.style.opacity = targetOpacity;
+                ghost.style.transform = '';
+                const anim = ghost.animate(
+                    [{ opacity: startOpacity }, { opacity: targetOpacity }],
+                    {
+                        duration: GHOST_TOGGLE_DURATION / 2,
+                        easing: 'ease-out',
+                        fill: 'forwards',
+                    }
+                );
+                animations.push(anim);
+            }
+            await Promise.all(animations.map(a => a.finished));
+            for (const a of animations) a.cancel();
+        } else {
+            for (const ghost of state.ghostElements) {
+                ghost.style.opacity = targetOpacity;
+                ghost.style.transform = '';
+            }
         }
     } else {
         // --- Toggle OFF: fade out in place ---
+        const currentOpacity = parseFloat(state.ghostElements[0]?.style.opacity || '0.75');
         const animations: Animation[] = [];
         for (const ghost of state.ghostElements) {
-            const anim = ghost.animate([{ opacity: 0.4 }, { opacity: 0 }], {
+            const anim = ghost.animate([{ opacity: currentOpacity }, { opacity: 0 }], {
                 duration: GHOST_TOGGLE_DURATION / 2,
                 easing: 'ease-in',
                 fill: 'forwards',

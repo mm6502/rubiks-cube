@@ -703,8 +703,9 @@ describe('CircularCubeView (unit)', () => {
     it('ghost-hints command toggles showGhosts and calls animateGhostToggle', () => {
         vi.spyOn(rendering, 'animateGhostToggle').mockResolvedValue(undefined);
         const emitSpy = vi.spyOn(Application.eventBus, 'emit');
-        // Ensure default state
+        // Set to off state (index 0)
         (view as any).state.showGhosts = false;
+        (view as any).state.ghostOpacityIndex = 0;
 
         const ghostCmd = view.getCommands().find(c => c.id === 'circular-view.ghost-hints')!;
         expect(ghostCmd.isActive!()).toBe(false);

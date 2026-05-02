@@ -17,6 +17,7 @@ import {
     mapArrowToDirection,
 } from '@/interaction/keyboard-moves';
 import {
+    BasicViewGhostToggledEvent,
     BasicViewResetLinkedEvent,
     BasicViewRotationLinkedEvent,
     Command,
@@ -32,6 +33,7 @@ import * as rendering from './rendering';
 import * as selection from './selection';
 import styles from './basic-view.module.css';
 import { getBasicViewCommands } from './commands';
+import { GhostStickers, getGhostOpacityIndex, isGhostVisible } from './ghost-stickers';
 import { createBasicInteractionAdapter } from './interaction-adapter';
 import { isLinked, setLinked } from './linked-rotations';
 import { BasicTouchHandler } from './touch-handler';
@@ -57,6 +59,7 @@ export interface BasicViewState {
     isPitched: boolean;
     faceDirectMode: boolean;
     linked: boolean;
+    ghostOpacityIndex: number;
 }
 
 /**
@@ -87,8 +90,10 @@ export type BasicViewInternalData = {
 export class BasicView implements CubeView {
     private state: BasicViewInternalData;
     private touchHandler: BasicTouchHandler | null = null;
+    private ghostStickers: GhostStickers | null = null;
     private linkedRotationListener: ((e: BasicViewRotationLinkedEvent) => void) | null = null;
     private linkedResetListener: ((e: BasicViewResetLinkedEvent) => void) | null = null;
+    private ghostToggledListener: ((e: BasicViewGhostToggledEvent) => void) | null = null;
 
     constructor(config?: { viewType?: string }) {
         const viewType = config?.viewType === 'basic-back' ? 'basic-back' : 'basic-front';
@@ -134,6 +139,8 @@ export class BasicView implements CubeView {
             rotateViewRight: () => this.rotateViewRight(),
             rotateViewUp: () => this.rotateViewUp(),
             rotateViewDown: () => this.rotateViewDown(),
+            toggleGhosts: () => this.toggleGhosts(),
+            updateGhostEdges: () => this.updateGhostEdges(),
             emitStateChanged: () => this.emitStateChanged(),
         });
     }
@@ -173,6 +180,7 @@ export class BasicView implements CubeView {
             onViewRotated: (direction: 'horizontal' | 'vertical', rotation, steps) => {
                 rendering.updateRotation(this.state);
                 rendering.updateFaceLabels(this.state, direction);
+                this.updateGhostEdges();
                 this.emitStateChanged();
                 if (isLinked()) {
                     for (let i = 0; i < steps; i++) {
@@ -217,6 +225,35 @@ export class BasicView implements CubeView {
         };
         Application.eventBus.on(EventName.BASIC_VIEW_RESET_LINKED, this.linkedResetListener);
 
+        // Subscribe to ghost toggle events from the peer view.
+        this.ghostToggledListener = (event: BasicViewGhostToggledEvent) => {
+            if (event.sourceViewType === this.state.viewType) return;
+            const { visibleFaces, hiddenFaces } = rendering.getVisibleFacesWithPositions(
+                this.state
+            );
+            this.ghostStickers?.setOpacityIndex(
+                event.opacityIndex,
+                visibleFaces,
+                hiddenFaces,
+                this.state.isTilted,
+                this.state.isPitched
+            );
+            this.emitStateChanged();
+        };
+        Application.eventBus.on(EventName.BASIC_VIEW_GHOST_TOGGLED, this.ghostToggledListener);
+
+        // Create ghost stickers on the cube element.
+        if (this.state.cubeElement) {
+            this.ghostStickers = new GhostStickers(
+                this.state.cubeElement,
+                () => this.state.model ?? null
+            );
+            this.ghostStickers.create();
+            if (isGhostVisible()) {
+                this.updateGhostEdges();
+            }
+        }
+
         // Default selection: center sticker of the variant's front face.
         const defaultFace = this.state.variant === BasicVariant.Back ? Face.B : Face.F;
         const center = CubeStateUtils.getStickerAt(model.getCurrentState(), defaultFace, 4);
@@ -226,12 +263,14 @@ export class BasicView implements CubeView {
     update(model: ReadOnlyCubeModel): void {
         this.state.model = model;
         rendering.update(this.state, model);
+        this.ghostStickers?.updateColors();
         this.restoreSelection();
     }
 
     updateSelective(event?: MoveExecutedEvent): void {
         if (event) {
             rendering.updateSelective(this.state, event);
+            this.ghostStickers?.updateColors();
             this.restoreSelection();
             // Whole-cube rotations (x/y/z) change which original face is at each
             // visible CSS position — update labels so they reflect the new mapping.
@@ -402,36 +441,42 @@ export class BasicView implements CubeView {
         navigation.rotateViewLeft(this.state);
         rendering.updateRotation(this.state);
         rendering.updateFaceLabels(this.state, 'horizontal');
+        this.updateGhostEdges();
     }
 
     rotateViewRight(): void {
         navigation.rotateViewRight(this.state);
         rendering.updateRotation(this.state);
         rendering.updateFaceLabels(this.state, 'horizontal');
+        this.updateGhostEdges();
     }
 
     rotateViewUp(): void {
         navigation.rotateViewUp(this.state);
         rendering.updateRotation(this.state);
         rendering.updateFaceLabels(this.state, 'vertical');
+        this.updateGhostEdges();
     }
 
     rotateViewDown(): void {
         navigation.rotateViewDown(this.state);
         rendering.updateRotation(this.state);
         rendering.updateFaceLabels(this.state, 'vertical');
+        this.updateGhostEdges();
     }
 
     resetView(): void {
         navigation.resetView(this.state);
         rendering.updateRotation(this.state);
         rendering.updateFaceLabels(this.state);
+        this.updateGhostEdges();
     }
 
     alignCubeToView(): void {
         navigation.alignCubeToView(this.state);
         rendering.updateRotation(this.state, true);
         rendering.updateFaceLabels(this.state);
+        this.updateGhostEdges();
     }
 
     // (Rendering helpers removed; tests updated to call rendering.updateRotation)
@@ -448,6 +493,7 @@ export class BasicView implements CubeView {
             isPitched: this.state.isPitched,
             faceDirectMode: this.touchHandler?.isFaceDirectMode() ?? false,
             linked: isLinked(),
+            ghostOpacityIndex: this.ghostStickers?.getOpacityIndex() ?? 0,
         };
     }
 
@@ -477,6 +523,26 @@ export class BasicView implements CubeView {
             this.touchHandler?.setFaceDirectMode(viewState['faceDirectMode']);
         if (typeof viewState['linked'] === 'boolean') setLinked(viewState['linked']);
 
+        // Restore ghost opacity — support both new (ghostOpacityIndex) and legacy (showGhosts)
+        let ghostIndex: number | null = null;
+        if (typeof viewState['ghostOpacityIndex'] === 'number') {
+            ghostIndex = viewState['ghostOpacityIndex'];
+        } else if (typeof viewState['showGhosts'] === 'boolean') {
+            ghostIndex = viewState['showGhosts'] ? 1 : 0;
+        }
+        if (ghostIndex !== null) {
+            const { visibleFaces, hiddenFaces } = rendering.getVisibleFacesWithPositions(
+                this.state
+            );
+            this.ghostStickers?.setOpacityIndex(
+                ghostIndex,
+                visibleFaces,
+                hiddenFaces,
+                this.state.isTilted,
+                this.state.isPitched
+            );
+        }
+
         rendering.updateRotation(this.state, true);
         rendering.updateFaceLabels(this.state);
     }
@@ -497,6 +563,10 @@ export class BasicView implements CubeView {
             Application.eventBus.off(EventName.BASIC_VIEW_RESET_LINKED, this.linkedResetListener);
             this.linkedResetListener = null;
         }
+        if (this.ghostToggledListener) {
+            Application.eventBus.off(EventName.BASIC_VIEW_GHOST_TOGGLED, this.ghostToggledListener);
+            this.ghostToggledListener = null;
+        }
         this.touchHandler?.destroy();
         this.touchHandler = null;
         initialization.destroy(this.state);
@@ -509,5 +579,31 @@ export class BasicView implements CubeView {
         Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
             viewType: this.getViewType(),
         });
+    }
+
+    private toggleGhosts(): void {
+        const { visibleFaces, hiddenFaces } = rendering.getVisibleFacesWithPositions(this.state);
+        this.ghostStickers?.toggle(
+            visibleFaces,
+            hiddenFaces,
+            this.state.isTilted,
+            this.state.isPitched
+        );
+        Application.eventBus.emit(EventName.BASIC_VIEW_GHOST_TOGGLED, {
+            sourceViewType: this.getViewType(),
+            visible: isGhostVisible(),
+            opacityIndex: getGhostOpacityIndex(),
+        });
+    }
+
+    private updateGhostEdges(): void {
+        if (!isGhostVisible()) return;
+        const { visibleFaces, hiddenFaces } = rendering.getVisibleFacesWithPositions(this.state);
+        this.ghostStickers?.updateVisibleEdges(
+            visibleFaces,
+            hiddenFaces,
+            this.state.isTilted,
+            this.state.isPitched
+        );
     }
 }

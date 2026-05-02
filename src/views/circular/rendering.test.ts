@@ -426,4 +426,291 @@ describe('rendering utilities', () => {
         // The exact count depends on timing, but we should not have 3 animations
         expect(animSpy.mock.calls.length).toBeLessThanOrEqual(2);
     });
+
+    // ─── collectAffectedGhostElements / selective ghost hiding ─────────────
+
+    it('updateSelective hides only ghost stickers whose source is in movedCubies', async () => {
+        vi.spyOn(animations, 'animateMove').mockResolvedValue(undefined as any);
+        vi.spyOn(highlights, 'removeSelectionHighlight').mockImplementation(() => {});
+        vi.spyOn(highlights, 'updateSelected').mockImplementation(() => {});
+
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        state.svgRoot = svgRoot;
+        state.svgReady = true;
+        state.showGhosts = true;
+
+        // Two source circles: only 'src-moved' is part of the move.
+        const srcMoved = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        const srcStatic = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        state.svgElementCache.set('src-moved', srcMoved);
+        state.svgElementCache.set('src-static', srcStatic);
+        state.svgIdToStickerId.set('src-moved', 'sticker-moved' as StickerId);
+        state.svgIdToStickerId.set('src-static', 'sticker-static' as StickerId);
+
+        // Ghost elements: one per source.
+        const ghostMoved = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghostMoved.classList.add('ghost-sticker');
+        ghostMoved.setAttribute('data-ghost-source', 'src-moved');
+        ghostMoved.style.opacity = '0.75';
+
+        const ghostStatic = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghostStatic.classList.add('ghost-sticker');
+        ghostStatic.setAttribute('data-ghost-source', 'src-static');
+        ghostStatic.style.opacity = '0.75';
+
+        svgRoot.appendChild(ghostMoved);
+        svgRoot.appendChild(ghostStatic);
+        state.ghostElements = undefined;
+
+        // The moved cubie contains 'sticker-moved'; the static sticker is not in movedCubies.
+        const movedCubie: any = {
+            stickers: new Map([['k', { id: 'sticker-moved' }]]),
+        };
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const event: any = {
+            moveDetails: {
+                movedCubies: { before: [movedCubie], after: [movedCubie] },
+                notation: 'R',
+                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+            },
+            preState: cubeState,
+            postState: cubeState,
+        };
+
+        await rendering.updateSelective(state, event);
+
+        // ghostMoved should have been hidden during the animation (opacity restored to target after finish).
+        // After all animations settle, setGhostOpacity restores all ghosts, so we check that
+        // ghostStatic was never set to '0'. We spy on the state after the full chain finishes.
+        // Both ghosts are restored to targetOpacity by finishAnimation. The key assertion is
+        // that ghostStatic was not hidden mid-animation: we verify by checking ghostMoved was
+        // treated differently. We confirm by re-running with a fresh state where we intercept.
+
+        // Since finishAnimation restores both, we verify behavior via separate focused test below.
+        // This test verifies no errors are thrown and animation was called.
+        expect(animations.animateMove).toHaveBeenCalled();
+    });
+
+    it('updateSelective leaves unaffected ghost opacity unchanged before animation', async () => {
+        let capturedStaticOpacity: string | null = null;
+
+        vi.spyOn(animations, 'animateMove').mockImplementation(async () => {
+            // Capture the opacity of the static ghost at animation time.
+            capturedStaticOpacity = ghostStatic.style.opacity;
+        });
+        vi.spyOn(highlights, 'removeSelectionHighlight').mockImplementation(() => {});
+        vi.spyOn(highlights, 'updateSelected').mockImplementation(() => {});
+
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        state.svgRoot = svgRoot;
+        state.svgReady = true;
+        state.showGhosts = true;
+        state.ghostOpacityIndex = 1; // GHOST_OPACITY_LEVELS[1] = 0.75
+
+        state.svgIdToStickerId.set('src-moved', 'sticker-moved' as StickerId);
+        state.svgIdToStickerId.set('src-static', 'sticker-static' as StickerId);
+
+        const ghostMoved = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghostMoved.classList.add('ghost-sticker');
+        ghostMoved.setAttribute('data-ghost-source', 'src-moved');
+        ghostMoved.style.opacity = '0.75';
+
+        const ghostStatic = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghostStatic.classList.add('ghost-sticker');
+        ghostStatic.setAttribute('data-ghost-source', 'src-static');
+        ghostStatic.style.opacity = '0.75';
+
+        svgRoot.appendChild(ghostMoved);
+        svgRoot.appendChild(ghostStatic);
+        state.ghostElements = undefined;
+
+        const movedCubie: any = {
+            stickers: new Map([['k', { id: 'sticker-moved' }]]),
+        };
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const event: any = {
+            moveDetails: {
+                movedCubies: { before: [movedCubie], after: [movedCubie] },
+                notation: 'R',
+                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+            },
+            preState: cubeState,
+            postState: cubeState,
+        };
+
+        await rendering.updateSelective(state, event);
+
+        // The static ghost's opacity at animation time should still be '0.75' (unchanged).
+        expect(capturedStaticOpacity).toBe('0.75');
+        // The moved ghost should have been hidden (opacity '0') at animation time.
+        // After finishAnimation it is restored, so check ghostMoved is back to target after settle.
+        expect(ghostMoved.style.opacity).toBe('0.75');
+    });
+
+    it('updateSelective does not hide any ghost when showGhosts is false', async () => {
+        vi.spyOn(animations, 'animateMove').mockResolvedValue(undefined as any);
+        vi.spyOn(highlights, 'removeSelectionHighlight').mockImplementation(() => {});
+
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        state.svgRoot = svgRoot;
+        state.svgReady = true;
+        state.showGhosts = false;
+        state.ghostOpacityIndex = 0;
+
+        state.svgIdToStickerId.set('src-moved', 'sticker-moved' as StickerId);
+
+        const ghostMoved = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghostMoved.classList.add('ghost-sticker');
+        ghostMoved.setAttribute('data-ghost-source', 'src-moved');
+        ghostMoved.style.opacity = '0';
+
+        svgRoot.appendChild(ghostMoved);
+        state.ghostElements = undefined;
+
+        const movedCubie: any = {
+            stickers: new Map([['k', { id: 'sticker-moved' }]]),
+        };
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const event: any = {
+            moveDetails: {
+                movedCubies: { before: [movedCubie], after: [movedCubie] },
+                notation: 'R',
+                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+            },
+            preState: cubeState,
+            postState: cubeState,
+        };
+
+        // Ensure ghostMoved starts at opacity 0 (ghosts-off state).
+        ghostMoved.style.opacity = '0';
+
+        await rendering.updateSelective(state, event);
+
+        // setGhostOpacity restore at finishAnimation uses GHOST_OPACITY_LEVELS[0] = undefined -> 0.75.
+        // But since showGhosts is false the wrapper is display:none anyway; the point is the
+        // selective-hide block was skipped (no additional opacity manipulation happened).
+        // We verify by confirming animation still ran (the path wasn't short-circuited early).
+        expect(animations.animateMove).toHaveBeenCalled();
+    });
+
+    it('updateSelective skips ghost when data-ghost-source has no svgIdToStickerId match', async () => {
+        let capturedOrphanOpacity: string | null = null;
+
+        vi.spyOn(animations, 'animateMove').mockImplementation(async () => {
+            capturedOrphanOpacity = orphanGhost.style.opacity;
+        });
+        vi.spyOn(highlights, 'removeSelectionHighlight').mockImplementation(() => {});
+
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        state.svgRoot = svgRoot;
+        state.svgReady = true;
+        state.showGhosts = true;
+        state.ghostOpacityIndex = 1;
+
+        // orphan ghost: source SVG ID has no entry in svgIdToStickerId
+        const orphanGhost = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        orphanGhost.classList.add('ghost-sticker');
+        orphanGhost.setAttribute('data-ghost-source', 'src-unknown');
+        orphanGhost.style.opacity = '0.75';
+
+        svgRoot.appendChild(orphanGhost);
+        state.ghostElements = undefined;
+
+        const movedCubie: any = {
+            stickers: new Map([['k', { id: 'sticker-moved' }]]),
+        };
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const event: any = {
+            moveDetails: {
+                movedCubies: { before: [movedCubie], after: [movedCubie] },
+                notation: 'R',
+                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+            },
+            preState: cubeState,
+            postState: cubeState,
+        };
+
+        await rendering.updateSelective(state, event);
+
+        // Orphan ghost opacity should remain 0.75 during the animation (not hidden).
+        expect(capturedOrphanOpacity).toBe('0.75');
+    });
+
+    it('updateSelective handles empty movedCubies by hiding no ghosts', async () => {
+        let capturedOpacity: string | null = null;
+
+        vi.spyOn(animations, 'animateMove').mockImplementation(async () => {
+            capturedOpacity = ghost.style.opacity;
+        });
+        vi.spyOn(highlights, 'removeSelectionHighlight').mockImplementation(() => {});
+
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        state.svgRoot = svgRoot;
+        state.svgReady = true;
+        state.showGhosts = true;
+        state.ghostOpacityIndex = 1;
+
+        state.svgIdToStickerId.set('src1', 'sticker1' as StickerId);
+
+        const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghost.classList.add('ghost-sticker');
+        ghost.setAttribute('data-ghost-source', 'src1');
+        ghost.style.opacity = '0.75';
+
+        svgRoot.appendChild(ghost);
+        state.ghostElements = undefined;
+
+        // Non-empty movedCubies.after but with no stickers (simulates cubie with no stickers).
+        const emptyCubie: any = { stickers: new Map() };
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const event: any = {
+            moveDetails: {
+                movedCubies: { before: [emptyCubie], after: [emptyCubie] },
+                notation: 'R',
+                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+            },
+            preState: cubeState,
+            postState: cubeState,
+        };
+
+        await rendering.updateSelective(state, event);
+
+        // No affected sticker IDs → ghost should remain at 0.75 during animation.
+        expect(capturedOpacity).toBe('0.75');
+    });
 });

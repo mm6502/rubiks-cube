@@ -3,6 +3,7 @@ import { Command, CommandCategory, EventName } from '@/types';
 
 import * as rendering from './rendering';
 import { CircularCubeViewInternalData, CircularViewState } from './circular-view';
+import { GHOST_OPACITY_LEVELS } from './constants';
 
 const VIEW_TYPE = 'circular';
 
@@ -42,13 +43,16 @@ export function getCommands(state: CircularCubeViewInternalData): Command[] {
             label: 'Ghost Hints',
             category: CommandCategory.VIEW,
             icon: '👻',
-            keyBindings: [{ key: '4', ctrlKey: true }],
+            keyBindings: [{ key: '3', ctrlKey: true }],
             showInHeader: true,
-            displayOrder: 600,
+            displayOrder: 880,
             tooltip: 'Show semi-transparent hint stickers on the far side of each axis circle.',
             isActive: () => state.showGhosts,
             action: () => {
-                state.showGhosts = !state.showGhosts;
+                // Cycle: 75% → 100% → off → 75% ...
+                state.ghostOpacityIndex =
+                    (state.ghostOpacityIndex + 1) % GHOST_OPACITY_LEVELS.length;
+                state.showGhosts = state.ghostOpacityIndex > 0;
                 void rendering.animateGhostToggle(state);
                 Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
                     viewType: VIEW_TYPE,
@@ -60,9 +64,9 @@ export function getCommands(state: CircularCubeViewInternalData): Command[] {
             label: 'Cube Walk',
             category: CommandCategory.VIEW,
             icon: '⊕',
-            keyBindings: [{ key: '3', ctrlKey: true }],
+            keyBindings: [{ key: '4', ctrlKey: true }],
             showInHeader: true,
-            displayOrder: 880,
+            displayOrder: 870,
             tooltip:
                 'Arrow-key navigation follows real cube surface — walking off an edge lands on the adjacent face.',
             isActive: () => state.cubeWalk,
@@ -128,6 +132,7 @@ export function getState(state: CircularCubeViewInternalData): CircularViewState
         panMode: state.panMode,
         cubeWalk: state.cubeWalk,
         showGhosts: state.showGhosts,
+        ghostOpacityIndex: state.ghostOpacityIndex,
     };
 }
 
@@ -146,6 +151,12 @@ export function setState(state: CircularCubeViewInternalData, input: unknown): v
     }
     if (typeof s['showGhosts'] === 'boolean') {
         state.showGhosts = s['showGhosts'];
+        state.ghostOpacityIndex = s['showGhosts'] ? 1 : 0;
+        rendering.setGhostVisibility(state);
+    }
+    if (typeof s['ghostOpacityIndex'] === 'number') {
+        state.ghostOpacityIndex = s['ghostOpacityIndex'];
+        state.showGhosts = state.ghostOpacityIndex > 0;
         rendering.setGhostVisibility(state);
     }
 }

@@ -1,0 +1,87 @@
+/* Ghost hint stickers — semi-transparent edge stickers showing hidden-face colours in 3D view */
+
+/*
+ * Ghost strips are children of face elements (300×300, padding 3.33%, gap 3%).
+ * They position just outside the face boundary and align with the sticker grid.
+ * Face padding = 3.33% ≈ 10px, gap = 3% ≈ 9px per slot.
+ */
+.ghost-strip {
+    position: absolute;
+    display: flex;
+    pointer-events: none;
+}
+
+.ghost-strip[data-edge='top'],
+.ghost-strip[data-edge='bottom'] {
+    flex-direction: row;
+    left: 3.33%;
+    right: 3.33%;
+    height: 7.3%;
+    gap: 3%;
+}
+
+.ghost-strip[data-depth='mid'][data-edge='top'],
+.ghost-strip[data-depth='mid'][data-edge='bottom'] {
+    height: 8.5%;
+}
+
+.ghost-strip[data-depth='far'][data-edge='top'],
+.ghost-strip[data-depth='far'][data-edge='bottom'] {
+    height: 9.7%;
+}
+
+.ghost-strip[data-edge='top'] {
+    bottom: calc(100% + 2px);
+}
+
+.ghost-strip[data-edge='bottom'] {
+    top: calc(100% + 2px);
+}
+
+.ghost-strip[data-edge='left'],
+.ghost-strip[data-edge='right'] {
+    flex-direction: column;
+    top: 3.33%;
+    bottom: 3.33%;
+    width: 7.3%;
+    gap: 3%;
+}
+
+.ghost-strip[data-depth='mid'][data-edge='left'],
+.ghost-strip[data-depth='mid'][data-edge='right'] {
+    width: 8.5%;
+}
+
+.ghost-strip[data-depth='far'][data-edge='left'],
+.ghost-strip[data-depth='far'][data-edge='right'] {
+    width: 9.7%;
+}
+
+.ghost-strip[data-edge='left'] {
+    right: calc(100% + 2px);
+}
+
+.ghost-strip[data-edge='right'] {
+    left: calc(100% + 2px);
+}
+
+.ghost-sticker {
+    flex: 1;
+    border: 3px solid var(--color-domain-sticker-border);
+    border-radius: 8px;
+    box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+    transition:
+        background-color 0.3s ease,
+        opacity 0.3s ease;
+    forced-color-adjust: none;
+    color-scheme: only light;
+}
+
+.ghost-strip[data-depth='mid'] .ghost-sticker {
+    border-radius: 9px;
+}
+
+.ghost-strip[data-depth='far'] .ghost-sticker {
+    border-radius: 10px;
+}

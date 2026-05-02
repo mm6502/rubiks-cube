@@ -103,6 +103,8 @@ export type CircularCubeViewInternalData = {
     cubeWalk: boolean;
     /** Whether ghost hint stickers are visible. */
     showGhosts: boolean;
+    /** Ghost opacity level index (0=off, 1=0.75, 2=1.0). */
+    ghostOpacityIndex: number;
     /** Cached ghost-sticker SVG elements (lazily populated by rendering). */
     ghostElements?: SVGCircleElement[];
     /** Zoom/pan controller — set up in create(), torn down in destroy(). */
@@ -118,6 +120,7 @@ export type CircularViewState = {
     panMode: boolean;
     cubeWalk: boolean;
     showGhosts: boolean;
+    ghostOpacityIndex: number;
 };
 
 // Circular View: inline SVG + per-sticker manipulation and simple animations
@@ -140,6 +143,7 @@ export class CircularCubeView implements CubeView {
         axisAnimationChains: { X: Promise.resolve(), Y: Promise.resolve(), Z: Promise.resolve() },
         cubeWalk: true,
         showGhosts: true,
+        ghostOpacityIndex: 1,
         zoomPan: null,
         touchHandler: null,
         panMode: false,

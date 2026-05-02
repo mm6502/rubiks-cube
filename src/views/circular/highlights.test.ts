@@ -30,6 +30,7 @@ describe('highlights helpers', () => {
             },
             cubeWalk: false,
             showGhosts: true,
+            ghostOpacityIndex: 0,
             zoomPan: null,
             touchHandler: null,
             panMode: false,

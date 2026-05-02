@@ -14,7 +14,7 @@ import { FlatTouchHandler } from './touch-handler';
 export type FlatViewState = {
     faceDirectMode: boolean;
     cubeWalk: boolean;
-    showGhosts: boolean;
+    ghostOpacityIndex: number;
 };
 
 /**
@@ -319,7 +319,7 @@ export class FlatView implements CubeView {
         return {
             faceDirectMode: this.touchHandler?.isFaceDirectMode() ?? false,
             cubeWalk: this.state.cubeWalk,
-            showGhosts: this.ghostStrips?.getShowGhosts() ?? true,
+            ghostOpacityIndex: this.ghostStrips?.getOpacityIndex() ?? 1,
         };
     }
 
@@ -329,7 +329,11 @@ export class FlatView implements CubeView {
         if (typeof s['faceDirectMode'] === 'boolean')
             this.touchHandler?.setFaceDirectMode(s['faceDirectMode']);
         if (typeof s['cubeWalk'] === 'boolean') this.state.cubeWalk = s['cubeWalk'];
-        if (typeof s['showGhosts'] === 'boolean') {
+
+        // Restore ghost opacity — support both new (ghostOpacityIndex) and legacy (showGhosts)
+        if (typeof s['ghostOpacityIndex'] === 'number') {
+            this.ghostStrips?.setOpacityIndex(s['ghostOpacityIndex']);
+        } else if (typeof s['showGhosts'] === 'boolean') {
             this.ghostStrips?.setShowGhosts(s['showGhosts']);
         }
     }

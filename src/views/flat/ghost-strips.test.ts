@@ -66,7 +66,10 @@ describe('ghost hints', () => {
         const cmd = getCmd();
         expect(cmd.isActive!()).toBe(true);
 
-        cmd.action();
+        // Cycle: 75% → 100% → off
+        cmd.action(); // → 100%
+        expect(cmd.isActive!()).toBe(true);
+        cmd.action(); // → off
         expect(cmd.isActive!()).toBe(false);
 
         // Fade-out uses a 400ms fallback timeout in jsdom (no transitionend)
@@ -74,18 +77,18 @@ describe('ghost hints', () => {
         const strip = container.querySelector(`.${ghostStyles['flat-ghost-strip']}`) as HTMLElement;
         expect(strip.style.display).toBe('none');
 
-        cmd.action();
+        cmd.action(); // → 75% (back on)
         expect(cmd.isActive!()).toBe(true);
         expect(strip.style.display).not.toBe('none');
         vi.useRealTimers();
     });
 
-    it('getState/setState round-trips showGhosts', () => {
-        expect(view.getState().showGhosts).toBe(true);
-        view.setState({ showGhosts: false });
-        expect(view.getState().showGhosts).toBe(false);
-        view.setState({ showGhosts: true });
-        expect(view.getState().showGhosts).toBe(true);
+    it('getState/setState round-trips ghostOpacityIndex', () => {
+        expect(view.getState().ghostOpacityIndex).toBe(1);
+        view.setState({ ghostOpacityIndex: 0 });
+        expect(view.getState().ghostOpacityIndex).toBe(0);
+        view.setState({ ghostOpacityIndex: 2 });
+        expect(view.getState().ghostOpacityIndex).toBe(2);
     });
 
     it('ghost stickers copy source sticker background colour', () => {
@@ -119,9 +122,9 @@ describe('ghost hints', () => {
         expect(ghost.style.backgroundColor).toBeTruthy();
     });
 
-    it('setState with showGhosts=false hides ghost strips', () => {
-        view.setState({ showGhosts: false });
-        expect(view.getState().showGhosts).toBe(false);
+    it('setState with ghostOpacityIndex=0 hides ghost strips', () => {
+        view.setState({ ghostOpacityIndex: 0 });
+        expect(view.getState().ghostOpacityIndex).toBe(0);
 
         const strips = container.querySelectorAll(`.${ghostStyles['flat-ghost-strip']}`);
         for (const strip of strips) {

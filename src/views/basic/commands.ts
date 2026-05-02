@@ -3,6 +3,7 @@ import { Command, CommandCategory, EventName, ViewRotation } from '@/types';
 
 import * as rendering from './rendering';
 import type { BasicViewInternalData } from './basic-view';
+import { isGhostVisible } from './ghost-stickers';
 import { isLinked, setLinked } from './linked-rotations';
 import type { BasicTouchHandler } from './touch-handler';
 
@@ -16,6 +17,8 @@ export interface BasicViewCommandContext {
     rotateViewRight(): void;
     rotateViewUp(): void;
     rotateViewDown(): void;
+    toggleGhosts(): void;
+    updateGhostEdges(): void;
     emitStateChanged(): void;
 }
 
@@ -51,7 +54,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             id: 'reset-view',
             label: 'Reset View',
             keyBindings: [{ key: 'Home' }],
-            displayOrder: 801,
+            displayOrder: 895,
             category: CommandCategory.VIEW,
             group: '.',
             icon: '↻',
@@ -71,7 +74,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             id: 'align-cube-to-view',
             label: 'Align Cube to View',
             keyBindings: [{ key: '=' }, { key: 'End' }, { key: 'Enter' }, { key: 'NumpadEnter' }],
-            displayOrder: 800,
+            displayOrder: 893,
             category: CommandCategory.VIEW,
             group: '.',
             icon: '=',
@@ -90,7 +93,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             icon: '◎',
             showInHeader: true,
             keyBindings: [{ key: '2', ctrlKey: true }],
-            displayOrder: 700,
+            displayOrder: 890,
             tooltip: 'Drag any sticker to rotate its face immediately (no pre-selection needed).',
             isActive: () => ctx.touchHandler?.isFaceDirectMode() ?? false,
             action: () => {
@@ -108,6 +111,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             group: '.',
             icon: '⛓',
             showInHeader: true,
+            displayOrder: 580,
             tooltip: 'Link view rotations between Basic Front and Basic Back.',
             isActive: () => isLinked(),
             action: () => {
@@ -128,29 +132,50 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             group: '.',
             icon: '↔',
             showInHeader: true,
-            tooltip: 'Toggle view tilt (Y-axis: -35° ↔ 35°).',
+            displayOrder: 710,
+            tooltip: 'Toggle view tilt (Y-axis: -35° ↔ 35°)',
             isActive: () => ctx.state.isTilted,
             action: () => {
                 ctx.state.isTilted = !ctx.state.isTilted;
                 rendering.updateRotation(ctx.state);
                 rendering.updateFaceLabels(ctx.state);
+                ctx.updateGhostEdges();
                 ctx.emitStateChanged();
             },
         },
         {
             id: 'pitch-view',
             label: 'Pitch View',
-            keyBindings: [{ key: 'PageUp' }, { key: 'PageDown' }, { key: '3', ctrlKey: true }],
+            keyBindings: [{ key: 'PageUp' }, { key: 'PageDown' }, { key: '6', ctrlKey: true }],
             category: CommandCategory.VIEW,
             group: '.',
             icon: '↕',
             showInHeader: true,
-            tooltip: 'Toggle view pitch (X-axis: -25° ↔ 25°).',
+            displayOrder: 700,
+            tooltip: 'Toggle view pitch (X-axis: -25° ↔ 25°)',
             isActive: () => ctx.state.isPitched,
             action: () => {
                 ctx.state.isPitched = !ctx.state.isPitched;
                 rendering.updateRotation(ctx.state);
                 rendering.updateFaceLabels(ctx.state);
+                ctx.updateGhostEdges();
+                ctx.emitStateChanged();
+            },
+        },
+        {
+            id: 'basic-view.ghost-hints',
+            label: 'Ghost Hints',
+            category: CommandCategory.VIEW,
+            group: '.',
+            icon: '👻',
+            showInHeader: true,
+            keyBindings: [{ key: '3', ctrlKey: true }],
+            displayOrder: 880,
+            tooltip:
+                'Show semi-transparent hint stickers on silhouette edges to reveal hidden face colours.',
+            isActive: () => isGhostVisible(),
+            action: () => {
+                ctx.toggleGhosts();
                 ctx.emitStateChanged();
             },
         },

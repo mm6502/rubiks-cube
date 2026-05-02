@@ -925,9 +925,9 @@ describe('BasicCubeRenderer - method coverage', () => {
             // Act
             rendering.updateSize(state);
 
-            // Assert: faceSize = min(600,400)*BASIC_VIEW_SCALE.DEFAULT = 240
-            expect(mockCubeElement.style.width).toBe('240px');
-            expect(mockCubeElement.style.height).toBe('240px');
+            // Assert: faceSize = min(600,400)*BASIC_VIEW_SCALE.DEFAULT = 220
+            expect(parseFloat(mockCubeElement.style.width)).toBeCloseTo(220);
+            expect(parseFloat(mockCubeElement.style.height)).toBeCloseTo(220);
         });
 
         it('should update perspective on the cube wrapper', () => {
@@ -939,11 +939,11 @@ describe('BasicCubeRenderer - method coverage', () => {
                 height: 500,
             });
 
-            // Act: faceSize = 500*BASIC_VIEW_SCALE.DEFAULT = 300, scaledPerspective = 1000*(300/300) = 1000
+            // Act: faceSize = 500*BASIC_VIEW_SCALE.DEFAULT = 275, scaledPerspective = 1000*(275/300) ≈ 916.67
             rendering.updateSize(state);
 
             // Assert
-            expect(cubeWrapper.style.perspective).toBe('1000px');
+            expect(parseFloat(cubeWrapper.style.perspective)).toBeCloseTo(916.67, 1);
         });
 
         it('should do nothing when container reports zero size', () => {

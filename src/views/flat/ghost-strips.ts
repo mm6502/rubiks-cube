@@ -61,7 +61,8 @@ const GHOST_EDGES: GhostEdge[] = [
  * Owns its own visibility state and cached ghost DOM elements.
  */
 export class GhostStrips {
-    private showGhosts = true;
+    private static readonly OPACITY_LEVELS = [0, 0.75, 1.0] as const;
+    private opacityIndex = 1; // starts visible at 75%
     private ghostElements: HTMLElement[] = [];
     private container: HTMLElement;
     private stickerStyles: Record<string, string>;
@@ -105,12 +106,12 @@ export class GhostStrips {
 
         // Initial colour sync and visibility
         this.updateColors();
-        this.setVisible(this.showGhosts);
+        this.setVisible(this.opacityIndex > 0);
     }
 
     /** Copy the background colour of each source sticker to its ghost. */
     updateColors(): void {
-        if (!this.showGhosts) return;
+        if (this.opacityIndex === 0) return;
 
         for (const ghost of this.ghostElements) {
             const face = ghost.getAttribute('data-ghost-source-face');
@@ -131,12 +132,13 @@ export class GhostStrips {
         const strips = this.container.querySelectorAll<HTMLElement>(
             `.${ghostStyles['flat-ghost-strip']}`
         );
+        const targetOpacity = visible ? String(GhostStrips.OPACITY_LEVELS[this.opacityIndex]) : '0';
 
         if (!animate) {
             for (const strip of strips) {
                 strip.style.display = visible ? '' : 'none';
                 for (const child of strip.children) {
-                    (child as HTMLElement).style.opacity = visible ? '' : '0';
+                    (child as HTMLElement).style.opacity = visible ? targetOpacity : '0';
                 }
             }
             return;
@@ -154,7 +156,7 @@ export class GhostStrips {
             void this.container.offsetHeight;
             for (const strip of strips) {
                 for (const child of strip.children) {
-                    (child as HTMLElement).style.opacity = '';
+                    (child as HTMLElement).style.opacity = targetOpacity;
                 }
             }
         } else {
@@ -179,27 +181,43 @@ export class GhostStrips {
         }
     }
 
-    /** Toggle ghost visibility with animation. */
+    /** Cycle ghost opacity: off → 75% → 100% → off. */
     toggle(): void {
-        this.showGhosts = !this.showGhosts;
-        if (this.showGhosts) this.updateColors();
-        this.setVisible(this.showGhosts, true);
+        this.opacityIndex = (this.opacityIndex + 1) % GhostStrips.OPACITY_LEVELS.length;
+        if (this.opacityIndex > 0) {
+            this.updateColors();
+            this.setVisible(true, true);
+        } else {
+            this.setVisible(false, true);
+        }
     }
 
     /** Whether ghosts are currently shown. */
     isVisible(): boolean {
-        return this.showGhosts;
+        return this.opacityIndex > 0;
     }
 
     /** Get ghost state for serialization. */
     getShowGhosts(): boolean {
-        return this.showGhosts;
+        return this.opacityIndex > 0;
     }
 
-    /** Set ghost state from deserialization. */
+    /** Get current opacity index for serialization. */
+    getOpacityIndex(): number {
+        return this.opacityIndex;
+    }
+
+    /** Set ghost state from deserialization (legacy boolean). */
     setShowGhosts(visible: boolean): void {
-        this.showGhosts = visible;
-        this.setVisible(this.showGhosts);
-        if (this.showGhosts) this.updateColors();
+        this.opacityIndex = visible ? 1 : 0;
+        this.setVisible(this.opacityIndex > 0);
+        if (this.opacityIndex > 0) this.updateColors();
+    }
+
+    /** Set opacity index directly from deserialization. */
+    setOpacityIndex(index: number): void {
+        this.opacityIndex = Math.max(0, Math.min(index, GhostStrips.OPACITY_LEVELS.length - 1));
+        this.setVisible(this.opacityIndex > 0);
+        if (this.opacityIndex > 0) this.updateColors();
     }
 }

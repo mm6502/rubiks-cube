@@ -72,7 +72,7 @@
     padding: 3.33%;
     background: var(--color-domain-cube-interior);
     border-radius: 5%;
-    overflow: hidden;
+    overflow: visible;
     z-index: 1;
     container-type: size;
     box-shadow: 0px 0px 20px 0px var(--color-domain-cube-glow);
