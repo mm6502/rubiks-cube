@@ -9,7 +9,7 @@ import { logger } from '@/diagnostics/logger';
 import { NavDirection } from '@/types';
 
 import { CircularCubeViewInternalData } from './circular-view';
-import { AxisCircle, getCenterOfElement } from './svg-tools';
+import { AxisCircle, getCenterOfElement, getRadiusOfElement } from './svg-tools';
 
 /**
  * Check if a keyboard event is a navigation key (arrow keys).
@@ -223,7 +223,7 @@ export function findNextSticker(
     const scoredElements = getScoredElements(svgElementCache, currentSvgElement, direction);
 
     // Determine tolerance based on size of current element.
-    const radius = parseFloat(window.getComputedStyle(currentSvgElement).r) ?? 7;
+    const radius = getRadiusOfElement(currentSvgElement);
 
     // Try selecting best candidate:
 
@@ -242,8 +242,10 @@ export function findNextSticker(
     if (!bestCandidateElement)
         bestCandidateElement = selectBestCandidate(scoredElements, radius * 12, 85, 0.2, 1);
 
+    const bestCandidateSvgId = bestCandidateElement?.element.getAttribute('id');
+
     // Default to returning the current sticker if no movement is possible.
-    return svgIdToStickerId.get(bestCandidateElement?.element?.id!) || currentStickerId;
+    return (bestCandidateSvgId && svgIdToStickerId.get(bestCandidateSvgId)) || currentStickerId;
 }
 
 /**

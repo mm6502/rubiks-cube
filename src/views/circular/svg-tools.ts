@@ -35,6 +35,19 @@ export function getCenterOfElement(svgElement: SVGElement): Vector2 {
 }
 
 /**
+ * Get the radius of an SVG element.
+ */
+export function getRadiusOfElement(svgElement: SVGElement, fallback = 7): number {
+    const computedRadius = parseFloat(window.getComputedStyle(svgElement).r);
+    if (Number.isFinite(computedRadius) && computedRadius > 0) return computedRadius;
+
+    const attributeRadius = parseFloat(svgElement.getAttribute('r') ?? '');
+    if (Number.isFinite(attributeRadius) && attributeRadius > 0) return attributeRadius;
+
+    return fallback;
+}
+
+/**
  * Check if a point lies on a circle within tolerance
  */
 export function isPointOnCircle(position: Vector2, circle: AxisCircle, tolerance = 2): boolean {

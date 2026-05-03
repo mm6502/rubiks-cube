@@ -29,10 +29,7 @@
         "format:check": "prettier --check . --no-error-on-unmatched-pattern",
         "prepare": "husky",
         "precommit": "lint-staged && npm run type-check",
-        "prepush": "npm test && npm run build",
-        "ce:install": "compound-plugin install compound-engineering --to copilot",
-        "ce:sync": "compound-plugin sync",
-        "ce:help": "compound-plugin --help"
+        "prepush": "npm test && npm run build"
     },
     "lint-staged": {
         "*.{ts,tsx}": [
@@ -44,29 +41,28 @@
         ]
     },
     "devDependencies": {
-        "@every-env/compound-plugin": "^2.68.1",
         "@playwright/test": "^1.59.1",
         "@resvg/resvg-js": "^2.6.2",
         "@trivago/prettier-plugin-sort-imports": "^6.0.2",
-        "@types/node": "^25.0.1",
-        "@typescript-eslint/eslint-plugin": "^8.51.0",
-        "@typescript-eslint/parser": "^8.51.0",
-        "@vitest/coverage-v8": "^4.0.18",
-        "@vitest/ui": "^4.0.15",
-        "eslint": "^10.1.0",
+        "@types/node": "^25.6.0",
+        "@typescript-eslint/eslint-plugin": "^8.59.1",
+        "@typescript-eslint/parser": "^8.59.1",
+        "@vitest/coverage-v8": "^4.1.5",
+        "@vitest/ui": "^4.1.5",
+        "eslint": "^10.3.0",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-prettier": "^5.5.5",
         "husky": "^9.1.7",
-        "jsdom": "^29.0.1",
+        "jsdom": "^29.1.1",
         "lint-staged": "^16.4.0",
-        "prettier": "^3.8.1",
+        "prettier": "^3.8.3",
         "prettier-plugin-organize-imports": "^4.3.0",
-        "sass": "^1.98.0",
+        "sass": "^1.99.0",
         "sharp": "^0.34.5",
-        "typescript": "^6.0.2",
-        "vite": "^8.0.3",
-        "vite-plugin-singlefile": "^2.3.2",
-        "vitest": "^4.0.15"
+        "typescript": "^6.0.3",
+        "vite": "^8.0.10",
+        "vite-plugin-singlefile": "^2.3.3",
+        "vitest": "^4.1.5"
     },
     "dependencies": {
         "immutable": "^5.1.5"
