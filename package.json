@@ -27,9 +27,21 @@
         "lint:imports": "npx eslint --fix",
         "format": "prettier --write . --no-error-on-unmatched-pattern",
         "format:check": "prettier --check . --no-error-on-unmatched-pattern",
+        "prepare": "husky",
+        "precommit": "lint-staged && npm run type-check",
+        "prepush": "npm test && npm run build",
         "ce:install": "compound-plugin install compound-engineering --to copilot",
         "ce:sync": "compound-plugin sync",
         "ce:help": "compound-plugin --help"
+    },
+    "lint-staged": {
+        "*.{ts,tsx}": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "*.{css,scss,md,json,yml,yaml}": [
+            "prettier --write"
+        ]
     },
     "devDependencies": {
         "@every-env/compound-plugin": "^2.68.1",
@@ -44,7 +56,9 @@
         "eslint": "^10.1.0",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-prettier": "^5.5.5",
+        "husky": "^9.1.7",
         "jsdom": "^29.0.1",
+        "lint-staged": "^16.4.0",
         "prettier": "^3.8.1",
         "prettier-plugin-organize-imports": "^4.3.0",
         "sass": "^1.98.0",

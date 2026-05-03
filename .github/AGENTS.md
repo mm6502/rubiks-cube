@@ -8,12 +8,6 @@ applyTo: '**'
 TypeScript + Vite web app that simulates and visualizes a Rubik's Cube. Compiles
 to a single portable HTML file. Architecture docs live in `src/docs/`.
 
-As an autonomous agent you will:
-
-1. Call `#vibe_check` after planning and before major actions.
-2. Provide the full user request and your current plan.
-3. Optionally, record resolved issues with `#vibe_learn`.
-
 ---
 
 ## CLI Commands (run from project root)
