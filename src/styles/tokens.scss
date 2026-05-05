@@ -40,24 +40,18 @@
     --palette-slate-800: #1e293b;
 
     // Gray
+    --palette-gray-0: #ffffff;
+    --palette-gray-100: #eaeaea;
     --palette-gray-200: #e5e7eb;
     --palette-gray-300: #d1d5db;
     --palette-gray-400: #9ca3af;
-    --palette-gray-550: #6c757d;
     --palette-gray-500: #6b7280;
     --palette-gray-600: #4b5563;
     --palette-gray-700: #374151;
     --palette-gray-800: #1f2937;
     --palette-gray-900: #111827;
-
-    // Neutral utility
-    --palette-neutral-50: #f9fafb;
-
-    // Special
-    --palette-near-black: #1a1a1a;
-    --palette-near-white: #eaeaea;
-    --palette-white: #ffffff;
-    --palette-black: #000000;
+    --palette-gray-950: #1a1a1a;
+    --palette-gray-1000: #000000;
 
     // Domain (physical cube rendering)
     --palette-domain-cube-interior: #222222;
@@ -159,14 +153,14 @@
     --size-tooltip-graphical-width: 4ch;
 
     // § Buttons
-    --color-btn-primary-bg: var(--palette-gray-550);
+    --color-btn-primary-bg: var(--palette-gray-500);
     --color-btn-primary-text: var(--color-text-on-accent);
     --color-btn-primary-shadow: var(--palette-gray-600);
 
     // § Toggle buttons - when active — same in both themes (no dark override)
     --color-toggle-btn-active-bg: var(--palette-cyan-400);
     --color-toggle-btn-active-bg-hover: var(--palette-cyan-300);
-    --color-toggle-btn-active-text: var(--palette-near-black);
+    --color-toggle-btn-active-text: var(--palette-gray-950);
     --color-toggle-btn-active-border: color-mix(in srgb, var(--palette-cyan-400) 60%, transparent);
     --color-toggle-btn-active-glow: color-mix(in srgb, var(--palette-cyan-400) 40%, transparent);
 
@@ -209,13 +203,13 @@
     // § Sticker interaction
     --color-domain-sticker-hover: var(--palette-cyan-500);
     --color-domain-sticker-selected: var(--palette-cyan-400);
-    --color-domain-sticker-selected-box: var(--palette-near-black);
+    --color-domain-sticker-selected-box: var(--palette-gray-950);
 
     // § Legend / face labels
-    --color-domain-face-label: var(--palette-gray-550);
-    --color-domain-face-label-border: var(--palette-gray-550);
+    --color-domain-face-label: var(--palette-gray-500);
+    --color-domain-face-label-border: var(--palette-gray-500);
     --color-domain-face-label-bg: transparent;
-    --color-domain-face-label-hidden-bg: var(--palette-gray-550);
+    --color-domain-face-label-hidden-bg: var(--palette-gray-500);
     --color-domain-face-label-hidden: var(--color-text-on-accent);
 
     // § Drag interaction
@@ -225,6 +219,13 @@
 
     --color-drag-halo-zone-fill: color-mix(in srgb, var(--palette-cyan-400) 75%, transparent);
     --color-drag-halo-zone-stroke: var(--color-drag-halo-stroke);
+
+    // § Circular view detection bands
+    --color-detection-band-fill: color-mix(in srgb, var(--palette-cyan-500) 10%, transparent);
+    --color-detection-band-stroke: color-mix(in srgb, var(--palette-cyan-500) 25%, transparent);
+
+    // § Ghost sticker glow
+    --color-ghost-sticker-glow: color-mix(in srgb, var(--palette-gray-0) 30%, transparent);
 }
 // #endregion Layer 2: Semantic tokens
 
@@ -232,11 +233,11 @@
 :root {
     // § UI Shell
     --color-body-bg: var(--palette-indigo-400);
-    --color-content-bg: var(--palette-white);
+    --color-content-bg: var(--palette-gray-0);
 
     // § Surface tints — darken in light mode, lighten in dark mode
-    --color-surface-tint: var(--palette-black);
-    --color-surface-tint-inverted: var(--palette-white);
+    --color-surface-tint: var(--palette-gray-1000);
+    --color-surface-tint-inverted: var(--palette-gray-0);
 
     // § Shadows
     --color-shadow-secondary: var(--color-shadow-primary);
@@ -263,15 +264,15 @@
     --color-scrollbar-thumb-hover: var(--palette-gray-500);
 
     // § Command groups
-    --color-controls-panel-cmd-group-bg: var(--palette-near-white);
+    --color-controls-panel-cmd-group-bg: var(--palette-gray-100);
     --color-controls-panel-cmd-group-border: var(--color-overlay-positive-05);
     --color-controls-panel-cmd-header-text: var(--palette-gray-700);
     --color-controls-panel-cmd-subheader-text: var(--palette-gray-600);
 
     // § Tab bar
-    --color-view-selection-tab-active-bg: var(--palette-white);
+    --color-view-selection-tab-active-bg: var(--palette-gray-0);
     --color-view-selection-tab-active-text: var(--palette-indigo-600);
-    --color-view-selection-tab-active-border: var(--palette-white);
+    --color-view-selection-tab-active-border: var(--palette-gray-0);
     --color-view-selection-tab-scrollbar-thumb: var(--color-overlay-negative-40);
 }
 // #endregion Layer 3: Light theme
@@ -283,8 +284,8 @@
     --color-content-bg: var(--palette-gray-900);
 
     // § Surface tints — darken in light mode, lighten in dark mode
-    --color-surface-tint: var(--palette-white);
-    --color-surface-tint-inverted: var(--palette-black);
+    --color-surface-tint: var(--palette-gray-0);
+    --color-surface-tint-inverted: var(--palette-gray-1000);
 
     // § Shadows
     --color-shadow-secondary: var(--palette-navy-700);
@@ -314,7 +315,7 @@
 
     // § Tab bar — active tab uses the universal cyan signal in dark
     --color-view-selection-tab-active-bg: var(--palette-cyan-400);
-    --color-view-selection-tab-active-text: var(--palette-near-black);
+    --color-view-selection-tab-active-text: var(--palette-gray-950);
     --color-view-selection-tab-active-border: var(--color-toggle-btn-active-border);
     --color-view-selection-tab-scrollbar-thumb: var(--palette-slate-500);
 
@@ -322,9 +323,9 @@
     // visible labels get a light background ("in the light"),
     // hidden labels get a near-black background ("in the dark").
     --color-domain-face-label-bg: var(--palette-gray-500);
-    --color-domain-face-label: var(--palette-text-on-accent);
+    --color-domain-face-label: var(--palette-slate-50);
     --color-domain-face-label-border: var(--palette-gray-500);
-    --color-domain-face-label-hidden-bg: var(--palette-near-black);
+    --color-domain-face-label-hidden-bg: var(--palette-gray-950);
     --color-domain-face-label-hidden: var(--palette-gray-400);
 }
 // #endregion Layer 3: Dark theme

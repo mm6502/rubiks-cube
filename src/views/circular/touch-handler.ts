@@ -107,7 +107,7 @@ export class CircularTouchHandler {
         const uid = Math.random().toString(36).slice(2, 8);
         for (const axis of [Axis.X, Axis.Y, Axis.Z] as Axis[]) {
             const bandEl = document.createElementNS(SVG_NS, 'path');
-            bandEl.classList.add(styles['circular-debug-band'] ?? 'circular-debug-band');
+            bandEl.classList.add(styles['circular-detection-band'] ?? 'circular-detection-band');
             bandEl.setAttribute('visibility', 'hidden');
             bandEl.setAttribute('pointer-events', 'none');
             bandEl.setAttribute('aria-hidden', 'true');
