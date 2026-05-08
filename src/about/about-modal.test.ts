@@ -24,6 +24,8 @@ describe('AboutModal', () => {
     beforeEach(() => {
         modal = new AboutModal();
         document.body.innerHTML = '';
+        vi.stubGlobal('__APP_VERSION__', '1.0.0');
+        vi.stubGlobal('__BUILD_DATE__', '2026-05-09');
     });
 
     afterEach(() => {

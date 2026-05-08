@@ -20,6 +20,10 @@ export default defineConfig({
         // Disable code splitting (required for single-file output)
         codeSplitting: false,
     } as BuildOptionsV8,
+    define: {
+        __APP_VERSION__: JSON.stringify(process.env.npm_package_version || 'dev'),
+        __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+    },
     resolve: {
         alias: {
             '@': '/src',

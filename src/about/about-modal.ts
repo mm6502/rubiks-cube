@@ -1,5 +1,8 @@
 import styles from './about-modal.module.css';
 
+declare const __APP_VERSION__: string;
+declare const __BUILD_DATE__: string;
+
 export class AboutModal {
     private backdrop: HTMLElement | null = null;
 
@@ -18,7 +21,7 @@ export class AboutModal {
         this.backdrop.innerHTML = `
             <div class="${styles.dialog}">
                 <div class="${styles.header}">
-                    <h2 class="${styles.title}">Rubik's Cube</h2>
+                    <h2 class="${styles.title}">Rubik's Cube v${__APP_VERSION__} (${__BUILD_DATE__})</h2>
                     <button class="${styles.closeButton}" aria-label="Close about dialog">&#x2715;</button>
                 </div>
                 <p class="${styles.description}">
