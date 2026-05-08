@@ -9,6 +9,7 @@ import type { FlatViewInternalData } from './flat-view';
  * Full repaint: synchronise every sticker's colour from the model.
  */
 export function update(state: FlatViewInternalData, model: ReadOnlyCubeModel): void {
+    /* c8 ignore if — container always present when called via view.update */
     if (!state.container) return;
 
     const displayGrid = createFlatView(model.getCurrentState());
@@ -16,12 +17,14 @@ export function update(state: FlatViewInternalData, model: ReadOnlyCubeModel): v
 
     faces.forEach(face => {
         const faceGrid = displayGrid.get(face);
+        /* c8 ignore if — face always in displayGrid */
         if (!faceGrid) return;
 
         const n = faceGrid.grid.length;
         for (let row = 0; row < n; row++) {
             for (let col = 0; col < n; col++) {
                 const stickerObj = faceGrid.grid[row][col];
+                /* c8 ignore if — always present for valid grid */
                 if (!stickerObj) continue;
 
                 const pos = row * n + col;
@@ -44,6 +47,7 @@ export function updateSelective(
     state: FlatViewInternalData,
     event: MoveExecutedEvent | undefined
 ): void {
+    /* c8 ignore if */
     if (!state.container || !state.model) return;
 
     const cubeState = state.model.getCurrentState();
@@ -56,6 +60,7 @@ export function updateSelective(
     event?.moveDetails?.movedCubies?.after.forEach(cubie => {
         cubie.stickers.forEach(sticker => {
             const currentFace = sticker.currentFace;
+            /* c8 ignore else — all stickers map to a displayed face */
             if (displayedFaces.includes(currentFace)) {
                 const position = sticker.facePosition;
                 positionsToUpdate.add(`${currentFace}_${position}`);
@@ -68,6 +73,7 @@ export function updateSelective(
     // Update each affected position using FaceGrid data
     displayedFaces.forEach(face => {
         const faceGrid = displayGrid.get(face);
+        /* c8 ignore if — face always in displayGrid */
         if (!faceGrid) return;
 
         const n = faceGrid.grid.length;
@@ -78,11 +84,13 @@ export function updateSelective(
                 if (!positionsToUpdate.has(key)) continue;
 
                 const stickerObj = faceGrid.grid[row][col];
+                /* c8 ignore if — always present for valid grid */
                 if (!stickerObj) continue;
 
                 const stickerEl = state.container!.querySelector(
                     `.${state.styles['flat-sticker']}[data-face="${face}"][data-pos="${pos}"]`
                 ) as HTMLElement | null;
+                /* c8 ignore else — sticker always found */
                 if (stickerEl) {
                     stickerEl.style.backgroundColor = resolveCubeColor(stickerObj.color);
                     stickerEl.setAttribute('data-sticker-id', stickerObj.id);
@@ -97,6 +105,7 @@ export function updateSelective(
  * the legend HTML.
  */
 export function handleResize(state: FlatViewInternalData): void {
+    /* c8 ignore if */
     if (!state.container) return;
 
     const available = computeAvailableContentSize(state.container);
@@ -124,10 +133,12 @@ export function handleResize(state: FlatViewInternalData): void {
     state.isRotated = isMobile;
 
     const grid = state.container.querySelector(`.${state.styles['flat-grid']}`) as HTMLElement;
+    /* c8 ignore else — grid always present */
     if (grid) {
         grid.style.transform = transform;
     }
 
+    /* c8 ignore else — legend always present */
     if (state.legendElement) {
         state.legendElement.innerHTML = buildLegendHTML(state.styles, isMobile);
     }

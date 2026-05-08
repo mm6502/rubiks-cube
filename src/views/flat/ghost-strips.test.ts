@@ -131,4 +131,34 @@ describe('ghost hints', () => {
             expect((strip as HTMLElement).style.display).toBe('none');
         }
     });
+
+    it('getShowGhosts returns true when visible, false when hidden', () => {
+        const gs = view.getGhostStrips()!;
+
+        // Initially visible (opacityIndex = 1)
+        expect(gs.getShowGhosts()).toBe(true);
+
+        // Toggle twice: 75% → 100% → off
+        getCmd().action(); // → 100%
+        expect(gs.getShowGhosts()).toBe(true);
+        getCmd().action(); // → off
+        expect(gs.getShowGhosts()).toBe(false);
+    });
+
+    it('setShowGhosts cycles visibility correctly', () => {
+        const gs = view.getGhostStrips()!;
+
+        // Start visible
+        expect(gs.getOpacityIndex()).toBe(1);
+
+        // Set to hidden
+        gs.setShowGhosts(false);
+        expect(gs.getOpacityIndex()).toBe(0);
+        expect(gs.getShowGhosts()).toBe(false);
+
+        // Set back to visible
+        gs.setShowGhosts(true);
+        expect(gs.getOpacityIndex()).toBe(1);
+        expect(gs.getShowGhosts()).toBe(true);
+    });
 });

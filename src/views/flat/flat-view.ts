@@ -46,11 +46,22 @@ export type FlatViewInternalData = {
 
 // Flat T-shaped Cube Visualization
 export class FlatView implements CubeView {
+    /** Internal runtime state shared across all flat-view operations. */
     private state: FlatViewInternalData;
+    /** Pointer-interaction handler; null before {@link create} and after {@link destroy}. */
     private touchHandler: FlatTouchHandler | null = null;
+    /** Ghost-strip overlay manager; null before {@link create} and after {@link destroy}. */
     private ghostStrips: GhostStrips | null = null;
+
+    /** @internal Exposed for test access only — not part of the public CubeView contract. */
+    getGhostStrips(): GhostStrips | null {
+        return this.ghostStrips;
+    }
+    /** Current layout mode, forwarded to the touch handler on change. */
     private layoutMode: LayoutMode = LayoutMode.Floating;
+    /** Mutable state used by the legend drag subsystem. */
     private legendDragState = legendDrag.createLegendDragState();
+    /** Stable listener references for the legend drag pointer events; null before {@link create}. */
     private legendHandlers: {
         down: (e: PointerEvent) => void;
         move: (e: PointerEvent) => void;
@@ -71,10 +82,15 @@ export class FlatView implements CubeView {
         };
     }
 
+    /** Returns the view type identifier used to distinguish this view from others. */
     getViewType(): string {
         return 'flat';
     }
 
+    /**
+     * Assembles the {@link commands.FlatCommandContext} object that gives command
+     * handlers access to view state and touch-handler callbacks.
+     */
     private commandContext(): commands.FlatCommandContext {
         return {
             state: this.state,
@@ -92,12 +108,18 @@ export class FlatView implements CubeView {
         };
     }
 
+    /** Updates the layout mode and forwards it to the touch handler. */
     setLayoutMode(mode: LayoutMode): void {
         this.layoutMode = mode;
         this.touchHandler?.setLayoutMode(mode);
     }
 
+    /**
+     * Builds the full flat-view DOM, sets up the touch handler, ghost strips,
+     * legend drag interactions, and subscribes to move-executed events.
+     */
     create(container: HTMLElement | null, _model: ReadOnlyCubeModel | null): void {
+        /* c8 ignore if — CubeView.create contract guarantees non-null args */
         if (!container || !_model) return;
         this.state.container = container;
         this.state.model = _model;
@@ -200,6 +222,10 @@ export class FlatView implements CubeView {
         if (f4) this.updateSelected(f4.id);
     }
 
+    /**
+     * Creates the DOM element for a single cube face and attaches hover/click
+     * listeners for highlight and selection feedback.
+     */
     private createFaceElement(face: Face, faceGrid: FaceGrid): HTMLElement {
         const faceDiv = rendering.createFaceElement(face, faceGrid, this.state.styles);
 
@@ -232,62 +258,80 @@ export class FlatView implements CubeView {
         return faceDiv;
     }
 
+    /** Performs a full DOM re-render from the given model and restores selection. */
     update(model: ReadOnlyCubeModel): void {
         rendering.update(this.state, model);
         this.restoreSelection();
         this.ghostStrips?.updateColors();
     }
 
+    /** Re-renders only the stickers affected by the given move event, falling back to a full update. */
     public updateSelective(event?: MoveExecutedEvent): void {
         rendering.updateSelective(this.state, event);
         this.restoreSelection();
         this.ghostStrips?.updateColors();
     }
 
+    /** Applies or clears the hover-highlight style on the given sticker. */
     updateHighlight(highlightedSticker?: StickerId): void {
         selection.updateHighlight(this.state, highlightedSticker);
     }
 
+    /** Marks the given sticker as selected and updates the spatial anchor used for keyboard navigation. */
     updateSelected(selectedSticker?: StickerId): void {
         selection.updateSelected(this.state, selectedSticker);
     }
 
+    /** Dispatches a keydown event to the command system; returns true if the event was consumed. */
     handleKeyDown(event: KeyboardEvent): boolean {
         return commands.handleKeyDown(this.commandContext(), event);
     }
 
+    /** Dispatches a keyup event to the command system; returns true if the event was consumed. */
     handleKeyUp(event: KeyboardEvent): boolean {
         return commands.handleKeyUp(this.commandContext(), event);
     }
 
+    /** Recalculates scale and legend content, and repositions the halo overlay. */
     resize(): void {
         this.handleResize();
         this.touchHandler?.resize();
     }
 
+    /** Delegates to the rendering module to recalculate scale and legend content. */
     private handleResize(): void {
         rendering.handleResize(this.state);
     }
 
+    /** Returns the minimum intrinsic size of the flat-view grid used when sizing panels. */
     getMinimumSize(): Size2D {
         // intrinsic grid size (300×300) is used when sizing panels
         return { width: 300, height: 300 };
     }
 
+    /** Returns the flat-grid element, or null if the view has not been created yet. */
     getCubeElement(): HTMLElement | null {
         return this.state.container?.querySelector(`.${this.state.styles['flat-grid']}`) || null;
     }
 
+    /** Returns the list of keyboard commands available in this view. */
     getCommands(): Command[] {
         return commands.getCommands(this.commandContext());
     }
 
+    /** Re-applies the stored selection after a model update so visual state stays consistent. */
     private restoreSelection(): void {
         selection.restoreSelection(this.state);
     }
 
+    /**
+     * Event handler invoked after each move execution.
+     * Uses selective rendering when cubie-level diff data is available,
+     * otherwise falls back to a full update.
+     */
     private handleMoveExecuted(event: any): void {
         // Use selective updates if movedCubies data is available
+        /* c8 ignore if — model always present when events fire */
         if (!this.state.model) {
             return;
         }
@@ -301,6 +345,7 @@ export class FlatView implements CubeView {
         this.update(this.state.model);
     }
 
+    /** Tears down all event listeners, nulls the touch handler, and clears the container DOM. */
     destroy(): void {
         if (this.legendHandlers) {
             document.removeEventListener('pointermove', this.legendHandlers.move);
@@ -315,6 +360,7 @@ export class FlatView implements CubeView {
         }
     }
 
+    /** Returns a serialisable snapshot of view-specific UI state for persistence. */
     getState(): FlatViewState {
         return {
             faceDirectMode: this.touchHandler?.isFaceDirectMode() ?? false,
@@ -323,6 +369,7 @@ export class FlatView implements CubeView {
         };
     }
 
+    /** Restores view-specific UI state from a previously captured snapshot. */
     setState(state: unknown): void {
         if (!state || typeof state !== 'object') return;
         const s = state as Record<string, unknown>;

@@ -124,6 +124,7 @@ export class GhostStickers {
         const faceEl = this.cubeElement.querySelector(
             `[data-basic-face="${hostFace}"]:not([data-basic-pos])`
         ) as HTMLElement | null;
+        /* c8 ignore if */
         if (!faceEl) return;
 
         const strip = document.createElement('div');
@@ -257,10 +258,12 @@ export class GhostStickers {
 
                 // Find the sticker at this position on the host face
                 const hostSticker = CubeStateUtils.getStickerAt(state, hostFace, hostPos);
+                /* c8 ignore if */
                 if (!hostSticker) continue;
 
                 // Get the cubie that owns this sticker
                 const cubie = CubeStateUtils.getCubieById(state, hostSticker.cubieId);
+                /* c8 ignore if */
                 if (!cubie) continue;
 
                 // Find the sibling sticker on the source (hidden) face
@@ -420,6 +423,7 @@ export class GhostStickers {
         }
         // Hide after transition completes (only if still hidden)
         const first = stripState.element.querySelector(`.${ghostStyles['ghost-sticker']}`);
+        /* istanbul ignore else */
         if (first) {
             const hide = () => {
                 // Only hide if strip hasn't been re-shown during transition

@@ -24,6 +24,8 @@ Last quality snapshot: 2026-04-03 (1290 tests passing; coverage: 90.06% stmts,
 - [x] (Apr 2026) Enable Arrow Keys to perform moves with selected cubie (all
       views)
 - [x] (Apr 2026) Ghost hint stickers (Flat and Circular views)
+- [x] (May 2026) Refactor token system in
+      [tokens.scss](./src/styles/tokens.scss)
 
 🚧 **Planned**
 
@@ -36,15 +38,6 @@ Last quality snapshot: 2026-04-03 (1290 tests passing; coverage: 90.06% stmts,
 (nothing atm)
 
 ### Medium Term (maybe)
-
-- [ ] Refactor [tokens.scss](./src/styles/tokens.scss)
-  - [ ] Define the shades (eg. 100, 200, 300) for each color in a more
-        systematic way. Based on lightness/darkness - in opposite direction for
-        light vs dark theme - enabling actually use the same tokens for both
-        themes.
-  - [ ] Try to rethink naming convention of tokens to allow for other properties
-        than colors (eg. border radius, spacing)
-  - [?] Try to reduce the number of tokens
 
 - [?] Make clone of Basic view with separate cubies to enable move animations
 - [?] Move sequence "optimization" (eg. canceling out moves - like U followed by

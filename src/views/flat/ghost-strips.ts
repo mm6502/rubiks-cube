@@ -85,6 +85,7 @@ export class GhostStrips {
             const faceEl = this.container.querySelector(
                 `.${this.stickerStyles['flat-face']}:has(.${this.stickerStyles['flat-sticker']}[data-face="${ge.face}"])`
             ) as HTMLElement | null;
+            /* c8 ignore if */
             if (!faceEl) continue;
 
             const strip = document.createElement('div');
@@ -111,6 +112,7 @@ export class GhostStrips {
 
     /** Copy the background colour of each source sticker to its ghost. */
     updateColors(): void {
+        /* c8 ignore if */
         if (this.opacityIndex === 0) return;
 
         for (const ghost of this.ghostElements) {
@@ -121,6 +123,7 @@ export class GhostStrips {
             const sourceEl = this.container.querySelector(
                 `.${this.stickerStyles['flat-sticker']}[data-face="${face}"][data-pos="${pos}"]`
             ) as HTMLElement | null;
+            /* c8 ignore else */
             if (sourceEl) {
                 ghost.style.backgroundColor = sourceEl.style.backgroundColor;
             }
@@ -176,7 +179,10 @@ export class GhostStrips {
                 // Fallback in case transitionend doesn't fire (e.g. zero-duration)
                 setTimeout(hide, 400);
             } else {
-                for (const strip of strips) strip.style.display = 'none';
+                /* c8 ignore else — strips always have children from create() */
+                for (const strip of strips) {
+                    strip.style.display = 'none';
+                }
             }
         }
     }

@@ -639,3 +639,49 @@ describe('initializeErrorHandlers', () => {
         spyError.mockRestore();
     });
 });
+
+/**
+ * Init-path coverage via module reload
+ * These tests dynamically import the logger module with different environment conditions
+ * to cover initialization branches that only run once when the module loads.
+ */
+describe('Logger init-path coverage via module reload', () => {
+    beforeEach(() => {
+        vi.resetModules();
+    });
+
+    it('production env → debug disabled', async () => {
+        // Arrange
+        vi.stubGlobal('import.meta', { env: { PROD: true, DEV: false } });
+
+        // Act - dynamically import module
+        const { logger: prodLogger } = await import('./logger');
+
+        // Assert - debug should not reach console in production
+        const consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        prodLogger.debug('test message');
+        expect(consoleDebugSpy).not.toHaveBeenCalled();
+
+        consoleDebugSpy.mockRestore();
+        vi.unstubAllGlobals();
+    });
+
+    it('URL debug=0 in dev mode → forces level off', async () => {
+        // Arrange
+        vi.stubGlobal('import.meta', { env: { DEV: true, PROD: false } });
+        vi.stubGlobal('window', {
+            location: { search: '?debug=0' },
+        });
+
+        // Act - dynamically import module
+        const { logger: debugOffLogger } = await import('./logger');
+
+        // Assert - debug should not be called when ?debug=0
+        const consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        debugOffLogger.debug('test message');
+        expect(consoleDebugSpy).not.toHaveBeenCalled();
+
+        consoleDebugSpy.mockRestore();
+        vi.unstubAllGlobals();
+    });
+});

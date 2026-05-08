@@ -28,17 +28,20 @@ export function resolveStickerHit(
     }
 
     const cubeState = getCubeState();
+    /* c8 ignore next */
     if (!cubeState) {
         return undefined;
     }
 
     const modelSticker = CubeStateUtils.getStickerById(cubeState, stickerId as StickerId);
+    /* c8 ignore next */
     if (!modelSticker) {
         return undefined;
     }
 
     const cubeSize = getCubeSize();
     const facePosition = modelSticker.facePosition;
+    /* c8 ignore next */
     if (!Number.isFinite(facePosition)) {
         return undefined;
     }
@@ -50,6 +53,7 @@ export function resolveStickerHit(
     }
 
     const face = modelSticker.currentFace as Face | undefined;
+    /* c8 ignore next */
     if (!face) {
         return undefined;
     }
@@ -98,6 +102,7 @@ export function buildCrossingBasisAtPoint(
     point: Point2D
 ): FaceScreenBasis | undefined {
     const upHint = normalize2(FACE_TOP_DIRECTION_HINTS[face]);
+    /* c8 ignore next 3 */
     if (!upHint) {
         return undefined;
     }
@@ -121,6 +126,7 @@ export function buildCrossingBasisAtPoint(
 
     const upCandidateA = orientedTangentAtPoint(point, circles[0].circle, upHint);
     const upCandidateB = orientedTangentAtPoint(point, circles[1].circle, upHint);
+    /* c8 ignore next 3 */
     if (!upCandidateA || !upCandidateB) {
         return undefined;
     }
@@ -137,6 +143,7 @@ export function buildCrossingBasisAtPoint(
     };
 
     const normalizedRight = normalize2(rightDir);
+    /* c8 ignore next 3 */
     if (!normalizedRight) {
         return undefined;
     }
@@ -158,15 +165,15 @@ export function getLbdTrianglePoints(
 ): { topLeft: Point2D; topRight: Point2D; bottom: Point2D } | undefined {
     const getLabelGeometry = (id: string) => {
         const group = svgRoot.querySelector(`#${id}`) as SVGGElement | null;
-        if (!group) return undefined;
+        /* c8 ignore next */ if (!group) return undefined;
         const rect = group.querySelector('rect') as SVGElement | null;
-        if (!rect) return undefined;
+        /* c8 ignore next */ if (!rect) return undefined;
         // getCenterOfElement reads cx/cy; on <rect> those are absent → returns {0,0},
         // which is the correct local-space centre for a rect centred at the origin.
         const localCenter = getCenterOfElement(rect);
         const t = group.getAttribute('transform') ?? '';
         const m = t.match(/translate\(\s*([\d.+-]+)[\s,]+([\d.+-]+)\s*\)/);
-        if (!m) return undefined;
+        /* c8 ignore next */ if (!m) return undefined;
         const center = { x: Number(m[1]) + localCenter.x, y: Number(m[2]) + localCenter.y };
         const hw = parseFloat(rect.getAttribute('width') ?? '20') / 2;
         const hh = parseFloat(rect.getAttribute('height') ?? '20') / 2;

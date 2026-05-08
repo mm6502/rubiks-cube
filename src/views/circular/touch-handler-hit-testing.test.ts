@@ -302,3 +302,102 @@ describe('findNearestStickerOnFace', () => {
         vi.restoreAllMocks();
     });
 });
+
+// ── resolveStickerHit edge cases ────────────────────────────────────────────
+
+describe('resolveStickerHit edge cases', () => {
+    it('should return undefined when col is negative (facePosition < 0)', () => {
+        vi.spyOn(CubeStateUtils, 'getStickerById').mockReturnValue({
+            facePosition: -1,
+            currentFace: Face.F,
+        } as any);
+        const cubeState = { cubies: [] } as unknown as CubeState;
+        expect(
+            resolveStickerHit(
+                'st1',
+                () => cubeState,
+                () => 3
+            )
+        ).toBeUndefined();
+        vi.restoreAllMocks();
+    });
+});
+
+// ── buildCrossingBasisAtPoint edge cases ────────────────────────────────────
+
+describe('buildCrossingBasisAtPoint same-axis circles', () => {
+    it('should return undefined when both closest circles are on the same axis', () => {
+        // All circles on Axis.X — no second-axis circle exists
+        const circles = [
+            makeCircle(Axis.X, 0, 0, 0, 50),
+            makeCircle(Axis.X, 1, 10, 10, 50),
+            makeCircle(Axis.X, 2, -5, 5, 50),
+        ];
+        const result = buildCrossingBasisAtPoint(circles, Face.F, { x: 0, y: 0 });
+        expect(result).toBeUndefined();
+    });
+});
+
+// ── getLbdTrianglePoints edge cases ─────────────────────────────────────────
+
+describe('getLbdTrianglePoints edge cases', () => {
+    it('should return undefined when a label group has no rect', () => {
+        const svg = createSvgRoot();
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.id = 'face-label-L';
+        group.setAttribute('transform', 'translate(100,200)');
+        // No <rect> child
+        svg.appendChild(group);
+
+        // Only L exists — B and D missing, so overall result is undefined
+        expect(getLbdTrianglePoints(svg)).toBeUndefined();
+    });
+
+    it('should return undefined when a label group has no transform', () => {
+        const svg = createSvgRoot();
+        for (const face of ['L', 'B', 'D']) {
+            const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            group.id = `face-label-${face}`;
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('width', '20');
+            rect.setAttribute('height', '20');
+            group.appendChild(rect);
+            svg.appendChild(group);
+        }
+        // Groups exist with rects but no transform attribute → regex fails
+        const result = getLbdTrianglePoints(svg);
+        expect(result).toBeUndefined();
+    });
+});
+
+// ── isInLbdDeadZone edge cases ──────────────────────────────────────────────
+
+describe('isInLbdDeadZone edge cases', () => {
+    function setupLbdSvg(svg: SVGSVGElement): void {
+        for (const face of ['L', 'B', 'D']) {
+            const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            group.id = `face-label-${face}`;
+            group.setAttribute('transform', 'translate(100,200)');
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('width', '40');
+            rect.setAttribute('height', '40');
+            group.appendChild(rect);
+            svg.appendChild(group);
+        }
+    }
+
+    it('should return false for point outside the triangle', () => {
+        const svg = createSvgRoot();
+        setupLbdSvg(svg);
+        // Point far away from the triangle area
+        expect(isInLbdDeadZone(svg, { x: -500, y: -500 })).toBe(false);
+    });
+
+    it('should return true for point inside the triangle', () => {
+        const svg = createSvgRoot();
+        setupLbdSvg(svg);
+        // The triangle formed by L (80,180), B (120,180), D (100,220)
+        // (100,200) is at the center of the triangle
+        expect(isInLbdDeadZone(svg, { x: 100, y: 200 })).toBe(true);
+    });
+});

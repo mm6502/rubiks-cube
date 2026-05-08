@@ -29,10 +29,12 @@
 .circular-drag-label {
     position: absolute;
     padding: 4px 8px;
+    min-width: var(--size-tooltip-graphical-width);
+    width: max-content;
     white-space: nowrap;
     text-align: center;
     border-radius: 999px;
-    border: 1px solid var(--color-tooltip-border);
+    border: 2px solid var(--color-tooltip-border);
     background: var(--color-tooltip-bg);
     color: var(--color-tooltip-text);
     font-size: var(--size-tooltip-graphical-font);

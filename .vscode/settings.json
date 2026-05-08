@@ -1,5 +1,7 @@
 {
     "terminal.integrated.persistentSessionReviveProcess": "never",
+    "github.copilot.chat.codesearch.enabled": true,
+    "github.copilot.chat.codesearch.agent.enabled": true,
 
     "js/ts.implicitProjectConfig.module": "System",
     "vite.showTerminal": false,

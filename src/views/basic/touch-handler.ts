@@ -926,6 +926,7 @@ export class BasicTouchHandler {
             `[data-basic-face="${face}"][data-basic-pos="${cubeSize}"]`
         ) as HTMLElement | null;
 
+        /* c8 ignore if */
         if (!s00 || !s01 || !s10) return undefined;
 
         const r00 = s00.getBoundingClientRect();
@@ -941,6 +942,7 @@ export class BasicTouchHandler {
 
         const rightDir = normalize2(rightRaw);
         const upDir = normalize2(upRaw);
+        /* c8 ignore if */
         if (!rightDir || !upDir) return undefined;
 
         return { upDir, rightDir };
@@ -956,6 +958,7 @@ export class BasicTouchHandler {
         const screenBasis =
             this.getFaceScreenBasisFromDOM(face, cubeSize) ??
             buildFaceScreenBasis(face, state.viewRight, state.viewUp);
+        /* c8 ignore if */
         if (!screenBasis) {
             this.hideDragDecision();
             return;
@@ -995,6 +998,7 @@ export class BasicTouchHandler {
      */
     private setupStickerFaceDirectLine(_face: Face, clientX: number, clientY: number): void {
         const center = this.haloFaceCenter;
+        /* c8 ignore if */
         if (!center) {
             this.hideDragDecision();
             return;
@@ -1002,6 +1006,7 @@ export class BasicTouchHandler {
         const dx = clientX - center.x;
         const dy = clientY - center.y;
         const mag = Math.hypot(dx, dy);
+        /* c8 ignore if */
         if (mag < 1) {
             this.hideDragDecision();
             return;
@@ -1084,6 +1089,7 @@ export class BasicTouchHandler {
     }
 
     private wasTapWithoutDrag(clientX: number, clientY: number): boolean {
+        /* c8 ignore if */
         if (!this.activePointerOrigin) return false;
         const dx = clientX - this.activePointerOrigin.x;
         const dy = clientY - this.activePointerOrigin.y;

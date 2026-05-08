@@ -573,7 +573,7 @@
     font-size: var(--size-tooltip-graphical-font);
     font-weight: bold;
     pointer-events: none;
-    z-index: 20;
+    z-index: 30;
     white-space: nowrap;
 }
 

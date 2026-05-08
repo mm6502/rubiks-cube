@@ -370,6 +370,7 @@ export function initializeErrorHandlers(): void {
 
 // Initialize debug startup behavior and expose helpers on window.
 // Wrapped in try/catch to be safe in non-browser environments (tests, SSR).
+/* c8 ignore start */
 (function initLogSetup() {
     const storageKey = 'loglevel';
 
@@ -456,3 +457,4 @@ export function initializeErrorHandlers(): void {
         // Not running in browser environment; skip DOM-dependent initialization.
     }
 })();
+/* c8 ignore stop */

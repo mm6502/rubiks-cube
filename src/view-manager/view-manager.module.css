@@ -439,7 +439,7 @@
     color: var(--color-toggle-btn-active-text);
     border-color: var(--color-toggle-btn-active-border);
     box-shadow:
-        inset 0 2px 4px var(--color-overlay-negative-15),
+        inset 0 2px 4px var(--color-toggle-btn-active-inset-shadow),
         0 0 8px var(--color-toggle-btn-active-glow);
     transform: translateY(1px);
 }

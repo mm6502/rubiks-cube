@@ -222,5 +222,46 @@ describe('FlatView rendering', () => {
             const grid = container.querySelector(`.${styles['flat-grid']}`) as HTMLElement;
             expect(grid.style.transform).toContain('scale');
         });
+
+        it('should apply mobile rotation when viewport is narrow', () => {
+            // Arrange — simulate mobile viewport
+            const originalInnerWidth = window.innerWidth;
+            Object.defineProperty(window, 'innerWidth', { value: 500, writable: true });
+
+            // Act
+            view.resize();
+
+            // Assert
+            const grid = container.querySelector(`.${styles['flat-grid']}`) as HTMLElement;
+            expect(grid.style.transform).toContain('rotate');
+
+            // Restore
+            Object.defineProperty(window, 'innerWidth', {
+                value: originalInnerWidth,
+                writable: true,
+            });
+        });
+
+        it('buildLegendHTML returns mobile layout when isMobile is true', async () => {
+            const { buildLegendHTML } = await import('./rendering');
+            const mobileHTML = buildLegendHTML(styles, true);
+            expect(mobileHTML).toContain('F');
+            expect(mobileHTML).toContain('U');
+            expect(mobileHTML).toContain('D');
+            expect(mobileHTML).toContain('L');
+            expect(mobileHTML).toContain('R');
+            expect(mobileHTML).toContain('B');
+        });
+
+        it('buildLegendHTML returns desktop layout when isMobile is false', async () => {
+            const { buildLegendHTML } = await import('./rendering');
+            const desktopHTML = buildLegendHTML(styles, false);
+            expect(desktopHTML).toContain('F');
+            expect(desktopHTML).toContain('U');
+            expect(desktopHTML).toContain('D');
+            expect(desktopHTML).toContain('L');
+            expect(desktopHTML).toContain('R');
+            expect(desktopHTML).toContain('B');
+        });
     });
 });

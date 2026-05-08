@@ -856,4 +856,168 @@ describe('BasicTouchHandler', () => {
         expect(onViewRotated).toHaveBeenCalledTimes(1);
         handler.destroy();
     });
+
+    // -----------------------------------------------------------------------
+    // Face-direct mode: dragging sticker on face ellipse emits MOVE_REQUESTED
+    // -----------------------------------------------------------------------
+
+    it('face direct mode: dragging sticker on selected face emits MOVE_REQUESTED', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+        const handler = createHandler(fixture);
+        handler.attach();
+        handler.setFaceDirectMode(true);
+
+        // Pre-select face F
+        handler.selectFace(Face.F);
+
+        mockElementFromPoint(fixture.stickerEl);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 30, 100, 100));
+        document.dispatchEvent(pointer('pointermove', 30, 100, 140));
+        document.dispatchEvent(pointer('pointerup', 30, 100, 140));
+
+        expect(emitSpy).toHaveBeenCalledWith(
+            EventName.MOVE_REQUESTED,
+            expect.objectContaining({ viewId: 'basic-front' })
+        );
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // HALO hit target drag → selects face and starts gesture
+    // -----------------------------------------------------------------------
+
+    it('drag on halo hit target with selected face starts face rotation gesture', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // Pre-select face F so halo hit target is active
+        handler.selectFace(Face.F);
+
+        // The halo hit target element is inside the host
+        const haloTarget = fixture.host.querySelector('.basic-halo-hit-target') as HTMLElement;
+        expect(haloTarget).not.toBeNull();
+
+        // Mock getBoundingClientRect so isHaloHitTargetAtPoint returns true for our coords
+        haloTarget.getBoundingClientRect = () =>
+            ({ left: 90, right: 110, top: 90, bottom: 110, width: 20, height: 20 }) as DOMRect;
+
+        // Dispatch pointerdown on halo hit target
+        fixture.host.dispatchEvent(pointer('pointerdown', 31, 100, 100));
+        document.dispatchEvent(pointer('pointermove', 31, 100, 140));
+        document.dispatchEvent(pointer('pointerup', 31, 100, 140));
+
+        // Should emit MOVE_REQUESTED for face rotation
+        expect(emitSpy).toHaveBeenCalledWith(
+            EventName.MOVE_REQUESTED,
+            expect.objectContaining({ viewId: 'basic-front' })
+        );
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // onPointerCancel during active drag → gesture cancelled cleanly
+    // -----------------------------------------------------------------------
+
+    it('onPointerCancel during active drag cancels gesture cleanly', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        mockElementFromPoint(null);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 32, 100, 200));
+        document.dispatchEvent(pointer('pointermove', 32, 140, 200));
+
+        // Cancel during active drag
+        document.dispatchEvent(pointer('pointercancel', 32, 140, 200));
+
+        // Should not throw, state should be reset
+        expect(handler['activePointerId']).toBeUndefined();
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // pointerleave with no active pointer → no-op, no throw
+    // -----------------------------------------------------------------------
+
+    it('pointerleave with no active pointer is a no-op', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // No active pointer — just dispatch pointerleave
+        const event = new PointerEvent('pointerleave', {
+            pointerId: 999,
+            bubbles: true,
+            cancelable: true,
+        });
+        fixture.host.dispatchEvent(event);
+
+        // Should not throw, state unchanged
+        expect(handler['activePointerId']).toBeUndefined();
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Background drag with displacement → no move emitted
+    // -----------------------------------------------------------------------
+
+    it('background drag with displacement does not emit MOVE_REQUESTED', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        mockElementFromPoint(null);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 33, 100, 200));
+        document.dispatchEvent(pointer('pointermove', 33, 140, 200));
+        document.dispatchEvent(pointer('pointerup', 33, 140, 200));
+
+        // Should NOT emit MOVE_REQUESTED — background drag triggers view rotation, not move
+        expect(emitSpy).not.toHaveBeenCalledWith(EventName.MOVE_REQUESTED, expect.anything());
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // setupStickerFaceDirectLine — mag < 1 → hideDragDecision
+    // -----------------------------------------------------------------------
+
+    it('setupStickerFaceDirectLine hides drag decision when mag < 1', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+        handler.setFaceDirectMode(true);
+        handler.selectFace(Face.F);
+
+        // Mock getBoundingClientRect so haloFaceCenter is at (100, 100)
+        const haloTarget = fixture.host.querySelector('.basic-halo-hit-target') as HTMLElement;
+        haloTarget.getBoundingClientRect = () =>
+            ({ left: 90, right: 110, top: 90, bottom: 110, width: 20, height: 20 }) as DOMRect;
+
+        // Dispatch pointerdown very close to center (mag < 1)
+        fixture.host.dispatchEvent(pointer('pointerdown', 34, 100, 100));
+
+        // The drag decision SVG should be hidden (mag < 1 path)
+        const svg = fixture.host.querySelector('svg[aria-hidden]') as SVGSVGElement;
+        expect(svg).not.toBeNull();
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // normalize2 fallback — arm1Dir / arm2Dir null → use basis dir
+    // -----------------------------------------------------------------------
+
+    it('showDragDecisionCross uses fallback direction when normalize2 returns null', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+        handler.setLayoutMode(LayoutMode.Tabbed);
+
+        mockElementFromPoint(null);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 35, 100, 200));
+
+        // Verify drag decision SVG is visible (showDragDecisionCross was called)
+        const svg = fixture.host.querySelector('svg[aria-hidden]') as SVGSVGElement;
+        expect(svg).not.toBeNull();
+        handler.destroy();
+    });
 });

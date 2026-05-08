@@ -481,6 +481,18 @@ describe('FlatView', () => {
     });
 
     describe('getCommands', () => {
+        it('should return commands with null-safe defaults before create', () => {
+            const freshView = new FlatView(styles);
+            const commands = freshView.getCommands();
+            const undo = commands.find(c => c.id === 'flat.undo')!;
+            const redo = commands.find(c => c.id === 'flat.redo')!;
+            const faceDirect = commands.find(c => c.id === 'flat.face-direct-mode')!;
+
+            expect(undo.isEnabled!()).toBe(false);
+            expect(redo.isEnabled!()).toBe(false);
+            expect(faceDirect.isActive!()).toBe(false);
+        });
+
         it('should return undo and redo commands with correct properties', () => {
             // Act
             const commands = view.getCommands();
@@ -607,6 +619,11 @@ describe('FlatView', () => {
         it('should not throw if container is null', () => {
             // Act & Assert
             expect(() => view.destroy()).not.toThrow();
+        });
+
+        it('destroy on fresh view does not throw', () => {
+            const freshView = new FlatView(styles);
+            expect(() => freshView.destroy()).not.toThrow();
         });
     });
 
@@ -794,6 +811,14 @@ describe('FlatView', () => {
             view.create(container, controller);
         });
 
+        it('getState returns default values before create', () => {
+            const freshView = new FlatView(styles);
+            const state = freshView.getState();
+            expect(state.faceDirectMode).toBe(false);
+            expect(state.cubeWalk).toBe(true);
+            expect(state.ghostOpacityIndex).toBe(1);
+        });
+
         it('setState with faceDirectMode=true enables face direct mode', () => {
             view.setState({ faceDirectMode: true });
             expect(view.getState().faceDirectMode).toBe(true);
@@ -804,9 +829,32 @@ describe('FlatView', () => {
             expect(view.getState().cubeWalk).toBe(false);
         });
 
+        it('setState with null → no throw', () => {
+            expect(() => view.setState(null)).not.toThrow();
+        });
+
+        it('setState before create does not throw', () => {
+            const freshView = new FlatView(styles);
+            expect(() => freshView.setState({ faceDirectMode: true })).not.toThrow();
+        });
+
         it('setState ignores non-object input', () => {
             expect(() => view.setState(null)).not.toThrow();
             expect(() => view.setState('invalid')).not.toThrow();
+        });
+
+        it('setState ignores invalid property types', () => {
+            // Should not change state when properties have wrong types
+            view.setState({
+                faceDirectMode: 'yes',
+                cubeWalk: 42,
+                ghostOpacityIndex: 'high',
+                showGhosts: true,
+            });
+            const state = view.getState();
+            expect(state.faceDirectMode).toBe(false); // default
+            expect(state.cubeWalk).toBe(true); // default
+            expect(state.ghostOpacityIndex).toBe(1); // default
         });
     });
 });

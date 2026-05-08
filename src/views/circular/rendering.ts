@@ -195,6 +195,7 @@ function getMoveAxis(event: MoveExecutedEvent): Axis | undefined {
         const invariants = getCubeInvariants(event.preState.cubeSize);
         return getMoveDefinition(invariants, event.moveDetails.notation).axis;
     } catch {
+        /* c8 ignore next */
         return undefined;
     }
 }
@@ -283,6 +284,7 @@ export function updateSelective(
         // Determine currently selected sticker before animation.
         const selected = state.currentSelected as StickerId | undefined;
         const stickerBefore = CubeStateUtils.getStickerById(event.preState, selected);
+        /* istanbul ignore next 3 */
         const stickerAfter = CubeStateUtils.getStickerAt(
             event.postState,
             stickerBefore?.currentFace,

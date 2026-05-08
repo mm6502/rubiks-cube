@@ -81,9 +81,6 @@
     // § Surface tints — darken in light mode, lighten in dark mode
     --color-surface-tint: lime;
     --color-surface-tint-inverted: orange;
-    --color-surface-tint-weak: color-mix(in srgb, var(--color-surface-tint) 5%, transparent);
-    --color-surface-tint-medium: color-mix(in srgb, var(--color-surface-tint) 10%, transparent);
-    --color-surface-tint-strong: color-mix(in srgb, var(--color-surface-tint) 20%, transparent);
 
     // § Common alpha overlays
     // Positive = tint color, Negative = inverted tint color.
@@ -94,15 +91,9 @@
     --color-overlay-positive-25: color-mix(in srgb, var(--color-surface-tint) 25%, transparent);
     --color-overlay-positive-30: color-mix(in srgb, var(--color-surface-tint) 30%, transparent);
     --color-overlay-positive-35: color-mix(in srgb, var(--color-surface-tint) 35%, transparent);
-    --color-overlay-positive-40: color-mix(in srgb, var(--color-surface-tint) 40%, transparent);
     --color-overlay-negative-15: color-mix(
         in srgb,
         var(--color-surface-tint-inverted) 15%,
-        transparent
-    );
-    --color-overlay-negative-20: color-mix(
-        in srgb,
-        var(--color-surface-tint-inverted) 20%,
         transparent
     );
     --color-overlay-negative-40: color-mix(
@@ -124,7 +115,7 @@
     --color-border-subtle: lime;
 
     // § Shadows
-    --color-shadow-primary: var(--color-surface-tint-strong);
+    --color-shadow-primary: var(--color-overlay-positive-20);
     --color-shadow-secondary: lime;
     --color-shadow-backdrop: rgba(0, 0, 0, 0.6);
 
@@ -136,8 +127,8 @@
     --color-controls-panel-bg: var(--color-content-bg);
     --color-controls-panel-text: var(--color-text-primary);
     --color-controls-panel-section-bg: var(--color-content-bg);
-    --color-controls-panel-section-border: var(--color-surface-tint-strong);
-    --color-controls-panel-bg-hover: var(--color-surface-tint-medium);
+    --color-controls-panel-section-border: var(--color-overlay-positive-20);
+    --color-controls-panel-bg-hover: var(--color-overlay-positive-10);
 
     // § Title bar / hamburger
     --color-title-panel-bg: var(--color-overlay-positive-10);
@@ -163,6 +154,7 @@
     --color-toggle-btn-active-text: var(--palette-gray-950);
     --color-toggle-btn-active-border: color-mix(in srgb, var(--palette-cyan-400) 60%, transparent);
     --color-toggle-btn-active-glow: color-mix(in srgb, var(--palette-cyan-400) 40%, transparent);
+    --color-toggle-btn-active-inset-shadow: var(--color-overlay-negative-15);
 
     // § Button on view title bar
     --color-btn-on-view-title-bar-border: var(--color-overlay-positive-20);
@@ -170,8 +162,8 @@
     --color-btn-on-view-title-bar-shadow: var(--color-shadow-primary);
 
     // § Move history
-    --color-move-hover: var(--color-surface-tint-medium);
-    --color-move-current-bg: var(--color-surface-tint-medium);
+    --color-move-hover: var(--color-overlay-positive-10);
+    --color-move-current-bg: var(--color-overlay-positive-10);
     --color-move-current-border: var(--color-border-strong);
     --color-move-current-hover: color-mix(in srgb, var(--color-border-strong) 25%, transparent);
     --color-move-notation: var(--color-btn-primary-text);

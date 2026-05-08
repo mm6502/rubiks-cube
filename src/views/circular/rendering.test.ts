@@ -713,4 +713,331 @@ describe('rendering utilities', () => {
         // No affected sticker IDs → ghost should remain at 0.75 during animation.
         expect(capturedOpacity).toBe('0.75');
     });
+
+    it('updateSelective with unknown axis falls back to serial renderState', async () => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        state.svgElementCache.set('svg1', circle);
+
+        const position: Position3D = { x: 0, y: 1, z: 0 } as any;
+        const cubie: any = {
+            type: CubieType.CORNER,
+            position,
+            stickers: new Map([
+                [Face.U, { id: 'st1', currentFace: Face.U, facePosition: 0, color: Color.WHITE }],
+            ]),
+        };
+        // Add cubie to the cube state so renderState can find it
+        const stateWithCubie: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap().set('c1', cubie) as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+        state.stickerLookupMap!.set(getPositionKey(position, 3), new Map([[Face.U, 'svg1']]));
+
+        const event: any = {
+            moveDetails: {
+                movedCubies: { after: [] },
+                definition: {},
+            },
+            preState: stateWithCubie,
+            postState: stateWithCubie,
+        };
+
+        await rendering.updateSelective(state, event);
+
+        expect(circle.getAttribute('fill')).toBe(ColorMap[Color.WHITE]);
+    });
+
+    it('updateSelective with unknown axis and invalid notation still falls back', async () => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        state.svgElementCache.set('svg1', circle);
+
+        const position: Position3D = { x: 0, y: 1, z: 0 } as any;
+        const cubie: any = {
+            type: CubieType.CORNER,
+            position,
+            stickers: new Map([
+                [Face.U, { id: 'st2', currentFace: Face.U, facePosition: 0, color: Color.RED }],
+            ]),
+        };
+        const stateWithCubie: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap().set('c1', cubie) as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+        state.stickerLookupMap!.set(getPositionKey(position, 3), new Map([[Face.U, 'svg1']]));
+
+        // Use invalid notation so getMoveDefinition throws → getMoveAxis returns undefined
+        const event: any = {
+            moveDetails: {
+                movedCubies: { after: [] },
+                definition: {},
+                notation: 'INVALID',
+            },
+            preState: stateWithCubie,
+            postState: stateWithCubie,
+        };
+
+        await rendering.updateSelective(state, event);
+
+        expect(circle.getAttribute('fill')).toBe(ColorMap[Color.RED]);
+    });
+
+    it('updateStickerMappings skips VIRTUAL_CENTER cubies silently', () => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        state.svgElementCache.set('svg-center', circle);
+
+        const centerCubie: any = {
+            type: CubieType.VIRTUAL_CENTER,
+            position: { x: 0, y: 0, z: 0 },
+            stickers: new Map(),
+        };
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap().set('center', centerCubie) as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        rendering.updateStickerMappings(state, cubeState);
+
+        expect(state.svgIdToStickerId.size).toBe(0);
+        expect(state.stickerIdToSvgId.size).toBe(0);
+    });
+
+    it('updateStickerMappings handles missing circle in svgElementCache gracefully', () => {
+        const position: Position3D = { x: 0, y: 1, z: 0 } as any;
+        const cubie: any = {
+            type: CubieType.EDGE,
+            position,
+            stickers: new Map([[Face.R, { id: 'st-r', currentFace: Face.R, facePosition: 0 }]]),
+        };
+
+        state.stickerLookupMap!.set(getPositionKey(position, 3), new Map([[Face.R, 'svg1']]));
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap().set('c1', cubie) as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        expect(() => rendering.updateStickerMappings(state, cubeState)).not.toThrow();
+        expect(state.svgIdToStickerId.get('svg1')).toBe('st-r');
+    });
+
+    it('renderState skips VIRTUAL_CENTER cubies without setting fills', () => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        state.svgElementCache.set('svg-center', circle);
+
+        const centerCubie: any = {
+            type: CubieType.VIRTUAL_CENTER,
+            position: { x: 0, y: 0, z: 0 },
+            stickers: new Map([
+                [
+                    Face.U,
+                    { id: 'st-center', currentFace: Face.U, facePosition: 0, color: Color.WHITE },
+                ],
+            ]),
+        };
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap().set('center', centerCubie) as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        rendering.renderState(state, cubeState);
+
+        expect(circle.getAttribute('fill')).toBeNull();
+        expect(state.svgIdToStickerId.size).toBe(0);
+    });
+
+    it('renderState handles missing stickerLookupMap gracefully', () => {
+        state.stickerLookupMap = undefined as any;
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        expect(() => rendering.renderState(state, cubeState)).not.toThrow();
+    });
+
+    // ─── skipAnimation path (pending > 2) ──────────────────────────────────
+
+    it('updateSelective skips animation when pending > 2 (skipAnimation gate)', async () => {
+        const animSpy = vi.spyOn(animations, 'animateMove').mockResolvedValue(undefined as any);
+        vi.spyOn(highlights, 'removeSelectionHighlight').mockImplementation(() => {});
+        vi.spyOn(highlights, 'updateSelected').mockImplementation(() => {});
+
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        state.svgRoot = svgRoot;
+        state.svgReady = true;
+        state.stickerLookupMap = new Map();
+        state.showGhosts = false;
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const makeEvent = (): any => ({
+            moveDetails: {
+                movedCubies: { after: [{}] },
+                notation: 'R',
+                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+            },
+            preState: cubeState,
+            postState: cubeState,
+        });
+
+        // Queue 4 moves on the same axis — the 4th should skip animation
+        const p1 = rendering.updateSelective(state, makeEvent());
+        const p2 = rendering.updateSelective(state, makeEvent());
+        const p3 = rendering.updateSelective(state, makeEvent());
+        const p4 = rendering.updateSelective(state, makeEvent());
+        await Promise.all([p1, p2, p3, p4]);
+
+        // p1 sees pending=4>2 → skip, p2 sees pending=3>2 → skip,
+        // p3 sees pending=2 (not >2) → animates, p4 sees pending=1 → animates.
+        expect(animSpy).toHaveBeenCalledTimes(2);
+    });
+
+    // ─── stickerBefore / stickerAfter with undefined selected ──────────────
+
+    it('updateSelective handles undefined currentSelected (stickerBefore is undefined)', async () => {
+        vi.spyOn(animations, 'animateMove').mockResolvedValue(undefined as any);
+        vi.spyOn(highlights, 'removeSelectionHighlight').mockImplementation(() => {});
+        vi.spyOn(highlights, 'updateSelected').mockImplementation(() => {});
+
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        state.svgRoot = svgRoot;
+        state.svgReady = true;
+        state.stickerLookupMap = new Map();
+        state.currentSelected = undefined; // explicitly undefined
+        state.showGhosts = true; // enter the ghost hiding block
+        state.ghostOpacityIndex = 1;
+
+        const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ghost.classList.add('ghost-sticker');
+        ghost.setAttribute('data-ghost-source', 'src1');
+        ghost.style.opacity = '0.75';
+        svgRoot.appendChild(ghost);
+        state.ghostElements = undefined;
+
+        state.svgIdToStickerId.set('src1', 'sticker1' as StickerId);
+
+        const movedCubie: any = {
+            stickers: new Map([['k', { id: 'sticker1' }]]),
+        };
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const event: any = {
+            moveDetails: {
+                movedCubies: { before: [movedCubie], after: [movedCubie] },
+                notation: 'R',
+                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+            },
+            preState: cubeState,
+            postState: cubeState,
+        };
+
+        // Should not throw — stickerBefore is undefined, stickerAfter is undefined
+        await rendering.updateSelective(state, event);
+
+        // Ghost should have been hidden during animation and restored after
+        expect(ghost.style.opacity).toBe('0.75');
+    });
+
+    it('updateSelective falls through to finishAnimation when svgReady is false', async () => {
+        vi.spyOn(animations, 'animateMove').mockResolvedValue(undefined as any);
+
+        state.svgReady = false; // triggers !state.svgReady guard
+        state.stickerLookupMap = new Map();
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap() as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const event: any = {
+            moveDetails: {
+                movedCubies: { after: [{}] },
+                notation: 'R',
+                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+            },
+            preState: cubeState,
+            postState: cubeState,
+        };
+
+        // Should resolve without error — finishAnimation is called immediately
+        await rendering.updateSelective(state, event);
+    });
+
+    // ─── _pendingTotal decrements to 0 → triggers final render ─────────────
+
+    it('updateSelective triggers renderState when _pendingTotal reaches 0', async () => {
+        vi.spyOn(animations, 'animateMove').mockResolvedValue(undefined as any);
+        vi.spyOn(highlights, 'removeSelectionHighlight').mockImplementation(() => {});
+        vi.spyOn(highlights, 'updateSelected').mockImplementation(() => {});
+
+        const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+        state.svgRoot = svgRoot;
+        state.svgReady = true;
+        state.stickerLookupMap = new Map();
+        state.showGhosts = false;
+        state.ghostOpacityIndex = 1;
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        state.svgElementCache.set('svg1', circle);
+
+        const position: Position3D = { x: 0, y: 1, z: 0 } as any;
+        const cubie: any = {
+            type: CubieType.CORNER,
+            position,
+            stickers: new Map([
+                [Face.U, { id: 'st1', currentFace: Face.U, facePosition: 0, color: Color.WHITE }],
+            ]),
+        };
+        state.stickerLookupMap!.set(getPositionKey(position, 3), new Map([[Face.U, 'svg1']]));
+
+        const cubeState: CubeState = {
+            cubeSize: 3,
+            cubiesById: IMap().set('c1', cubie) as any,
+            cubiesByPosition: IMap() as any,
+            timestamp: 0,
+        } as any;
+
+        const event: any = {
+            moveDetails: {
+                movedCubies: { before: [], after: [cubie] },
+                notation: 'R',
+                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+            },
+            preState: cubeState,
+            postState: cubeState,
+        };
+
+        // Act — dispatch a single move so _pendingTotal goes from 1 to 0
+        await rendering.updateSelective(state, event);
+
+        // Assert — renderState was called: fill attribute set on the circle
+        expect(circle.getAttribute('fill')).toBe(ColorMap[Color.WHITE]);
+    });
 });

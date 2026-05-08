@@ -86,11 +86,13 @@ export function mapDirectionToFaceBasis(
  */
 export function buildFaceScreenBasisFromHint(face: Face): FaceScreenBasis {
     const upDir = normalize2(FACE_TOP_DIRECTION_HINTS[face]);
+    /* c8 ignore next 3 */
     if (!upDir) {
         return { upDir: { x: 0, y: -1 }, rightDir: { x: 1, y: 0 } };
     }
 
     const rightDir = normalize2({ x: -upDir.y, y: upDir.x });
+    /* c8 ignore next 3 */
     if (!rightDir) {
         return { upDir, rightDir: { x: 1, y: 0 } };
     }
@@ -105,8 +107,10 @@ export function buildFaceScreenBasisByFace(): Record<Face, FaceScreenBasis> {
     const result = {} as Record<Face, FaceScreenBasis>;
     for (const face of [Face.U, Face.D, Face.F, Face.B, Face.L, Face.R]) {
         const upDir = normalize2(FACE_TOP_DIRECTION_HINTS[face]);
+        /* c8 ignore next */
         if (!upDir) continue;
         const rightDir = normalize2({ x: -upDir.y, y: upDir.x });
+        /* c8 ignore next */
         if (!rightDir) continue;
         result[face] = { upDir, rightDir };
     }

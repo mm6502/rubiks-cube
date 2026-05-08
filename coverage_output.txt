@@ -1,0 +1,142 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.5 [39m[90mC:/Users/Mike/Desktop/Rubik[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+stderr | src/views/circular/initialization.test.ts > initialization > buildStickerLookupMap skips invalid sticker IDs
+[2026-05-08T13:02:34.003Z] WARN Invalid SVG sticker ID: not-a-sticker-id
+
+stderr | src/views/circular/initialization.test.ts > initialization > buildStickerLookupMap handles Y-null with invalid face label
+[2026-05-08T13:02:34.004Z] ERROR Invalid axis coordinates: X=1, Y=null, Z=null
+
+stderr | src/views/circular/initialization.test.ts > initialization > buildStickerLookupMap handles Z-null with invalid face label
+[2026-05-08T13:02:34.004Z] ERROR Invalid axis coordinates: X=1, Y=null, Z=null
+
+stderr | src/views/circular/initialization.test.ts > initialization > buildStickerLookupMap handles invalid axis coordinates
+[2026-05-08T13:02:34.005Z] ERROR Invalid axis coordinates: X=null, Y=null, Z=null
+
+stderr | src/views/circular/initialization.test.ts > initialization > buildStickerLookupMap handles X-null with invalid face label
+[2026-05-08T13:02:34.005Z] ERROR Invalid axis coordinates: X=null, Y=1, Z=null
+
+ [32mΓ£ô[39m src/views/circular/initialization.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m   Start at [22m 15:02:32
+[2m   Duration [22m 2.16s[2m (transform 706ms, setup 51ms, import 778ms, tests 47ms, environment 721ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |     3.4 |     2.15 |     5.1 |    3.59 |                   
+ src               |    1.25 |     0.65 |    1.63 |    1.01 |                   
+  application.ts   |    0.63 |        0 |       0 |    0.67 | 28-361            
+  ...controller.ts |       0 |        0 |       0 |       0 | 30-302            
+  global.ts        |      12 |        5 |      25 |   11.11 | 18-31,46-68       
+  main.ts          |       0 |        0 |       0 |       0 | 9-166             
+ src/about         |       0 |        0 |       0 |       0 |                   
+  about-modal.ts   |       0 |        0 |       0 |       0 | 4-57              
+ src/cube/core     |    0.95 |        0 |   15.65 |    0.99 |                   
+  ...invariants.ts |    0.87 |        0 |       0 |     0.9 | ...9-707,728-1144 
+  cubie-manager.ts |       0 |        0 |       0 |       0 | 36-424            
+  layer-manager.ts |       0 |        0 |   66.66 |       0 | 18-122            
+  move-engine.ts   |       0 |        0 |       0 |       0 | 43-176            
+  move-history.ts  |       0 |        0 |    5.55 |       0 | 6-227             
+  move-parser.ts   |       0 |        0 |       0 |       0 | 12-129            
+  state-manager.ts |       0 |        0 |       0 |       0 | 41-261            
+  ...ersistence.ts |    3.35 |        0 |   78.57 |    3.44 | 89-482            
+ src/cube/utils    |    2.13 |     2.31 |   15.11 |    2.11 |                   
+  coordinates.ts   |   22.22 |    38.09 |   33.33 |   20.58 | ...19-120,142-148 
+  cubie.ts         |       0 |        0 |       0 |       0 | 18-164            
+  face-utils.ts    |    1.49 |        0 |       0 |       2 | 66-178            
+  math.ts          |    1.21 |        0 |       0 |    1.23 | 17-320            
+  ...conversion.ts |       0 |        0 |      60 |       0 | 32-281            
+  ...e-legality.ts |    0.93 |        0 |       0 |    0.97 | 43-323            
+  ...r-position.ts |       0 |        0 |       0 |       0 | 16-121            
+  ...ce-walking.ts |       0 |        0 |       0 |       0 | 24-102            
+  view-utils.ts    |       0 |        0 |       0 |       0 | 10-28             
+ src/diagnostics   |   25.61 |    17.85 |   23.68 |   28.08 |                   
+  diagnostics.ts   |       0 |        0 |       0 |       0 | 24-93             
+  logger.ts        |   30.95 |    19.23 |   29.03 |   33.55 | ...85-386,410-454 
+ src/events        |   18.51 |     7.14 |   18.18 |   20.83 |                   
+  event-bus.ts     |   18.51 |     7.14 |   18.18 |   20.83 | ...,85-95,113-126 
+ src/icons         |    6.32 |        0 |       0 |    6.84 |                   
+  index.ts         |    6.55 |        0 |       0 |    6.77 | ...55-160,174-190 
+  ...-generator.ts |    5.55 |        0 |       0 |    7.14 | 103-130           
+ src/interaction   |    3.68 |        0 |       0 |    4.11 |                   
+  ...te-machine.ts |    3.63 |        0 |       0 |    3.77 | 51-175            
+  ...oard-moves.ts |       0 |        0 |       0 |       0 | 24-106            
+  ...-inference.ts |    1.02 |        0 |       0 |    1.19 | 17-219            
+  types.ts         |     100 |      100 |     100 |     100 |                   
+ src/types         |     100 |      100 |     100 |     100 |                   
+  commands.ts      |     100 |      100 |     100 |     100 |                   
+  events.ts        |     100 |      100 |     100 |     100 |                   
+  geometry.ts      |     100 |      100 |     100 |     100 |                   
+ src/view-manager  |     1.5 |     0.57 |    2.17 |    1.63 |                   
+  ...d-renderer.ts |     0.8 |        0 |    6.06 |     0.9 | 18-750            
+  ...on-handler.ts |       0 |        0 |       0 |       0 | 23-498            
+  ...ositioning.ts |    3.15 |        0 |       0 |    3.57 | 23-156,171-327    
+  ...size-utils.ts |       0 |      100 |       0 |       0 | 7-13              
+  ...older-view.ts |       0 |        0 |       0 |       0 | 5-50              
+  tab-bar.ts       |       0 |        0 |       0 |       0 | 21-61             
+  ...le-manager.ts |       0 |        0 |       0 |       0 | 41-366            
+  view-manager.ts  |       0 |        0 |       0 |       0 | 34-654            
+  view-registry.ts |   28.57 |    21.42 |       0 |   31.25 | 91-94,108-166     
+ src/views/basic   |    1.02 |        0 |    0.42 |    1.12 |                   
+  basic-view.ts    |    0.41 |        0 |       0 |    0.46 | 92-602            
+  commands.ts      |       0 |        0 |       0 |       0 | 26-251            
+  constants.ts     |     100 |      100 |     100 |     100 |                   
+  ...t-stickers.ts |    1.75 |        0 |       0 |    1.91 | 8-16,26-42,90-434 
+  index.ts         |   33.33 |      100 |      20 |   33.33 | 9-21              
+  ...ialization.ts |       0 |        0 |       0 |       0 | 25-232            
+  ...on-adapter.ts |       0 |        0 |       0 |       0 | 22-88             
+  ...-rotations.ts |   33.33 |      100 |       0 |   33.33 | 9-13              
+  navigation.ts    |       0 |        0 |       0 |       0 | 57-520            
+  rendering.ts     |     0.4 |        0 |       0 |    0.47 | 22-187,205-493    
+  selection.ts     |       0 |        0 |       0 |       0 | 13-56             
+  touch-handler.ts |    1.08 |        0 |       0 |    1.13 | 92-1118           
+ ...views/circular |    6.46 |      4.8 |    5.51 |    6.84 |                   
+  animations.ts    |    1.31 |        0 |       0 |     1.5 | 53-575,599-662    
+  circular-view.ts |       0 |        0 |       0 |       0 | 131-316           
+  commands.ts      |    2.32 |        0 |       0 |    2.38 | 11-160            
+  constants.ts     |     100 |      100 |     100 |     100 |                   
+  ...on-mapping.ts |     3.7 |        0 |       0 |       4 | 51-154            
+  ...label-tilt.ts |    4.34 |        0 |       0 |    5.88 | 12-52             
+  highlights.ts    |       0 |        0 |       0 |       0 | 13-77             
+  index.ts         |      40 |      100 |      25 |      40 | 7,15-19           
+  ...ialization.ts |   93.57 |     83.6 |     100 |   93.45 | ...96,264-265,283 
+  ...rd-actions.ts |       0 |        0 |       0 |       0 | 32-92             
+  ...be-walking.ts |       0 |        0 |       0 |       0 | 18-424            
+  rendering.ts     |    0.67 |        0 |       0 |    0.81 | 21-196,232-356    
+  svg-tools.ts     |    12.5 |    11.53 |      25 |   13.15 | 41-47,66-151      
+  ...-fretboard.ts |       0 |        0 |       0 |       0 | 49-399            
+  ...r-geometry.ts |       0 |        0 |       0 |       0 | 27-291            
+  ...it-testing.ts |       0 |        0 |       0 |       0 | 26-249            
+  ...nteraction.ts |       0 |        0 |       0 |       0 | 79-789            
+  ...r-overlays.ts |       0 |        0 |       0 |       0 | 49-604            
+  ...dler-types.ts |     100 |      100 |     100 |     100 |                   
+  touch-handler.ts |       0 |        0 |       0 |       0 | 49-293            
+  zoom-pan.ts      |     2.1 |        0 |   10.52 |    2.16 | 48-442            
+ src/views/flat    |    0.69 |        0 |    0.61 |    0.74 |                   
+  commands.ts      |       0 |        0 |       0 |       0 | 38-209            
+  flat-view.ts     |       0 |        0 |       0 |       0 | 50-337            
+  ghost-strips.ts  |    2.46 |        0 |       0 |     2.7 | 65-221            
+  index.ts         |      40 |      100 |      25 |      40 | 10,18-22          
+  legend-drag.ts   |       0 |        0 |       0 |       0 | 13-116            
+  navigation.ts    |       0 |        0 |       0 |       0 | 13-208            
+  rendering.ts     |       0 |        0 |       0 |       0 | 12-186            
+  selection.ts     |       0 |        0 |       0 |       0 | 15-136            
+  ...it-testing.ts |       0 |        0 |       0 |       0 | 27-108            
+  ...nteraction.ts |       0 |        0 |       0 |       0 | 27-215            
+  ...r-overlays.ts |       0 |        0 |       0 |       0 | 25-209            
+  ...dler-types.ts |     100 |      100 |     100 |     100 |                   
+  touch-handler.ts |       0 |        0 |       0 |       0 | 50-413            
+ src/views/moves   |    1.36 |        0 |    3.33 |    1.43 |                   
+  index.ts         |      40 |      100 |      25 |      40 | 6,8-9             
+  moves-view.ts    |       0 |        0 |       0 |       0 | 29-182            
+  renderer.ts      |       0 |        0 |       0 |       0 | 12-211            
+-------------------|---------|----------|---------|---------|-------------------
+ERROR: Coverage for lines (3.59%) does not meet global threshold (70%)
+ERROR: Coverage for functions (5.1%) does not meet global threshold (70%)
+ERROR: Coverage for statements (3.4%) does not meet global threshold (70%)
+ERROR: Coverage for branches (2.15%) does not meet global threshold (70%)

@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Face } from '@/cube/types';
+import { StateManager } from '@/cube/core/state-manager';
+import { Face, ReadOnlyCubeModel } from '@/cube/types';
 
-import { CUBE_EDGE_MAP, GhostStickers, isGhostVisible, setGhostVisible } from './ghost-stickers';
+import {
+    CUBE_EDGE_MAP,
+    GhostStickers,
+    getGhostOpacity,
+    isGhostVisible,
+    setGhostOpacityIndex,
+    setGhostVisible,
+} from './ghost-stickers';
 
 describe('CUBE_EDGE_MAP', () => {
     it('contains exactly 12 entries covering all cube edges', () => {
@@ -158,6 +166,45 @@ describe('GhostStickers', () => {
             }
         });
 
+        it('cancels a pending fade-in timer when called again before it fires', () => {
+            setGhostVisible(true);
+            ghostStickers.create();
+
+            vi.useFakeTimers();
+            const visibleFaces = [{ face: Face.F }, { face: Face.U }, { face: Face.R }];
+            const hiddenFaces = [{ face: Face.B }, { face: Face.D }, { face: Face.L }];
+
+            ghostStickers.updateVisibleEdges(visibleFaces, hiddenFaces);
+            // Call again immediately — cancels the pending timer
+            ghostStickers.updateVisibleEdges(visibleFaces, hiddenFaces);
+            vi.advanceTimersByTime(201);
+            vi.useRealTimers();
+
+            const strips = cubeElement.querySelectorAll<HTMLElement>('[data-host-face]');
+            const shownCount = Array.from(strips).filter(s => s.style.display !== 'none').length;
+            expect(shownCount).toBeGreaterThan(0);
+        });
+
+        it('immediately hides showing strips when called with strips already visible', () => {
+            setGhostVisible(true);
+            ghostStickers.create();
+
+            vi.useFakeTimers();
+            const visibleFaces = [{ face: Face.F }, { face: Face.U }, { face: Face.R }];
+            const hiddenFaces = [{ face: Face.B }, { face: Face.D }, { face: Face.L }];
+            ghostStickers.updateVisibleEdges(visibleFaces, hiddenFaces);
+            vi.advanceTimersByTime(201);
+
+            // Strips are now showing — call again to trigger the isShowing hide branch
+            ghostStickers.updateVisibleEdges(visibleFaces, hiddenFaces);
+            vi.useRealTimers();
+
+            const strips = cubeElement.querySelectorAll<HTMLElement>('[data-host-face]');
+            for (const strip of strips) {
+                expect(strip.style.display).toBe('none');
+            }
+        });
+
         it('does nothing when ghosts are toggled off', () => {
             setGhostVisible(false);
             ghostStickers.create();
@@ -195,6 +242,86 @@ describe('GhostStickers', () => {
             ghostStickers.create();
             expect(() => ghostStickers.updateColors()).not.toThrow();
         });
+
+        it('sets backgroundColor on ghost sticker children when model is available', () => {
+            const stateManager = new StateManager(3);
+            const model: ReadOnlyCubeModel = {
+                getCurrentState: () => stateManager.getCurrentState(),
+                getOriginalState: () => stateManager.getCurrentState(),
+                isSolved: () => false,
+                getMoveHistory: vi.fn() as any,
+            };
+            const gs = new GhostStickers(cubeElement, () => model);
+            setGhostVisible(true);
+            gs.create();
+
+            vi.useFakeTimers();
+            gs.updateVisibleEdges(
+                [{ face: Face.F }, { face: Face.U }, { face: Face.R }],
+                [{ face: Face.B }, { face: Face.D }, { face: Face.L }]
+            );
+            vi.advanceTimersByTime(201);
+            vi.useRealTimers();
+
+            const strips = cubeElement.querySelectorAll<HTMLElement>('[data-host-face]');
+            let coloredCount = 0;
+            for (const strip of strips) {
+                if (strip.style.display !== 'none') {
+                    for (const child of strip.children) {
+                        if ((child as HTMLElement).style.backgroundColor) coloredCount++;
+                    }
+                }
+            }
+            expect(coloredCount).toBeGreaterThan(0);
+        });
+    });
+
+    describe('setVisible()', () => {
+        it('hides showing strips via transitionend when animate=true', () => {
+            setGhostVisible(true);
+            ghostStickers.create();
+
+            vi.useFakeTimers();
+            ghostStickers.updateVisibleEdges(
+                [{ face: Face.F }, { face: Face.U }, { face: Face.R }],
+                [{ face: Face.B }, { face: Face.D }, { face: Face.L }]
+            );
+            vi.advanceTimersByTime(201);
+
+            const strips = cubeElement.querySelectorAll<HTMLElement>('[data-host-face]');
+            const showingStrip = Array.from(strips).find(s => s.style.display !== 'none');
+            expect(showingStrip).toBeDefined();
+
+            ghostStickers.setVisible(false, true);
+
+            const firstChild = showingStrip!.firstElementChild as HTMLElement;
+            firstChild.dispatchEvent(new Event('transitionend'));
+
+            expect(showingStrip!.style.display).toBe('none');
+            vi.useRealTimers();
+        });
+
+        it('hides showing strips via 400ms setTimeout fallback when no transitionend fires', () => {
+            setGhostVisible(true);
+            ghostStickers.create();
+
+            vi.useFakeTimers();
+            ghostStickers.updateVisibleEdges(
+                [{ face: Face.F }, { face: Face.U }, { face: Face.R }],
+                [{ face: Face.B }, { face: Face.D }, { face: Face.L }]
+            );
+            vi.advanceTimersByTime(201);
+
+            const strips = cubeElement.querySelectorAll<HTMLElement>('[data-host-face]');
+            const showingStrip = Array.from(strips).find(s => s.style.display !== 'none');
+            expect(showingStrip).toBeDefined();
+
+            ghostStickers.setVisible(false, true);
+            vi.advanceTimersByTime(401);
+
+            expect(showingStrip!.style.display).toBe('none');
+            vi.useRealTimers();
+        });
     });
 
     describe('toggle()', () => {
@@ -223,12 +350,158 @@ describe('GhostStickers', () => {
             ghostStickers.toggle();
             expect(ghostStickers.isVisible()).toBe(false);
         });
+
+        it('cycles opacity off → 75% → 100% → off asserting getGhostOpacity()', () => {
+            setGhostVisible(false);
+            setGhostOpacityIndex(0);
+            ghostStickers.create();
+
+            ghostStickers.toggle();
+            expect(getGhostOpacity()).toBe(0.75);
+
+            ghostStickers.toggle();
+            expect(getGhostOpacity()).toBe(1.0);
+
+            vi.useFakeTimers();
+            ghostStickers.toggle();
+            vi.advanceTimersByTime(401);
+            vi.useRealTimers();
+
+            expect(isGhostVisible()).toBe(false);
+        });
+
+        it('applies opacity directly when already visible (wasVisible=true path)', () => {
+            setGhostVisible(true);
+            setGhostOpacityIndex(1);
+            ghostStickers.create();
+
+            vi.useFakeTimers();
+            const visibleFaces = [{ face: Face.F }, { face: Face.U }, { face: Face.R }];
+            const hiddenFaces = [{ face: Face.B }, { face: Face.D }, { face: Face.L }];
+            ghostStickers.updateVisibleEdges(visibleFaces, hiddenFaces);
+            vi.advanceTimersByTime(201);
+
+            // Toggle from 75% → 100% while strips are already showing
+            ghostStickers.toggle(visibleFaces, hiddenFaces);
+            expect(getGhostOpacity()).toBe(1.0);
+
+            vi.useRealTimers();
+        });
+    });
+
+    describe('setOpacityIndex()', () => {
+        it('applies opacity directly when strips are already showing (wasVisible=true)', () => {
+            setGhostVisible(true);
+            setGhostOpacityIndex(1);
+            ghostStickers.create();
+
+            vi.useFakeTimers();
+            const visibleFaces = [{ face: Face.F }, { face: Face.U }, { face: Face.R }];
+            const hiddenFaces = [{ face: Face.B }, { face: Face.D }, { face: Face.L }];
+            ghostStickers.updateVisibleEdges(visibleFaces, hiddenFaces);
+            vi.advanceTimersByTime(201);
+
+            // Strips are showing — setOpacityIndex takes the wasVisible=true → applyOpacity path
+            ghostStickers.setOpacityIndex(2, visibleFaces, hiddenFaces);
+            expect(getGhostOpacity()).toBe(1.0);
+
+            const strips = cubeElement.querySelectorAll<HTMLElement>('[data-host-face]');
+            const showingStrip = Array.from(strips).find(s => s.style.display !== 'none');
+            expect(showingStrip).toBeDefined();
+            expect((showingStrip!.firstElementChild as HTMLElement).style.opacity).toBe('1');
+
+            vi.useRealTimers();
+        });
+
+        it('shows strips when turning on from off (wasVisible=false path)', () => {
+            setGhostVisible(false);
+            setGhostOpacityIndex(0);
+            ghostStickers.create();
+
+            vi.useFakeTimers();
+            const visibleFaces = [{ face: Face.F }, { face: Face.U }, { face: Face.R }];
+            const hiddenFaces = [{ face: Face.B }, { face: Face.D }, { face: Face.L }];
+
+            // Turn on from off
+            ghostStickers.setOpacityIndex(1, visibleFaces, hiddenFaces);
+            vi.advanceTimersByTime(201);
+
+            const strips = cubeElement.querySelectorAll<HTMLElement>('[data-host-face]');
+            const shownCount = Array.from(strips).filter(s => s.style.display !== 'none').length;
+            expect(shownCount).toBeGreaterThan(0);
+
+            vi.useRealTimers();
+        });
+
+        it('hides all strips when opacity index set to off (else-if branch)', () => {
+            setGhostVisible(true);
+            setGhostOpacityIndex(1);
+            ghostStickers.create();
+
+            vi.useFakeTimers();
+            const visibleFaces = [{ face: Face.F }, { face: Face.U }, { face: Face.R }];
+            const hiddenFaces = [{ face: Face.B }, { face: Face.D }, { face: Face.L }];
+            ghostStickers.updateVisibleEdges(visibleFaces, hiddenFaces);
+            vi.advanceTimersByTime(201);
+
+            // Turn off — no visibleFaces provided, !isGhostVisible() path
+            ghostStickers.setOpacityIndex(0);
+            vi.advanceTimersByTime(401);
+
+            expect(isGhostVisible()).toBe(false);
+            vi.useRealTimers();
+        });
     });
 
     describe('shared state', () => {
         it('isGhostVisible reflects module-level state', () => {
             expect(isGhostVisible()).toBe(false);
             setGhostVisible(true);
+            expect(isGhostVisible()).toBe(true);
+            setGhostVisible(false);
+        });
+    });
+
+    describe('getShowGhosts() / getOpacityIndex() / setShowGhosts()', () => {
+        it('getShowGhosts reflects current ghost visibility', () => {
+            setGhostVisible(false);
+            expect(ghostStickers.getShowGhosts()).toBe(false);
+            setGhostVisible(true);
+            expect(ghostStickers.getShowGhosts()).toBe(true);
+            setGhostVisible(false);
+        });
+
+        it('getOpacityIndex returns current opacity index', () => {
+            setGhostOpacityIndex(0);
+            expect(ghostStickers.getOpacityIndex()).toBe(0);
+            setGhostOpacityIndex(2);
+            expect(ghostStickers.getOpacityIndex()).toBe(2);
+            setGhostOpacityIndex(0);
+        });
+
+        it('setShowGhosts(true, visibleFaces, hiddenFaces) shows strips', () => {
+            ghostStickers.create();
+            setGhostVisible(false);
+            vi.useFakeTimers();
+            const visibleFaces = [{ face: Face.F }, { face: Face.U }, { face: Face.R }];
+            const hiddenFaces = [{ face: Face.B }, { face: Face.D }, { face: Face.L }];
+            ghostStickers.setShowGhosts(true, visibleFaces, hiddenFaces);
+            vi.advanceTimersByTime(201);
+            vi.useRealTimers();
+            expect(isGhostVisible()).toBe(true);
+        });
+
+        it('setShowGhosts(false) hides all strips via setVisible', () => {
+            setGhostVisible(true);
+            ghostStickers.create();
+            ghostStickers.setShowGhosts(false);
+            expect(isGhostVisible()).toBe(false);
+        });
+
+        it('setShowGhosts(true) without faces calls setVisible(true)', () => {
+            setGhostVisible(false);
+            ghostStickers.create();
+            ghostStickers.setShowGhosts(true);
             expect(isGhostVisible()).toBe(true);
             setGhostVisible(false);
         });
