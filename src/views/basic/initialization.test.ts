@@ -162,12 +162,48 @@ describe('basic/initialization', () => {
             expect(blocker.getAttribute('data-face')).toBe('front');
         });
 
-        it('should create 9 sticker elements in the face div', () => {
+        it('should create sticker elements per face equal to cubeSize * cubeSize', () => {
             // Act
             const { faceDiv } = buildCubeFace(Face.U, 'top', model, styles, 'basic-front', vi.fn());
 
-            // Assert
+            // Assert: 3×3 = 9 stickers
             expect(faceDiv.querySelectorAll('[data-sticker-id]').length).toBe(9);
+        });
+
+        it('should create 4 stickers per face for a 2×2 model', () => {
+            // Arrange
+            const model2 = new CubeController(2);
+
+            // Act
+            const { faceDiv } = buildCubeFace(
+                Face.U,
+                'top',
+                model2,
+                styles,
+                'basic-front',
+                vi.fn()
+            );
+
+            // Assert
+            expect(faceDiv.querySelectorAll('[data-sticker-id]').length).toBe(4);
+        });
+
+        it('should create 16 stickers per face for a 4×4 model', () => {
+            // Arrange
+            const model4 = new CubeController(4);
+
+            // Act
+            const { faceDiv } = buildCubeFace(
+                Face.U,
+                'top',
+                model4,
+                styles,
+                'basic-front',
+                vi.fn()
+            );
+
+            // Assert
+            expect(faceDiv.querySelectorAll('[data-sticker-id]').length).toBe(16);
         });
 
         it('should attach sticker ids to each sticker element', () => {
@@ -207,6 +243,29 @@ describe('basic/initialization', () => {
             // Assert
             expect(onSelected).toHaveBeenCalledTimes(1);
         });
+
+        it('should set data-basic-pos on each sticker element for a 4×4 face', () => {
+            // Arrange
+            const model4 = new CubeController(4);
+
+            // Act
+            const { faceDiv } = buildCubeFace(
+                Face.F,
+                'front',
+                model4,
+                styles,
+                'basic-front',
+                vi.fn()
+            );
+            const positions = Array.from(faceDiv.querySelectorAll('[data-basic-pos]')).map(el =>
+                el.getAttribute('data-basic-pos')
+            );
+
+            // Assert
+            expect(positions.length).toBe(16);
+            expect(positions.every(p => p !== null)).toBe(true);
+            expect(new Set(positions).size).toBe(16); // all unique
+        });
     });
 
     // -------------------------------------------------------------------------
@@ -225,15 +284,26 @@ describe('basic/initialization', () => {
             expect(el.id).toBe('basic-front');
         });
 
-        it('should include 54 sticker elements (6 faces × 9)', () => {
+        it('should include the correct number of sticker elements for any cube size', () => {
             // Arrange
             const model = new CubeController();
 
             // Act
             const el = buildCubeElement(model, styles, 'basic-front', vi.fn());
 
-            // Assert
+            // Assert: 3×3 = 6 faces × 9 stickers = 54
             expect(el.querySelectorAll('[data-sticker-id]').length).toBe(54);
+        });
+
+        it('should include 96 sticker elements for a 4×4 model (6 faces × 16)', () => {
+            // Arrange
+            const model4 = new CubeController(4);
+
+            // Act
+            const el = buildCubeElement(model4, styles, 'basic-front', vi.fn());
+
+            // Assert
+            expect(el.querySelectorAll('[data-sticker-id]').length).toBe(96);
         });
 
         it('should include 6 blockers (one per face)', () => {

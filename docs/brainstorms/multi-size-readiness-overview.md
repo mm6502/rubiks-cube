@@ -35,40 +35,41 @@ detailed requirements document.
 
 #### Circular view (Prep Area 1)
 
-- **Status:** Targeted preparation work identified; detailed in
-  [`circular-view-multi-size-prep-requirements.md`](./circular-view-multi-size-prep-requirements.md).
-- **Summary of gaps:** Four normative changes + one recommended authoring
-  convention:
-  - R1: `<svg>` root needs `data-cube-size` attribute.
-  - R3: `parseAxisCircles()` iterates a hardcoded `layer <= 2` loop — must
-    switch to DOM query over `data-axis` elements; throws on empty result.
-  - R4: `svgToCubeMapping()` hardcodes far-face coordinate as `2` — must use
-    `cubeSize - 1` read from SVG root.
-  - R5: Sticker ID regex `/^sticker-([UDFLBR])-\d$/` matches only single-digit
-    indices; silently drops positions 10+ on 4×4 faces.
-  - Convention: `data-mask-axis` / `data-mask-layer-index` on mask `<rect>`
-    elements.
+- **Status:** ✅ Done (2026-05-08). All four normative changes shipped; see
+  [`circular-view-multi-size-prep-requirements.md`](./circular-view-multi-size-prep-requirements.md)
+  for the full requirements and implementation outcome.
+- **What shipped:**
+  - R1: `data-cube-size="3"` on `<svg>` root in `view.svg`.
+  - R3: `parseAxisCircles()` now uses `querySelectorAll('circle[data-axis]')`;
+    throws if empty.
+  - R4: `svgToCubeMapping()` receives `cubeSize` from `buildStickerLookupMap`;
+    uses `cubeSize - 1` for far-face coordinates; throws on missing/invalid
+    `data-cube-size`.
+  - R5: Sticker ID regex updated to `\d+` — multi-digit indices now matched.
+  - Convention (mask `data-mask-*` attributes) remains a recommended authoring
+    guideline, not enforced at runtime.
 - **Design premise:** One hand-crafted SVG file per N; TS reads any conforming
   SVG without code changes. SVG Conformance Checklist defined in the detail
   document.
+- **Geometry constraints:** Formal geometric invariants for any N are captured
+  in
+  [`circular-view-svg-geometry-spec.md`](./circular-view-svg-geometry-spec.md).
+- **Open question — runtime-generated overlay elements:** `CircularTouchHandler`
+  currently creates the halo, face-overlay ellipses, and detection-band
+  `<path>`/`<clipPath>` elements in JS at runtime rather than baking them into
+  the SVG. For N=3 this works because the shapes (6 face ellipses, 3 bands) are
+  simple enough to compute from the static elements on the fly. For higher N the
+  face ellipses may need deliberate hand-tuning (shape, rotation, margin), and
+  the detection-band geometry grows with N. Worth deciding: should these overlay
+  elements be authored into the SVG (so the generator produces them and they can
+  be inspected/adjusted), or continue generating them purely at runtime?
 
 #### Basic view — static DOM (Prep Area 2)
 
-- **Status:** Current implementation is ready for 3×3 static rendering only.
-- **Gaps:** Three hardcoded-9 sites across initialization and rendering:
-  - `buildCubeFace()` in `initialization.ts` (hardcodes
-    `for (let i = 0; i < 9; i++)`).
-  - `update()` in `rendering.ts` line 444 (full-repaint path, called on every
-    model state change).
-  - `updateSelective()` in `rendering.ts` line 483 (selective-repaint path). All
-    three must change to `cubeSize * cubeSize`, with `cubeSize` passed through
-    each call chain.
-- **Scale:** Small. `basic-view.ts` already reads `getCubeSize()` from model
-  state (`cubeSize ?? 3`); the value is available but does not yet reach the
-  rendering paths.
-- **TODO:** A detailed requirements document (parallel to the Circular view
-  spec) will be needed before implementation — to define success criteria and
-  scope for all three fix sites.
+- **Status:** ✅ Effectively ready.
+- all three hardcoded-9 loop bounds replaced with `cubeSize * cubeSize`,
+  `buildCubeFace()`, `update()`, and `updateSelective()` now read `cubeSize`
+  from model state and iterate N×N stickers for any cube size.
 - **Note:** The CSS 3D geometry (perspective, `translateZ`, face positioning) is
   tuned for a 3×3 grid. Rendering a 4×4 in the same physical cube shell will
   require CSS adjustments (sticker size, gap, face dimensions). This is a visual
@@ -109,8 +110,8 @@ detailed requirements document.
 
 | Area                                         | Effort | Blocking for multi-size         | Document                                                      |
 | -------------------------------------------- | ------ | ------------------------------- | ------------------------------------------------------------- |
-| Circular view — 3 TS + 1 SVG normative fixes | Small  | Yes — silent failures on ≥ 4×4  | [detail doc](./circular-view-multi-size-prep-requirements.md) |
-| Basic view — 3 hardcoded-9 sites             | Small  | Yes — wrong sticker count       | None yet                                                      |
+| Circular view — 3 TS + 1 SVG normative fixes | Small  | ✅ Done                         | [detail doc](./circular-view-multi-size-prep-requirements.md) |
+| Basic view — 3 hardcoded-9 sites             | Small  | ✅ Done                         | -                                                             |
 | Flat view                                    | None   | Not blocking                    | —                                                             |
 | Core / interaction                           | None   | Not blocking                    | —                                                             |
 | Application size-selector UI                 | Large  | Out of scope (separate feature) | —                                                             |

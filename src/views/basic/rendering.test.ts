@@ -980,10 +980,10 @@ describe('BasicCubeRenderer - method coverage', () => {
     // update
     // -------------------------------------------------------------------------
     describe('update', () => {
-        function buildFaceWithStickers(faceName: string): HTMLElement {
+        function buildFaceWithStickers(faceName: string, count: number = 9): HTMLElement {
             const faceEl = document.createElement('div');
             faceEl.className = `face ${faceName}`;
-            for (let i = 0; i < 9; i++) {
+            for (let i = 0; i < count; i++) {
                 const stickerEl = document.createElement('div');
                 stickerEl.className = 'sticker';
                 faceEl.appendChild(stickerEl);
@@ -1018,7 +1018,7 @@ describe('BasicCubeRenderer - method coverage', () => {
             // Arrange
             const faceNames = ['front', 'back', 'right', 'left', 'top', 'bottom'];
             faceNames.forEach(name => buildFaceWithStickers(name));
-            const mockModel = { getCurrentState: () => ({}) as any };
+            const mockModel = { getCurrentState: () => ({ cubeSize: 3 }) as any };
             const spy = vi.spyOn(CubeStateUtils, 'getStickerAt').mockReturnValue({
                 id: 'sticker_x',
                 color: Color.RED,
@@ -1049,16 +1049,58 @@ describe('BasicCubeRenderer - method coverage', () => {
             // Act & Assert
             expect(() => rendering.update(nullCubeState, mockModel as any)).not.toThrow();
         });
+
+        it('should update all 16 stickers per face for a 4×4 model', () => {
+            // Arrange
+            const faceNames = ['front', 'back', 'right', 'left', 'top', 'bottom'];
+            faceNames.forEach(name => buildFaceWithStickers(name, 16));
+            const mockModel = { getCurrentState: () => ({ cubeSize: 4 }) as any };
+            const spy = vi.spyOn(CubeStateUtils, 'getStickerAt').mockReturnValue({
+                id: 's',
+                color: Color.WHITE,
+                cubieId: 'c',
+                localIndex: 0,
+                currentFace: Face.F,
+                facePosition: 0,
+            } as any);
+
+            // Act
+            rendering.update(state, mockModel as any);
+
+            // Assert: 16 per face × 6 = 96
+            expect(spy).toHaveBeenCalledTimes(96);
+        });
+
+        it('should update all 4 stickers per face for a 2×2 model', () => {
+            // Arrange
+            const faceNames = ['front', 'back', 'right', 'left', 'top', 'bottom'];
+            faceNames.forEach(name => buildFaceWithStickers(name, 4));
+            const mockModel = { getCurrentState: () => ({ cubeSize: 2 }) as any };
+            const spy = vi.spyOn(CubeStateUtils, 'getStickerAt').mockReturnValue({
+                id: 's',
+                color: Color.WHITE,
+                cubieId: 'c',
+                localIndex: 0,
+                currentFace: Face.F,
+                facePosition: 0,
+            } as any);
+
+            // Act
+            rendering.update(state, mockModel as any);
+
+            // Assert: 4 per face × 6 = 24
+            expect(spy).toHaveBeenCalledTimes(24);
+        });
     });
 
     // -------------------------------------------------------------------------
     // updateSelective
     // -------------------------------------------------------------------------
     describe('updateSelective', () => {
-        function buildFaceWithStickers(faceName: string): void {
+        function buildFaceWithStickers(faceName: string, count: number = 9): void {
             const faceEl = document.createElement('div');
             faceEl.className = `face ${faceName}`;
-            for (let i = 0; i < 9; i++) {
+            for (let i = 0; i < count; i++) {
                 const stickerEl = document.createElement('div');
                 stickerEl.className = 'sticker';
                 faceEl.appendChild(stickerEl);
@@ -1128,6 +1170,76 @@ describe('BasicCubeRenderer - method coverage', () => {
             expect((stickerEls[4] as HTMLElement).getAttribute('data-sticker-id')).toBe(
                 'moved_sticker'
             );
+        });
+
+        it('should update the correct sticker positions on a 4×4 cube after a move', () => {
+            // Arrange: pre-build 6 faces with 16 sticker elements each
+            const faceNames = ['front', 'back', 'right', 'left', 'top', 'bottom'];
+            faceNames.forEach(name => buildFaceWithStickers(name, 16));
+            const mockModel = {
+                getCurrentState: () => ({ cubeSize: 4 }) as any,
+            };
+            const stateWithModel = makeState(
+                mockCubeElement,
+                mockContainer,
+                styles,
+                'front',
+                mockCubeContainer,
+                { model: mockModel as any }
+            );
+            vi.spyOn(CubeStateUtils, 'getStickerAt').mockReturnValue({
+                id: 'moved_on_4x4',
+                color: Color.RED,
+                cubieId: 'cubie1',
+                localIndex: 0,
+                currentFace: Face.F,
+                facePosition: 7,
+            } as any);
+
+            const mockEvent: MoveExecutedEvent = {
+                moveDetails: {
+                    notation: 'R',
+                    movedCubies: {
+                        before: [],
+                        after: [
+                            {
+                                id: 'cubie1' as any,
+                                type: 'edge' as any,
+                                position: {} as any,
+                                orientation: {} as any,
+                                canonicalIndex: 0,
+                                stickers: {
+                                    forEach: (fn: (v: any) => void) => {
+                                        fn({
+                                            currentFace: Face.F,
+                                            facePosition: 7,
+                                            id: 's1',
+                                            color: Color.RED,
+                                            cubieId: 'cubie1',
+                                            localIndex: 0,
+                                        });
+                                    },
+                                } as any,
+                            },
+                        ],
+                    },
+                },
+                preState: {} as any,
+                postState: {} as any,
+            };
+
+            // Act
+            rendering.updateSelective(stateWithModel, mockEvent);
+
+            // Assert: sticker at position 7 on front face is updated
+            const faceDiv = mockCubeElement.querySelector('.face.front')!;
+            const stickerEls = faceDiv.querySelectorAll('.sticker');
+            expect((stickerEls[7] as HTMLElement).getAttribute('data-sticker-id')).toBe(
+                'moved_on_4x4'
+            );
+            // Verify stickers at other positions are NOT updated
+            expect((stickerEls[0] as HTMLElement).getAttribute('data-sticker-id')).toBeNull();
+            expect((stickerEls[15] as HTMLElement).getAttribute('data-sticker-id')).toBeNull();
         });
 
         it('should do nothing when model is undefined', () => {

@@ -32,12 +32,12 @@ Last evaluated: 2026-05-08
   - Null/undefined checks throughout codebase, especially in view components
 
 - Testing (9/10)
-  - 83 test files covering core functionality
+  - 88 test files covering core functionality
   - Comprehensive unit tests for critical logic (move engine, navigation,
     invariants, state management)
   - Well-structured tests with descriptive names and proper setup/teardown
   - Good coverage of edge cases and integration scenarios
-  - 2007 individual tests passing (all pass)
+  - 2014 individual tests passing (all pass)
 
 - Code Organization (9/10)
   - Clear directory structure: src/ with logical grouping
@@ -106,9 +106,9 @@ Last evaluated: 2026-05-08
 
 | Metric             | Value                                        |
 | ------------------ | -------------------------------------------- |
-| Source Files:      | 188 (104 .ts source + 83 .test.ts + 1 setup) |
-| Test Files:        | 83                                           |
-| Test Count:        | 2007 passing tests                           |
+| Source Files:      | 193 (104 .ts source + 88 .test.ts + 1 setup) |
+| Test Files:        | 88                                           |
+| Test Count:        | 2014 passing tests                           |
 | Test Coverage:     | 94.83% stmts, 95.70% lns,                    |
 |                    | 87.02% brnchs, 96.61% fncs                   |
 | TypeScript Strict: | ✅ Enabled                                   |
@@ -163,7 +163,8 @@ Overall Grade: A (98/100)
 This codebase demonstrates excellent quality with strong type safety, clean
 architecture, and a mature test suite (2007 tests across 83 files).
 
-- **2007 passing tests** across **83 test files**, **104 source files**
+- **2014 passing tests** across **88 test files**, **104 source files** (192
+  total .ts files)
 - **Zero TypeScript errors**, clean build and linting
 - **Overall branch coverage: 87.02%** — exceeds the 85% target
 - **Per-file threshold exceptions** documented in `vitest.config.ts` for two

@@ -9,29 +9,38 @@ import { AxisCircle, SVGAxisCoords, getCenterOfElement, isPointOnCircle } from '
 import rawSvg from './view.svg?raw';
 
 /**
- * Parse axis circles from SVG element.
- * Circles are named like "x-layer-0", "y-layer-1", "z-layer-2"
+ * Parse axis circles from SVG element by querying for all <circle>
+ * elements that carry a data-axis attribute.
+ * Throws if no axis circle elements are found — indicates a broken or
+ * mismatched SVG file.
  */
 function parseAxisCircles(svgRoot: SVGSVGElement): AxisCircle[] {
+    const circles = svgRoot.querySelectorAll('circle[data-axis]');
+    if (circles.length === 0) {
+        throw new Error('SVG contains no axis circle elements (circle[data-axis])');
+    }
+
     const axisCircles: AxisCircle[] = [];
 
-    for (const axis of [Axis.X, Axis.Y, Axis.Z]) {
-        for (let layer = 0; layer <= 2; layer++) {
-            const circleId = `${axis}-layer-${layer}`;
-            const circle = svgRoot.getElementById(circleId);
+    for (const circle of circles) {
+        const axis = circle.getAttribute('data-axis') as Axis;
+        const layerRaw = circle.getAttribute('data-layer-index');
+        /* c8 ignore if */
+        if (!axis || layerRaw === null) continue;
 
-            // In some test environments (JSDOM) the global constructor `SVGCircleElement` may
-            // be undefined which causes a ReferenceError when using `instanceof`. Avoid
-            // directly referencing the constructor and instead check the element's tagName.
-            /* c8 ignore if */
-            if (!circle || (circle.tagName && circle.tagName.toLowerCase() !== 'circle')) continue;
-
-            const svgCircle = circle as SVGCircleElement;
-            const cx = parseFloat(svgCircle.getAttribute('cx') || '0');
-            const cy = parseFloat(svgCircle.getAttribute('cy') || '0');
-            const r = parseFloat(svgCircle.getAttribute('r') || '0');
-            axisCircles.push({ id: circleId, axis, layer, cx, cy, r });
+        const layer = parseInt(layerRaw, 10);
+        /* c8 ignore next 3 */
+        if (Number.isNaN(layer)) {
+            logger.warn(
+                `Skipping axis circle ${circle.id}: invalid data-layer-index="${layerRaw}"`
+            );
+            continue;
         }
+
+        const cx = parseFloat(circle.getAttribute('cx') || '0');
+        const cy = parseFloat(circle.getAttribute('cy') || '0');
+        const r = parseFloat(circle.getAttribute('r') || '0');
+        axisCircles.push({ id: circle.id, axis, layer, cx, cy, r });
     }
 
     return axisCircles;
@@ -67,16 +76,18 @@ function computeAxisCoords(
  *
  * SVG face labels match cube model faces:
  * - SVG 'L' → Cube L (x=0)
- * - SVG 'R' → Cube R (x=2)
+ * - SVG 'R' → Cube R (x=cubeSize-1)
  * - SVG 'D' → Cube D (y=0)
- * - SVG 'U' → Cube U (y=2)
+ * - SVG 'U' → Cube U (y=cubeSize-1)
  * - SVG 'F' → Cube F (z=0)
- * - SVG 'B' → Cube B (z=2)
+ * - SVG 'B' → Cube B (z=cubeSize-1)
  */
 function svgToCubeMapping(
     svgFace: string,
-    axisCoords: SVGAxisCoords
+    axisCoords: SVGAxisCoords,
+    cubeSize: number
 ): { cubePosition: Position3D; cubeFace: Face } | undefined {
+    const far = cubeSize - 1;
     const x = axisCoords[Axis.X];
     const y = axisCoords[Axis.Y];
     const z = axisCoords[Axis.Z];
@@ -90,7 +101,7 @@ function svgToCubeMapping(
             cubePosition = { x: 0, y, z };
             cubeFace = Face.L;
         } else if (svgFace === Face.R) {
-            cubePosition = { x: 2, y, z };
+            cubePosition = { x: far, y, z };
             cubeFace = Face.R;
         } else {
             /* c8 ignore next 2 */
@@ -104,7 +115,7 @@ function svgToCubeMapping(
             cubePosition = { x, y: 0, z };
             cubeFace = Face.D;
         } else if (svgFace === Face.U) {
-            cubePosition = { x, y: 2, z };
+            cubePosition = { x, y: far, z };
             cubeFace = Face.U;
         } else {
             /* c8 ignore next 2 */
@@ -118,7 +129,7 @@ function svgToCubeMapping(
             cubePosition = { x, y, z: 0 };
             cubeFace = Face.F;
         } else if (svgFace === Face.B) {
-            cubePosition = { x, y, z: 2 };
+            cubePosition = { x, y, z: far };
             cubeFace = Face.B;
         } else {
             /* c8 ignore next 2 */
@@ -157,6 +168,16 @@ export interface StickerLookupResult {
 export function buildStickerLookupMap(svgRoot: SVGSVGElement): StickerLookupResult {
     const lookupMap: StickerLookupMap = new Map();
 
+    // Read and validate cube size from SVG root
+    const cubeSizeRaw = svgRoot.getAttribute('data-cube-size');
+    if (!cubeSizeRaw) {
+        throw new Error('SVG root is missing data-cube-size attribute');
+    }
+    const cubeSize = parseInt(cubeSizeRaw, 10);
+    if (!Number.isInteger(cubeSize) || cubeSize < 1) {
+        throw new Error(`Invalid data-cube-size="${cubeSizeRaw}": must be a positive integer`);
+    }
+
     // Parse axis circle positions from SVG
     const axisCircles = parseAxisCircles(svgRoot);
 
@@ -168,8 +189,8 @@ export function buildStickerLookupMap(svgRoot: SVGSVGElement): StickerLookupResu
         /* c8 ignore if */
         if (!svgId) continue;
 
-        // Parse SVG face label from ID (format: "sticker-F-0")
-        const match = svgId.match(/^sticker-([UDFLBR])-\d$/);
+        // Parse SVG face label from ID (format: "sticker-F-0" or "sticker-F-15")
+        const match = svgId.match(/^sticker-([UDFLBR])-\d+$/);
         if (!match) {
             logger.warn(`Invalid SVG sticker ID: ${svgId}`);
             continue;
@@ -181,7 +202,7 @@ export function buildStickerLookupMap(svgRoot: SVGSVGElement): StickerLookupResu
         const axisCoords = computeAxisCoords(stickerElement, axisCircles);
 
         // Map to cube position and face
-        const mapping = svgToCubeMapping(svgFace, axisCoords);
+        const mapping = svgToCubeMapping(svgFace, axisCoords, cubeSize);
         if (!mapping) {
             continue;
         }

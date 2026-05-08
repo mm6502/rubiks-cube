@@ -1,6 +1,7 @@
 ---
 date: 2026-05-05
 topic: circular-view-multi-size-prep
+status: completed
 ---
 
 # Circular View — Multi-Size Preparation
@@ -74,7 +75,9 @@ premise from working.
   mismatched SVG file.
 - R4. `svgToCubeMapping()` reads the cube size from the SVG root
   `data-cube-size` attribute (established by R1) and uses `cubeSize - 1` for
-  far-face coordinates, removing the hardcoded `2`.
+  far-face coordinates, removing the hardcoded `2`. `buildStickerLookupMap` must
+  throw if `data-cube-size` is absent or its parsed value is not a positive
+  integer — the same hard-fail semantics as R3.
 - R5. The sticker ID parsing regex is updated to support multi-digit position
   indices (current: `/^sticker-([UDFLBR])-\d$/`, which matches only indices
   0–9). The updated pattern must match indices from 0 up to `cubeSize² - 1` to
@@ -194,13 +197,38 @@ conventions (in addition to the normative requirements R1 and R3–R5):
   elements with `data-axis`. The SVG file is assumed to be a valid, correctly
   authored file set up during initialization — absence of axis circles indicates
   a broken or mismatched SVG, which is a hard fail, not a recoverable condition.
+- [Affects R4] `buildStickerLookupMap` must throw if `data-cube-size` is absent
+  or parses to a non-positive integer — same hard-fail semantics as R3. A
+  missing or invalid size attribute indicates a broken or non-conforming SVG.
 
 ### Deferred to Planning
 
-- [Affects R4] [Technical] `svgToCubeMapping()` receives `svgFace` and
+- ~~[Affects R4] [Technical] `svgToCubeMapping()` receives `svgFace` and
   `axisCoords` but not a reference to the SVG root. The `cubeSize` value should
   be read once at the top of `buildStickerLookupMap` (from
   `svgRoot.getAttribute('data-cube-size')`) and passed through to
   `svgToCubeMapping`. `svgToCubeMapping` is a private, unexported function with
   exactly one call site (within `buildStickerLookupMap`); the signature change
-  is safe.
+  is safe.~~
+
+---
+
+## Implementation Outcome (2026-05-08)
+
+All requirements (R1–R5) shipped in commit
+`feat(circular): make initialization size-agnostic for multi-size SVG support`
+(branch: `changes`, 3 files, +357/−35).
+
+**Delivered:**
+
+- R1: `data-cube-size="3"` on `<svg>` root in `view.svg`
+- R3: `parseAxisCircles()` via `querySelectorAll('circle[data-axis]')`, throws
+  if empty
+- R4: `cubeSize` read once in `buildStickerLookupMap`, validated, passed to
+  `svgToCubeMapping`; `cubeSize - 1` replaces hardcoded `2`; throws on
+  missing/invalid
+- R5: sticker ID regex `\d` → `\d+`
+
+One notable implementation decision: `cubeSize` is read via
+`getAttribute('data-cube-size')` (not `dataset.cubeSize`) for consistency with
+the rest of the file's attribute access pattern.

@@ -431,6 +431,7 @@ export function update(state: BasicViewInternalData, model: ReadOnlyCubeModel): 
     if (!state.cubeElement) return;
 
     const cubeState = model.getCurrentState();
+    const cubeSize = cubeState.cubeSize ?? 3;
     const faces: Face[] = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
     const faceNames = ['front', 'back', 'right', 'left', 'top', 'bottom'];
 
@@ -441,7 +442,7 @@ export function update(state: BasicViewInternalData, model: ReadOnlyCubeModel): 
         if (!faceDiv) return;
 
         const stickerElements = faceDiv.querySelectorAll(`.${state.styles.sticker}`);
-        for (let i = 0; i < 9; i++) {
+        for (let i = 0; i < cubeSize * cubeSize; i++) {
             const sticker = CubeStateUtils.getStickerAt(cubeState, face, i);
             if (!sticker) continue;
 
@@ -461,6 +462,7 @@ export function updateSelective(state: BasicViewInternalData, event: MoveExecute
     if (!state.cubeElement || !state.model) return;
 
     const cubeState = state.model.getCurrentState();
+    const cubeSize = cubeState.cubeSize ?? 3;
     const positionsToUpdate = new Set<string>();
 
     event.moveDetails.movedCubies?.after.forEach(cubie => {
@@ -480,7 +482,7 @@ export function updateSelective(state: BasicViewInternalData, event: MoveExecute
 
         const stickerElements = faceDiv.querySelectorAll(`.${state.styles.sticker}`);
 
-        for (let position = 0; position < 9; position++) {
+        for (let position = 0; position < cubeSize * cubeSize; position++) {
             if (!positionsToUpdate.has(`${face}_${position}`)) continue;
 
             const sticker = CubeStateUtils.getStickerAt(cubeState, face, position);

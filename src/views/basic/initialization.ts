@@ -149,7 +149,8 @@ export function buildCubeFace(
     faceDiv.setAttribute('data-basic-face', face);
 
     const cubeState = model.getCurrentState();
-    for (let i = 0; i < 9; i++) {
+    const cubeSize = cubeState.cubeSize;
+    for (let i = 0; i < cubeSize * cubeSize; i++) {
         const sticker = CubeStateUtils.getStickerAt(cubeState, face, i);
         if (!sticker) continue;
 
