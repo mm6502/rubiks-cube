@@ -2,13 +2,15 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
-import { Face, StickerId } from '@/cube/types';
+import { Axis, Face, QuarterTurn, StickerId } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils';
 import { EventName, MoveExecutedEvent } from '@/types';
 
 import { FlatView } from './flat-view';
 import styles from './flat-view.module.css';
 import { inferLegendMove } from './legend-drag';
+
+const R_DEF = { name: 'R', axis: Axis.X, layerIndices: [2], angle: QuarterTurn.QUARTER };
 
 beforeAll(() => {
     // JSDOM does not implement setPointerCapture; polyfill for tests
@@ -548,6 +550,7 @@ describe('FlatView', () => {
             const moveEvent: MoveExecutedEvent = {
                 moveDetails: {
                     notation: 'R',
+                    definition: R_DEF,
                     movedCubies: {
                         before: [],
                         after: [],
@@ -571,6 +574,7 @@ describe('FlatView', () => {
             const moveEvent: MoveExecutedEvent = {
                 moveDetails: {
                     notation: 'R',
+                    definition: R_DEF,
                     movedCubies: {
                         before: [],
                         after: [],

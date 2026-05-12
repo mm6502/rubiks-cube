@@ -45,6 +45,14 @@ export function inferMoveFromFaceRotation(face: Face, isClockwise: boolean): str
 }
 
 /**
+ * Convert a 90° move notation to the directional 180° equivalent,
+ * preserving CW/CCW direction. E.g. "R" → "R2", "R'" → "R2'".
+ */
+export function toFar(notation: string): string {
+    return notation.endsWith("'") ? notation.slice(0, -1) + "2'" : notation + '2';
+}
+
+/**
  * Map axis+layer into base notation (without prime modifier).
  */
 export function axisLayerToMoveBase(axis: Axis, layerIndex: number, cubeSize: number): string {
@@ -152,13 +160,8 @@ function inferQuarterTurnAngle(
     dragVector: Vector3,
     isFar: boolean
 ): QuarterTurn {
-    if (isFar) {
-        // For far drags, always return 180 degrees (direction doesn't matter for 180)
-        return 180;
-    }
-
-    const plus = rotatePosition3D(position, axis, 90);
-    const minus = rotatePosition3D(position, axis, -90);
+    const plus = rotatePosition3D(position, axis, QuarterTurn.QUARTER);
+    const minus = rotatePosition3D(position, axis, QuarterTurn.QUARTER_NEG);
 
     const plusDisplacement = subtract3(plus, position);
     const minusDisplacement = subtract3(minus, position);
@@ -166,7 +169,11 @@ function inferQuarterTurnAngle(
     const plusScore = dot3(plusDisplacement, dragVector);
     const minusScore = dot3(minusDisplacement, dragVector);
 
-    return plusScore >= minusScore ? 90 : -90;
+    if (isFar) {
+        return plusScore >= minusScore ? QuarterTurn.HALF : QuarterTurn.HALF_NEG;
+    }
+
+    return plusScore >= minusScore ? QuarterTurn.QUARTER : QuarterTurn.QUARTER_NEG;
 }
 
 function buildMoveNotation(
@@ -177,8 +184,13 @@ function buildMoveNotation(
 ): string {
     const moveBase = axisLayerToMoveBase(axis, layerIndex, cubeSize);
 
-    if (angle === 180) {
-        return `${moveBase}2`;
+    if (angle === QuarterTurn.HALF || angle === QuarterTurn.HALF_NEG) {
+        // Determine whether this physical rotation is in the "natural" (non-prime)
+        // direction of the move. For QUARTER-positive bases (U, R, B), +180 is the
+        // natural double; for QUARTER-negative bases (D, L, F, M, E, S), -180 is.
+        const defaultAngle = getDefaultAngle(moveBase);
+        const isNaturalDirection = angle > 0 === defaultAngle > 0;
+        return isNaturalDirection ? `${moveBase}2` : `${moveBase}2'`;
     }
 
     const defaultAngle = getDefaultAngle(moveBase);
@@ -193,17 +205,17 @@ function buildMoveNotation(
     throw new Error(`Unsupported quarter-turn angle ${angle} for move base ${moveBase}`);
 }
 
-function getDefaultAngle(moveBase: string): 90 | -90 {
+function getDefaultAngle(moveBase: string): QuarterTurn {
     if (moveBase === Face.R || moveBase === Face.U || moveBase === Face.B) {
-        return 90;
+        return QuarterTurn.QUARTER;
     }
     if (moveBase === Face.L || moveBase === Face.D || moveBase === Face.F) {
-        return -90;
+        return QuarterTurn.QUARTER_NEG;
     }
 
     // Slice directions follow L/D/F semantics per move-notation conventions:
     // M follows L (-90), E follows D (-90), S follows F (-90).
-    return -90;
+    return QuarterTurn.QUARTER_NEG;
 }
 
 function getLayerIndex(position: Position3D, axis: Axis): number {

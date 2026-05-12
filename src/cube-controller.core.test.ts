@@ -1,6 +1,4 @@
 // CubeController core functionality tests
-import { beforeEach, describe, expect, it } from 'vitest';
-
 import { CubeController } from './cube-controller';
 import { Face } from './cube/types';
 
@@ -198,7 +196,9 @@ describe('CubeController Core Functionality', () => {
             expect(history.getCurrentMoves()).toEqual([]);
         });
 
-        it('should auto-undo self-inverse double move (R2 then R2)', () => {
+        it('should NOT auto-undo 180° double move (R2 then R2)', () => {
+            // With directional 180°, R2 and R2' are different moves.
+            // Two consecutive R2s are both forward moves, not an undo.
             // Arrange
             model.applyMove('R2');
             expect(model.getMoveHistory().getCurrentMoves()).toEqual(['R2']);
@@ -208,8 +208,34 @@ describe('CubeController Core Functionality', () => {
 
             // Assert
             const history = model.getMoveHistory();
+            expect(history.getCurrentMoves()).toEqual(['R2', 'R2']);
+            expect(history.getCurrentIndex()).toBe(1);
+        });
+
+        it("should auto-undo directional 180° (R2 then R2')", () => {
+            // R2' is now the inverse of R2.
+            // Applying R2 then R2' should auto-undo, leaving empty history.
+            // Arrange
+            model.applyMove('R2');
+            expect(model.getMoveHistory().getCurrentMoves()).toEqual(['R2']);
+
+            // Act
+            model.applyMove("R2'");
+
+            // Assert
+            const history = model.getMoveHistory();
             expect(history.getCurrentIndex()).toBe(-1);
             expect(history.getCurrentMoves()).toEqual([]);
+            expect(model.isSolved()).toBe(true);
+        });
+
+        it("undo of U2' returns cube to solved state", () => {
+            model.applyMove("U2'", false, false, true);
+            expect(model.isSolved()).toBe(false);
+
+            const didUndo = model.undo();
+
+            expect(didUndo).toBe(true);
             expect(model.isSolved()).toBe(true);
         });
 

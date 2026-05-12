@@ -22,7 +22,20 @@ export type Axis = (typeof Axis)[keyof typeof Axis];
 /**
  * Quarter turn angles in degrees.
  */
-export type QuarterTurn = 90 | -90 | 180 | 270;
+export const QuarterTurn = {
+    /** Positive quarter turn (90°) */
+    QUARTER: 90,
+    /** Negative quarter turn (-90°) */
+    QUARTER_NEG: -90,
+    /** Half turn (180°) */
+    HALF: 180,
+    /** Negative half turn (-180°) */
+    HALF_NEG: -180,
+    /** Three-quarter turn (270°, equivalent to -90°) */
+    THREE_QUARTER: 270,
+} as const;
+
+export type QuarterTurn = (typeof QuarterTurn)[keyof typeof QuarterTurn];
 
 /** Standard Rubik's cube colors */
 export const Color = {

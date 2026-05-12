@@ -564,7 +564,7 @@
 .basic-drag-label {
     position: absolute;
     padding: 4px 8px;
-    width: var(--size-tooltip-graphical-width);
+    min-width: var(--size-tooltip-graphical-width);
     text-align: center;
     border-radius: 999px;
     border: 2px solid var(--color-tooltip-border);

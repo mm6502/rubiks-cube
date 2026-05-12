@@ -209,97 +209,127 @@ describe('calculateStickerPositionOnFace', () => {
 
 describe('getFaceRotationAxis', () => {
     it('should return correct axis and angle for Up face', () => {
-        expect(getFaceRotationAxis(Face.U, 90 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.U, QuarterTurn.QUARTER)).toEqual({
             axis: Axis.Y,
-            effectiveAngle: 90,
+            effectiveAngle: QuarterTurn.QUARTER,
         });
-        expect(getFaceRotationAxis(Face.U, 180 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.U, QuarterTurn.HALF)).toEqual({
             axis: Axis.Y,
-            effectiveAngle: 180,
+            effectiveAngle: QuarterTurn.HALF,
         });
-        expect(getFaceRotationAxis(Face.U, 270 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.U, QuarterTurn.THREE_QUARTER)).toEqual({
             axis: Axis.Y,
-            effectiveAngle: 270,
+            effectiveAngle: QuarterTurn.THREE_QUARTER,
         });
     });
 
     it('should return correct axis and angle for Down face', () => {
-        expect(getFaceRotationAxis(Face.D, 90 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.D, QuarterTurn.QUARTER)).toEqual({
             axis: Axis.Y,
-            effectiveAngle: -90,
+            effectiveAngle: QuarterTurn.QUARTER_NEG,
         });
-        expect(getFaceRotationAxis(Face.D, 180 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.D, QuarterTurn.HALF)).toEqual({
             axis: Axis.Y,
-            effectiveAngle: -180,
+            effectiveAngle: QuarterTurn.HALF_NEG,
         });
-        expect(getFaceRotationAxis(Face.D, 270 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.D, QuarterTurn.THREE_QUARTER)).toEqual({
             axis: Axis.Y,
             effectiveAngle: -270,
         });
     });
 
     it('should return correct axis and angle for Front face', () => {
-        expect(getFaceRotationAxis(Face.F, 90 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.F, QuarterTurn.QUARTER)).toEqual({
             axis: Axis.Z,
-            effectiveAngle: -90,
+            effectiveAngle: QuarterTurn.QUARTER_NEG,
         });
-        expect(getFaceRotationAxis(Face.F, 180 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.F, QuarterTurn.HALF)).toEqual({
             axis: Axis.Z,
-            effectiveAngle: -180,
+            effectiveAngle: QuarterTurn.HALF_NEG,
         });
-        expect(getFaceRotationAxis(Face.F, 270 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.F, QuarterTurn.THREE_QUARTER)).toEqual({
             axis: Axis.Z,
             effectiveAngle: -270,
         });
     });
 
     it('should return correct axis and angle for Back face', () => {
-        expect(getFaceRotationAxis(Face.B, 90 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.B, QuarterTurn.QUARTER)).toEqual({
             axis: Axis.Z,
-            effectiveAngle: 90,
+            effectiveAngle: QuarterTurn.QUARTER,
         });
-        expect(getFaceRotationAxis(Face.B, 180 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.B, QuarterTurn.HALF)).toEqual({
             axis: Axis.Z,
-            effectiveAngle: 180,
+            effectiveAngle: QuarterTurn.HALF,
         });
-        expect(getFaceRotationAxis(Face.B, 270 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.B, QuarterTurn.THREE_QUARTER)).toEqual({
             axis: Axis.Z,
-            effectiveAngle: 270,
+            effectiveAngle: QuarterTurn.THREE_QUARTER,
         });
     });
 
     it('should return correct axis and angle for Left face', () => {
-        expect(getFaceRotationAxis(Face.L, 90 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.L, QuarterTurn.QUARTER)).toEqual({
             axis: Axis.X,
-            effectiveAngle: -90,
+            effectiveAngle: QuarterTurn.QUARTER_NEG,
         });
-        expect(getFaceRotationAxis(Face.L, 180 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.L, QuarterTurn.HALF)).toEqual({
             axis: Axis.X,
-            effectiveAngle: -180,
+            effectiveAngle: QuarterTurn.HALF_NEG,
         });
-        expect(getFaceRotationAxis(Face.L, 270 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.L, QuarterTurn.THREE_QUARTER)).toEqual({
             axis: Axis.X,
             effectiveAngle: -270,
         });
     });
 
     it('should return correct axis and angle for Right face', () => {
-        expect(getFaceRotationAxis(Face.R, 90 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.R, QuarterTurn.QUARTER)).toEqual({
             axis: Axis.X,
-            effectiveAngle: 90,
+            effectiveAngle: QuarterTurn.QUARTER,
         });
-        expect(getFaceRotationAxis(Face.R, 180 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.R, QuarterTurn.HALF)).toEqual({
             axis: Axis.X,
-            effectiveAngle: 180,
+            effectiveAngle: QuarterTurn.HALF,
         });
-        expect(getFaceRotationAxis(Face.R, 270 as QuarterTurn)).toEqual({
+        expect(getFaceRotationAxis(Face.R, QuarterTurn.THREE_QUARTER)).toEqual({
             axis: Axis.X,
-            effectiveAngle: 270,
+            effectiveAngle: QuarterTurn.THREE_QUARTER,
+        });
+    });
+
+    it('handles -180° input correctly for all faces', () => {
+        // Non-inverted faces (R, U, B): -180 passes through
+        expect(getFaceRotationAxis(Face.R, QuarterTurn.HALF_NEG)).toEqual({
+            axis: Axis.X,
+            effectiveAngle: QuarterTurn.HALF_NEG,
+        });
+        expect(getFaceRotationAxis(Face.U, QuarterTurn.HALF_NEG)).toEqual({
+            axis: Axis.Y,
+            effectiveAngle: QuarterTurn.HALF_NEG,
+        });
+        expect(getFaceRotationAxis(Face.B, QuarterTurn.HALF_NEG)).toEqual({
+            axis: Axis.Z,
+            effectiveAngle: QuarterTurn.HALF_NEG,
+        });
+
+        // Inverted faces (L, F, D): -180 gets negated to +180
+        expect(getFaceRotationAxis(Face.L, QuarterTurn.HALF_NEG)).toEqual({
+            axis: Axis.X,
+            effectiveAngle: QuarterTurn.HALF,
+        });
+        expect(getFaceRotationAxis(Face.F, QuarterTurn.HALF_NEG)).toEqual({
+            axis: Axis.Z,
+            effectiveAngle: QuarterTurn.HALF,
+        });
+        expect(getFaceRotationAxis(Face.D, QuarterTurn.HALF_NEG)).toEqual({
+            axis: Axis.Y,
+            effectiveAngle: QuarterTurn.HALF,
         });
     });
 
     it('should throw error for unknown face', () => {
-        expect(() => getFaceRotationAxis('unknown' as any, 90 as QuarterTurn)).toThrow(
+        expect(() => getFaceRotationAxis('unknown' as any, QuarterTurn.QUARTER)).toThrow(
             'Unknown face: unknown'
         );
     });

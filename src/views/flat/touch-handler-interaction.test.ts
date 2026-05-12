@@ -186,8 +186,8 @@ describe('inferMoveNotationForGesture', () => {
             gesture
         );
         expect(notation).toBeDefined();
-        // Double-move: notation ends with '2'
-        expect(notation?.endsWith('2')).toBe(true);
+        // Double-move: notation ends with '2' (CW) or "2'" (CCW)
+        expect(notation).toMatch(/2'?$/);
     });
 
     it('STICKER with !face returns undefined', () => {

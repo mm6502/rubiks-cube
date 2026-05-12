@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { LayerManager } from '@/cube/core/layer-manager';
 import { StateManager } from '@/cube/core/state-manager';
-import { Axis, CubieType, Face } from '@/cube/types';
+import { Axis, CubieType, Face, QuarterTurn } from '@/cube/types';
 import type { MoveDefinition } from '@/cube/types/move';
 import { createVirtualCenterCubieId } from '@/cube/utils/cubie';
 
@@ -45,7 +45,12 @@ describe('LayerManager', () => {
 
     describe('getCubiesForMove', () => {
         it('should get cubies for face move', () => {
-            const move: MoveDefinition = { name: 'F', axis: Axis.Z, layerIndices: [0], angle: -90 };
+            const move: MoveDefinition = {
+                name: 'F',
+                axis: Axis.Z,
+                layerIndices: [0],
+                angle: QuarterTurn.QUARTER_NEG,
+            };
             const cubies = LayerManager.getCubiesForMove(move, stateManager.getCurrentState());
             // 25 physical (no virtual centers on face moves)
             expect(cubies.length).toBe(25);
@@ -63,7 +68,12 @@ describe('LayerManager', () => {
         });
 
         it('should get cubies for slice move', () => {
-            const move: MoveDefinition = { name: 'M', axis: Axis.X, layerIndices: [1], angle: -90 };
+            const move: MoveDefinition = {
+                name: 'M',
+                axis: Axis.X,
+                layerIndices: [1],
+                angle: QuarterTurn.QUARTER_NEG,
+            };
             const cubies = LayerManager.getCubiesForMove(move, stateManager.getCurrentState());
             // middle slice contains sixteen physical cubies
             expect(cubies.length).toBe(16);
@@ -85,7 +95,7 @@ describe('LayerManager', () => {
                 name: 'Uw',
                 axis: Axis.X,
                 layerIndices: [0, 1],
-                angle: -90,
+                angle: QuarterTurn.QUARTER_NEG,
             };
             const cubies = LayerManager.getCubiesForMove(move, stateManager.getCurrentState());
             // middle slice contains sixteen physical cubies
@@ -110,7 +120,7 @@ describe('LayerManager', () => {
                 name: 'x',
                 axis: Axis.X,
                 layerIndices: allLayers,
-                angle: -90,
+                angle: QuarterTurn.QUARTER_NEG,
             };
             const xCubies = LayerManager.getCubiesForMove(xMove, stateManager.getCurrentState());
             const xVirtualCubies = xCubies.filter(p => p.type === CubieType.VIRTUAL_CENTER);
@@ -126,7 +136,7 @@ describe('LayerManager', () => {
                 name: 'y',
                 axis: Axis.Y,
                 layerIndices: allLayers,
-                angle: 90,
+                angle: QuarterTurn.QUARTER,
             };
             const yCubies = LayerManager.getCubiesForMove(yMove, stateManager.getCurrentState());
             const yVirtualCubies = yCubies.filter(p => p.type === CubieType.VIRTUAL_CENTER);
@@ -142,7 +152,7 @@ describe('LayerManager', () => {
                 name: 'z',
                 axis: Axis.Z,
                 layerIndices: allLayers,
-                angle: -90,
+                angle: QuarterTurn.QUARTER_NEG,
             };
             const zCubies = LayerManager.getCubiesForMove(zMove, stateManager.getCurrentState());
             const zVirtualCubies = zCubies.filter(p => p.type === CubieType.VIRTUAL_CENTER);

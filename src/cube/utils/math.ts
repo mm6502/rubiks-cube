@@ -70,13 +70,13 @@ export function rotatePosition3D(vector: Position3D, axis: Axis, angle: QuarterT
  */
 function rotatePosition3DAroundX(vector: Position3D, angle: QuarterTurn): Vector3 {
     const { x, y, z } = vector;
-    if (angle === 90) {
+    if (angle === QuarterTurn.QUARTER) {
         return { x, y: -z, z: y };
     }
-    if (angle === 180) {
+    if (angle === QuarterTurn.HALF) {
         return { x, y: -y, z: -z };
     }
-    if (angle === 270 || angle === -90) {
+    if (angle === QuarterTurn.THREE_QUARTER || angle === QuarterTurn.QUARTER_NEG) {
         return { x, y: z, z: -y };
     }
     return { x, y, z };
@@ -87,13 +87,13 @@ function rotatePosition3DAroundX(vector: Position3D, angle: QuarterTurn): Vector
  */
 function rotatePosition3DAroundY(vector: Position3D, angle: QuarterTurn): Vector3 {
     const { x, y, z } = vector;
-    if (angle === 90) {
+    if (angle === QuarterTurn.QUARTER) {
         return { x: z, y, z: -x };
     }
-    if (angle === 180) {
+    if (angle === QuarterTurn.HALF) {
         return { x: -x, y, z: -z };
     }
-    if (angle === 270 || angle === -90) {
+    if (angle === QuarterTurn.THREE_QUARTER || angle === QuarterTurn.QUARTER_NEG) {
         return { x: -z, y, z: x };
     }
     return { x, y, z };
@@ -104,13 +104,13 @@ function rotatePosition3DAroundY(vector: Position3D, angle: QuarterTurn): Vector
  */
 function rotatePosition3DAroundZ(vector: Position3D, angle: QuarterTurn): Vector3 {
     const { x, y, z } = vector;
-    if (angle === 90) {
+    if (angle === QuarterTurn.QUARTER) {
         return { x: -y, y: x, z };
     }
-    if (angle === 180) {
+    if (angle === QuarterTurn.HALF) {
         return { x: -x, y: -y, z };
     }
-    if (angle === 270 || angle === -90) {
+    if (angle === QuarterTurn.THREE_QUARTER || angle === QuarterTurn.QUARTER_NEG) {
         return { x: y, y: -x, z };
     }
     return { x, y, z };

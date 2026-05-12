@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Map as IMap } from 'immutable';
 
-import { Color, ColorMap, CubeState, Face, StickerId } from '@/cube/types';
+import { Color, ColorMap, CubeState, Face, QuarterTurn, StickerId } from '@/cube/types';
 import { CubieType, Position3D } from '@/cube/types/cubie';
 import { getPositionKey } from '@/cube/utils';
 
@@ -172,7 +172,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { after: [{}] },
                 notation: 'U',
-                definition: { axis: 'Y', layerIndices: [2], angle: 90 },
+                definition: { axis: 'Y', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState,
             postState,
@@ -478,7 +478,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { before: [movedCubie], after: [movedCubie] },
                 notation: 'R',
-                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+                definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState: cubeState,
             postState: cubeState,
@@ -546,7 +546,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { before: [movedCubie], after: [movedCubie] },
                 notation: 'R',
-                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+                definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState: cubeState,
             postState: cubeState,
@@ -596,7 +596,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { before: [movedCubie], after: [movedCubie] },
                 notation: 'R',
-                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+                definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState: cubeState,
             postState: cubeState,
@@ -652,7 +652,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { before: [movedCubie], after: [movedCubie] },
                 notation: 'R',
-                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+                definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState: cubeState,
             postState: cubeState,
@@ -702,7 +702,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { before: [emptyCubie], after: [emptyCubie] },
                 notation: 'R',
-                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+                definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState: cubeState,
             postState: cubeState,
@@ -893,7 +893,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { after: [{}] },
                 notation: 'R',
-                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+                definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState: cubeState,
             postState: cubeState,
@@ -950,7 +950,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { before: [movedCubie], after: [movedCubie] },
                 notation: 'R',
-                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+                definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState: cubeState,
             postState: cubeState,
@@ -980,7 +980,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { after: [{}] },
                 notation: 'R',
-                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+                definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState: cubeState,
             postState: cubeState,
@@ -1028,7 +1028,7 @@ describe('rendering utilities', () => {
             moveDetails: {
                 movedCubies: { before: [], after: [cubie] },
                 notation: 'R',
-                definition: { axis: 'X', layerIndices: [2], angle: 90 },
+                definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
             },
             preState: cubeState,
             postState: cubeState,

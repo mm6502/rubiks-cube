@@ -1,5 +1,4 @@
-import { getCubeInvariants } from '@/cube/core/cube-invariants';
-import { getMoveDefinition } from '@/cube/core/move-engine';
+import { parseStringMove } from '@/cube/core/move-parser';
 import { Axis, CubeState, Face, Position3D, QuarterTurn, StickerId, Vector2 } from '@/cube/types';
 import { MoveDefinition } from '@/cube/types/move';
 import { getFaceRotationAxis, getPositionKey } from '@/cube/utils';
@@ -175,11 +174,15 @@ export async function animateMove(
     axisCircles: AxisCircle[],
     stickerLookupMap: StickerLookupMap
 ): Promise<void> {
-    // Get move definition from event or cube invariants if not provided.
-    let moveDefinition = event.moveDetails?.definition;
+    // Prefer the event-provided definition. If missing, parse notation directly
+    // so directional 180° forms like "U2'" are supported.
+    let moveDefinition: MoveDefinition | undefined = event.moveDetails.definition;
     if (!moveDefinition) {
-        const invariants = getCubeInvariants(event.preState.cubeSize);
-        moveDefinition = getMoveDefinition(invariants, event.moveDetails.notation);
+        try {
+            [moveDefinition] = parseStringMove(event.moveDetails.notation, event.preState.cubeSize);
+        } catch {
+            return;
+        }
     }
 
     // Validate inputs.
@@ -539,6 +542,14 @@ function animateAdjacentStickersAroundAxis(
             adjacentAngle = move.axis === Axis.Z ? -move.angle : move.angle;
         } else {
             adjacentAngle = face === Face.F || face === Face.B ? -move.angle : move.angle;
+        }
+
+        // Tiebreaker: when rotationAngle is exactly ±180° within float epsilon,
+        // use the sign of adjacentAngle to break the tie deterministically.
+        // Without this, floating-point noise can cause different stickers on the
+        // same ring to arc in opposite directions (Bug B).
+        if (Math.abs(Math.abs(rotationAngle) - 180) <= 1e-9) {
+            rotationAngle = adjacentAngle >= 0 ? 180 : -180;
         }
 
         // Force the rotation to match the move's direction.

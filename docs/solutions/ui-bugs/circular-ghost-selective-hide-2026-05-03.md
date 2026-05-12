@@ -49,3 +49,4 @@ Related plan
 
 - Origin:
   docs/plans/2026-05-02-001-fix-selective-ghost-hiding-during-animation-plan.md
+- Related learning: ../logic-errors/directional-180-move-hardening-2026-05-09.md

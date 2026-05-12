@@ -209,24 +209,6 @@ architecture doing its job.
 
 ---
 
-### [G] Add `isUndo` to `MoveExecutedEvent`
-
-**Confidence:** ★★★★☆ **Sources:** Frames 2, 3, 4 **Prerequisites:** None
-(orthogonal to direction)
-
-Add `isUndo?: boolean` to `MoveExecutedEvent`. Views that don't care ignore it.
-Views that do care get a clean semantic signal rather than inferring undo
-context from history state.
-
-While [F] gives the view the direction automatically through the definition,
-`isUndo` enables **semantic styling choices** independent of direction —
-rewinding indicator, ↩ overlay, distinct sound, move log styling. It also
-future-proofs redo and replay modes.
-
-Note: [F] and [G] are **complementary**, not alternatives.
-
----
-
 ### [E2] Self-contained animation fallback — geometry-based arc inference
 
 **Confidence:** ★★★☆☆ **Sources:** Frames 2, 4, 6 **Prerequisites:** None
@@ -296,6 +278,50 @@ primitives. Not suitable near-term.
 
 ---
 
+### [K] Directional 180° notation — `U2'` as serialized form
+
+**Confidence:** ★★★★★ **Prerequisites:** [A]
+
+The `'` modifier already has a precise, universally understood meaning in WCA
+notation: **reversal of the primary direction**. Primary directions are
+explicitly defined for every move in the system (see
+`src/docs/move-notation.md`):
+
+- Face moves (R, L, U, D, F, B): CW when viewed from outside the face
+- Slice moves: M follows L, E follows D, S follows F
+- Cube rotations: x/y/z follow R/U/F respectively
+
+`U2'` is therefore not a new convention — it is the **logical application of an
+existing one**. `U` → `U'` (reverse primary direction) is exactly the same
+relationship as `U2` → `U2'`. No new syntax is introduced.
+
+**Serialization contract:**
+
+| `MoveDefinition.angle` | `buildMoveNotation` output |
+| ---------------------- | -------------------------- |
+| `180`                  | `"U2"`                     |
+| `-180`                 | `"U2'"`                    |
+
+**Parser changes:** `"U2'"` parses to `angle: -180`. `"U2"` parses to
+`angle: 180`. Both are self-inverse: `getInverseMove("U2'") === "U2'"`,
+`getInverseMove("U2") === "U2"`.
+
+**Why this matters for undo/redo:** History stored as `["U", "U2'", "R"]` is
+human-readable, round-trip correct, and unambiguous. A developer reading the
+move log can immediately see which arc was taken. Animation replays load the
+direction without inference.
+
+**Scope of change:** `buildMoveNotation` (one branch), the move parser (one
+branch), `getInverseMove` (no change needed — already self-inverse for `"U2"`,
+same logic applies to `"U2'"`). Zero changes to state math — `-180` and `180`
+produce identical cube states.
+
+**Distinction from deferred `U2+`/`U2-`:** Those are invented tokens with no
+basis in existing notation. `U2'` reuses the `'` convention already present in
+every move in the system. The complexity concern does not apply.
+
+---
+
 ## §3 — Cross-Cutting Combinations: Implementation Paths
 
 ### Path 1: Surgical Minimal (recommended first step)
@@ -334,23 +360,23 @@ tests if state outcomes are unchanged.
 
 > **Scope:** View-level semantic context.
 
-Any of the above + 8. `[G]` Add `isUndo` to `MoveExecutedEvent` 9. Bug fix:
-U2+U2 auto-undo collapse (§1) 10. `[I]` Bug fix: ring sticker float
-non-determinism
+Any of the above + 8. Bug fix: U2+U2 auto-undo collapse (§1) 9. `[I]` Bug fix:
+ring sticker float non-determinism
 
 ---
 
 ### Prerequisite Map
 
-```
+```plaintext
 [A] ──┬──→ [B] ──→ [C]   (Surgical Minimal — forward direction)
       │
       ├──→ [D]            (quality gate for event definition)
       │
-      └──→ [E] ──→ [F]   (Complete Loop — undo direction)
+      ├──→ [E] ──→ [F]   (Complete Loop — undo direction)
+      │
+      └──→ [K]            (directional notation — buildMoveNotation + parser)
 
 [E2] ──── standalone      (animation fallback, any time)
-[G]  ──── standalone      (isUndo flag, any time)
 Bug: §1 auto-undo collapse — standalone, address immediately
 Bug: [I] float tiebreaker — after [A]+[B]
 ```
@@ -359,26 +385,37 @@ Bug: [I] float tiebreaker — after [A]+[B]
 
 ## §4 — Open Questions for Team Discussion
 
-1. **Should undo always animate the reverse arc, even if the original direction
-   wasn't captured?** E.g., for sessions loaded from old saves — use [H]
-   contextual inference, [E2] geometry inference, or default to CW?
+1. ~~**Should undo always animate the reverse arc, even if the original
+   direction wasn't captured?** E.g., for sessions loaded from old saves — use
+   [H] contextual inference, [E2] geometry inference, or default to CW?~~
+   **Resolved:** Legacy saves with `"U2"` (no direction) are a non-issue —
+   acceptable to animate with default direction.
 
-2. **Is `-180` the right representation, or should `MoveDefinition` gain a
-   separate `direction` field?** `-180` in the type union keeps direction in the
-   existing signed-angle channel. A separate `direction?: 'cw' | 'ccw'` field is
-   more explicit but adds a second source of truth.
+2. ~~**Is `-180` the right representation, or should `MoveDefinition` gain a
+   separate `direction` field?**~~ **Resolved:** `-180` in `QuarterTurn` (option
+   A). No new properties on `MoveDefinition` — direction stays in the existing
+   signed-angle channel, consistent with `90`/`-90` convention. A `direction`
+   field would introduce a second source of truth for the same concept.
 
-3. **Should `isUndo` be a boolean or an `origin` discriminant
-   (`'forward' | 'undo' | 'redo'`)?** If redo is ever added, the more expressive
-   type prevents a future breaking change.
+   **Implementation discipline:**
+   - Identify all code areas touched by `QuarterTurn` / `MoveDefinition.angle`
+   - Before adding `-180`: audit existing unit tests for correctness; fix any
+     tests that are wrong or that would spuriously fail (not because of the new
+     value, but because they were already incorrect)
+   - After adding `-180`: add unit tests covering `-180` in every touched area
 
-4. **Where is the right default arc direction for U2 when no gesture was
+3. ~~**Where is the right default arc direction for U2 when no gesture was
    recorded?** Options: always CW, user preference setting, infer from preceding
-   move, geometry-based.
+   move, geometry-based.~~ **Resolved:** Default follows the primary direction
+   of the face per notation convention — `"U2"` animates like `U` (CW viewed
+   from top), `"U2'"` animates like `U'` (CCW). No inference needed; the
+   notation itself is the answer.
 
-5. **Should `MoveHistory` store `MoveDefinition` internally, or is a thin
-   `{ notation, directionHint?: -1 | 1 }` sufficient?** Full definition is more
-   powerful (enables sequence optimizer). Thin hint is a smaller diff.
+4. ~~**Should `MoveHistory` store `MoveDefinition` internally, or is a thin
+   `{ notation, directionHint?: -1 | 1 }` sufficient?**~~ **Resolved:** Neither
+   — `[K]` makes this moot. History stores notation strings as today (`"U2"`,
+   `"U2'"`), and the direction is encoded in the notation itself. No structural
+   change to `MoveHistory` required.
 
 ---
 
@@ -403,7 +440,8 @@ These emerged from the ideation that might be missed in a direct implementation:
   for later.
 - **Extended notation (`U2+`/`U2-` as internal tokens):** Adds notation
   complexity without clear benefit over signed angle. The type change [A] is
-  cleaner.
+  cleaner. Note: `U2'` is **not** in this category — it is a natural extension
+  of existing `'` convention and is promoted to [K].
 - **User-preference setting for direction:** Valid accessibility angle, but best
   added after the infrastructure exists. Low priority.
 - **CQRS `MoveCompensatedEvent`:** Architecturally elegant but adds event type

@@ -7,10 +7,25 @@ import {
     inferMoveFromDrag,
     inferMoveFromFaceRotation,
     inferWholeCubeMove,
+    toFar,
 } from './move-inference';
 import { DragDirection } from './types';
 
 describe('move-inference', () => {
+    describe('toFar', () => {
+        it('promotes non-prime notation to 2 moves', () => {
+            expect(toFar('R')).toBe('R2');
+            expect(toFar('x')).toBe('x2');
+            expect(toFar('U')).toBe('U2');
+        });
+
+        it('promotes prime notation to directional 2-prime moves', () => {
+            expect(toFar("R'")).toBe("R2'");
+            expect(toFar("x'")).toBe("x2'");
+            expect(toFar("U'")).toBe("U2'");
+        });
+    });
+
     describe('inferMoveFromFaceRotation', () => {
         it('returns clockwise face moves as non-prime notation', () => {
             // Act
@@ -113,7 +128,22 @@ describe('move-inference', () => {
         });
 
         it('infers 180 degree moves for far drags', () => {
-            // Act
+            // Act — RIGHT drag on face F, far distance → CW rotation → U2
+            const farDrag = inferMoveFromDrag({
+                face: Face.F,
+                row: 0,
+                col: 1,
+                direction: DragDirection.LEFT,
+                cubeSize: 3,
+                distancePx: 100,
+            });
+
+            // Assert
+            expect(farDrag).toBe('U2');
+        });
+
+        it("infers CCW 180 (U2') for far drags with opposite direction", () => {
+            // Drag RIGHT on the same face/position should produce -180 → U2'
             const farDrag = inferMoveFromDrag({
                 face: Face.F,
                 row: 0,
@@ -123,8 +153,36 @@ describe('move-inference', () => {
                 distancePx: 100,
             });
 
-            // Assert
-            expect(farDrag).toBe('U2');
+            expect(farDrag).toBe("U2'");
+        });
+
+        it('infers E2 (natural direction) for far drags on QUARTER_NEG moves', () => {
+            // RIGHT drag on F face middle row → E layer, natural (-90°) direction.
+            // E's natural direction is -90°, so far drag in natural direction → E2 (not E2').
+            const farDrag = inferMoveFromDrag({
+                face: Face.F,
+                row: 1,
+                col: 1,
+                direction: DragDirection.RIGHT,
+                cubeSize: 3,
+                distancePx: 100,
+            });
+
+            expect(farDrag).toBe('E2');
+        });
+
+        it("infers E2' (opposite direction) for far drags against QUARTER_NEG natural direction", () => {
+            // LEFT drag on F face middle row → opposite of E's natural direction → E2'.
+            const farDrag = inferMoveFromDrag({
+                face: Face.F,
+                row: 1,
+                col: 1,
+                direction: DragDirection.LEFT,
+                cubeSize: 3,
+                distancePx: 100,
+            });
+
+            expect(farDrag).toBe("E2'");
         });
 
         it('throws on invalid input ranges', () => {

@@ -3,7 +3,7 @@ import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { clamp, normalize2 } from '@/cube/utils/math';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
-import { inferMoveFromDrag, inferMoveFromFaceRotation } from '@/interaction/move-inference';
+import { inferMoveFromDrag, inferMoveFromFaceRotation, toFar } from '@/interaction/move-inference';
 import {
     CANCEL_ZONE_RADIUS_BASE_PX,
     CANCEL_ZONE_TABBED_MULTIPLIER,
@@ -584,7 +584,7 @@ export class BasicTouchHandler {
                 ) ?? inferMoveFromFaceRotation(this.selectedFace, clockwise);
 
             if (gesture.distancePx > this.dragStateMachine.farDragThresholdPx) {
-                return baseNotation.replace(/'$/, '') + '2';
+                return toFar(baseNotation);
             }
             return baseNotation;
         }
@@ -605,7 +605,7 @@ export class BasicTouchHandler {
                           ? rightMove
                           : leftMove;
                 if (gesture.distancePx > this.dragStateMachine.farDragThresholdPx) {
-                    return baseMove.replace(/'$/, '') + '2';
+                    return toFar(baseMove);
                 }
                 return baseMove;
             }

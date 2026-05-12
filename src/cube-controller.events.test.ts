@@ -1,6 +1,4 @@
 // CubeController event handling tests
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { Application } from './application';
 import { CubeController } from './cube-controller';
 import { EventName, MoveExecutedEvent } from './types';
@@ -119,6 +117,26 @@ describe('CubeController Event Handling', () => {
 
             const event: MoveExecutedEvent = moveExecutedCalls[0][1];
             expect(event.moveDetails.notation).toBe("R'"); // Inverse of R
+            expect(event.moveDetails.definition).toBeDefined();
+            expect(event.moveDetails.definition.angle).toBe(-90);
+        });
+
+        it('should include definition with angle -180 when undoing a U2 move', () => {
+            // Arrange: apply a U2 move
+            controller.applyMove('U2', false, false, true);
+            eventBusEmitSpy.mockClear();
+
+            // Act: undo the U2 move — inverse is "U2'"
+            controller.undo();
+
+            // Assert: event must carry a definition so animateMove can animate it
+            const moveExecutedCalls = eventBusEmitSpy.mock.calls.filter(
+                (call: any) => call[0] === EventName.MOVE_EXECUTED
+            );
+            const event: MoveExecutedEvent = moveExecutedCalls[0][1];
+            expect(event.moveDetails.notation).toBe("U2'");
+            expect(event.moveDetails.definition).toBeDefined();
+            expect(event.moveDetails.definition.angle).toBe(-180);
         });
 
         it('should not emit event when undo fails (no history)', () => {
@@ -154,6 +172,26 @@ describe('CubeController Event Handling', () => {
 
             const event: MoveExecutedEvent = moveExecutedCalls[0][1];
             expect(event.moveDetails.notation).toBe('U'); // Original move
+            expect(event.moveDetails.definition).toBeDefined();
+        });
+
+        it("should include definition with angle -180 when redoing a U2' move", () => {
+            // Arrange: apply U2', undo it, then redo
+            controller.applyMove("U2'", false, false, true);
+            controller.undo();
+            eventBusEmitSpy.mockClear();
+
+            // Act: redo — replays "U2'"
+            controller.redo();
+
+            // Assert
+            const moveExecutedCalls = eventBusEmitSpy.mock.calls.filter(
+                (call: any) => call[0] === EventName.MOVE_EXECUTED
+            );
+            const event: MoveExecutedEvent = moveExecutedCalls[0][1];
+            expect(event.moveDetails.notation).toBe("U2'");
+            expect(event.moveDetails.definition).toBeDefined();
+            expect(event.moveDetails.definition.angle).toBe(-180);
         });
 
         it('should not emit event when redo fails (no redo stack)', () => {

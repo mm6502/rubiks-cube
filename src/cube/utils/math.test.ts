@@ -122,47 +122,47 @@ describe('Math Utilities', () => {
         const testVector = { x: 1, y: 2, z: 3 };
 
         it('should rotate around X axis by 90 degrees', () => {
-            const result = rotatePosition3D(testVector, Axis.X, 90 as QuarterTurn);
+            const result = rotatePosition3D(testVector, Axis.X, QuarterTurn.QUARTER);
             expect(result).toEqual({ x: 1, y: -3, z: 2 });
         });
 
         it('should rotate around X axis by 180 degrees', () => {
-            const result = rotatePosition3D(testVector, Axis.X, 180 as QuarterTurn);
+            const result = rotatePosition3D(testVector, Axis.X, QuarterTurn.HALF);
             expect(result).toEqual({ x: 1, y: -2, z: -3 });
         });
 
         it('should rotate around X axis by 270 degrees', () => {
-            const result = rotatePosition3D(testVector, Axis.X, 270 as QuarterTurn);
+            const result = rotatePosition3D(testVector, Axis.X, QuarterTurn.THREE_QUARTER);
             expect(result).toEqual({ x: 1, y: 3, z: -2 });
         });
 
         it('should rotate around Y axis by 90 degrees', () => {
-            const result = rotatePosition3D(testVector, Axis.Y, 90 as QuarterTurn);
+            const result = rotatePosition3D(testVector, Axis.Y, QuarterTurn.QUARTER);
             expect(result).toEqual({ x: 3, y: 2, z: -1 });
         });
 
         it('should rotate around Y axis by 180 degrees', () => {
-            const result = rotatePosition3D(testVector, Axis.Y, 180 as QuarterTurn);
+            const result = rotatePosition3D(testVector, Axis.Y, QuarterTurn.HALF);
             expect(result).toEqual({ x: -1, y: 2, z: -3 });
         });
 
         it('should rotate around Y axis by 270 degrees', () => {
-            const result = rotatePosition3D(testVector, Axis.Y, 270 as QuarterTurn);
+            const result = rotatePosition3D(testVector, Axis.Y, QuarterTurn.THREE_QUARTER);
             expect(result).toEqual({ x: -3, y: 2, z: 1 });
         });
 
         it('should rotate around Z axis by 90 degrees', () => {
-            const result = rotatePosition3D(testVector, Axis.Z, 90 as QuarterTurn);
+            const result = rotatePosition3D(testVector, Axis.Z, QuarterTurn.QUARTER);
             expect(result).toEqual({ x: -2, y: 1, z: 3 });
         });
 
         it('should rotate around Z axis by 180 degrees', () => {
-            const result = rotatePosition3D(testVector, Axis.Z, 180 as QuarterTurn);
+            const result = rotatePosition3D(testVector, Axis.Z, QuarterTurn.HALF);
             expect(result).toEqual({ x: -1, y: -2, z: 3 });
         });
 
         it('should rotate around Z axis by 270 degrees', () => {
-            const result = rotatePosition3D(testVector, Axis.Z, 270 as QuarterTurn);
+            const result = rotatePosition3D(testVector, Axis.Z, QuarterTurn.THREE_QUARTER);
             expect(result).toEqual({ x: 2, y: -1, z: 3 });
         });
 
@@ -177,9 +177,9 @@ describe('Math Utilities', () => {
         });
 
         it('should throw error for unsupported axis', () => {
-            expect(() => rotatePosition3D(testVector, 'invalid' as any, 90 as QuarterTurn)).toThrow(
-                'Unsupported axis'
-            );
+            expect(() =>
+                rotatePosition3D(testVector, 'invalid' as any, QuarterTurn.QUARTER)
+            ).toThrow('Unsupported axis');
         });
     });
 
@@ -376,7 +376,10 @@ describe('Math Utilities', () => {
 
         it('should handle tiebreaker cases in angle equivalence', () => {
             // When distances are equal, prefer the more normalized value (smaller absolute value)
-            expect(findClosestEquivalentAngle(90, 270)).toBe(-90); // Both 270 and -90 are 180 degrees from 90, but -90 has smaller absolute value
+            // Both 270 and -90 are 180 degrees from 90, but -90 has smaller absolute value
+            expect(findClosestEquivalentAngle(QuarterTurn.QUARTER, 270)).toBe(
+                QuarterTurn.QUARTER_NEG
+            );
         });
     });
 });

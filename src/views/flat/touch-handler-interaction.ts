@@ -5,7 +5,7 @@
  * tap handling, and interaction context construction.
  */
 import { Application } from '@/application';
-import { inferMoveFromDrag, inferMoveFromFaceRotation } from '@/interaction/move-inference';
+import { inferMoveFromDrag, inferMoveFromFaceRotation, toFar } from '@/interaction/move-inference';
 import { DragGesture, GestureIntent, HitKind, InteractionContext } from '@/interaction/types';
 import { EventName, MoveRequestedEvent } from '@/types';
 
@@ -122,7 +122,7 @@ export function inferMoveNotationForGesture(
             s.adapter.inferFaceRotationNotation?.(s.selectedFace, clockwise, context) ??
             inferMoveFromFaceRotation(s.selectedFace, clockwise);
         if (intent.distancePx > s.dragStateMachine.farDragThresholdPx) {
-            return baseNotation.replace(/'$/, '') + '2';
+            return toFar(baseNotation);
         }
         return baseNotation;
     }

@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest';
-
 import { getInverseMove, parseStringMove } from './move-parser';
 
 describe('move-parser', () => {
@@ -129,27 +127,40 @@ describe('move-parser', () => {
         });
 
         it('should invert moves with 2 modifier', () => {
-            expect(getInverseMove('R2')).toBe('R2');
-            expect(getInverseMove('U2')).toBe('U2');
-            expect(getInverseMove('F2')).toBe('F2');
+            expect(getInverseMove('R2')).toBe("R2'");
+            expect(getInverseMove('U2')).toBe("U2'");
+            expect(getInverseMove('F2')).toBe("F2'");
+            expect(getInverseMove('L2')).toBe("L2'");
+            expect(getInverseMove('D2')).toBe("D2'");
+            expect(getInverseMove('B2')).toBe("B2'");
+        });
+
+        it('should invert moves with 2 prime modifier', () => {
+            expect(getInverseMove("R2'")).toBe('R2');
+            expect(getInverseMove("U2'")).toBe('U2');
+            expect(getInverseMove("F2'")).toBe('F2');
+            expect(getInverseMove("L2'")).toBe('L2');
+            expect(getInverseMove("D2'")).toBe('D2');
+            expect(getInverseMove("B2'")).toBe('B2');
         });
 
         it('should invert wide moves', () => {
             expect(getInverseMove('Rw')).toBe("Rw'");
             expect(getInverseMove("Rw'")).toBe('Rw');
-            expect(getInverseMove('Rw2')).toBe('Rw2');
+            expect(getInverseMove('Rw2')).toBe("Rw2'");
         });
 
         it('should invert numbered wide moves', () => {
             expect(getInverseMove('2Rw')).toBe("2Rw'");
             expect(getInverseMove("2Rw'")).toBe('2Rw');
-            expect(getInverseMove('2Rw2')).toBe('2Rw2');
+            expect(getInverseMove('2Rw2')).toBe("2Rw2'");
+            expect(getInverseMove("2Rw2'")).toBe('2Rw2');
         });
 
         it('should invert slice moves', () => {
             expect(getInverseMove('M')).toBe("M'");
             expect(getInverseMove("M'")).toBe('M');
-            expect(getInverseMove('M2')).toBe('M2');
+            expect(getInverseMove('M2')).toBe("M2'");
             expect(getInverseMove('E')).toBe("E'");
             expect(getInverseMove('S')).toBe("S'");
         });
@@ -157,36 +168,47 @@ describe('move-parser', () => {
         it('should invert rotation moves', () => {
             expect(getInverseMove('x')).toBe("x'");
             expect(getInverseMove("x'")).toBe('x');
-            expect(getInverseMove('x2')).toBe('x2');
+            expect(getInverseMove('x2')).toBe("x2'");
         });
 
         it('should invert slice moves with modifiers', () => {
             expect(getInverseMove("M'")).toBe('M');
-            expect(getInverseMove('M2')).toBe('M2');
+            expect(getInverseMove('M2')).toBe("M2'");
+            expect(getInverseMove("M2'")).toBe('M2');
             expect(getInverseMove("E'")).toBe('E');
-            expect(getInverseMove('E2')).toBe('E2');
+            expect(getInverseMove('E2')).toBe("E2'");
+            expect(getInverseMove("E2'")).toBe('E2');
             expect(getInverseMove("S'")).toBe('S');
-            expect(getInverseMove('S2')).toBe('S2');
+            expect(getInverseMove('S2')).toBe("S2'");
+            expect(getInverseMove("S2'")).toBe('S2');
         });
 
         it('should invert wide moves with modifiers', () => {
             expect(getInverseMove("Rw'")).toBe('Rw');
-            expect(getInverseMove('Rw2')).toBe('Rw2');
+            expect(getInverseMove('Rw2')).toBe("Rw2'");
+            expect(getInverseMove("Rw2'")).toBe('Rw2');
             expect(getInverseMove("Uw'")).toBe('Uw');
-            expect(getInverseMove('Fw2')).toBe('Fw2');
+            expect(getInverseMove('Fw2')).toBe("Fw2'");
         });
 
         it('should invert numbered moves', () => {
             expect(getInverseMove('2R')).toBe("2R'");
             expect(getInverseMove("2R'")).toBe('2R');
-            expect(getInverseMove('2R2')).toBe('2R2');
+            expect(getInverseMove('2R2')).toBe("2R2'");
             expect(getInverseMove('3U')).toBe("3U'");
         });
 
         it('should handle fallback cases', () => {
             expect(getInverseMove('XYZ')).toBe("XYZ'");
             expect(getInverseMove("XYZ'")).toBe('XYZ');
-            expect(getInverseMove('XYZ2')).toBe('XYZ2');
+            expect(getInverseMove('XYZ2')).toBe("XYZ2'");
+            expect(getInverseMove("XYZ2'")).toBe('XYZ2');
+        });
+
+        it('inverse of inverse returns original for 2 and 2-prime moves', () => {
+            expect(getInverseMove(getInverseMove('R2'))).toBe('R2');
+            expect(getInverseMove(getInverseMove("U2'"))).toBe("U2'");
+            expect(getInverseMove(getInverseMove("M2'"))).toBe("M2'");
         });
     });
 
@@ -229,9 +251,15 @@ describe('move-parser', () => {
     });
 
     describe('parseNotationToken (tested indirectly)', () => {
-        it('should parse valid tokens', () => {
-            // These are tested through parseStringMove
-            expect(true).toBe(true); // Placeholder test
+        it('parses directional half-turn notation with expected angles', () => {
+            const [u2] = parseStringMove('U2');
+            const [u2Prime] = parseStringMove("U2'");
+            const [l2Prime] = parseStringMove("L2'");
+
+            expect(u2.angle).toBe(180);
+            expect(u2Prime.angle).toBe(-180);
+            expect(l2Prime.angle).toBe(180);
+            expect(u2Prime.name).toBe('U2');
         });
 
         it('should reject invalid tokens', () => {

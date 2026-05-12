@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { Face } from '@/cube/types';
+import { Face, QuarterTurn } from '@/cube/types';
 import { DragDirection } from '@/interaction/types';
 
 import {
@@ -182,22 +182,22 @@ describe('tiltAngleFromHint', () => {
     });
 
     it('returns 90° for a pure screen-right vector {1, 0}', () => {
-        expect(tiltAngleFromHint({ x: 1, y: 0 })).toBeCloseTo(90, 5);
+        expect(tiltAngleFromHint({ x: 1, y: 0 })).toBeCloseTo(QuarterTurn.QUARTER, 5);
     });
 
     it('returns -90° for a pure screen-left vector {-1, 0}', () => {
-        expect(tiltAngleFromHint({ x: -1, y: 0 })).toBeCloseTo(-90, 5);
+        expect(tiltAngleFromHint({ x: -1, y: 0 })).toBeCloseTo(QuarterTurn.QUARTER_NEG, 5);
     });
 
     it('returns 180° for a pure screen-down vector {0, 1}', () => {
-        expect(Math.abs(tiltAngleFromHint({ x: 0, y: 1 }))).toBeCloseTo(180, 5);
+        expect(Math.abs(tiltAngleFromHint({ x: 0, y: 1 }))).toBeCloseTo(QuarterTurn.HALF, 5);
     });
 
     it('returns a value in [-180, 180] for all face hints', () => {
         for (const face of [Face.U, Face.D, Face.F, Face.B, Face.L, Face.R]) {
             const angle = tiltAngleFromHint(FACE_TOP_DIRECTION_HINTS[face]);
-            expect(angle).toBeGreaterThanOrEqual(-180);
-            expect(angle).toBeLessThanOrEqual(180);
+            expect(angle).toBeGreaterThanOrEqual(QuarterTurn.HALF_NEG);
+            expect(angle).toBeLessThanOrEqual(QuarterTurn.HALF);
         }
     });
 

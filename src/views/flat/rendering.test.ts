@@ -4,11 +4,13 @@ import { Map as IMap } from 'immutable';
 
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
-import { CubieId, Face, StickerId } from '@/cube/types';
+import { Axis, CubieId, Face, QuarterTurn, StickerId } from '@/cube/types';
 import { MoveExecutedEvent } from '@/types';
 
 import { FlatView } from './flat-view';
 import styles from './flat-view.module.css';
+
+const R_DEF = { name: 'R', axis: Axis.X, layerIndices: [2], angle: QuarterTurn.QUARTER };
 
 beforeAll(() => {
     if (!HTMLElement.prototype.setPointerCapture) {
@@ -109,6 +111,7 @@ describe('FlatView rendering', () => {
             const moveEvent: MoveExecutedEvent = {
                 moveDetails: {
                     notation: 'R',
+                    definition: R_DEF,
                     movedCubies: {
                         before: [],
                         after: [
@@ -155,6 +158,7 @@ describe('FlatView rendering', () => {
             const moveEvent: MoveExecutedEvent = {
                 moveDetails: {
                     notation: 'R',
+                    definition: R_DEF,
                     movedCubies: {
                         before: [],
                         after: [],

@@ -3,13 +3,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as viewUtils from '@/cube/utils/view-utils';
-import { Color, Face, LayoutMode } from '@/cube/types';
+import { Axis, Color, Face, LayoutMode, QuarterTurn } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils';
 import type { MoveExecutedEvent } from '@/types';
 
 import * as rendering from './rendering';
 import type { BasicViewInternalData } from './basic-view';
 import { BASIC_VIEW_SCALE } from './constants';
+
+const F_DEF = { name: 'F', axis: Axis.Z, layerIndices: [0], angle: QuarterTurn.QUARTER_NEG };
+const R_DEF = { name: 'R', axis: Axis.X, layerIndices: [2], angle: QuarterTurn.QUARTER };
 
 // Helper to test the findClosestEquivalentAngle function
 // Tests are self-contained so we inline the reference implementation for clarity
@@ -53,25 +56,31 @@ describe('BasicCube.Rendering - findClosestEquivalentAngle', () => {
         it('should return target when current equals target', () => {
             // Act
             const result1 = view.findClosestEquivalentAngle(0, 0);
-            const result2 = view.findClosestEquivalentAngle(90, 90);
-            const result3 = view.findClosestEquivalentAngle(-90, -90);
+            const result2 = view.findClosestEquivalentAngle(
+                QuarterTurn.QUARTER,
+                QuarterTurn.QUARTER
+            );
+            const result3 = view.findClosestEquivalentAngle(
+                QuarterTurn.QUARTER_NEG,
+                QuarterTurn.QUARTER_NEG
+            );
 
             // Assert
             expect(result1).toBe(0);
-            expect(result2).toBe(90);
-            expect(result3).toBe(-90);
+            expect(result2).toBe(QuarterTurn.QUARTER);
+            expect(result3).toBe(QuarterTurn.QUARTER_NEG);
         });
 
         it('should return target when current is close to target', () => {
             // Act
             const result1 = view.findClosestEquivalentAngle(10, 0);
             const result2 = view.findClosestEquivalentAngle(-10, 0);
-            const result3 = view.findClosestEquivalentAngle(85, 90);
+            const result3 = view.findClosestEquivalentAngle(85, QuarterTurn.QUARTER);
 
             // Assert
             expect(result1).toBe(0);
             expect(result2).toBe(0);
-            expect(result3).toBe(90);
+            expect(result3).toBe(QuarterTurn.QUARTER);
         });
     });
 
@@ -103,26 +112,32 @@ describe('BasicCube.Rendering - findClosestEquivalentAngle', () => {
             // Starting at 0, going to -90
 
             // Act
-            const result = view.findClosestEquivalentAngle(0, -90);
+            const result = view.findClosestEquivalentAngle(0, QuarterTurn.QUARTER_NEG);
 
             // Assert
-            expect(result).toBe(-90);
+            expect(result).toBe(QuarterTurn.QUARTER_NEG);
         });
 
         it('should handle transition from R to B (-90 to -180)', () => {
             // Act
-            const result = view.findClosestEquivalentAngle(-90, -180);
+            const result = view.findClosestEquivalentAngle(
+                QuarterTurn.QUARTER_NEG,
+                QuarterTurn.HALF_NEG
+            );
 
             // Assert
-            expect(result).toBe(-180);
+            expect(result).toBe(QuarterTurn.HALF_NEG);
         });
 
         it('should handle transition from B to L (-180 to -270)', () => {
             // Act
-            const result = view.findClosestEquivalentAngle(-180, -270);
+            const result = view.findClosestEquivalentAngle(
+                QuarterTurn.HALF_NEG,
+                -QuarterTurn.THREE_QUARTER
+            );
 
             // Assert
-            expect(result).toBe(-270);
+            expect(result).toBe(-QuarterTurn.THREE_QUARTER);
         });
 
         it('should handle transition from L back to F (-270 to 0)', () => {
@@ -130,7 +145,7 @@ describe('BasicCube.Rendering - findClosestEquivalentAngle', () => {
             // current=-270, target=0 → should pick -360 (90° away) not 0 (270° away)
 
             // Act
-            const result = view.findClosestEquivalentAngle(-270, 0);
+            const result = view.findClosestEquivalentAngle(-QuarterTurn.THREE_QUARTER, 0);
 
             // Assert
             expect(result).toBe(-360);
@@ -140,7 +155,7 @@ describe('BasicCube.Rendering - findClosestEquivalentAngle', () => {
     describe('Multiple rotation accumulation', () => {
         it('should handle going from -360 to -90 (second loop, F to R)', () => {
             // Act
-            const result = view.findClosestEquivalentAngle(-360, -90);
+            const result = view.findClosestEquivalentAngle(-360, QuarterTurn.QUARTER_NEG);
 
             // Assert
             expect(result).toBe(-450); // -90 + (-1 * 360) = -450
@@ -208,10 +223,13 @@ describe('BasicCube.Rendering - findClosestEquivalentAngle', () => {
             // current=90, target=-90 → difference is 180°, could go either way
 
             // Act
-            const result = view.findClosestEquivalentAngle(90, -90);
+            const result = view.findClosestEquivalentAngle(
+                QuarterTurn.QUARTER,
+                QuarterTurn.QUARTER_NEG
+            );
 
             // Assert
-            expect(Math.abs(result - 90)).toBe(180); // Should be 180° away
+            expect(Math.abs(result - QuarterTurn.QUARTER)).toBe(QuarterTurn.HALF); // Should be 180° away
         });
     });
 
@@ -249,10 +267,18 @@ describe('BasicCube.Rendering - findClosestEquivalentAngle', () => {
         it('should handle clockwise loop F→R→B→L→F smoothly', () => {
             // Arrange
             const rotations = [
-                { from: 0, to: -90, expected: -90 }, // F → R
-                { from: -90, to: -180, expected: -180 }, // R → B
-                { from: -180, to: -270, expected: -270 }, // B → L  (was 90 in old code)
-                { from: -270, to: 0, expected: -360 }, // L → F (completes loop)
+                { from: 0, to: QuarterTurn.QUARTER_NEG, expected: QuarterTurn.QUARTER_NEG }, // F → R
+                {
+                    from: QuarterTurn.QUARTER_NEG,
+                    to: QuarterTurn.HALF_NEG,
+                    expected: QuarterTurn.HALF_NEG,
+                }, // R → B
+                {
+                    from: QuarterTurn.HALF_NEG,
+                    to: -QuarterTurn.THREE_QUARTER,
+                    expected: -QuarterTurn.THREE_QUARTER,
+                }, // B → L  (was 90 in old code)
+                { from: -QuarterTurn.THREE_QUARTER, to: 0, expected: -360 }, // L → F (completes loop)
             ];
 
             // Act & Assert
@@ -265,10 +291,14 @@ describe('BasicCube.Rendering - findClosestEquivalentAngle', () => {
         it('should handle counter-clockwise loop F→L→B→R→F smoothly', () => {
             // Arrange
             const rotations = [
-                { from: 0, to: 90, expected: 90 }, // F → L
-                { from: 90, to: 180, expected: 180 }, // L → B
-                { from: 180, to: -90, expected: 270 }, // B → R (270 is closer than -90)
-                { from: 270, to: 0, expected: 360 }, // R → F (360 is closer than 0)
+                { from: 0, to: QuarterTurn.QUARTER, expected: QuarterTurn.QUARTER }, // F → L
+                { from: QuarterTurn.QUARTER, to: QuarterTurn.HALF, expected: QuarterTurn.HALF }, // L → B
+                {
+                    from: QuarterTurn.HALF,
+                    to: QuarterTurn.QUARTER_NEG,
+                    expected: QuarterTurn.THREE_QUARTER,
+                }, // B → R (270 is closer than -90)
+                { from: QuarterTurn.THREE_QUARTER, to: 0, expected: 360 }, // R → F (360 is closer than 0)
             ];
 
             // Act & Assert
@@ -284,10 +314,10 @@ describe('BasicCube.Rendering - findClosestEquivalentAngle', () => {
             // After 5 clockwise rotations: -1800°
 
             // Act
-            const result1 = view.findClosestEquivalentAngle(-1800, -90);
-            const result2 = view.findClosestEquivalentAngle(1800, 90);
+            const result1 = view.findClosestEquivalentAngle(-1800, QuarterTurn.QUARTER_NEG);
+            const result2 = view.findClosestEquivalentAngle(1800, QuarterTurn.QUARTER);
             const result3 = view.findClosestEquivalentAngle(-2160, 0);
-            const result4 = view.findClosestEquivalentAngle(2520, 180);
+            const result4 = view.findClosestEquivalentAngle(2520, QuarterTurn.HALF);
 
             // Assert
             // round((-1800 - (-90)) / 360) = round(-1710 / 360) = round(-4.75) = -5
@@ -319,8 +349,8 @@ describe('BasicCube.Rendering - findClosestEquivalentAngle', () => {
             // Test with very large rotation values
 
             // Act
-            const result1 = view.findClosestEquivalentAngle(-10000, -90);
-            const result2 = view.findClosestEquivalentAngle(10000, 90);
+            const result1 = view.findClosestEquivalentAngle(-10000, QuarterTurn.QUARTER_NEG);
+            const result2 = view.findClosestEquivalentAngle(10000, QuarterTurn.QUARTER);
 
             // Assert
             // Should find the -90 equivalent closest to -10000
@@ -1132,6 +1162,7 @@ describe('BasicCubeRenderer - method coverage', () => {
             const mockEvent: MoveExecutedEvent = {
                 moveDetails: {
                     notation: 'F',
+                    definition: F_DEF,
                     movedCubies: {
                         before: [],
                         after: [
@@ -1199,6 +1230,7 @@ describe('BasicCubeRenderer - method coverage', () => {
             const mockEvent: MoveExecutedEvent = {
                 moveDetails: {
                     notation: 'R',
+                    definition: R_DEF,
                     movedCubies: {
                         before: [],
                         after: [
@@ -1245,7 +1277,11 @@ describe('BasicCubeRenderer - method coverage', () => {
         it('should do nothing when model is undefined', () => {
             // Arrange: base state has model=undefined
             const event: MoveExecutedEvent = {
-                moveDetails: { notation: 'F', movedCubies: { before: [], after: [] } },
+                moveDetails: {
+                    notation: 'F',
+                    definition: F_DEF,
+                    movedCubies: { before: [], after: [] },
+                },
                 preState: {} as any,
                 postState: {} as any,
             };
@@ -1266,7 +1302,7 @@ describe('BasicCubeRenderer - method coverage', () => {
                 { model: mockModel as any }
             );
             const event: MoveExecutedEvent = {
-                moveDetails: { notation: 'F' },
+                moveDetails: { notation: 'F', definition: F_DEF },
                 preState: {} as any,
                 postState: {} as any,
             };

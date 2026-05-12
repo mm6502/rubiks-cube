@@ -24,12 +24,12 @@ import { logger } from '@/diagnostics/logger';
 const faceMovesFor = (cubeSize: number): ReadonlyArray<MoveDefinition> => {
     const last = cubeSize - 1;
     return [
-        { name: 'U', axis: Axis.Y, layerIndices: [last], angle: 90 },
-        { name: 'D', axis: Axis.Y, layerIndices: [0], angle: -90 },
-        { name: 'R', axis: Axis.X, layerIndices: [last], angle: -90 },
-        { name: 'L', axis: Axis.X, layerIndices: [0], angle: 90 },
-        { name: 'F', axis: Axis.Z, layerIndices: [0], angle: -90 },
-        { name: 'B', axis: Axis.Z, layerIndices: [last], angle: 90 },
+        { name: 'U', axis: Axis.Y, layerIndices: [last], angle: QuarterTurn.QUARTER },
+        { name: 'D', axis: Axis.Y, layerIndices: [0], angle: QuarterTurn.QUARTER_NEG },
+        { name: 'R', axis: Axis.X, layerIndices: [last], angle: QuarterTurn.QUARTER_NEG },
+        { name: 'L', axis: Axis.X, layerIndices: [0], angle: QuarterTurn.QUARTER },
+        { name: 'F', axis: Axis.Z, layerIndices: [0], angle: QuarterTurn.QUARTER_NEG },
+        { name: 'B', axis: Axis.Z, layerIndices: [last], angle: QuarterTurn.QUARTER },
     ] satisfies ReadonlyArray<MoveDefinition>;
 };
 
@@ -43,12 +43,37 @@ const wideMovesFor = (cubeSize: number): ReadonlyArray<MoveDefinition> => {
     const secondLayerHigh = Math.max(last - 1, 0);
 
     return [
-        { name: 'Uw', axis: Axis.Y, layerIndices: [last, secondLayerHigh], angle: 90 },
-        { name: 'Dw', axis: Axis.Y, layerIndices: [0, secondLayerLow], angle: -90 },
-        { name: 'Rw', axis: Axis.X, layerIndices: [last, secondLayerHigh], angle: -90 },
-        { name: 'Lw', axis: Axis.X, layerIndices: [0, secondLayerLow], angle: 90 },
-        { name: 'Fw', axis: Axis.Z, layerIndices: [0, secondLayerLow], angle: -90 },
-        { name: 'Bw', axis: Axis.Z, layerIndices: [last, secondLayerHigh], angle: 90 },
+        {
+            name: 'Uw',
+            axis: Axis.Y,
+            layerIndices: [last, secondLayerHigh],
+            angle: QuarterTurn.QUARTER,
+        },
+        {
+            name: 'Dw',
+            axis: Axis.Y,
+            layerIndices: [0, secondLayerLow],
+            angle: QuarterTurn.QUARTER_NEG,
+        },
+        {
+            name: 'Rw',
+            axis: Axis.X,
+            layerIndices: [last, secondLayerHigh],
+            angle: QuarterTurn.QUARTER_NEG,
+        },
+        { name: 'Lw', axis: Axis.X, layerIndices: [0, secondLayerLow], angle: QuarterTurn.QUARTER },
+        {
+            name: 'Fw',
+            axis: Axis.Z,
+            layerIndices: [0, secondLayerLow],
+            angle: QuarterTurn.QUARTER_NEG,
+        },
+        {
+            name: 'Bw',
+            axis: Axis.Z,
+            layerIndices: [last, secondLayerHigh],
+            angle: QuarterTurn.QUARTER,
+        },
     ] satisfies ReadonlyArray<MoveDefinition>;
 };
 
@@ -65,18 +90,33 @@ const sliceMovesFor = (cubeSize: number): ReadonlyArray<MoveDefinition> => {
     const moves: MoveDefinition[] = [];
     const defaultLayer = innerLayers[0];
     moves.push(
-        { name: 'M', axis: Axis.X, layerIndices: [defaultLayer], angle: -90 },
-        { name: 'E', axis: Axis.Y, layerIndices: [defaultLayer], angle: -90 },
-        { name: 'S', axis: Axis.Z, layerIndices: [defaultLayer], angle: -90 }
+        { name: 'M', axis: Axis.X, layerIndices: [defaultLayer], angle: QuarterTurn.QUARTER_NEG },
+        { name: 'E', axis: Axis.Y, layerIndices: [defaultLayer], angle: QuarterTurn.QUARTER_NEG },
+        { name: 'S', axis: Axis.Z, layerIndices: [defaultLayer], angle: QuarterTurn.QUARTER_NEG }
     );
 
     if (cubeSize > 3) {
         for (const layerIndex of innerLayers) {
             const sliceNumber = layerIndex + 1;
             moves.push(
-                { name: `${sliceNumber}M`, axis: Axis.X, layerIndices: [layerIndex], angle: -90 },
-                { name: `${sliceNumber}E`, axis: Axis.Y, layerIndices: [layerIndex], angle: -90 },
-                { name: `${sliceNumber}S`, axis: Axis.Z, layerIndices: [layerIndex], angle: -90 }
+                {
+                    name: `${sliceNumber}M`,
+                    axis: Axis.X,
+                    layerIndices: [layerIndex],
+                    angle: QuarterTurn.QUARTER_NEG,
+                },
+                {
+                    name: `${sliceNumber}E`,
+                    axis: Axis.Y,
+                    layerIndices: [layerIndex],
+                    angle: QuarterTurn.QUARTER_NEG,
+                },
+                {
+                    name: `${sliceNumber}S`,
+                    axis: Axis.Z,
+                    layerIndices: [layerIndex],
+                    angle: QuarterTurn.QUARTER_NEG,
+                }
             );
         }
     }
@@ -88,9 +128,9 @@ const rotationMovesFor = (cubeSize: number): ReadonlyArray<MoveDefinition> => {
     const layers = Array.from({ length: cubeSize }, (_, index) => index);
 
     return [
-        { name: 'x', axis: Axis.X, layerIndices: layers, angle: -90 },
-        { name: 'y', axis: Axis.Y, layerIndices: layers, angle: 90 },
-        { name: 'z', axis: Axis.Z, layerIndices: layers, angle: -90 },
+        { name: 'x', axis: Axis.X, layerIndices: layers, angle: QuarterTurn.QUARTER_NEG },
+        { name: 'y', axis: Axis.Y, layerIndices: layers, angle: QuarterTurn.QUARTER },
+        { name: 'z', axis: Axis.Z, layerIndices: layers, angle: QuarterTurn.QUARTER_NEG },
     ] satisfies ReadonlyArray<MoveDefinition>;
 };
 
@@ -829,21 +869,24 @@ describe('CubeInvariants', () => {
 
         it('rotatePosition3D applies quarter-turn rotations', () => {
             expect(
-                vectorsEqual3(rotatePosition3D({ x: 0, y: 1, z: 0 }, Axis.X, 90 as QuarterTurn), {
+                vectorsEqual3(rotatePosition3D({ x: 0, y: 1, z: 0 }, Axis.X, QuarterTurn.QUARTER), {
                     x: 0,
                     y: 0,
                     z: 1,
                 })
             ).toBe(true);
             expect(
-                vectorsEqual3(rotatePosition3D({ x: 0, y: 1, z: 0 }, Axis.X, 270 as QuarterTurn), {
-                    x: 0,
-                    y: 0,
-                    z: -1,
-                })
+                vectorsEqual3(
+                    rotatePosition3D({ x: 0, y: 1, z: 0 }, Axis.X, QuarterTurn.THREE_QUARTER),
+                    {
+                        x: 0,
+                        y: 0,
+                        z: -1,
+                    }
+                )
             ).toBe(true);
             expect(
-                vectorsEqual3(rotatePosition3D({ x: 1, y: 0, z: 0 }, Axis.Z, 90 as QuarterTurn), {
+                vectorsEqual3(rotatePosition3D({ x: 1, y: 0, z: 0 }, Axis.Z, QuarterTurn.QUARTER), {
                     x: 0,
                     y: 1,
                     z: 0,

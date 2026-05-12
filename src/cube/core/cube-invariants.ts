@@ -757,18 +757,18 @@ function buildMoveDefinitions(cubeSize: number): MoveDefinition[] {
         moves.push({
             ...definition,
             name: `${definition.name}2`,
-            angle: 180,
+            angle: definition.angle > 0 ? QuarterTurn.HALF : QuarterTurn.HALF_NEG,
             layerIndices: [...definition.layerIndices],
         });
     };
 
     const faceMoves: MoveDefinition[] = [
-        { name: 'U', axis: Axis.Y, layerIndices: [last], angle: 90 },
-        { name: 'D', axis: Axis.Y, layerIndices: [0], angle: -90 },
-        { name: 'R', axis: Axis.X, layerIndices: [last], angle: 90 },
-        { name: 'L', axis: Axis.X, layerIndices: [0], angle: -90 },
-        { name: 'F', axis: Axis.Z, layerIndices: [0], angle: -90 },
-        { name: 'B', axis: Axis.Z, layerIndices: [last], angle: 90 },
+        { name: 'U', axis: Axis.Y, layerIndices: [last], angle: QuarterTurn.QUARTER },
+        { name: 'D', axis: Axis.Y, layerIndices: [0], angle: QuarterTurn.QUARTER_NEG },
+        { name: 'R', axis: Axis.X, layerIndices: [last], angle: QuarterTurn.QUARTER },
+        { name: 'L', axis: Axis.X, layerIndices: [0], angle: QuarterTurn.QUARTER_NEG },
+        { name: 'F', axis: Axis.Z, layerIndices: [0], angle: QuarterTurn.QUARTER_NEG },
+        { name: 'B', axis: Axis.Z, layerIndices: [last], angle: QuarterTurn.QUARTER },
     ];
     faceMoves.forEach(pushVariants);
 
@@ -776,12 +776,42 @@ function buildMoveDefinitions(cubeSize: number): MoveDefinition[] {
         const secondLayerLow = Math.min(1, last);
         const secondLayerHigh = Math.max(last - 1, 0);
         const wideMoves: MoveDefinition[] = [
-            { name: 'Uw', axis: Axis.Y, layerIndices: [last, secondLayerHigh], angle: 90 },
-            { name: 'Dw', axis: Axis.Y, layerIndices: [0, secondLayerLow], angle: -90 },
-            { name: 'Rw', axis: Axis.X, layerIndices: [last, secondLayerHigh], angle: 90 },
-            { name: 'Lw', axis: Axis.X, layerIndices: [0, secondLayerLow], angle: -90 },
-            { name: 'Fw', axis: Axis.Z, layerIndices: [0, secondLayerLow], angle: -90 },
-            { name: 'Bw', axis: Axis.Z, layerIndices: [last, secondLayerHigh], angle: 90 },
+            {
+                name: 'Uw',
+                axis: Axis.Y,
+                layerIndices: [last, secondLayerHigh],
+                angle: QuarterTurn.QUARTER,
+            },
+            {
+                name: 'Dw',
+                axis: Axis.Y,
+                layerIndices: [0, secondLayerLow],
+                angle: QuarterTurn.QUARTER_NEG,
+            },
+            {
+                name: 'Rw',
+                axis: Axis.X,
+                layerIndices: [last, secondLayerHigh],
+                angle: QuarterTurn.QUARTER,
+            },
+            {
+                name: 'Lw',
+                axis: Axis.X,
+                layerIndices: [0, secondLayerLow],
+                angle: QuarterTurn.QUARTER_NEG,
+            },
+            {
+                name: 'Fw',
+                axis: Axis.Z,
+                layerIndices: [0, secondLayerLow],
+                angle: QuarterTurn.QUARTER_NEG,
+            },
+            {
+                name: 'Bw',
+                axis: Axis.Z,
+                layerIndices: [last, secondLayerHigh],
+                angle: QuarterTurn.QUARTER,
+            },
         ];
         wideMoves.forEach(pushVariants);
     }
@@ -791,9 +821,24 @@ function buildMoveDefinitions(cubeSize: number): MoveDefinition[] {
         if (innerLayers.length > 0) {
             const defaultLayer = innerLayers[0];
             const sliceMoves: MoveDefinition[] = [
-                { name: 'M', axis: Axis.X, layerIndices: [defaultLayer], angle: -90 },
-                { name: 'E', axis: Axis.Y, layerIndices: [defaultLayer], angle: -90 },
-                { name: 'S', axis: Axis.Z, layerIndices: [defaultLayer], angle: -90 },
+                {
+                    name: 'M',
+                    axis: Axis.X,
+                    layerIndices: [defaultLayer],
+                    angle: QuarterTurn.QUARTER_NEG,
+                },
+                {
+                    name: 'E',
+                    axis: Axis.Y,
+                    layerIndices: [defaultLayer],
+                    angle: QuarterTurn.QUARTER_NEG,
+                },
+                {
+                    name: 'S',
+                    axis: Axis.Z,
+                    layerIndices: [defaultLayer],
+                    angle: QuarterTurn.QUARTER_NEG,
+                },
             ];
             sliceMoves.forEach(pushVariants);
         }
@@ -806,19 +851,19 @@ function buildMoveDefinitions(cubeSize: number): MoveDefinition[] {
                         name: `${sliceNumber}M`,
                         axis: Axis.X,
                         layerIndices: [layerIndex],
-                        angle: -90,
+                        angle: QuarterTurn.QUARTER_NEG,
                     },
                     {
                         name: `${sliceNumber}E`,
                         axis: Axis.Y,
                         layerIndices: [layerIndex],
-                        angle: -90,
+                        angle: QuarterTurn.QUARTER_NEG,
                     },
                     {
                         name: `${sliceNumber}S`,
                         axis: Axis.Z,
                         layerIndices: [layerIndex],
-                        angle: -90,
+                        angle: QuarterTurn.QUARTER_NEG,
                     },
                 ];
                 numericSlices.forEach(pushVariants);
@@ -827,9 +872,9 @@ function buildMoveDefinitions(cubeSize: number): MoveDefinition[] {
     }
 
     const cubeRotations: MoveDefinition[] = [
-        { name: 'x', axis: Axis.X, layerIndices: allLayers, angle: 90 },
-        { name: 'y', axis: Axis.Y, layerIndices: allLayers, angle: 90 },
-        { name: 'z', axis: Axis.Z, layerIndices: allLayers, angle: -90 },
+        { name: 'x', axis: Axis.X, layerIndices: allLayers, angle: QuarterTurn.QUARTER },
+        { name: 'y', axis: Axis.Y, layerIndices: allLayers, angle: QuarterTurn.QUARTER },
+        { name: 'z', axis: Axis.Z, layerIndices: allLayers, angle: QuarterTurn.QUARTER_NEG },
     ];
     cubeRotations.forEach(pushVariants);
 

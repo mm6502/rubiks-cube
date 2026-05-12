@@ -5,6 +5,14 @@ import {
     isMoveNotation,
 } from './move-icon-generator';
 
+function getMoveSymbolArrowRef(symbolId: string): string | null {
+    const arrowUse = document.querySelector<SVGUseElement>(
+        `#${symbolId} g use[href^="#arrow-"]:last-of-type`
+    );
+
+    return arrowUse?.getAttribute('href') ?? null;
+}
+
 describe('move icon generator', () => {
     it('generates F icon wrapper with symbol reference', () => {
         // Act
@@ -57,39 +65,51 @@ describe('move icon generator', () => {
             'F',
             "F'",
             'F2',
+            "F2'",
             'B',
             "B'",
             'B2',
+            "B2'",
             'U',
             "U'",
             'U2',
+            "U2'",
             'D',
             "D'",
             'D2',
+            "D2'",
             'L',
             "L'",
             'L2',
+            "L2'",
             'R',
             "R'",
             'R2',
+            "R2'",
             'M',
             "M'",
             'M2',
+            "M2'",
             'E',
             "E'",
             'E2',
+            "E2'",
             'S',
             "S'",
             'S2',
+            "S2'",
             'x',
             "x'",
             'x2',
+            "x2'",
             'y',
             "y'",
             'y2',
+            "y2'",
             'z',
             "z'",
             'z2',
+            "z2'",
         ];
         // Test MOVE_ICONS proxy
         for (const key of moveKeys) {
@@ -115,8 +135,25 @@ describe('move icon generator', () => {
         // Assert
         expect(isMoveNotation('F')).toBe(true);
         expect(isMoveNotation("R'")).toBe(true);
+        expect(isMoveNotation("S2'")).toBe(true);
         expect(isMoveNotation('INVALID')).toBe(false);
         expect(isMoveNotation('')).toBe(false);
+    });
+
+    it('uses prime-specific half-turn arrows for directional 2-prime slice icons', () => {
+        // Arrange
+        const root = document.getElementById('move-icon-sprite-root');
+        if (root) root.remove();
+
+        // Act
+        generateMoveIconSvg("M2'");
+        generateMoveIconSvg("E2'");
+        generateMoveIconSvg("S2'");
+
+        // Assert
+        expect(getMoveSymbolArrowRef('move-icon-m2p')).toBe('#arrow-x-0-180-prime');
+        expect(getMoveSymbolArrowRef('move-icon-e2p')).toBe('#arrow-y-0-180-prime');
+        expect(getMoveSymbolArrowRef('move-icon-s2p')).toBe('#arrow-z-0-180-prime');
     });
 
     it('does not inject sprite when root already exists', () => {

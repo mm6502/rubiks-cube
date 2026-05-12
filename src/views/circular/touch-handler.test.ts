@@ -663,11 +663,11 @@ describe('CircularTouchHandler', () => {
         handler.onPointerMove(pointer('pointermove', 51, 265, 130));
         handler.onPointerUp(pointer('pointerup', 51, 265, 130), halo);
 
-        // Assert — a double move ending in '2'
+        // Assert — a double move (CW or CCW depending on gesture direction)
         const moveCall = emitSpy.mock.calls.find(c => c[0] === EventName.MOVE_REQUESTED);
         if (moveCall) {
             const notation = (moveCall[1] as { moveNotation: string }).moveNotation;
-            expect(notation).toMatch(/2$/);
+            expect(notation).toMatch(/2'?$/);
         }
 
         handler.destroy();
@@ -747,6 +747,29 @@ describe('CircularTouchHandler', () => {
         handler.destroy();
     });
 
+    it("emits CCW double move (e.g. R2') for CCW far drag on axis circle", () => {
+        // Regression: CCW far drags used to produce "R2" (CW) instead of "R2'"
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        const x2 = fixture.axisElements['X-2'];
+
+        // Act — far CCW drag: y decreases → negative angular displacement
+        handler.onPointerDown(pointer('pointerdown', 91, 300, 219), x2);
+        handler.onPointerMove(pointer('pointermove', 91, 220, 119));
+        handler.onPointerUp(pointer('pointerup', 91, 220, 119), x2);
+
+        // Assert — CCW double move ends in "2'"
+        const moveCall = emitSpy.mock.calls.find(c => c[0] === EventName.MOVE_REQUESTED);
+        if (moveCall) {
+            const notation = (moveCall[1] as { moveNotation: string }).moveNotation;
+            expect(notation).toMatch(/2'$/);
+        }
+
+        handler.destroy();
+    });
+
     it('emits sticker-cross-based move for sticker drag (rightward)', () => {
         // Arrange
         const emitSpy = vi.spyOn(Application.eventBus, 'emit');
@@ -778,11 +801,11 @@ describe('CircularTouchHandler', () => {
         handler.onPointerMove(pointer('pointermove', 58, 250, 220));
         handler.onPointerUp(pointer('pointerup', 58, 250, 220), fixture.fSticker);
 
-        // Assert — double move emitted
+        // Assert — double move emitted (CW or CCW depending on gesture direction)
         const moveCall = emitSpy.mock.calls.find(c => c[0] === EventName.MOVE_REQUESTED);
         if (moveCall) {
             const notation = (moveCall[1] as { moveNotation: string }).moveNotation;
-            expect(notation).toMatch(/2$/);
+            expect(notation).toMatch(/2'?$/);
         }
 
         handler.destroy();

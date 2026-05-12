@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CubeController } from '@/cube-controller';
+import { Axis, QuarterTurn } from '@/cube/types';
 import { MoveExecutedEvent } from '@/types';
 
 import { BasicView } from './basic-view';
+
+const R_DEFINITION = { name: 'R', axis: Axis.X, layerIndices: [2], angle: QuarterTurn.QUARTER };
+const U_DEFINITION = { name: 'U', axis: Axis.Y, layerIndices: [2], angle: QuarterTurn.QUARTER };
 
 // This suite exercises the view-level move handling logic which used to live
 // inside the selector helper.  The method now belongs on BasicView itself
@@ -26,7 +30,11 @@ describe('BasicView move handling', () => {
         const spySelective = vi.spyOn(view, 'updateSelective');
         const spyFull = vi.spyOn(view, 'update');
         const event: MoveExecutedEvent = {
-            moveDetails: { notation: 'R', movedCubies: { before: [], after: [] } },
+            moveDetails: {
+                notation: 'R',
+                definition: R_DEFINITION,
+                movedCubies: { before: [], after: [] },
+            },
             preState: controller.getCurrentState(),
             postState: controller.getCurrentState(),
         };
@@ -44,7 +52,11 @@ describe('BasicView move handling', () => {
         const spySelective = vi.spyOn(view, 'updateSelective');
         const spyFull = vi.spyOn(view, 'update');
         const event: MoveExecutedEvent = {
-            moveDetails: { notation: 'U', movedCubies: { before: [], after: [] } },
+            moveDetails: {
+                notation: 'U',
+                definition: U_DEFINITION,
+                movedCubies: { before: [], after: [] },
+            },
             preState: controller.getCurrentState(),
             postState: controller.getCurrentState(),
         };

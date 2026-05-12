@@ -11,6 +11,7 @@ import {
     axisLayerToNotation,
     inferMoveFromFaceRotation,
     inferWholeCubeMove,
+    toFar,
 } from '@/interaction/move-inference';
 import {
     type DragGesture,
@@ -479,8 +480,7 @@ export function inferMovesForGesture(state: TouchHandlerState, gesture: DragGest
             state.adapter.inferFaceRotationNotation?.(state.selectedFace, angular > 0, context) ??
             inferMoveFromFaceRotation(state.selectedFace, angular > 0);
         if (gesture.distancePx > state.dragStateMachine.farDragThresholdPx) {
-            const baseNotation = notation.replace(/'$/, '');
-            return [baseNotation + '2'];
+            return [toFar(notation)];
         }
         return [notation];
     }
@@ -508,8 +508,7 @@ export function inferMovesForGesture(state: TouchHandlerState, gesture: DragGest
             const isClockwise = angular > 0;
             const notation = axisToWholeCubeNotation(axis, isClockwise);
             if (effectiveDistance > state.dragStateMachine.farDragThresholdPx) {
-                const baseNotation = notation.replace(/'$/, '');
-                return [baseNotation + '2'];
+                return [toFar(notation)];
             }
             return [notation];
         }
@@ -534,7 +533,7 @@ export function inferMovesForGesture(state: TouchHandlerState, gesture: DragGest
         if (state.selectedAxisCircles.size > 0 && state.selectedAxisCircles.has(dragAxisKey)) {
             const notations = inferSelectedAxisNotations(state, isClockwiseOnScreen, context);
             if (effectiveDistance > state.dragStateMachine.farDragThresholdPx) {
-                return notations.map(n => n.replace(/'$/, '') + '2');
+                return notations.map(toFar);
             }
             return notations;
         }
@@ -543,8 +542,7 @@ export function inferMovesForGesture(state: TouchHandlerState, gesture: DragGest
             state.adapter.inferAxisCircleNotation?.(axis, layer, isClockwise, context) ??
             axisLayerToNotation(axis, layer, isClockwise, context.cubeSize);
         if (effectiveDistance > state.dragStateMachine.farDragThresholdPx) {
-            const baseNotation = notation.replace(/'$/, '');
-            return [baseNotation + '2'];
+            return [toFar(notation)];
         }
         return [notation];
     }
@@ -573,7 +571,7 @@ export function inferMovesForGesture(state: TouchHandlerState, gesture: DragGest
                 context
             ) ?? axisLayerToNotation(intent.axis, intent.layer, isClockwise, context.cubeSize);
         if (gesture.distancePx > state.dragStateMachine.farDragThresholdPx) {
-            return [notation.replace(/'$/, '') + '2'];
+            return [toFar(notation)];
         }
         return [notation];
     }
@@ -599,8 +597,7 @@ export function inferMovesForGesture(state: TouchHandlerState, gesture: DragGest
                   ? rightMove
                   : leftMove;
         if (gesture.distancePx > state.dragStateMachine.farDragThresholdPx) {
-            const baseMove = move.replace(/'$/, '');
-            return [baseMove + '2'];
+            return [toFar(move)];
         }
         return [move];
     }
@@ -619,8 +616,7 @@ export function inferMovesForGesture(state: TouchHandlerState, gesture: DragGest
             state.adapter.inferWholeCubeNotation?.(deltaX, deltaY, contextWithStart)
         );
         if (notation && gesture.distancePx > state.dragStateMachine.farDragThresholdPx) {
-            const baseNotation = notation.replace(/'$/, '');
-            return [baseNotation + '2'];
+            return [toFar(notation)];
         }
         return notation ? [notation] : [];
     }

@@ -10,7 +10,7 @@ import {
     MoveResult,
     ReadOnlyCubeModel,
 } from '@/cube/types';
-import { Command, EventName, MoveExecutedEvent, MoveRequestedEvent } from '@/types';
+import { Command, EventName, MoveRequestedEvent } from '@/types';
 
 import { getCommands as getCommandsInternal } from './cube-controller.commands';
 import { logger } from './diagnostics/logger';
@@ -81,7 +81,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         }
 
         // Emit event if requested.
-        if (emitEvent && lastResult) {
+        if (emitEvent && lastResult && lastDefinition) {
             Application.eventBus.emit(EventName.MOVE_EXECUTED, {
                 moveDetails: {
                     notation: move,
@@ -90,7 +90,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
                 },
                 preState: lastResult.preState,
                 postState: lastResult.postState,
-            } as MoveExecutedEvent);
+            });
         }
 
         return lastResult;
@@ -177,15 +177,19 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         // Get post-state after undo.
         const postState = this.getCurrentState();
 
+        // Parse the inverse move to get its definition (needed for animation).
+        const [inverseDefinition] = parseStringMove(inverseMove);
+
         // Emit event for undo operation.
         Application.eventBus.emit(EventName.MOVE_EXECUTED, {
             moveDetails: {
                 notation: inverseMove,
+                definition: inverseDefinition,
                 movedCubies: result?.movedCubies,
             },
             preState,
             postState,
-        } as MoveExecutedEvent);
+        });
 
         return true;
     }
@@ -208,15 +212,19 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         // Get post-state after redo.
         const postState = this.getCurrentState();
 
+        // Parse the move to get its definition (needed for animation).
+        const [redoDefinition] = parseStringMove(move);
+
         // Emit event for redo operation.
         Application.eventBus.emit(EventName.MOVE_EXECUTED, {
             moveDetails: {
                 notation: move,
+                definition: redoDefinition,
                 movedCubies: result?.movedCubies,
             },
             preState,
             postState,
-        } as MoveExecutedEvent);
+        });
 
         return true;
     }

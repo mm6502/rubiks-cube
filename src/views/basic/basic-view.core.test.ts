@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
+import { QuarterTurn } from '@/cube/types';
 import { EventName } from '@/types';
 
 import * as rendering from './rendering';
@@ -126,7 +127,7 @@ describe('BasicView core API', () => {
         another.setState({ isTilted: 'nope' } as any);
 
         // Act & Assert: old-format state (xRotation present) silently resets to default
-        another.setState({ xRotation: 90, yRotation: 0, zRotation: 0 });
+        another.setState({ xRotation: QuarterTurn.QUARTER, yRotation: 0, zRotation: 0 });
         expect((another as any).state.viewForward).toEqual({ x: 0, y: 0, z: -1 }); // back default
     });
 

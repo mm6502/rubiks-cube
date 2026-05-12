@@ -134,6 +134,9 @@ export type ViewInteractionAdapter = {
     /**
      * Returns WCA notation for a drag on an axis-circle element,
      * or undefined to fall back to default inference.
+     * Must return a base or prime quarter-turn notation (for example "R" or "R'").
+     * Do not return a 2-move notation here; far-drag promotion to 180° is applied
+     * by shared interaction logic.
      */
     inferAxisCircleNotation?: (
         axis: Axis,

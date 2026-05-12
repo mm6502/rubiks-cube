@@ -31,29 +31,36 @@ export function parseStringMove(moveString: string, cubeSize: number = 3): MoveD
  * @returns The inverse move notation
  */
 export function getInverseMove(move: string): string {
-    // Handle slice moves M, E, S
+    // Handle single-character stem moves (faces/slices/rotations): X, X', X2.
     if (move.length === 1 || (move.length === 2 && (move[1] === "'" || move[1] === '2'))) {
         const face = move[0];
         const modifier = move.length > 1 ? move[1] : '';
         if (modifier === '') return `${face}'`;
         if (modifier === "'") return face;
-        if (modifier === '2') return move;
+        if (modifier === '2') return `${face}2'`;
+    }
+
+    // Handle single-character stem + 2' suffix: X2'.
+    if (move.length === 3 && move[1] === '2' && move[2] === "'") {
+        return `${move[0]}2`;
     }
 
     // Handle wide moves and regular moves
-    const match = move.match(/^(\d*)([LRUDFBMES])(w?)(['2]?)$/);
+    const match = move.match(/^(\d*)([LRUDFBMES])(w?)(['2]|2')?$/);
     if (match) {
         const [, num, face, w, modifier] = match;
         const prefix = num || (w ? '' : ''); // keep num, or empty
         const wide = w || '';
-        if (modifier === '') return `${prefix}${face}${wide}'`;
+        if (modifier === '' || modifier === undefined) return `${prefix}${face}${wide}'`;
         if (modifier === "'") return `${prefix}${face}${wide}`;
-        if (modifier === '2') return move;
+        if (modifier === '2') return `${prefix}${face}${wide}2'`;
+        if (modifier === "2'") return `${prefix}${face}${wide}2`;
     }
 
     // Fallback
+    if (move.endsWith("2'")) return move.slice(0, -1);
     if (move.endsWith("'")) return move.slice(0, -1);
-    if (move.endsWith('2')) return move;
+    if (move.endsWith('2')) return move + "'";
     return move + "'";
 }
 
@@ -63,16 +70,24 @@ export function getInverseMove(move: string): string {
  * @returns Parsed move definition
  */
 function parseNotationToken(invariants: CubeInvariants, notation: string): MoveDefinition {
-    const match = notation.match(/^(\d*)([A-Za-z]+)(['2]?)$/);
+    const match = notation.match(/^(\d*)([A-Za-z]+)(['2]|2')?$/);
     if (!match) {
         throw new Error(`Invalid move: ${notation}`);
     }
 
     const [, prefix, letters, suffix] = match;
     const canonicalLetters = canonicalizeLetters(letters);
-    const canonical = `${prefix ?? ''}${canonicalLetters}${suffix ?? ''}`;
+    // Normalize "2'" to "2" for lookup so we can reuse the stored half-turn
+    // definition and then negate the angle below.
+    const lookupSuffix = suffix === "2'" ? '2' : (suffix ?? '');
+    const canonical = `${prefix ?? ''}${canonicalLetters}${lookupSuffix}`;
 
     const move = getMoveDefinition(invariants, canonical);
+
+    // If the notation has the "2'" suffix, negate the stored angle to get the opposite direction.
+    if (suffix === "2'") {
+        return { ...move, angle: -move.angle as typeof move.angle };
+    }
 
     return move;
 }

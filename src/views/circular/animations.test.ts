@@ -1,9 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import { Map as IMap } from 'immutable';
 
 import * as cubeUtils from '@/cube/utils';
-import { CubeState, Face, Position3D, PositionKey } from '@/cube/types';
+import { CubeState, Face, Position3D, PositionKey, QuarterTurn } from '@/cube/types';
 import { Axis } from '@/cube/types/common';
 import { MoveDefinition } from '@/cube/types/move';
 import { getPositionKey } from '@/cube/utils';
@@ -25,7 +23,7 @@ describe('Face Animation', () => {
                 name: 'U',
                 axis: Axis.Y,
                 layerIndices: [2],
-                angle: 90,
+                angle: QuarterTurn.QUARTER,
             };
 
             // Act
@@ -42,7 +40,7 @@ describe('Face Animation', () => {
                 name: 'D',
                 axis: Axis.Y,
                 layerIndices: [0],
-                angle: 90,
+                angle: QuarterTurn.QUARTER,
             };
 
             // Act
@@ -59,7 +57,7 @@ describe('Face Animation', () => {
                 name: 'R',
                 axis: Axis.X,
                 layerIndices: [2],
-                angle: 90,
+                angle: QuarterTurn.QUARTER,
             };
 
             // Act
@@ -76,7 +74,7 @@ describe('Face Animation', () => {
                 name: 'L',
                 axis: Axis.X,
                 layerIndices: [0],
-                angle: 90,
+                angle: QuarterTurn.QUARTER,
             };
 
             // Act
@@ -93,7 +91,7 @@ describe('Face Animation', () => {
                 name: 'F',
                 axis: Axis.Z,
                 layerIndices: [0],
-                angle: 90,
+                angle: QuarterTurn.QUARTER,
             };
 
             // Act
@@ -110,7 +108,7 @@ describe('Face Animation', () => {
                 name: 'B',
                 axis: Axis.Z,
                 layerIndices: [2],
-                angle: 90,
+                angle: QuarterTurn.QUARTER,
             };
 
             // Act
@@ -127,7 +125,7 @@ describe('Face Animation', () => {
                 name: 'E',
                 axis: Axis.Y,
                 layerIndices: [0, 2],
-                angle: 90,
+                angle: QuarterTurn.QUARTER,
             };
 
             // Act
@@ -265,7 +263,12 @@ describe('Face Animation', () => {
                 stickerLookupMap.get(posKey)!.set(Face.F, targetId);
             }
 
-            const move: MoveDefinition = { name: 'F', axis: Axis.Z, layerIndices: [0], angle: 90 };
+            const move: MoveDefinition = {
+                name: 'F',
+                axis: Axis.Z,
+                layerIndices: [0],
+                angle: QuarterTurn.QUARTER,
+            };
 
             const postState = {
                 cubeSize: 3,
@@ -353,7 +356,12 @@ describe('Face Animation', () => {
                 { id: 'id', axis: Axis.Z, layer: 1, cx: 100, cy: 100, r: 50 },
             ];
 
-            const move: MoveDefinition = { name: 'M', axis: Axis.Z, layerIndices: [1], angle: 90 };
+            const move: MoveDefinition = {
+                name: 'M',
+                axis: Axis.Z,
+                layerIndices: [1],
+                angle: QuarterTurn.QUARTER,
+            };
 
             // Act
             await animateFaceRotation(
@@ -453,7 +461,12 @@ describe('Face Animation', () => {
             stickerLookupMap.set(posKeyA, new Map([[Face.F, 'target-a']]));
             stickerLookupMap.set(posKeyB, new Map([[Face.F, 'target-b']]));
 
-            const move: MoveDefinition = { name: 'F', axis: Axis.Z, layerIndices: [0], angle: -90 };
+            const move: MoveDefinition = {
+                name: 'F',
+                axis: Axis.Z,
+                layerIndices: [0],
+                angle: QuarterTurn.QUARTER_NEG,
+            };
 
             const postState = {
                 cubeSize: 3,
@@ -465,7 +478,7 @@ describe('Face Animation', () => {
             // Spy on utils to control rotation map and effective angle
             const spyAxis = vi
                 .spyOn(cubeUtils, 'getFaceRotationAxis')
-                .mockReturnValue({ effectiveAngle: -90 } as any);
+                .mockReturnValue({ effectiveAngle: QuarterTurn.QUARTER_NEG } as any);
 
             // Act
             await animateFaceRotation(
@@ -506,7 +519,12 @@ describe('Face Animation', () => {
 
             const stickers: SVGCircleElement[] = [c];
 
-            const move: MoveDefinition = { name: 'F', axis: Axis.Z, layerIndices: [], angle: 90 };
+            const move: MoveDefinition = {
+                name: 'F',
+                axis: Axis.Z,
+                layerIndices: [],
+                angle: QuarterTurn.QUARTER,
+            };
 
             const postState = {
                 cubeSize: 3,
@@ -517,7 +535,7 @@ describe('Face Animation', () => {
 
             const spyAxis = vi
                 .spyOn(cubeUtils, 'getFaceRotationAxis')
-                .mockReturnValue({ effectiveAngle: 90 } as any);
+                .mockReturnValue({ effectiveAngle: QuarterTurn.QUARTER } as any);
 
             // Act
             await animateFaceRotation(
@@ -618,7 +636,12 @@ describe('Face Animation', () => {
             stickerLookupMap.set(posKeyA, new Map([[Face.F, 'target-a']]));
             stickerLookupMap.set(posKeyB, new Map([[Face.F, 'target-b']]));
 
-            const move: MoveDefinition = { name: 'F', axis: Axis.Z, layerIndices: [0], angle: 90 };
+            const move: MoveDefinition = {
+                name: 'F',
+                axis: Axis.Z,
+                layerIndices: [0],
+                angle: QuarterTurn.QUARTER,
+            };
 
             const postState = {
                 cubeSize: 3,
@@ -629,7 +652,7 @@ describe('Face Animation', () => {
 
             const spyAxis = vi
                 .spyOn(cubeUtils, 'getFaceRotationAxis')
-                .mockReturnValue({ effectiveAngle: 90 } as any);
+                .mockReturnValue({ effectiveAngle: QuarterTurn.QUARTER } as any);
 
             // Act
             await animateFaceRotation(
@@ -719,7 +742,12 @@ describe('Face Animation', () => {
                 { id: 'id', axis: Axis.Z, layer: 1, cx: 100, cy: 100, r: 50 },
             ];
 
-            const move: MoveDefinition = { name: 'M', axis: Axis.Z, layerIndices: [1], angle: 90 };
+            const move: MoveDefinition = {
+                name: 'M',
+                axis: Axis.Z,
+                layerIndices: [1],
+                angle: QuarterTurn.QUARTER,
+            };
 
             // Act
             await animateFaceRotation(
@@ -793,7 +821,12 @@ describe('Face Animation', () => {
                 { id: 'id', axis: Axis.X, layer: 1, cx: 100, cy: 100, r: 50 },
             ];
 
-            const move: MoveDefinition = { name: 'M', axis: Axis.X, layerIndices: [1], angle: 90 };
+            const move: MoveDefinition = {
+                name: 'M',
+                axis: Axis.X,
+                layerIndices: [1],
+                angle: QuarterTurn.QUARTER,
+            };
 
             // Act
             await animateFaceRotation(
@@ -870,7 +903,12 @@ describe('Face Animation', () => {
                 { id: 'id', axis: Axis.Z, layer: 1, cx: 100, cy: 100, r: 50 },
             ];
 
-            const move: MoveDefinition = { name: 'M', axis: Axis.Z, layerIndices: [1], angle: 90 };
+            const move: MoveDefinition = {
+                name: 'M',
+                axis: Axis.Z,
+                layerIndices: [1],
+                angle: QuarterTurn.QUARTER,
+            };
 
             // Act
             await animateFaceRotation(
@@ -893,6 +931,86 @@ describe('Face Animation', () => {
             const keyframes = (animateSpy as any).mock.calls[0]?.[0];
             expect(keyframes).toBeDefined();
             expect(keyframes[1].transform).toContain('rotate(-270deg)');
+        });
+
+        it('uses deterministic -180deg tiebreak when adjacent angle is negative', async () => {
+            // Arrange
+            const fakeAnimation = {
+                finished: Promise.resolve(),
+                cancel: vi.fn(),
+            } as unknown as Animation;
+            const animateSpy = vi.fn(() => fakeAnimation);
+            (Element.prototype as any).animate = animateSpy;
+
+            const svgRoot = document.createElementNS(
+                'http://www.w3.org/2000/svg',
+                'svg'
+            ) as unknown as SVGSVGElement;
+
+            const source = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            source.classList.add('sticker');
+            source.setAttribute('data-sticker-id', 's180');
+            source.setAttribute('data-face', Face.U);
+            source.setAttribute('cx', '150');
+            source.setAttribute('cy', '100');
+            svgRoot.appendChild(source);
+
+            const target = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            target.id = 't180';
+            target.classList.add('sticker');
+            target.setAttribute('data-face', Face.U);
+            target.setAttribute('cx', '50');
+            target.setAttribute('cy', '100');
+            svgRoot.appendChild(target);
+
+            const targetPosition = { x: 0, y: 1, z: 0 } as Position3D;
+            const cubie = {
+                position: targetPosition,
+                stickers: new Map([[Face.U, { id: 's180', currentFace: Face.U, facePosition: 0 }]]),
+            } as any;
+
+            const postState = {
+                cubeSize: 3,
+                cubiesById: IMap().set('c180', cubie),
+                cubiesByPosition: IMap(),
+                timestamp: 0,
+            } as unknown as CubeState;
+
+            const stickerLookupMap: Map<PositionKey, Map<Face, string>> = new Map();
+            stickerLookupMap.set(getPositionKey(targetPosition), new Map([[Face.U, 't180']]));
+
+            const axisCircles: AxisCircle[] = [
+                { id: 'z1', axis: Axis.Z, layer: 1, cx: 100, cy: 100, r: 50 },
+            ];
+
+            const move: MoveDefinition = {
+                name: 'M',
+                axis: Axis.Z,
+                layerIndices: [1],
+                angle: QuarterTurn.QUARTER,
+            };
+
+            // Act
+            await animateFaceRotation(
+                undefined,
+                [],
+                move,
+                postState,
+                svgRoot,
+                axisCircles,
+                stickerLookupMap,
+                {
+                    duration: 10,
+                    easing: 'ease-out',
+                    steps: 10,
+                }
+            );
+
+            // Assert: 0° -> 180° tie should resolve to -180° for negative adjacent angle.
+            expect(animateSpy).toHaveBeenCalled();
+            const keyframes = (animateSpy as any).mock.calls[0]?.[0];
+            expect(keyframes).toBeDefined();
+            expect(keyframes[1].transform).toContain('rotate(-180deg)');
         });
 
         it('animateMove returns early when svgRoot is missing', async () => {
@@ -924,7 +1042,12 @@ describe('Face Animation', () => {
 
             const event: MoveExecutedEvent = {
                 moveDetails: {
-                    definition: { name: 'M', axis: Axis.Z, layerIndices: [1], angle: 90 },
+                    definition: {
+                        name: 'M',
+                        axis: Axis.Z,
+                        layerIndices: [1],
+                        angle: QuarterTurn.QUARTER,
+                    },
                 } as any,
                 preState: { cubeSize: 3 } as any,
                 postState: {
@@ -988,7 +1111,12 @@ describe('Face Animation', () => {
             // Arrange
             const event: MoveExecutedEvent = {
                 moveDetails: {
-                    definition: { name: 'U', axis: Axis.Y, layerIndices: [2], angle: 90 },
+                    definition: {
+                        name: 'U',
+                        axis: Axis.Y,
+                        layerIndices: [2],
+                        angle: QuarterTurn.QUARTER,
+                    },
                 } as any,
                 preState: { cubeSize: 3 } as any,
                 postState: {
@@ -1058,7 +1186,12 @@ describe('Face Animation', () => {
 
             const event: MoveExecutedEvent = {
                 moveDetails: {
-                    definition: { name: 'U', axis: Axis.Y, layerIndices: [2], angle: 90 },
+                    definition: {
+                        name: 'U',
+                        axis: Axis.Y,
+                        layerIndices: [2],
+                        angle: QuarterTurn.QUARTER,
+                    },
                 } as any,
                 preState: { cubeSize: 3 } as any,
                 postState: {
@@ -1203,7 +1336,12 @@ describe('Face Animation', () => {
                 { id: 'z0', axis: Axis.Z, layer: 0, cx: 100, cy: 100, r: 50 },
             ];
 
-            const move: MoveDefinition = { name: 'F', axis: Axis.Z, layerIndices: [0], angle: 90 };
+            const move: MoveDefinition = {
+                name: 'F',
+                axis: Axis.Z,
+                layerIndices: [0],
+                angle: QuarterTurn.QUARTER,
+            };
 
             // Act
             await animateFaceRotation(

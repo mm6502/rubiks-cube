@@ -105,9 +105,8 @@ export interface MoveExecutedEvent {
 
         /**
          * Detailed cube move definition describing axis, layers, and angle.
-         * Optional when legacy controllers cannot produce structured details.
          */
-        definition?: MoveDefinition;
+        definition: MoveDefinition;
 
         /**
          * Information about cubies that were moved during this operation.
