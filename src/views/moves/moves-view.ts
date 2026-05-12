@@ -61,6 +61,7 @@ export class MovesView implements CubeView {
         // Refresh move history reference (important for state imports).
         this.moveHistory = model.getMoveHistory();
         if (this.renderer) {
+            this.renderer.setMoveHistory(this.moveHistory);
             this.renderer.render();
         }
     }

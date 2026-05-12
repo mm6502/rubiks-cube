@@ -51,6 +51,11 @@ export class MovesViewRenderer {
         this.showAsIcons = showAsIcons;
     }
 
+    /** Update the move history reference (used after state import). */
+    setMoveHistory(moveHistory: MoveHistory): void {
+        this.moveHistory = moveHistory;
+    }
+
     /**
      * Full render - re-renders the entire move history.
      */
