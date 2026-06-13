@@ -1,7 +1,8 @@
 import { Application } from '@/application';
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
-import { clamp, normalize2 } from '@/cube/utils/math';
+import { normalize2 } from '@/cube/utils/math';
+import { computeDragLabelPosition } from '@/interaction/drag-label-positioning';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { inferMoveFromDrag, inferMoveFromFaceRotation, toFar } from '@/interaction/move-inference';
 import {
@@ -18,8 +19,8 @@ import { EventName, MoveRequestedEvent } from '@/types';
 import { ViewRotation } from '@/types/geometry';
 
 import * as navigation from './navigation';
-import type { BasicViewInternalData } from './basic-view';
 import { buildFaceScreenBasis } from './interaction-adapter';
+import type { BasicViewInternalData } from './types';
 
 type StickerHit = {
     stickerElement: HTMLElement;
@@ -278,6 +279,11 @@ export class BasicTouchHandler {
     // Pointer event handlers
     // -------------------------------------------------------------------------
 
+    /**
+     * Pointer-down handler — determines gesture kind (halo, sticker, background)
+     * based on hit target and starts the drag state machine with the appropriate
+     * rotation centre.
+     */
     private onPointerDown(event: PointerEvent): void {
         if (this.activePointerId !== undefined) return;
 
@@ -376,6 +382,10 @@ export class BasicTouchHandler {
         }
     }
 
+    /**
+     * Pointer-move handler — forwards to the drag state machine when a drag
+     * is active, or updates the hover cursor when no pointer is captured.
+     */
     private onPointerMove(event: PointerEvent): void {
         if (this.activePointerId === undefined) {
             this.updateHoverCursor(event.clientX, event.clientY);
@@ -395,12 +405,20 @@ export class BasicTouchHandler {
         this.dragStateMachine.onPointerMove(event);
     }
 
+    /**
+     * Pointer-leave handler — resets the grab cursor when the pointer exits
+     * the host without an active drag.
+     */
     private onPointerLeave(_event: PointerEvent): void {
         if (this.activePointerId === undefined) {
             this.host.style.cursor = '';
         }
     }
 
+    /**
+     * Pointer-up handler — finishes the gesture via the drag state machine
+     * and handles taps (pointer-up without drag) as sticker/face selection.
+     */
     private onPointerUp(event: PointerEvent): void {
         if (this.activePointerId !== event.pointerId) return;
 
@@ -421,6 +439,9 @@ export class BasicTouchHandler {
         this.resetActivePointer();
     }
 
+    /**
+     * Pointer-cancel handler — aborts any active gesture and resets state.
+     */
     private onPointerCancel(event: PointerEvent): void {
         if (this.activePointerId !== event.pointerId) return;
 
@@ -432,6 +453,11 @@ export class BasicTouchHandler {
         this.resetActivePointer();
     }
 
+    /**
+     * Click-capture handler — suppresses the `click` event that would
+     * otherwise fire after a drag gesture completes, preventing unintended
+     * tap actions.
+     */
     private onClickCapture(event: MouseEvent): void {
         if (!this.suppressNextClick) return;
         event.preventDefault();
@@ -440,6 +466,10 @@ export class BasicTouchHandler {
         this.suppressNextClick = false;
     }
 
+    /**
+     * Reset all active-pointer state after a gesture finishes or cancels.
+     * Releases pointer capture, hides overlays, and restores the cursor.
+     */
     private resetActivePointer(): void {
         if (this.activePointerId !== undefined) {
             this.host.releasePointerCapture?.(this.activePointerId);
@@ -456,6 +486,11 @@ export class BasicTouchHandler {
         this.host.style.cursor = '';
     }
 
+    /**
+     * Restore the previously selected face after a face-direct-mode gesture
+     * completes or cancels.  Face-direct mode temporarily swaps the selected
+     * face for a single drag; this undoes that swap.
+     */
     private restoreTempFaceState(): void {
         if (this.directModeTempFace === undefined) {
             return;
@@ -468,6 +503,11 @@ export class BasicTouchHandler {
         this.updateHaloPosition();
     }
 
+    /**
+     * Update the cursor based on pointer position during idle hover
+     * (no active pointer). Shows grab cursor over stickers and outside
+     * the cube, default cursor inside the cube.
+     */
     private updateHoverCursor(clientX: number, clientY: number): void {
         const hit = this.getStickerHitFromPoint(clientX, clientY);
         if (hit) {
@@ -489,6 +529,11 @@ export class BasicTouchHandler {
     // Tap handling
     // -------------------------------------------------------------------------
 
+    /**
+     * Handle a tap (pointer-up without drag) on a sticker or the background.
+     * Toggles face selection: tapping the same face deselects it, tapping a
+     * different face selects it, tapping the background deselects all.
+     */
     private handleTap(hit: StickerHit | undefined): void {
         if (!hit) {
             // Tapped background — deselect
@@ -513,6 +558,11 @@ export class BasicTouchHandler {
     // Gesture inference
     // -------------------------------------------------------------------------
 
+    /**
+     * Drag-update callback from the drag state machine.
+     * For background drags, shows a directional label (↑↓←→);
+     * for halo/sticker drags, infers the WCA move notation and shows it.
+     */
     private updateFromGesture(gesture: DragGesture): void {
         if (this.activeGestureKind === HitKind.BACKGROUND) {
             const backgroundLabel = this.getBackgroundDragPreviewLabel(gesture);
@@ -533,6 +583,12 @@ export class BasicTouchHandler {
         this.showDragLabel(moveNotation, gesture.current.x, gesture.current.y);
     }
 
+    /**
+     * Drag-end callback from the drag state machine.
+     * For background drags, performs a discrete view rotation step.
+     * For halo/sticker drags, infers the final move notation and emits
+     * a MOVE_REQUESTED event.
+     */
     private finalizeGesture(gesture: DragGesture): void {
         this.hideDragLabel();
 
@@ -552,83 +608,105 @@ export class BasicTouchHandler {
         Application.eventBus.emit(EventName.MOVE_REQUESTED, payload);
     }
 
+    /**
+     * Route gesture to the appropriate move-inference helper.
+     * Returns undefined if the gesture hasn't exceeded the commit distance
+     * or the gesture kind doesn't map to a supported move.
+     */
     private inferMoveNotationForGesture(gesture: DragGesture): string | undefined {
         if (gesture.distancePx < this.activeCommitDistancePx) return undefined;
 
-        // --- Halo / face rotation ---
         if (this.activeGestureKind === HitKind.HALO && this.selectedFace) {
-            const center = this.haloFaceCenter;
-            const startDistFromCenter = center
-                ? Math.hypot(gesture.start.x - center.x, gesture.start.y - center.y)
-                : Infinity;
-            const nearCenterThreshold = center ? center.size / 4 : 0;
-            const isNearCenter = startDistFromCenter < nearCenterThreshold;
-
-            let clockwise: boolean;
-            if (isNearCenter && center) {
-                const armX = gesture.current.x - center.x;
-                const armY = gesture.current.y - center.y;
-                const cross = gesture.deltaX * armY - gesture.deltaY * armX;
-                clockwise = cross < 0;
-            } else {
-                const angular = gesture.angularDisplacementRad;
-                if (angular === undefined || Math.abs(angular) < 0.1) return undefined;
-                clockwise = angular > 0;
-            }
-
-            const baseNotation =
-                this.adapter.inferFaceRotationNotation?.(
-                    this.selectedFace,
-                    clockwise,
-                    this.createInteractionContext()
-                ) ?? inferMoveFromFaceRotation(this.selectedFace, clockwise);
-
-            if (gesture.distancePx > this.dragStateMachine.farDragThresholdPx) {
-                return toFar(baseNotation);
-            }
-            return baseNotation;
+            return this.inferHaloRotation(gesture);
         }
 
-        // --- Sticker drag → layer move ---
         if (this.activeGestureKind === HitKind.STICKER && this.startHit) {
-            if (this.pendingStickerCross) {
-                const { basis, upMove, downMove, rightMove, leftMove } = this.pendingStickerCross;
-                const dUp = gesture.deltaX * basis.upDir.x + gesture.deltaY * basis.upDir.y;
-                const dRight =
-                    gesture.deltaX * basis.rightDir.x + gesture.deltaY * basis.rightDir.y;
-                const baseMove =
-                    Math.abs(dUp) >= Math.abs(dRight)
-                        ? dUp > 0
-                            ? upMove
-                            : downMove
-                        : dRight > 0
-                          ? rightMove
-                          : leftMove;
-                if (gesture.distancePx > this.dragStateMachine.farDragThresholdPx) {
-                    return toFar(baseMove);
-                }
-                return baseMove;
-            }
-
-            // Fallback: adapter-based direction remapping (used if screen basis was degenerate)
-            const { face, row, col } = this.startHit;
-            const context = this.createInteractionContext();
-            const mappedDirection =
-                this.adapter.mapDragDirection?.(gesture.direction, face, context) ??
-                gesture.direction;
-
-            return inferMoveFromDrag({
-                face,
-                row,
-                col,
-                direction: mappedDirection,
-                cubeSize: context.cubeSize,
-                distancePx: gesture.distancePx,
-                farDragThresholdPx: this.dragStateMachine.farDragThresholdPx,
-            });
+            return this.inferStickerLayerMove(gesture);
         }
 
         return undefined;
+    }
+
+    /**
+     * Infer a face-rotation move from a halo drag gesture.
+     *
+     * Uses cross-product for near-center drags (more precise for small
+     * angular displacements) and angular displacement for edge drags.
+     */
+    private inferHaloRotation(gesture: DragGesture): string | undefined {
+        const center = this.haloFaceCenter;
+        const startDistFromCenter = center
+            ? Math.hypot(gesture.start.x - center.x, gesture.start.y - center.y)
+            : Infinity;
+        const nearCenterThreshold = center ? center.size / 4 : 0;
+        const isNearCenter = startDistFromCenter < nearCenterThreshold;
+
+        let clockwise: boolean;
+        if (isNearCenter && center) {
+            const armX = gesture.current.x - center.x;
+            const armY = gesture.current.y - center.y;
+            const cross = gesture.deltaX * armY - gesture.deltaY * armX;
+            clockwise = cross < 0;
+        } else {
+            const angular = gesture.angularDisplacementRad;
+            if (angular === undefined || Math.abs(angular) < 0.1) return undefined;
+            clockwise = angular > 0;
+        }
+
+        const baseNotation =
+            this.adapter.inferFaceRotationNotation?.(
+                this.selectedFace!,
+                clockwise,
+                this.createInteractionContext()
+            ) ?? inferMoveFromFaceRotation(this.selectedFace!, clockwise);
+
+        return gesture.distancePx > this.dragStateMachine.farDragThresholdPx
+            ? toFar(baseNotation)
+            : baseNotation;
+    }
+
+    /**
+     * Infer a layer-move notation from a sticker drag gesture.
+     *
+     * When a pre-computed drag cross is available, resolves the dominant
+     * axis (up/down vs left/right) from the gesture delta projected onto
+     * the face's screen-space basis. Falls back to adapter-based direction
+     * remapping when the screen basis was degenerate.
+     */
+    private inferStickerLayerMove(gesture: DragGesture): string | undefined {
+        if (this.pendingStickerCross) {
+            const { basis, upMove, downMove, rightMove, leftMove } = this.pendingStickerCross;
+            const dUp = gesture.deltaX * basis.upDir.x + gesture.deltaY * basis.upDir.y;
+            const dRight = gesture.deltaX * basis.rightDir.x + gesture.deltaY * basis.rightDir.y;
+            const baseMove =
+                Math.abs(dUp) >= Math.abs(dRight)
+                    ? dUp > 0
+                        ? upMove
+                        : downMove
+                    : dRight > 0
+                      ? rightMove
+                      : leftMove;
+            return gesture.distancePx > this.dragStateMachine.farDragThresholdPx
+                ? toFar(baseMove)
+                : baseMove;
+        }
+
+        // Fallback: adapter-based direction remapping (used if screen basis was degenerate)
+        const hit = this.startHit!;
+        const context = this.createInteractionContext();
+        const mappedDirection =
+            this.adapter.mapDragDirection?.(gesture.direction, hit.face, context) ??
+            gesture.direction;
+
+        return inferMoveFromDrag({
+            face: hit.face,
+            row: hit.row,
+            col: hit.col,
+            direction: mappedDirection,
+            cubeSize: context.cubeSize,
+            distancePx: gesture.distancePx,
+            farDragThresholdPx: this.dragStateMachine.farDragThresholdPx,
+        });
     }
 
     /**
@@ -824,6 +902,12 @@ export class BasicTouchHandler {
     // Drag label
     // -------------------------------------------------------------------------
 
+    /**
+     * Show the floating drag label at the given client position.
+     * In tabbed mode uses fixed positioning (viewport-relative);
+     * in floating mode uses local positioning (host-relative) with
+     * an offset for touch pointers.
+     */
     private showDragLabel(label: string, clientX: number, clientY: number): void {
         const hostRect = this.host.getBoundingClientRect();
         this.dragLabelEl.textContent = label;
@@ -832,38 +916,23 @@ export class BasicTouchHandler {
         const labelWidth = this.dragLabelEl.offsetWidth || 40;
         const labelHeight = this.dragLabelEl.offsetHeight || 22;
 
-        let x: number;
-        let y: number;
+        const result = computeDragLabelPosition({
+            layoutMode: this.layoutMode,
+            clientX,
+            clientY,
+            hostRect,
+            labelWidth,
+            labelHeight,
+            activePointerType: this.activePointerType,
+        });
 
-        if (this.layoutMode === LayoutMode.Tabbed) {
-            this.dragLabelEl.style.position = 'fixed';
-            this.dragLabelEl.style.zIndex = '10000';
-            x = clientX - labelWidth / 2;
-            y = clientY - labelHeight - 50;
-            x = clamp(x, 4, window.innerWidth - labelWidth - 4);
-            y = clamp(y, 4, window.innerHeight - labelHeight - 4);
-        } else {
-            this.dragLabelEl.style.position = '';
-            this.dragLabelEl.style.zIndex = '';
-            const localX = clientX - hostRect.left;
-            const localY = clientY - hostRect.top;
-
-            x = localX + 14;
-            y = localY + 14;
-
-            if (this.activePointerType === 'touch') {
-                x = localX - labelWidth / 2;
-                y = localY - labelHeight - 36;
-            }
-
-            x = clamp(x, 4, hostRect.width - labelWidth - 4);
-            y = clamp(y, 4, hostRect.height - labelHeight - 4);
-        }
-
-        this.dragLabelEl.style.left = `${x}px`;
-        this.dragLabelEl.style.top = `${y}px`;
+        this.dragLabelEl.style.position = result.position;
+        this.dragLabelEl.style.zIndex = result.zIndex;
+        this.dragLabelEl.style.left = `${result.x}px`;
+        this.dragLabelEl.style.top = `${result.y}px`;
     }
 
+    /** Hide the drag label and reset any layout-mode-specific styling. */
     private hideDragLabel(): void {
         this.dragLabelEl.style.display = 'none';
         this.dragLabelEl.style.position = '';
@@ -874,6 +943,10 @@ export class BasicTouchHandler {
     // Cancellation zone
     // -------------------------------------------------------------------------
 
+    /**
+     * Show the dashed cancellation zone circle centred at the pointer-down
+     * origin.  Dragging back inside this zone cancels the gesture.
+     */
     private showCancellationZoneAtOrigin(clientX: number, clientY: number): void {
         const hostRect = this.host.getBoundingClientRect();
         const radius = this.cancelZoneRadiusPx();
@@ -886,25 +959,21 @@ export class BasicTouchHandler {
         this.haloCancelZoneEl.style.display = 'block';
     }
 
+    /** Hide the cancellation zone overlay. */
     private hideCancellationZone(): void {
         this.haloCancelZoneEl.style.display = 'none';
     }
 
+    /**
+     * Return the cancellation zone radius in pixels, scaled up for
+     * tabbed layout to account for the larger clickable area.
+     */
     private cancelZoneRadiusPx(): number {
         return this.layoutMode === LayoutMode.Tabbed
             ? CANCEL_ZONE_RADIUS_BASE_PX * CANCEL_ZONE_TABBED_MULTIPLIER
             : CANCEL_ZONE_RADIUS_BASE_PX;
     }
 
-    // -------------------------------------------------------------------------
-    // Drag decision cross / line indicator
-    // -------------------------------------------------------------------------
-
-    /**
-     * At pointer-down on a sticker (normal mode), pre-computes all 4 possible moves
-     * and caches the face screen-space basis for gesture resolution at drag-end.
-     * Shows a dashed cross whose arms represent zone boundaries.
-     */
     /**
      * Returns the screen-space up and right unit vectors for a face by reading
      * the actual 2D projected positions of DOM sticker elements.  This correctly
@@ -948,6 +1017,11 @@ export class BasicTouchHandler {
         return { upDir, rightDir };
     }
 
+    /**
+     * At pointer-down on a sticker (normal mode), pre-computes all 4 possible
+     * moves and caches the face screen-space basis in `pendingStickerCross`.
+     * Shows a dashed cross whose arms represent zone boundaries.
+     */
     private setupStickerDragCross(sticker: StickerHit, clientX: number, clientY: number): void {
         const cubeSize = this.getCubeSize();
         const { face, row, col } = sticker;
@@ -1058,6 +1132,10 @@ export class BasicTouchHandler {
         this.dragDecisionSvgEl.removeAttribute('visibility');
     }
 
+    /**
+     * Show a single radial line from the face center through the touch point,
+     * indicating the CW/CCW rotation boundary for halo/face-direct drags.
+     */
     private showDragDecisionLine(dir: Point2D, clientX: number, clientY: number): void {
         const hostRect = this.host.getBoundingClientRect();
         const cx = clientX - hostRect.left;
@@ -1072,6 +1150,7 @@ export class BasicTouchHandler {
         this.dragDecisionSvgEl.removeAttribute('visibility');
     }
 
+    /** Hide the drag decision overlay and clear `pendingStickerCross`. */
     private hideDragDecision(): void {
         this.pendingStickerCross = undefined;
         this.dragDecisionSvgEl.setAttribute('visibility', 'hidden');
@@ -1081,6 +1160,7 @@ export class BasicTouchHandler {
     // Helpers
     // -------------------------------------------------------------------------
 
+    /** Build an InteractionContext snapshot for move-inference functions. */
     private createInteractionContext(): InteractionContext {
         return {
             cubeSize: this.getCubeSize(),
@@ -1088,6 +1168,11 @@ export class BasicTouchHandler {
         };
     }
 
+    /**
+     * Determine if the pointer-up qualifies as a tap (movement stayed within
+     * the drag threshold).  Used when `activePointerAllowsDrag` is false but
+     * we still need to check for a tap.
+     */
     private wasTapWithoutDrag(clientX: number, clientY: number): boolean {
         /* c8 ignore if */
         if (!this.activePointerOrigin) return false;

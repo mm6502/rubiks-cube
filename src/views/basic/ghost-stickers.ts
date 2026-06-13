@@ -1,18 +1,18 @@
-import { Face, ReadOnlyCubeModel, resolveCubeColor } from '@/cube/types';
+import { Face, FaceEdge, ReadOnlyCubeModel, resolveCubeColor } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 
 import ghostStyles from './ghost-stickers.module.css';
 
 /** Get the 3 sticker positions on a face's edge in strip display order. */
-function getEdgePositions(edgeDir: 'top' | 'bottom' | 'left' | 'right'): number[] {
+function getEdgePositions(edgeDir: FaceEdge): number[] {
     switch (edgeDir) {
-        case 'top':
+        case FaceEdge.TOP:
             return [0, 1, 2];
-        case 'bottom':
+        case FaceEdge.BOTTOM:
             return [6, 7, 8];
-        case 'left':
+        case FaceEdge.LEFT:
             return [0, 3, 6];
-        case 'right':
+        case FaceEdge.RIGHT:
             return [2, 5, 8];
     }
 }
@@ -48,9 +48,9 @@ export function getGhostOpacityIndex(): number {
  */
 type CubeEdge = {
     faceA: Face;
-    edgeOnA: 'top' | 'bottom' | 'left' | 'right';
+    edgeOnA: FaceEdge;
     faceB: Face;
-    edgeOnB: 'top' | 'bottom' | 'left' | 'right';
+    edgeOnB: FaceEdge;
 };
 
 /**
@@ -58,18 +58,18 @@ type CubeEdge = {
  * Sticker positions are resolved at runtime from the cube model.
  */
 export const CUBE_EDGE_MAP: CubeEdge[] = [
-    { faceA: Face.F, edgeOnA: 'top', faceB: Face.U, edgeOnB: 'bottom' },
-    { faceA: Face.F, edgeOnA: 'bottom', faceB: Face.D, edgeOnB: 'top' },
-    { faceA: Face.F, edgeOnA: 'left', faceB: Face.L, edgeOnB: 'right' },
-    { faceA: Face.F, edgeOnA: 'right', faceB: Face.R, edgeOnB: 'left' },
-    { faceA: Face.B, edgeOnA: 'top', faceB: Face.U, edgeOnB: 'top' },
-    { faceA: Face.B, edgeOnA: 'bottom', faceB: Face.D, edgeOnB: 'bottom' },
-    { faceA: Face.B, edgeOnA: 'right', faceB: Face.L, edgeOnB: 'left' },
-    { faceA: Face.B, edgeOnA: 'left', faceB: Face.R, edgeOnB: 'right' },
-    { faceA: Face.U, edgeOnA: 'left', faceB: Face.L, edgeOnB: 'top' },
-    { faceA: Face.U, edgeOnA: 'right', faceB: Face.R, edgeOnB: 'top' },
-    { faceA: Face.D, edgeOnA: 'left', faceB: Face.L, edgeOnB: 'bottom' },
-    { faceA: Face.D, edgeOnA: 'right', faceB: Face.R, edgeOnB: 'bottom' },
+    { faceA: Face.F, edgeOnA: FaceEdge.TOP, faceB: Face.U, edgeOnB: FaceEdge.BOTTOM },
+    { faceA: Face.F, edgeOnA: FaceEdge.BOTTOM, faceB: Face.D, edgeOnB: FaceEdge.TOP },
+    { faceA: Face.F, edgeOnA: FaceEdge.LEFT, faceB: Face.L, edgeOnB: FaceEdge.RIGHT },
+    { faceA: Face.F, edgeOnA: FaceEdge.RIGHT, faceB: Face.R, edgeOnB: FaceEdge.LEFT },
+    { faceA: Face.B, edgeOnA: FaceEdge.TOP, faceB: Face.U, edgeOnB: FaceEdge.TOP },
+    { faceA: Face.B, edgeOnA: FaceEdge.BOTTOM, faceB: Face.D, edgeOnB: FaceEdge.BOTTOM },
+    { faceA: Face.B, edgeOnA: FaceEdge.RIGHT, faceB: Face.L, edgeOnB: FaceEdge.LEFT },
+    { faceA: Face.B, edgeOnA: FaceEdge.LEFT, faceB: Face.R, edgeOnB: FaceEdge.RIGHT },
+    { faceA: Face.U, edgeOnA: FaceEdge.LEFT, faceB: Face.L, edgeOnB: FaceEdge.TOP },
+    { faceA: Face.U, edgeOnA: FaceEdge.RIGHT, faceB: Face.R, edgeOnB: FaceEdge.TOP },
+    { faceA: Face.D, edgeOnA: FaceEdge.LEFT, faceB: Face.L, edgeOnB: FaceEdge.BOTTOM },
+    { faceA: Face.D, edgeOnA: FaceEdge.RIGHT, faceB: Face.R, edgeOnB: FaceEdge.BOTTOM },
 ];
 
 type GhostStripState = {
@@ -115,6 +115,11 @@ export class GhostStickers {
         this.setVisible(isGhostVisible());
     }
 
+    /**
+     * Create a single ghost strip for one side of a cube edge.
+     * Builds the DOM element with 3 ghost sticker placeholders and
+     * attaches it to the appropriate face element.
+     */
     private createStripForEdge(edge: CubeEdge, side: 'A' | 'B'): void {
         const hostFace = side === 'A' ? edge.faceA : edge.faceB;
         const edgeDir = side === 'A' ? edge.edgeOnA : edge.edgeOnB;
@@ -149,6 +154,9 @@ export class GhostStickers {
     /**
      * Update which ghost strips are visible based on current face visibility.
      * Shows strips only on silhouette edges (one face visible, other hidden).
+     * Strips are categorised by depth: near (front face), far (back face),
+     * or mid (everything else). A 200ms delayed fade-in is applied to
+     * synchronise with the cube rotation animation.
      */
     updateVisibleEdges(
         visibleFaces: Array<{ face: Face; position?: string }>,
@@ -161,8 +169,39 @@ export class GhostStickers {
         const visibleSet = new Set(visibleFaces.map(f => f.face));
         const hiddenSet = new Set(hiddenFaces.map(f => f.face));
 
-        // Identify the front face (nearest to camera) and back face (farthest, hidden).
-        // Strips on the front face = near, strips sourced from the back face = far, rest = mid.
+        const { nearFace, farSourceFace } = this.computeDepthFaces(
+            visibleFaces,
+            hiddenFaces,
+            isTilted,
+            isPitched
+        );
+
+        this.cancelPendingFade();
+        this.hideAllStrips();
+
+        const toShow = this.computeStripsToShow(visibleSet, hiddenSet, nearFace, farSourceFace);
+
+        if (toShow.length > 0) {
+            this.pendingFadeTimer = window.setTimeout(() => {
+                this.pendingFadeTimer = null;
+                for (const stripState of toShow) {
+                    this.fadeInStrip(stripState);
+                }
+                this.updateColors();
+            }, 200);
+        }
+    }
+
+    /**
+     * Compute the near (front) and far (back) face positions based on
+     * tilt and pitch state, then resolve them to actual Face values.
+     */
+    private computeDepthFaces(
+        visibleFaces: Array<{ face: Face; position?: string }>,
+        hiddenFaces: Array<{ face: Face; position?: string }>,
+        isTilted: boolean,
+        isPitched: boolean
+    ): { nearFace: Face | null; farSourceFace: Face | null } {
         const frontPosition = isPitched
             ? isTilted
                 ? 'top-right'
@@ -180,14 +219,24 @@ export class GhostStickers {
 
         const nearFace = visibleFaces.find(f => f.position === frontPosition)?.face ?? null;
         const farSourceFace = hiddenFaces.find(f => f.position === backPosition)?.face ?? null;
+        return { nearFace, farSourceFace };
+    }
 
-        // Cancel any pending delayed fade-in
+    /**
+     * Cancel any pending delayed fade-in timer.
+     */
+    private cancelPendingFade(): void {
         if (this.pendingFadeTimer !== null) {
             clearTimeout(this.pendingFadeTimer);
             this.pendingFadeTimer = null;
         }
+    }
 
-        // Immediately hide ALL currently showing strips
+    /**
+     * Immediately hide all currently showing ghost strips, resetting
+     * their display, visibility flag, and opacity.
+     */
+    private hideAllStrips(): void {
         for (const stripState of this.strips) {
             if (stripState.isShowing) {
                 stripState.isShowing = false;
@@ -197,32 +246,32 @@ export class GhostStickers {
                 }
             }
         }
+    }
 
-        // Determine which strips should be visible after rotation
+    /**
+     * Determine which strips should be visible after rotation, based on
+     * silhouette edges (visible↔hidden face boundary). Assigns a depth
+     * attribute (near/far/mid) to each strip and returns the list to show.
+     */
+    private computeStripsToShow(
+        visibleSet: Set<Face>,
+        hiddenSet: Set<Face>,
+        nearFace: Face | null,
+        farSourceFace: Face | null
+    ): GhostStripState[] {
         const toShow: GhostStripState[] = [];
         for (const stripState of this.strips) {
             const hostFace = stripState.element.getAttribute('data-host-face') as Face;
             const sourceFace = stripState.element.getAttribute('data-source-face') as Face;
             const shouldShow = visibleSet.has(hostFace) && hiddenSet.has(sourceFace);
             if (shouldShow) {
-                // near: strip is on the front face; far: strip sources from the back face; mid: everything else
                 const depth =
                     hostFace === nearFace ? 'near' : sourceFace === farSourceFace ? 'far' : 'mid';
                 stripState.element.setAttribute('data-depth', depth);
                 toShow.push(stripState);
             }
         }
-
-        // Delayed fade-in: appear just before the cube rotation ends (200ms of 250ms)
-        if (toShow.length > 0) {
-            this.pendingFadeTimer = window.setTimeout(() => {
-                this.pendingFadeTimer = null;
-                for (const stripState of toShow) {
-                    this.fadeInStrip(stripState);
-                }
-                this.updateColors();
-            }, 200);
-        }
+        return toShow;
     }
 
     /**
@@ -242,11 +291,7 @@ export class GhostStickers {
 
             const hostFace = stripState.element.getAttribute('data-host-face') as Face;
             const sourceFace = stripState.element.getAttribute('data-source-face') as Face;
-            const edgeDir = stripState.element.getAttribute('data-edge') as
-                | 'top'
-                | 'bottom'
-                | 'left'
-                | 'right';
+            const edgeDir = stripState.element.getAttribute('data-edge') as FaceEdge;
 
             // Get the 3 positions along this edge on the host face
             const hostPositions = getEdgePositions(edgeDir);
@@ -389,7 +434,11 @@ export class GhostStickers {
         }
     }
 
-    /** Apply current ghost opacity to all showing strips. */
+    /**
+     * Apply the current ghost opacity level to all visible ghost strips.
+     * Iterates over all showing strips and sets each ghost sticker's
+     * opacity to the globally configured ghost opacity value.
+     */
     private applyOpacity(): void {
         const opacity = String(getGhostOpacity());
         for (const strip of this.strips) {
@@ -401,6 +450,11 @@ export class GhostStickers {
         }
     }
 
+    /**
+     * Fade in a single ghost strip with a CSS transition.
+     * Sets the strip to visible, starts at opacity 0, forces a reflow,
+     * then transitions to the target opacity.
+     */
     private fadeInStrip(stripState: GhostStripState): void {
         stripState.isShowing = true;
         stripState.element.style.display = '';
@@ -416,6 +470,12 @@ export class GhostStickers {
         }
     }
 
+    /**
+     * Fade out a single ghost strip, hiding it after the CSS transition completes.
+     * Listens for the `transitionend` event to ensure the strip is hidden only
+     * after the fade-out animation finishes, and only if the strip hasn't been
+     * re-shown during the transition.
+     */
     private fadeOutStrip(stripState: GhostStripState): void {
         stripState.isShowing = false;
         for (const child of stripState.element.children) {

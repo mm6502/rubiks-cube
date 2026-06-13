@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-export unused-type
 // View Registry - Discovers and registers views at build time
 import { CubeView } from '@/cube/types';
 import { logger } from '@/diagnostics/logger';

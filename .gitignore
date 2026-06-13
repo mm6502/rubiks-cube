@@ -32,3 +32,4 @@ scripts/demo-video/output/
 # .github agent/skills files
 .github/agents/
 .github/skills/
+.fallow/

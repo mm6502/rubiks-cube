@@ -1,4 +1,5 @@
 import { Application } from '@/application';
+import { createUndoRedoCommands } from '@/cube/commands/undo-redo';
 import { MoveHistory } from '@/cube/core/move-history';
 import { CubeView, ReadOnlyCubeModel, Size2D, StickerId } from '@/cube/types';
 import { MOVE_ICONS } from '@/icons';
@@ -118,33 +119,9 @@ export class MovesView implements CubeView {
     }
 
     getCommands(): Command[] {
+        const undoRedo = createUndoRedoCommands(this.moveHistory ?? null, 'moves');
         return [
-            {
-                id: 'moves.undo',
-                label: 'Undo',
-                category: CommandCategory.VIEW,
-                showInHeader: true,
-                icon: '↩',
-                tooltip: 'Undo last move.',
-                keyBindings: [{ key: '[' }, { key: ',' }],
-                displayOrder: 900,
-                overflowPriority: 901,
-                action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
-                isEnabled: () => this.moveHistory?.canUndo() ?? false,
-            },
-            {
-                id: 'moves.redo',
-                label: 'Redo',
-                category: CommandCategory.VIEW,
-                showInHeader: true,
-                icon: '↪',
-                tooltip: 'Redo last undone move.',
-                keyBindings: [{ key: ']' }, { key: '.' }],
-                displayOrder: 901,
-                overflowPriority: 900,
-                action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
-                isEnabled: () => this.moveHistory?.canRedo() ?? false,
-            },
+            ...undoRedo,
             {
                 id: 'toggle-move-icons',
                 label: 'Show Icons',

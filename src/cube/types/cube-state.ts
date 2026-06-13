@@ -1,6 +1,8 @@
 import { Map as IMap } from 'immutable';
 
-import { Cubie, CubieId, PositionKey, Sticker } from '@/cube/types';
+import { Cubie } from '@/cube/types/cubie';
+import { CubieId, PositionKey } from '@/cube/types/ids';
+import { Sticker } from '@/cube/types/sticker';
 
 /**
  * A 2D grid of sticker objects representing a single face.

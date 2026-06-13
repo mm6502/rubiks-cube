@@ -74,6 +74,8 @@ function createState(fixture: Fixture): BasicViewInternalData {
         cubeElement: fixture.cubeEl,
         cubeContainer: fixture.host,
         styles: styles as Record<string, string>,
+        stickerClass: 'sticker',
+        highlightedClass: 'highlighted',
         variant: 'front' as any,
         viewType: 'basic-front',
         viewRight: { x: 1, y: 0, z: 0 },

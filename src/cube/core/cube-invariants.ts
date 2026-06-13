@@ -11,9 +11,8 @@ import {
     QuarterTurn,
     Vector3,
 } from '@/cube/types';
-import { getCornerFacesInStandardOrder, getFaceNormal } from '@/cube/utils';
-import { getPositionKey } from '@/cube/utils/coordinates';
 import { classifyCubieSubType, classifyCubieType } from '@/cube/utils/cubie';
+import { getCornerFacesInStandardOrder, getFaceNormal } from '@/cube/utils/face-utils';
 import {
     approximatelyEqual,
     compareValues,
@@ -26,6 +25,7 @@ import {
     toCentered,
     vectorsEqual3,
 } from '@/cube/utils/math';
+import { getPositionKey } from '@/cube/utils/position-key';
 import { logger } from '@/diagnostics/logger';
 
 /**

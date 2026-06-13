@@ -1,4 +1,5 @@
-import { Color, CubieId, Face } from '@/cube/types';
+import { Color, Face } from '@/cube/types/common';
+import { CubieId } from '@/cube/types/ids';
 import { Branded } from '@/global';
 
 /**

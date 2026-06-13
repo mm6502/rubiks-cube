@@ -1,6 +1,7 @@
 // Cube model interfaces
 import { MoveHistory } from '@/cube/core/move-history';
-import { CubeState, MoveResult } from '@/cube/types';
+import { CubeState } from '@/cube/types/cube-state';
+import { MoveResult } from '@/cube/types/move';
 import { Command } from '@/types';
 
 /**

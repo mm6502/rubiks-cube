@@ -4,10 +4,10 @@ import { MoveDefinition } from '@/cube/types/move';
 import { getFaceRotationAxis, getPositionKey } from '@/cube/utils';
 import { MoveExecutedEvent } from '@/types';
 
-import { CircularCubeViewInternalData } from './circular-view';
 import { GHOST_OPACITY_LEVELS } from './constants';
-import { StickerLookupMap } from './initialization';
 import { AxisCircle, getCenterOfElement, getStickersForFace, isPointOnCircle } from './svg-tools';
+import { CircularCubeViewInternalData } from './types';
+import { StickerLookupMap } from './types';
 
 /**
  * Animation configuration
@@ -24,7 +24,7 @@ export type AnimationConfig = {
 /**
  * Default animation configuration
  */
-export const DEFAULT_ANIMATION_CONFIG: AnimationConfig = {
+const DEFAULT_ANIMATION_CONFIG: AnimationConfig = {
     duration: 300,
     steps: 10,
     easing: 'ease-out',
@@ -63,6 +63,24 @@ export function getAffectedFaces(move: MoveDefinition): Face[] {
     }
 
     return affectedFaces;
+}
+
+/**
+ * Look up a sticker's target face and cubie position in the post-move cube state.
+ * @internal
+ */
+function findStickerTarget(
+    stickerId: StickerId,
+    postState: CubeState
+): { targetFace: Face; targetPosition: Position3D } | undefined {
+    for (const cubie of postState.cubiesById.values()) {
+        for (const [, cubieSticker] of cubie.stickers) {
+            if (cubieSticker.id === stickerId) {
+                return { targetFace: cubieSticker.currentFace, targetPosition: cubie.position };
+            }
+        }
+    }
+    return undefined;
 }
 
 /**
@@ -109,24 +127,12 @@ function buildTargetStickerMap(
         if (!stickerId) continue;
 
         // Find this sticker in the post-state to determine where it moved.
-        let targetFace: Face | undefined;
-        let targetPosition: Position3D | undefined;
+        const target = findStickerTarget(stickerId, postState);
 
-        for (const cubie of postState.cubiesById.values()) {
-            for (const [_, cubieSticker] of cubie.stickers) {
-                if (cubieSticker.id === stickerId) {
-                    targetFace = cubieSticker.currentFace;
-                    targetPosition = cubie.position;
-                    break;
-                }
-            }
-            if (targetFace && targetPosition) break;
-        }
-
-        if (targetFace && targetPosition) {
-            const posKey = getPositionKey(targetPosition);
+        if (target) {
+            const posKey = getPositionKey(target.targetPosition);
             const faceMap = stickerLookupMap.get(posKey);
-            const targetSvgId = faceMap?.get(targetFace);
+            const targetSvgId = faceMap?.get(target.targetFace);
             if (targetSvgId) {
                 const targetSticker = svgRoot.querySelector(`#${targetSvgId}`) as SVGCircleElement;
                 if (targetSticker) {
@@ -451,6 +457,94 @@ function createFaceStickerCurvedAnimation(
 }
 
 /**
+ * Create one adjacent-sticker rotation animation around an axis circle.
+ * Returns `undefined` when the sticker can't be resolved to a target.
+ * @internal
+ */
+function createAdjacentStickerAnimation(
+    sticker: SVGCircleElement,
+    move: MoveDefinition,
+    postState: CubeState,
+    svgRoot: SVGSVGElement,
+    axisCircle: AxisCircle,
+    stickerLookupMap: StickerLookupMap,
+    face: Face | undefined,
+    config: AnimationConfig
+): Animation | undefined {
+    // Get the sticker ID to look up in cube state.
+    const stickerId = sticker.getAttribute('data-sticker-id');
+    if (!stickerId) return undefined;
+
+    const target = findStickerTarget(stickerId as StickerId, postState);
+    if (!target) return undefined;
+
+    // Look up the SVG element at that target position.
+    const posKey = getPositionKey(target.targetPosition);
+    const faceMap = stickerLookupMap.get(posKey);
+    if (!faceMap) return undefined;
+
+    const targetSvgId = faceMap.get(target.targetFace);
+    if (!targetSvgId) return undefined;
+
+    const targetSticker = svgRoot.querySelector(`#${targetSvgId}`) as SVGCircleElement;
+    if (!targetSticker) return undefined;
+
+    // Get current and target centers.
+    const currentCenter = getCenterOfElement(sticker);
+    const targetCenter = getCenterOfElement(targetSticker);
+
+    // Calculate the angle to rotate around the axis circle.
+    const currentAngle =
+        Math.atan2(currentCenter.y - axisCircle.cy, currentCenter.x - axisCircle.cx) *
+        (180 / Math.PI);
+    const targetAngle =
+        Math.atan2(targetCenter.y - axisCircle.cy, targetCenter.x - axisCircle.cx) *
+        (180 / Math.PI);
+    let rotationAngle = targetAngle - currentAngle;
+
+    // Normalize to -180 to 180 and choose the correct direction.
+    while (rotationAngle > 180) rotationAngle -= 360;
+    while (rotationAngle < -180) rotationAngle += 360;
+
+    // Adjacent stickers on F and B faces need inverted rotation direction.
+    // For middle slices (face is null), use axis to determine direction.
+    let adjacentAngle: number;
+    if (!face) {
+        adjacentAngle = move.axis === Axis.Z ? -move.angle : move.angle;
+    } else {
+        adjacentAngle = face === Face.F || face === Face.B ? -move.angle : move.angle;
+    }
+
+    // Tiebreaker: when rotationAngle is exactly ±180° within float epsilon,
+    // use the sign of adjacentAngle to break the tie deterministically.
+    if (Math.abs(Math.abs(rotationAngle) - 180) <= 1e-9) {
+        rotationAngle = adjacentAngle >= 0 ? 180 : -180;
+    }
+
+    // Force the rotation to match the move's direction.
+    if (adjacentAngle > 0 && rotationAngle < 0) {
+        rotationAngle += 360;
+    } else if (adjacentAngle < 0 && rotationAngle > 0) {
+        rotationAngle -= 360;
+    }
+
+    // Animate rotation around the axis circle center.
+    // Use translate→rotate→translate for Firefox Web Animations API compat.
+    const pivot = `translate(${axisCircle.cx}px, ${axisCircle.cy}px)`;
+    const unpivot = `translate(-${axisCircle.cx}px, -${axisCircle.cy}px)`;
+    const keyframes = [
+        { transform: `${pivot} rotate(0deg) ${unpivot}` },
+        { transform: `${pivot} rotate(${rotationAngle}deg) ${unpivot}` },
+    ];
+
+    return sticker.animate(keyframes, {
+        duration: config.duration,
+        easing: config.easing,
+        fill: 'none',
+    });
+}
+
+/**
  * Animate adjacent stickers rotating around the axis circle center to their targets.
  *
  * Animate adjacent stickers from neighboring faces that lie on the axis circle.
@@ -482,105 +576,19 @@ function animateAdjacentStickersAroundAxis(
 
     // Animate each adjacent sticker to its target position.
     for (const sticker of adjacentStickers) {
-        // Get the sticker ID to look up in cube state.
-        const stickerId = sticker.getAttribute('data-sticker-id');
-        if (!stickerId) continue;
-
-        // Find this sticker in the post-state to see where it ended up.
-        let targetFace: Face | undefined = undefined;
-        let targetPosition: Position3D | undefined = undefined;
-
-        // Locate the sticker in the post-move cube state.
-        for (const cubie of postState.cubiesById.values()) {
-            for (const [_, cubieSticker] of cubie.stickers) {
-                if (cubieSticker.id === stickerId) {
-                    targetFace = cubieSticker.currentFace;
-                    targetPosition = cubie.position;
-                    break;
-                }
-            }
-            if (targetFace) break;
+        const animation = createAdjacentStickerAnimation(
+            sticker,
+            move,
+            postState,
+            svgRoot,
+            axisCircle,
+            stickerLookupMap,
+            face,
+            config
+        );
+        if (animation) {
+            animations.push(animation);
         }
-
-        // If we couldn't find the target face/position, skip this sticker.
-        if (!targetFace || !targetPosition) continue;
-
-        // Look up the SVG element at that target position.
-        const posKey = getPositionKey(targetPosition);
-        const faceMap = stickerLookupMap.get(posKey);
-        if (!faceMap) continue;
-
-        const targetSvgId = faceMap.get(targetFace);
-        if (!targetSvgId) continue;
-
-        const targetSticker = svgRoot.querySelector(`#${targetSvgId}`) as SVGCircleElement;
-        if (!targetSticker) continue;
-
-        // Get current and target centers.
-        const currentCenter = getCenterOfElement(sticker);
-        const targetCenter = getCenterOfElement(targetSticker);
-
-        // Calculate the angle to rotate around the axis circle.
-        const currentAngle =
-            Math.atan2(currentCenter.y - axisCircle.cy, currentCenter.x - axisCircle.cx) *
-            (180 / Math.PI);
-        const targetAngle =
-            Math.atan2(targetCenter.y - axisCircle.cy, targetCenter.x - axisCircle.cx) *
-            (180 / Math.PI);
-        let rotationAngle = targetAngle - currentAngle;
-
-        // Normalize to -180 to 180 and choose the correct direction.
-        while (rotationAngle > 180) rotationAngle -= 360;
-        while (rotationAngle < -180) rotationAngle += 360;
-
-        // Adjacent stickers on F and B faces need inverted rotation direction.
-        // For middle slices (face is null), use axis to determine direction.
-        let adjacentAngle: number;
-        if (!face) {
-            // Middle slice moves: M, E, S.
-            // S (Z-axis) needs inversion like F/B.
-            adjacentAngle = move.axis === Axis.Z ? -move.angle : move.angle;
-        } else {
-            adjacentAngle = face === Face.F || face === Face.B ? -move.angle : move.angle;
-        }
-
-        // Tiebreaker: when rotationAngle is exactly ±180° within float epsilon,
-        // use the sign of adjacentAngle to break the tie deterministically.
-        // Without this, floating-point noise can cause different stickers on the
-        // same ring to arc in opposite directions (Bug B).
-        if (Math.abs(Math.abs(rotationAngle) - 180) <= 1e-9) {
-            rotationAngle = adjacentAngle >= 0 ? 180 : -180;
-        }
-
-        // Force the rotation to match the move's direction.
-        // If adjacentAngle is positive, rotation should be counter-clockwise (positive).
-        // If adjacentAngle is negative, rotation should be clockwise (negative).
-        if (adjacentAngle > 0 && rotationAngle < 0) {
-            rotationAngle += 360;
-        } else if (adjacentAngle < 0 && rotationAngle > 0) {
-            rotationAngle -= 360;
-        }
-
-        // Animate rotation around the axis circle center.
-        // Use translate→rotate→translate to encode the pivot point in the transform itself,
-        // because Firefox ignores `transformOrigin` as a keyframe property in the Web Animations API.
-        const pivot = `translate(${axisCircle.cx}px, ${axisCircle.cy}px)`;
-        const unpivot = `translate(-${axisCircle.cx}px, -${axisCircle.cy}px)`;
-        const keyframes = [
-            { transform: `${pivot} rotate(0deg) ${unpivot}` },
-            { transform: `${pivot} rotate(${rotationAngle}deg) ${unpivot}` },
-        ];
-
-        // Animation options.
-        const options: KeyframeAnimationOptions = {
-            duration: config.duration,
-            easing: config.easing,
-            fill: 'none',
-        };
-
-        // Create and store the animation.
-        const animation = sticker.animate(keyframes, options);
-        animations.push(animation);
     }
 
     return animations;
@@ -591,6 +599,87 @@ function animateAdjacentStickersAroundAxis(
 // ---------------------------------------------------------------------------
 
 const GHOST_TOGGLE_DURATION = 400;
+
+// ---- Ghost-sticker toggle helpers -----------------------------------------------
+
+/**
+ * Copy fill colours from source stickers onto ghost elements.
+ * @internal
+ */
+function syncGhostColors(state: CircularCubeViewInternalData): void {
+    /* c8 ignore if */
+    if (!state.ghostElements) return;
+    for (const ghost of state.ghostElements) {
+        const sourceId = ghost.getAttribute('data-ghost-source');
+        if (!sourceId) continue;
+        const source = state.svgElementCache.get(sourceId);
+        if (source) ghost.setAttribute('fill', source.getAttribute('fill') ?? '');
+    }
+}
+
+/**
+ * Fade ghosts from their current opacity up to `targetOpacity`.
+ * @internal
+ */
+async function fadeGhostsIn(
+    state: CircularCubeViewInternalData,
+    targetOpacity: string
+): Promise<void> {
+    /* c8 ignore if */
+    if (!state.ghostElements) return;
+    const startOpacity = parseFloat(state.ghostElements[0]?.style.opacity || '0');
+    if (startOpacity >= parseFloat(targetOpacity)) {
+        // Already at or above target — just snap.
+        for (const ghost of state.ghostElements) {
+            ghost.style.opacity = targetOpacity;
+            ghost.style.transform = '';
+        }
+        return;
+    }
+
+    const animations: Animation[] = [];
+    for (const ghost of state.ghostElements) {
+        ghost.style.opacity = targetOpacity;
+        ghost.style.transform = '';
+        const anim = ghost.animate([{ opacity: startOpacity }, { opacity: targetOpacity }], {
+            duration: GHOST_TOGGLE_DURATION / 2,
+            easing: 'ease-out',
+            fill: 'forwards',
+        });
+        animations.push(anim);
+    }
+    await Promise.all(animations.map(a => a.finished));
+    for (const a of animations) a.cancel();
+}
+
+/**
+ * Fade ghosts out and hide the wrapper.
+ * @internal
+ */
+async function fadeGhostsOut(
+    state: CircularCubeViewInternalData,
+    wrapper: SVGGElement
+): Promise<void> {
+    /* c8 ignore if */
+    if (!state.ghostElements) return;
+    const currentOpacity = parseFloat(state.ghostElements[0]?.style.opacity || '0.75');
+    const animations: Animation[] = [];
+    for (const ghost of state.ghostElements) {
+        const anim = ghost.animate([{ opacity: currentOpacity }, { opacity: 0 }], {
+            duration: GHOST_TOGGLE_DURATION / 2,
+            easing: 'ease-in',
+            fill: 'forwards',
+        });
+        animations.push(anim);
+    }
+
+    await Promise.all(animations.map(a => a.finished));
+    for (const ghost of state.ghostElements) {
+        ghost.style.opacity = '0';
+    }
+    for (const a of animations) a.cancel();
+    wrapper.style.display = 'none';
+}
 
 /**
  * Animate ghost stickers when toggled on or off.
@@ -617,59 +706,11 @@ export async function animateGhostToggle(state: CircularCubeViewInternalData): P
     if (!wrapper) return;
 
     if (state.showGhosts) {
-        // --- Toggle ON / opacity change: show at current level ---
         const targetOpacity = String(GHOST_OPACITY_LEVELS[state.ghostOpacityIndex] ?? 0.75);
-        for (const ghost of state.ghostElements) {
-            const sourceId = ghost.getAttribute('data-ghost-source');
-            if (!sourceId) continue;
-            const source = state.svgElementCache.get(sourceId);
-            if (source) ghost.setAttribute('fill', source.getAttribute('fill') ?? '');
-        }
+        syncGhostColors(state);
         wrapper.style.display = '';
-
-        // Fade in from 0 to target opacity
-        const startOpacity = parseFloat(state.ghostElements[0]?.style.opacity || '0');
-        if (startOpacity < parseFloat(targetOpacity)) {
-            const animations: Animation[] = [];
-            for (const ghost of state.ghostElements) {
-                ghost.style.opacity = targetOpacity;
-                ghost.style.transform = '';
-                const anim = ghost.animate(
-                    [{ opacity: startOpacity }, { opacity: targetOpacity }],
-                    {
-                        duration: GHOST_TOGGLE_DURATION / 2,
-                        easing: 'ease-out',
-                        fill: 'forwards',
-                    }
-                );
-                animations.push(anim);
-            }
-            await Promise.all(animations.map(a => a.finished));
-            for (const a of animations) a.cancel();
-        } else {
-            for (const ghost of state.ghostElements) {
-                ghost.style.opacity = targetOpacity;
-                ghost.style.transform = '';
-            }
-        }
+        await fadeGhostsIn(state, targetOpacity);
     } else {
-        // --- Toggle OFF: fade out in place ---
-        const currentOpacity = parseFloat(state.ghostElements[0]?.style.opacity || '0.75');
-        const animations: Animation[] = [];
-        for (const ghost of state.ghostElements) {
-            const anim = ghost.animate([{ opacity: currentOpacity }, { opacity: 0 }], {
-                duration: GHOST_TOGGLE_DURATION / 2,
-                easing: 'ease-in',
-                fill: 'forwards',
-            });
-            animations.push(anim);
-        }
-
-        await Promise.all(animations.map(a => a.finished));
-        for (const ghost of state.ghostElements) {
-            ghost.style.opacity = '0';
-        }
-        for (const a of animations) a.cancel();
-        wrapper.style.display = 'none';
+        await fadeGhostsOut(state, wrapper);
     }
 }

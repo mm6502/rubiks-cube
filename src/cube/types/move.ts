@@ -1,4 +1,6 @@
-import { Axis, CubeState, QuarterTurn, ReadonlyCubie } from '@/cube/types';
+import { Axis, QuarterTurn } from '@/cube/types/common';
+import { CubeState } from '@/cube/types/cube-state';
+import { ReadonlyCubie } from '@/cube/types/cubie';
 
 /**
  * Definition of a single move on the cube
@@ -26,14 +28,4 @@ export type MoveResult = {
     preState: CubeState;
     /** Cube state after the move was executed */
     postState: CubeState;
-};
-
-/** A sequence of moves that can be named and described */
-export type MoveSequence = {
-    /** Array of moves in the sequence */
-    moves: MoveDefinition[];
-    /** Optional name for the sequence */
-    name?: string;
-    /** Optional description of what the sequence does */
-    description?: string;
 };

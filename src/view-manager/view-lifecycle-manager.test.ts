@@ -11,9 +11,10 @@ import {
     vi,
 } from 'vitest';
 
-import { Application } from '@/application';
 import { CubeModel, CubeView, LayoutMode } from '@/cube/types';
 import { LogLevel, logger } from '@/diagnostics/logger';
+import { getEventBus } from '@/event-bus-accessor';
+import { EventBus } from '@/events/event-bus';
 import { EventName, ViewStateChangedEvent } from '@/types';
 
 import { CommandManager } from './command-manager';
@@ -24,7 +25,7 @@ import { createView, getAvailableViews, getViewTitle } from './view-registry';
 
 // Mock modules
 vi.mock('@/diagnostics/logger');
-vi.mock('@/application');
+vi.mock('@/event-bus-accessor');
 vi.mock('./view-registry');
 vi.mock('./panel-positioning');
 
@@ -80,8 +81,10 @@ describe('ViewLifecycleManager', () => {
         // Mock visualizations container
         mockVisualizationsContainer = document.createElement('div');
 
-        // Mock Application.eventBus
-        vi.spyOn(Application.eventBus, 'on').mockImplementation(vi.fn());
+        // Mock event bus used by ViewLifecycleManager constructor.
+        const mockEventBus = new EventBus();
+        vi.spyOn(mockEventBus, 'on');
+        vi.mocked(getEventBus).mockReturnValue(mockEventBus);
 
         // Mock view registry
         vi.mocked(getAvailableViews).mockReturnValue(['basic-front', 'flat']);
@@ -132,7 +135,7 @@ describe('ViewLifecycleManager', () => {
     describe('constructor', () => {
         it('should initialize with provided parameters', () => {
             expect(viewLifecycleManager).toBeDefined();
-            expect(Application.eventBus.on).toHaveBeenCalledWith(
+            expect(getEventBus().on).toHaveBeenCalledWith(
                 EventName.VIEW_STATE_CHANGED,
                 expect.any(Function)
             );
