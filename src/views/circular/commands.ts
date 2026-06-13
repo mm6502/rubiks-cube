@@ -1,14 +1,17 @@
 import { Application } from '@/application';
+import { createUndoRedoCommands } from '@/cube/commands/undo-redo';
 import { Command, CommandCategory, EventName } from '@/types';
 
 import * as rendering from './rendering';
-import { CircularCubeViewInternalData, CircularViewState } from './circular-view';
 import { GHOST_OPACITY_LEVELS } from './constants';
+import { CircularCubeViewInternalData, CircularViewState } from './types';
 
 const VIEW_TYPE = 'circular';
 
 export function getCommands(state: CircularCubeViewInternalData): Command[] {
+    const undoRedo = createUndoRedoCommands(state.model?.getMoveHistory() ?? null, 'circular');
     return [
+        ...undoRedo,
         {
             id: 'circular-view.pan-mode',
             label: 'Pan Mode',
@@ -96,32 +99,6 @@ export function getCommands(state: CircularCubeViewInternalData): Command[] {
                 }
             },
             isActive: () => state.touchHandler?.getFaceDirectMode() ?? false,
-        },
-        {
-            id: 'circular.undo',
-            label: 'Undo',
-            category: CommandCategory.VIEW,
-            showInHeader: true,
-            icon: '↩',
-            tooltip: 'Undo last move.',
-            keyBindings: [{ key: '[' }, { key: ',' }],
-            displayOrder: 900,
-            overflowPriority: 901,
-            action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
-            isEnabled: () => state.model?.getMoveHistory().canUndo() ?? false,
-        },
-        {
-            id: 'circular.redo',
-            label: 'Redo',
-            category: CommandCategory.VIEW,
-            showInHeader: true,
-            icon: '↪',
-            tooltip: 'Redo last undone move.',
-            keyBindings: [{ key: ']' }, { key: '.' }],
-            displayOrder: 901,
-            overflowPriority: 900,
-            action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
-            isEnabled: () => state.model?.getMoveHistory().canRedo() ?? false,
         },
     ];
 }

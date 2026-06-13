@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-export
 /**
  * Adds resize handles to a panel element for user interaction
  * @param panel - The panel element to add resize handles to

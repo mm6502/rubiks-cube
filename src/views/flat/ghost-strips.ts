@@ -1,4 +1,5 @@
-import { Face } from '@/cube/types';
+// fallow-ignore-file unused-class-member
+import { Face, FaceEdge } from '@/cube/types';
 
 import ghostStyles from './ghost-strips.module.css';
 
@@ -11,7 +12,7 @@ type GhostEdge = {
     /** Face that owns this ghost strip (the strip is rendered outside this face). */
     face: Face;
     /** Which edge of the owning face the strip sits on. */
-    edge: 'top' | 'bottom' | 'left' | 'right';
+    edge: FaceEdge;
     /** Source face whose stickers provide the ghost colours. */
     sourceFace: Face;
     /** Ordered source sticker positions (length 3 for a 3×3 cube). */
@@ -29,26 +30,26 @@ type GhostEdge = {
  */
 const GHOST_EDGES: GhostEdge[] = [
     // U-L: U left col ↔ L top row
-    { face: Face.U, edge: 'left', sourceFace: Face.L, sourcePositions: [0, 1, 2] },
-    { face: Face.L, edge: 'top', sourceFace: Face.U, sourcePositions: [0, 3, 6] },
+    { face: Face.U, edge: FaceEdge.LEFT, sourceFace: Face.L, sourcePositions: [0, 1, 2] },
+    { face: Face.L, edge: FaceEdge.TOP, sourceFace: Face.U, sourcePositions: [0, 3, 6] },
     // U-R: U right col ↔ R top row
-    { face: Face.U, edge: 'right', sourceFace: Face.R, sourcePositions: [2, 1, 0] },
-    { face: Face.R, edge: 'top', sourceFace: Face.U, sourcePositions: [8, 5, 2] },
+    { face: Face.U, edge: FaceEdge.RIGHT, sourceFace: Face.R, sourcePositions: [2, 1, 0] },
+    { face: Face.R, edge: FaceEdge.TOP, sourceFace: Face.U, sourcePositions: [8, 5, 2] },
     // U-B: U top row ↔ B top row (reversed)
-    { face: Face.U, edge: 'top', sourceFace: Face.B, sourcePositions: [2, 1, 0] },
-    { face: Face.B, edge: 'top', sourceFace: Face.U, sourcePositions: [2, 1, 0] },
+    { face: Face.U, edge: FaceEdge.TOP, sourceFace: Face.B, sourcePositions: [2, 1, 0] },
+    { face: Face.B, edge: FaceEdge.TOP, sourceFace: Face.U, sourcePositions: [2, 1, 0] },
     // D-L: D left col ↔ L bottom row
-    { face: Face.D, edge: 'left', sourceFace: Face.L, sourcePositions: [8, 7, 6] },
-    { face: Face.L, edge: 'bottom', sourceFace: Face.D, sourcePositions: [6, 3, 0] },
+    { face: Face.D, edge: FaceEdge.LEFT, sourceFace: Face.L, sourcePositions: [8, 7, 6] },
+    { face: Face.L, edge: FaceEdge.BOTTOM, sourceFace: Face.D, sourcePositions: [6, 3, 0] },
     // D-R: D right col ↔ R bottom row
-    { face: Face.D, edge: 'right', sourceFace: Face.R, sourcePositions: [6, 7, 8] },
-    { face: Face.R, edge: 'bottom', sourceFace: Face.D, sourcePositions: [2, 5, 8] },
+    { face: Face.D, edge: FaceEdge.RIGHT, sourceFace: Face.R, sourcePositions: [6, 7, 8] },
+    { face: Face.R, edge: FaceEdge.BOTTOM, sourceFace: Face.D, sourcePositions: [2, 5, 8] },
     // D-B: D bottom row ↔ B bottom row (reversed)
-    { face: Face.D, edge: 'bottom', sourceFace: Face.B, sourcePositions: [8, 7, 6] },
-    { face: Face.B, edge: 'bottom', sourceFace: Face.D, sourcePositions: [8, 7, 6] },
+    { face: Face.D, edge: FaceEdge.BOTTOM, sourceFace: Face.B, sourcePositions: [8, 7, 6] },
+    { face: Face.B, edge: FaceEdge.BOTTOM, sourceFace: Face.D, sourcePositions: [8, 7, 6] },
     // L-B: L left col ↔ B right col
-    { face: Face.L, edge: 'left', sourceFace: Face.B, sourcePositions: [2, 5, 8] },
-    { face: Face.B, edge: 'right', sourceFace: Face.L, sourcePositions: [0, 3, 6] },
+    { face: Face.L, edge: FaceEdge.LEFT, sourceFace: Face.B, sourcePositions: [2, 5, 8] },
+    { face: Face.B, edge: FaceEdge.RIGHT, sourceFace: Face.L, sourcePositions: [0, 3, 6] },
 ];
 
 /**
@@ -138,53 +139,75 @@ export class GhostStrips {
         const targetOpacity = visible ? String(GhostStrips.OPACITY_LEVELS[this.opacityIndex]) : '0';
 
         if (!animate) {
-            for (const strip of strips) {
-                strip.style.display = visible ? '' : 'none';
-                for (const child of strip.children) {
-                    (child as HTMLElement).style.opacity = visible ? targetOpacity : '0';
-                }
-            }
+            this._setVisibleImmediate(strips, visible, targetOpacity);
             return;
         }
 
         if (visible) {
-            // Make strips visible first with opacity 0, then fade in
-            for (const strip of strips) {
-                strip.style.display = '';
-                for (const child of strip.children) {
-                    (child as HTMLElement).style.opacity = '0';
-                }
-            }
-            // Force reflow so the browser registers opacity 0 before transitioning
-            void this.container.offsetHeight;
-            for (const strip of strips) {
-                for (const child of strip.children) {
-                    (child as HTMLElement).style.opacity = targetOpacity;
-                }
-            }
+            this._fadeIn(strips, targetOpacity);
         } else {
-            // Fade out, then hide strips after the transition ends
-            for (const strip of strips) {
-                for (const child of strip.children) {
-                    (child as HTMLElement).style.opacity = '0';
-                }
-            }
-            const first = strips[0]?.querySelector(`.${ghostStyles['flat-ghost-sticker']}`);
-            if (first) {
-                const hide = () => {
-                    for (const strip of strips) strip.style.display = 'none';
-                    first.removeEventListener('transitionend', hide);
-                };
-                first.addEventListener('transitionend', hide, { once: true });
-                // Fallback in case transitionend doesn't fire (e.g. zero-duration)
-                setTimeout(hide, 400);
-            } else {
-                /* c8 ignore else — strips always have children from create() */
-                for (const strip of strips) {
-                    strip.style.display = 'none';
-                }
+            this._fadeOut(strips);
+        }
+    }
+
+    /** Toggle display and opacity instantly, no animation. */
+    private _setVisibleImmediate(
+        strips: NodeListOf<HTMLElement>,
+        visible: boolean,
+        targetOpacity: string
+    ): void {
+        for (const strip of strips) {
+            strip.style.display = visible ? '' : 'none';
+            for (const child of strip.children) {
+                (child as HTMLElement).style.opacity = visible ? targetOpacity : '0';
             }
         }
+    }
+
+    /** Show strips (display on, opacity 0), force reflow, then set target opacity for CSS transition. */
+    private _fadeIn(strips: NodeListOf<HTMLElement>, targetOpacity: string): void {
+        for (const strip of strips) {
+            strip.style.display = '';
+            for (const child of strip.children) {
+                (child as HTMLElement).style.opacity = '0';
+            }
+        }
+        // Force reflow so the browser registers opacity 0 before transitioning
+        void this.container.offsetHeight;
+        for (const strip of strips) {
+            for (const child of strip.children) {
+                (child as HTMLElement).style.opacity = targetOpacity;
+            }
+        }
+    }
+
+    /** Fade all strips to opacity 0, then hide them after the transition ends. */
+    private _fadeOut(strips: NodeListOf<HTMLElement>): void {
+        for (const strip of strips) {
+            for (const child of strip.children) {
+                (child as HTMLElement).style.opacity = '0';
+            }
+        }
+        const firstSticker = strips[0]?.querySelector(`.${ghostStyles['flat-ghost-sticker']}`);
+        if (firstSticker) {
+            this._hideAfterTransition(strips, firstSticker);
+        } else {
+            /* c8 ignore else — strips always have children from create() */
+            for (const strip of strips) {
+                strip.style.display = 'none';
+            }
+        }
+    }
+
+    /** Listen for transitionend on one element, then hide all strips (with setTimeout fallback). */
+    private _hideAfterTransition(strips: NodeListOf<HTMLElement>, trigger: Element): void {
+        const hide = () => {
+            for (const strip of strips) strip.style.display = 'none';
+            trigger.removeEventListener('transitionend', hide);
+        };
+        trigger.addEventListener('transitionend', hide, { once: true });
+        // Fallback in case transitionend doesn't fire (e.g. zero-duration)
+        setTimeout(hide, 400);
     }
 
     /** Cycle ghost opacity: off → 75% → 100% → off. */

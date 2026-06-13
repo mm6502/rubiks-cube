@@ -5,7 +5,7 @@ import { EventName } from '@/types';
 
 import * as navigation from './navigation';
 import * as rendering from './rendering';
-import type { BasicVariant, BasicViewInternalData } from './basic-view';
+import type { BasicVariant, BasicViewInternalData } from './types';
 
 /**
  * Builds the full DOM structure for a basic cube view, wires up all event
@@ -47,6 +47,8 @@ export function initialize(
         cubeElement,
         cubeContainer,
         styles,
+        stickerClass: styles['sticker'] ?? 'sticker',
+        highlightedClass: styles['highlighted'] ?? 'highlighted',
         variant,
         viewType,
         viewRight: defaultVectors.viewRight,

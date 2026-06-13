@@ -94,7 +94,7 @@ export function axisLayerToNotation(
 /**
  * Default whole-cube move policy for drag gestures.
  */
-export function defaultWholeCubeNotationPolicy(deltaX: number, deltaY: number): string {
+function defaultWholeCubeNotationPolicy(deltaX: number, deltaY: number): string {
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
     const distance = Math.hypot(deltaX, deltaY);

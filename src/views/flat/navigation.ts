@@ -29,6 +29,107 @@ function mapKeyToNavDirection(event: KeyboardEvent): NavDirection | undefined {
     return mapArrowToDirection(event) as NavDirection | undefined;
 }
 
+/** Find a face's row and column in the T-shaped layout grid. */
+function findFaceInLayout(
+    layout: (Face | null)[][],
+    face: Face
+): { row: number; col: number } | undefined {
+    for (let row = 0; row < layout.length; row++) {
+        for (let col = 0; col < layout[row].length; col++) {
+            if (layout[row][col] === face) {
+                return { row, col };
+            }
+        }
+    }
+    return undefined;
+}
+
+/** Resolve upward movement: cross face boundary or stay within the same face. */
+function resolveUp(
+    layout: (Face | null)[][],
+    row: number,
+    col: number,
+    currentFace: Face,
+    stickerRow: number,
+    stickerCol: number,
+    cubeSize: number
+): { newFace: Face; newPos: number } {
+    if (stickerRow === 0) {
+        if (row > 0 && layout[row - 1][col]) {
+            return {
+                newFace: layout[row - 1][col]!,
+                newPos: (cubeSize - 1) * cubeSize + stickerCol,
+            };
+        }
+    } else {
+        return { newFace: currentFace, newPos: (stickerRow - 1) * cubeSize + stickerCol };
+    }
+    return { newFace: currentFace, newPos: stickerRow * cubeSize + stickerCol };
+}
+
+/** Resolve downward movement: cross face boundary or stay within the same face. */
+function resolveDown(
+    layout: (Face | null)[][],
+    row: number,
+    col: number,
+    currentFace: Face,
+    stickerRow: number,
+    stickerCol: number,
+    cubeSize: number
+): { newFace: Face; newPos: number } {
+    if (stickerRow === cubeSize - 1) {
+        if (row < layout.length - 1 && layout[row + 1][col]) {
+            return { newFace: layout[row + 1][col]!, newPos: stickerCol };
+        }
+    } else {
+        return { newFace: currentFace, newPos: (stickerRow + 1) * cubeSize + stickerCol };
+    }
+    return { newFace: currentFace, newPos: stickerRow * cubeSize + stickerCol };
+}
+
+/** Resolve leftward movement: cross face boundary or stay within the same face. */
+function resolveLeft(
+    layout: (Face | null)[][],
+    row: number,
+    col: number,
+    currentFace: Face,
+    stickerRow: number,
+    stickerCol: number,
+    cubeSize: number
+): { newFace: Face; newPos: number } {
+    if (stickerCol === 0) {
+        if (col > 0 && layout[row][col - 1]) {
+            return {
+                newFace: layout[row][col - 1]!,
+                newPos: stickerRow * cubeSize + (cubeSize - 1),
+            };
+        }
+    } else {
+        return { newFace: currentFace, newPos: stickerRow * cubeSize + (stickerCol - 1) };
+    }
+    return { newFace: currentFace, newPos: stickerRow * cubeSize + stickerCol };
+}
+
+/** Resolve rightward movement: cross face boundary or stay within the same face. */
+function resolveRight(
+    layout: (Face | null)[][],
+    row: number,
+    col: number,
+    currentFace: Face,
+    stickerRow: number,
+    stickerCol: number,
+    cubeSize: number
+): { newFace: Face; newPos: number } {
+    if (stickerCol === cubeSize - 1) {
+        if (col < layout[row].length - 1 && layout[row][col + 1]) {
+            return { newFace: layout[row][col + 1]!, newPos: stickerRow * cubeSize };
+        }
+    } else {
+        return { newFace: currentFace, newPos: stickerRow * cubeSize + (stickerCol + 1) };
+    }
+    return { newFace: currentFace, newPos: stickerRow * cubeSize + stickerCol };
+}
+
 /**
  * Get the adjacent position when moving from a sticker position in the Flat view.
  * Handles movement within the T-shaped layout (U on top, F/R/L/B in middle, D on bottom).
@@ -41,95 +142,64 @@ export function getAdjacentPos(
     dir: NavDirection,
     cubeSize: number = 3
 ): { newFace: Face; newPos: number } | undefined {
-    // Define the T-shaped layout positions.
     const layout: (Face | null)[][] = [
         [null, Face.U, null, null],
         [Face.L, Face.F, Face.R, Face.B],
         [null, Face.D, null, null],
     ];
 
-    // Find current face position in layout.
-    let currentRow = -1,
-        currentCol = -1;
-    for (let row = 0; row < layout.length; row++) {
-        for (let col = 0; col < layout[row].length; col++) {
-            if (layout[row][col] === currentFace) {
-                currentRow = row;
-                currentCol = col;
-                break;
-            }
-        }
-        if (currentRow !== -1) break;
-    }
-
-    if (currentRow === -1)
-        // Face not found in layout.
+    const position = findFaceInLayout(layout, currentFace);
+    if (!position) {
         return undefined;
+    }
 
     const stickerRow = Math.floor(currentPos / cubeSize);
     const stickerCol = currentPos % cubeSize;
 
-    let newFace = currentFace;
-    let newPos = currentPos;
-
     switch (dir) {
         case NavDirection.Up:
-            if (stickerRow === 0) {
-                // Try to move to face above.
-                if (currentRow > 0 && layout[currentRow - 1][currentCol]) {
-                    newFace = layout[currentRow - 1][currentCol]!;
-                    // Bottom row of new face.
-                    newPos = (cubeSize - 1) * cubeSize + stickerCol;
-                }
-            } else {
-                newPos = (stickerRow - 1) * cubeSize + stickerCol;
-            }
-            break;
+            return resolveUp(
+                layout,
+                position.row,
+                position.col,
+                currentFace,
+                stickerRow,
+                stickerCol,
+                cubeSize
+            );
         case NavDirection.Down:
-            if (stickerRow === cubeSize - 1) {
-                // Try to move to face below.
-                if (currentRow < layout.length - 1 && layout[currentRow + 1][currentCol]) {
-                    newFace = layout[currentRow + 1][currentCol]!;
-                    // Top row of new face.
-                    newPos = 0 * cubeSize + stickerCol;
-                }
-            } else {
-                newPos = (stickerRow + 1) * cubeSize + stickerCol;
-            }
-            break;
+            return resolveDown(
+                layout,
+                position.row,
+                position.col,
+                currentFace,
+                stickerRow,
+                stickerCol,
+                cubeSize
+            );
         case NavDirection.Left:
-            if (stickerCol === 0) {
-                // Try to move to face to the left.
-                if (currentCol > 0 && layout[currentRow][currentCol - 1]) {
-                    newFace = layout[currentRow][currentCol - 1]!;
-                    // Rightmost column of new face.
-                    newPos = stickerRow * cubeSize + (cubeSize - 1);
-                }
-            } else {
-                newPos = stickerRow * cubeSize + (stickerCol - 1);
-            }
-            break;
+            return resolveLeft(
+                layout,
+                position.row,
+                position.col,
+                currentFace,
+                stickerRow,
+                stickerCol,
+                cubeSize
+            );
         case NavDirection.Right:
-            if (stickerCol === cubeSize - 1) {
-                // Try to move to face to the right.
-                if (
-                    currentCol < layout[currentRow].length - 1 &&
-                    layout[currentRow][currentCol + 1]
-                ) {
-                    newFace = layout[currentRow][currentCol + 1]!;
-                    // Leftmost column of new face.
-                    newPos = stickerRow * cubeSize + 0;
-                }
-            } else {
-                newPos = stickerRow * cubeSize + (stickerCol + 1);
-            }
-            break;
+            return resolveRight(
+                layout,
+                position.row,
+                position.col,
+                currentFace,
+                stickerRow,
+                stickerCol,
+                cubeSize
+            );
         default:
-            // Ignore other keys.
             return undefined;
     }
-
-    return { newFace, newPos };
 }
 
 /**

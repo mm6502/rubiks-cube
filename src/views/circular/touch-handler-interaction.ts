@@ -39,7 +39,7 @@ import {
     isAxisLayerReversedFromCanonical,
     parseAxisCircleKey,
 } from './touch-handler-geometry';
-import { getFaceEllipseHit, resolveStickerHit } from './touch-handler-hit-testing';
+import { getFaceEllipseHit, isInLbdDeadZone, resolveStickerHit } from './touch-handler-hit-testing';
 import { findNearestStickerOnFace } from './touch-handler-hit-testing';
 import {
     clearAxisSelections,
@@ -49,7 +49,6 @@ import {
     hideDragLabel,
     hideHalo,
     isHaloElement,
-    isInLbdDeadZone,
     setAxisSelectedClass,
     setupFaceEllipseGuideLine,
     setupHaloGuideLine,
@@ -102,7 +101,7 @@ export function getInteractionStart(
         return { kind: HitKind.FACE_ELLIPSE, face: faceEllipse };
     }
 
-    if (isInLbdDeadZone(state, clientX, clientY)) {
+    if (isInLbdDeadZone(state.svgRoot, clientToSvgPoint(state.svgRoot, clientX, clientY))) {
         return { kind: HitKind.NONE };
     }
 
@@ -123,7 +122,7 @@ export function getInteractionStart(
  * proximity-based detection with biased radial boundaries that favour
  * middle-slice circles.
  */
-export function getAxisHit(
+function getAxisHit(
     state: TouchHandlerState,
     element: Element | null,
     clientX: number,
@@ -264,7 +263,7 @@ export function handleTap(state: TouchHandlerState, hit: InteractionStart): void
 // ── Axis selection ──────────────────────────────────────────────────────────
 
 /** Toggle the persistent selection state of an axis circle (add or remove). */
-export function toggleAxisSelection(state: TouchHandlerState, hit: AxisHit): void {
+function toggleAxisSelection(state: TouchHandlerState, hit: AxisHit): void {
     if (state.selectedAxisCircles.has(hit.key)) {
         state.selectedAxisCircles.delete(hit.key);
         setAxisSelectedClass(state, hit.key, false);
@@ -275,7 +274,7 @@ export function toggleAxisSelection(state: TouchHandlerState, hit: AxisHit): voi
 }
 
 /** Add an axis circle to the selection, clearing circles from other axes first. */
-export function selectAxisCircle(state: TouchHandlerState, hit: AxisHit): void {
+function selectAxisCircle(state: TouchHandlerState, hit: AxisHit): void {
     const existingAxis = getSelectedAxis(state);
     if (existingAxis !== undefined && existingAxis !== hit.axis) {
         clearAxisSelections(state);
@@ -286,7 +285,7 @@ export function selectAxisCircle(state: TouchHandlerState, hit: AxisHit): void {
 }
 
 /** Return the axis shared by all currently selected circles, or `undefined` if none are selected. */
-export function getSelectedAxis(state: TouchHandlerState): Axis | undefined {
+function getSelectedAxis(state: TouchHandlerState): Axis | undefined {
     const firstKey = state.selectedAxisCircles.values().next().value as string | undefined;
     if (firstKey === undefined) {
         return undefined;
@@ -363,7 +362,7 @@ function inferSelectedAxisNotations(
  * `GestureIntent` that carries view-space context (SVG start point,
  * axis, layer, face) alongside the generic drag metrics.
  */
-export function buildGestureIntent(state: TouchHandlerState, gesture: DragGesture): GestureIntent {
+function buildGestureIntent(state: TouchHandlerState, gesture: DragGesture): GestureIntent {
     const startViewPoint = clientToSvgPoint(state.svgRoot, gesture.start.x, gesture.start.y);
 
     if (state.start.kind === HitKind.HALO) {
@@ -444,7 +443,7 @@ export function buildGestureIntent(state: TouchHandlerState, gesture: DragGestur
 }
 
 /** Create a minimal `InteractionContext` snapshot for move-inference functions. */
-export function createInteractionContext(state: TouchHandlerState): InteractionContext {
+function createInteractionContext(state: TouchHandlerState): InteractionContext {
     return {
         cubeSize: state.getCubeSize(),
         selectedFace: state.selectedFace,
@@ -456,10 +455,9 @@ export function createInteractionContext(state: TouchHandlerState): InteractionC
 /**
  * Central move-inference router. Examines the gesture intent and active
  * fretboard state to produce zero or more WCA move-notation strings.
- * Handles halo rotation, fretboard (axis-circle + background), sticker
- * drag-cross, and bare-background whole-cube moves.
+ * Dispatches to specialised helpers for each hit kind.
  */
-export function inferMovesForGesture(state: TouchHandlerState, gesture: DragGesture): string[] {
+function inferMovesForGesture(state: TouchHandlerState, gesture: DragGesture): string[] {
     const context = createInteractionContext(state);
     const intent = buildGestureIntent(state, gesture);
 
@@ -471,157 +469,208 @@ export function inferMovesForGesture(state: TouchHandlerState, gesture: DragGest
         return [];
     }
 
-    if (intent.hitKind === HitKind.HALO && state.selectedFace) {
-        const angular = intent.angularDisplacementRad;
-        if (angular === undefined || Math.abs(angular) < 0.1) {
-            return [];
-        }
-        const notation =
-            state.adapter.inferFaceRotationNotation?.(state.selectedFace, angular > 0, context) ??
-            inferMoveFromFaceRotation(state.selectedFace, angular > 0);
-        if (gesture.distancePx > state.dragStateMachine.farDragThresholdPx) {
-            return [toFar(notation)];
-        }
-        return [notation];
+    if (isFretboardActive) {
+        return inferFretboardMove(state, gesture, intent, context);
     }
 
+    switch (intent.hitKind) {
+        case HitKind.HALO:
+            return inferHaloMove(state, gesture, intent, context);
+        case HitKind.AXIS_CIRCLE:
+            return inferAxisCircleDirectMove(state, gesture, intent, context);
+        case HitKind.STICKER:
+            return inferStickerMove(state, gesture, intent);
+        case HitKind.BACKGROUND:
+            return inferBackgroundMove(state, gesture, intent, context);
+        default:
+            return [];
+    }
+}
+
+/** Halo rotation on a selected face. */
+function inferHaloMove(
+    state: TouchHandlerState,
+    gesture: DragGesture,
+    intent: GestureIntent,
+    context: InteractionContext
+): string[] {
+    if (!state.selectedFace) {
+        return [];
+    }
+    const angular = intent.angularDisplacementRad;
+    if (angular === undefined || Math.abs(angular) < 0.1) {
+        return [];
+    }
+    const notation =
+        state.adapter.inferFaceRotationNotation?.(state.selectedFace, angular > 0, context) ??
+        inferMoveFromFaceRotation(state.selectedFace, angular > 0);
+    return gesture.distancePx > state.dragStateMachine.farDragThresholdPx
+        ? [toFar(notation)]
+        : [notation];
+}
+
+/** Fretboard-active move (axis-circle or background with fretboard highlight). */
+function inferFretboardMove(
+    state: TouchHandlerState,
+    gesture: DragGesture,
+    intent: GestureIntent,
+    context: InteractionContext
+): string[] {
+    const perpDist = fretboardPerpDistancePx(state, gesture);
+    const effectiveDistance = perpDist ?? gesture.distancePx;
+
+    if (effectiveDistance < getCommitThresholdPx(state)) {
+        return [];
+    }
+
+    if (state.fretboardHighlightKey === FRETBOARD_BG_KEY) {
+        return inferFretboardBackgroundMove(state, intent, context, effectiveDistance);
+    }
+
+    return inferFretboardAxisLayerMove(state, gesture, intent, context, effectiveDistance);
+}
+
+/** Fretboard move when the highlight is the fretboard background (whole-cube rotation). */
+function inferFretboardBackgroundMove(
+    state: TouchHandlerState,
+    intent: GestureIntent,
+    _context: InteractionContext,
+    effectiveDistance: number
+): string[] {
+    const angular = intent.angularDisplacementRad;
+    if (angular === undefined || Math.abs(angular) < 0.1) {
+        return [];
+    }
+    const axis = state.fretboardAxis;
+    if (!axis) {
+        return [];
+    }
+    const notation = axisToWholeCubeNotation(axis, angular > 0);
+    return effectiveDistance > state.dragStateMachine.farDragThresholdPx
+        ? [toFar(notation)]
+        : [notation];
+}
+
+/** Fretboard move when the highlight is a specific axis layer. */
+function inferFretboardAxisLayerMove(
+    state: TouchHandlerState,
+    _gesture: DragGesture,
+    intent: GestureIntent,
+    context: InteractionContext,
+    effectiveDistance: number
+): string[] {
+    const fretTarget = getFretboardHighlightTarget(state);
+    const axis = fretTarget?.axis ?? intent.axis;
+    const layer = fretTarget?.layer ?? intent.layer;
+    const angular = intent.angularDisplacementRad;
     if (
-        (intent.hitKind === HitKind.AXIS_CIRCLE || intent.hitKind === HitKind.BACKGROUND) &&
-        state.fretboardHighlightKey !== undefined
+        axis === undefined ||
+        layer === undefined ||
+        angular === undefined ||
+        Math.abs(angular) < 0.1
     ) {
-        const perpDist = fretboardPerpDistancePx(state, gesture);
-        const effectiveDistance = perpDist ?? gesture.distancePx;
-
-        if (effectiveDistance < getCommitThresholdPx(state)) {
-            return [];
-        }
-
-        if (state.fretboardHighlightKey === FRETBOARD_BG_KEY) {
-            const angular = intent.angularDisplacementRad;
-            if (angular === undefined || Math.abs(angular) < 0.1) {
-                return [];
-            }
-            const axis = state.fretboardAxis;
-            if (!axis) {
-                return [];
-            }
-            const isClockwise = angular > 0;
-            const notation = axisToWholeCubeNotation(axis, isClockwise);
-            if (effectiveDistance > state.dragStateMachine.farDragThresholdPx) {
-                return [toFar(notation)];
-            }
-            return [notation];
-        }
-
-        const fretTarget = getFretboardHighlightTarget(state);
-        const axis = fretTarget?.axis ?? intent.axis;
-        const layer = fretTarget?.layer ?? intent.layer;
-        const angular = intent.angularDisplacementRad;
-        if (
-            axis === undefined ||
-            layer === undefined ||
-            angular === undefined ||
-            Math.abs(angular) < 0.1
-        ) {
-            return [];
-        }
-        const isClockwiseOnScreen = angular > 0;
-        const reversed = isAxisLayerReversedFromCanonical(axis, layer, context.cubeSize);
-        const isClockwise = reversed ? !isClockwiseOnScreen : isClockwiseOnScreen;
-
-        const dragAxisKey = getAxisCircleKey(axis, layer);
-        if (state.selectedAxisCircles.size > 0 && state.selectedAxisCircles.has(dragAxisKey)) {
-            const notations = inferSelectedAxisNotations(state, isClockwiseOnScreen, context);
-            if (effectiveDistance > state.dragStateMachine.farDragThresholdPx) {
-                return notations.map(toFar);
-            }
-            return notations;
-        }
-
-        const notation =
-            state.adapter.inferAxisCircleNotation?.(axis, layer, isClockwise, context) ??
-            axisLayerToNotation(axis, layer, isClockwise, context.cubeSize);
-        if (effectiveDistance > state.dragStateMachine.farDragThresholdPx) {
-            return [toFar(notation)];
-        }
-        return [notation];
+        return [];
     }
 
-    if (intent.hitKind === HitKind.AXIS_CIRCLE) {
-        const angular = intent.angularDisplacementRad;
-        if (
-            intent.axis === undefined ||
-            intent.layer === undefined ||
-            angular === undefined ||
-            Math.abs(angular) < 0.1
-        ) {
-            return [];
-        }
-        const reversed = isAxisLayerReversedFromCanonical(
-            intent.axis,
-            intent.layer,
-            context.cubeSize
-        );
-        const isClockwise = reversed ? angular <= 0 : angular > 0;
-        const notation =
-            state.adapter.inferAxisCircleNotation?.(
-                intent.axis,
-                intent.layer,
-                isClockwise,
-                context
-            ) ?? axisLayerToNotation(intent.axis, intent.layer, isClockwise, context.cubeSize);
-        if (gesture.distancePx > state.dragStateMachine.farDragThresholdPx) {
-            return [toFar(notation)];
-        }
-        return [notation];
+    const isClockwiseOnScreen = angular > 0;
+    const reversed = isAxisLayerReversedFromCanonical(axis, layer, context.cubeSize);
+    const isClockwise = reversed ? !isClockwiseOnScreen : isClockwiseOnScreen;
+
+    const dragAxisKey = getAxisCircleKey(axis, layer);
+    if (state.selectedAxisCircles.size > 0 && state.selectedAxisCircles.has(dragAxisKey)) {
+        const notations = inferSelectedAxisNotations(state, isClockwiseOnScreen, context);
+        return effectiveDistance > state.dragStateMachine.farDragThresholdPx
+            ? notations.map(toFar)
+            : notations;
     }
 
-    if (intent.hitKind === HitKind.STICKER && intent.face !== undefined) {
-        if (!state.pendingStickerCross) {
-            return [];
-        }
+    const notation =
+        state.adapter.inferAxisCircleNotation?.(axis, layer, isClockwise, context) ??
+        axisLayerToNotation(axis, layer, isClockwise, context.cubeSize);
+    return effectiveDistance > state.dragStateMachine.farDragThresholdPx
+        ? [toFar(notation)]
+        : [notation];
+}
 
-        const { basis, upMove, downMove, rightMove, leftMove } = state.pendingStickerCross;
-        const startSvg = clientToSvgPoint(state.svgRoot, gesture.start.x, gesture.start.y);
-        const endSvg = clientToSvgPoint(state.svgRoot, gesture.current.x, gesture.current.y);
-        const dx = endSvg.x - startSvg.x;
-        const dy = endSvg.y - startSvg.y;
-        const dUp = dx * basis.upDir.x + dy * basis.upDir.y;
-        const dRight = dx * basis.rightDir.x + dy * basis.rightDir.y;
-        const move =
-            Math.abs(dUp) >= Math.abs(dRight)
-                ? dUp > 0
-                    ? upMove
-                    : downMove
-                : dRight > 0
-                  ? rightMove
-                  : leftMove;
-        if (gesture.distancePx > state.dragStateMachine.farDragThresholdPx) {
-            return [toFar(move)];
-        }
-        return [move];
+/** Direct axis-circle drag (no fretboard). */
+function inferAxisCircleDirectMove(
+    state: TouchHandlerState,
+    gesture: DragGesture,
+    intent: GestureIntent,
+    context: InteractionContext
+): string[] {
+    const angular = intent.angularDisplacementRad;
+    if (
+        intent.axis === undefined ||
+        intent.layer === undefined ||
+        angular === undefined ||
+        Math.abs(angular) < 0.1
+    ) {
+        return [];
+    }
+    const reversed = isAxisLayerReversedFromCanonical(intent.axis, intent.layer, context.cubeSize);
+    const isClockwise = reversed ? angular <= 0 : angular > 0;
+    const notation =
+        state.adapter.inferAxisCircleNotation?.(intent.axis, intent.layer, isClockwise, context) ??
+        axisLayerToNotation(intent.axis, intent.layer, isClockwise, context.cubeSize);
+    return gesture.distancePx > state.dragStateMachine.farDragThresholdPx
+        ? [toFar(notation)]
+        : [notation];
+}
+
+/** Sticker drag-cross move. */
+function inferStickerMove(
+    state: TouchHandlerState,
+    gesture: DragGesture,
+    intent: GestureIntent
+): string[] {
+    if (intent.face === undefined || !state.pendingStickerCross) {
+        return [];
     }
 
-    if (intent.hitKind === HitKind.BACKGROUND) {
-        const contextWithStart: InteractionContext = {
-            ...context,
-            metadata: {
-                ...(context.metadata ?? {}),
-                startViewPointX: intent.startViewPoint?.x,
-                startViewPointY: intent.startViewPoint?.y,
-            },
-        };
+    const { basis, upMove, downMove, rightMove, leftMove } = state.pendingStickerCross;
+    const startSvg = clientToSvgPoint(state.svgRoot, gesture.start.x, gesture.start.y);
+    const endSvg = clientToSvgPoint(state.svgRoot, gesture.current.x, gesture.current.y);
+    const dx = endSvg.x - startSvg.x;
+    const dy = endSvg.y - startSvg.y;
+    const dUp = dx * basis.upDir.x + dy * basis.upDir.y;
+    const dRight = dx * basis.rightDir.x + dy * basis.rightDir.y;
+    const move =
+        Math.abs(dUp) >= Math.abs(dRight)
+            ? dUp > 0
+                ? upMove
+                : downMove
+            : dRight > 0
+              ? rightMove
+              : leftMove;
+    return gesture.distancePx > state.dragStateMachine.farDragThresholdPx ? [toFar(move)] : [move];
+}
 
-        const notation = inferWholeCubeMove(intent.deltaX, intent.deltaY, (deltaX, deltaY) =>
-            state.adapter.inferWholeCubeNotation?.(deltaX, deltaY, contextWithStart)
-        );
-        if (notation && gesture.distancePx > state.dragStateMachine.farDragThresholdPx) {
-            return [toFar(notation)];
-        }
-        return notation ? [notation] : [];
+/** Bare-background whole-cube move (no fretboard). */
+function inferBackgroundMove(
+    state: TouchHandlerState,
+    gesture: DragGesture,
+    intent: GestureIntent,
+    context: InteractionContext
+): string[] {
+    const contextWithStart: InteractionContext = {
+        ...context,
+        metadata: {
+            ...(context.metadata ?? {}),
+            startViewPointX: intent.startViewPoint?.x,
+            startViewPointY: intent.startViewPoint?.y,
+        },
+    };
+
+    const notation = inferWholeCubeMove(intent.deltaX, intent.deltaY, (deltaX, deltaY) =>
+        state.adapter.inferWholeCubeNotation?.(deltaX, deltaY, contextWithStart)
+    );
+    if (!notation) {
+        return [];
     }
-
-    return [];
+    return gesture.distancePx > state.dragStateMachine.farDragThresholdPx
+        ? [toFar(notation)]
+        : [notation];
 }
 
 // ── Drag callbacks ──────────────────────────────────────────────────────────

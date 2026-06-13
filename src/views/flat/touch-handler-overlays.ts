@@ -6,7 +6,7 @@
  */
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
-import { clamp } from '@/cube/utils/math';
+import { computeDragLabelPosition } from '@/interaction/drag-label-positioning';
 import { CANCEL_ZONE_RADIUS_BASE_PX, CANCEL_ZONE_TABBED_MULTIPLIER } from '@/interaction/types';
 
 import type { FlatTouchHandlerState } from './touch-handler-types';
@@ -123,36 +123,20 @@ export function showDragLabel(
     const labelWidth = s.dragLabelEl.offsetWidth || 40;
     const labelHeight = s.dragLabelEl.offsetHeight || 22;
 
-    let x: number;
-    let y: number;
+    const result = computeDragLabelPosition({
+        layoutMode: s.layoutMode,
+        clientX,
+        clientY,
+        hostRect,
+        labelWidth,
+        labelHeight,
+        activePointerType: s.activePointerType,
+    });
 
-    if (s.layoutMode === LayoutMode.Tabbed) {
-        s.dragLabelEl.style.position = 'fixed';
-        s.dragLabelEl.style.zIndex = '10000';
-        x = clientX - labelWidth / 2;
-        y = clientY - labelHeight - 50;
-        x = clamp(x, 4, window.innerWidth - labelWidth - 4);
-        y = clamp(y, 4, window.innerHeight - labelHeight - 4);
-    } else {
-        s.dragLabelEl.style.position = '';
-        s.dragLabelEl.style.zIndex = '';
-        const localX = clientX - hostRect.left;
-        const localY = clientY - hostRect.top;
-
-        x = localX + 14;
-        y = localY + 14;
-
-        if (s.activePointerType === 'touch') {
-            x = localX - labelWidth / 2;
-            y = localY - labelHeight - 36;
-        }
-
-        x = clamp(x, 4, hostRect.width - labelWidth - 4);
-        y = clamp(y, 4, hostRect.height - labelHeight - 4);
-    }
-
-    s.dragLabelEl.style.left = `${x}px`;
-    s.dragLabelEl.style.top = `${y}px`;
+    s.dragLabelEl.style.position = result.position;
+    s.dragLabelEl.style.zIndex = result.zIndex;
+    s.dragLabelEl.style.left = `${result.x}px`;
+    s.dragLabelEl.style.top = `${result.y}px`;
 }
 
 /** Hide the drag label and reset its positioning styles. */

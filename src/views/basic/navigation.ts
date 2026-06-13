@@ -6,8 +6,8 @@ import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { LogLevel, logger } from '@/diagnostics/logger';
 import { EventName, NavDirection, ViewRotation } from '@/types';
 
-import { BasicVariant } from './basic-view';
-import type { BasicViewInternalData } from './basic-view';
+import { BasicVariant } from './types';
+import type { BasicViewInternalData } from './types';
 
 // ---------------------------------------------------------------------------
 // Coordinate system (model space, right-handed)

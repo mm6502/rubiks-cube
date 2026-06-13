@@ -30,6 +30,10 @@ const mockModel = {
     isSolved: () => false,
     getState: () => mockState,
     getCurrentState: () => mockState,
+    getMoveHistory: () => ({
+        canUndo: () => false,
+        canRedo: () => false,
+    }),
 } as any;
 
 // Unit tests merged into same file

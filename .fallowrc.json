@@ -1,0 +1,22 @@
+{
+    "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+    "entry": ["src/index.{ts,tsx,js,jsx}", "src/main.{ts,tsx,js,jsx}", "src/views/*/index.ts"],
+    "ignorePatterns": ["scripts/**"],
+    "ignoreDependencies": ["@resvg/resvg-js"],
+    "duplicates": {
+        "minOccurrences": 3,
+        "ignore": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "scripts/**"]
+    },
+    "health": {
+        "ignore": ["**/*.test.ts"]
+    },
+    "rules": {
+        "unused-dependencies": "warn"
+    },
+    "ignoreExports": [
+        {
+            "file": "**/*.css",
+            "exports": ["*"]
+        }
+    ]
+}

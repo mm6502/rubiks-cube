@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-export
 import { Position2D, Size2D } from '@/cube/types/cubie';
 import { CubeView } from '@/cube/types/view';
 import { logger } from '@/diagnostics/logger';

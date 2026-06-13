@@ -444,6 +444,8 @@ function makeState(
         cubeElement,
         cubeContainer,
         styles,
+        stickerClass: styles['sticker'] ?? 'sticker',
+        highlightedClass: styles['highlighted'] ?? 'highlighted',
         variant,
         viewType: variant === 'back' ? 'basic-back' : 'basic-front',
         isTilted: false,

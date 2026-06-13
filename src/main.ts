@@ -1,3 +1,4 @@
+// fallow-ignore-file unresolved-import
 // Rubik's Cube - Main Entry Point (v1)
 // Application initialization and DOM setup
 import { Application } from './application';

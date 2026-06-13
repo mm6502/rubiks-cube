@@ -34,15 +34,6 @@ export const LOG_CONFIG: LogConfig = {
     colorizeConsole: true,
 };
 
-/** Performance metrics for logging */
-export interface PerformanceMetrics {
-    moveExecutionTime: number; // milliseconds
-    stateUpdateTime: number; // milliseconds
-    viewUpdateTime: number; // milliseconds
-    memoryUsage: number; // bytes
-    timestamp: number; // when measurement was taken
-}
-
 /** Log entry for external listeners */
 export interface LogEntry {
     timestamp: string;

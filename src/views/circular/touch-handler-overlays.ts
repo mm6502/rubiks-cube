@@ -7,7 +7,8 @@
  */
 import { Axis, Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
-import { clamp, normalize2 } from '@/cube/utils/math';
+import { normalize2 } from '@/cube/utils/math';
+import { computeDragLabelPosition } from '@/interaction/drag-label-positioning';
 import { inferMoveFromDrag } from '@/interaction/move-inference';
 import { DragDirection } from '@/interaction/types';
 import type { Point2D } from '@/interaction/types';
@@ -19,11 +20,7 @@ import {
     parseAxisCircleKey,
     setLineFromBasis,
 } from './touch-handler-geometry';
-import {
-    buildCrossingBasisAtPoint,
-    getLbdTrianglePoints,
-    isInLbdDeadZone as isInLbdDeadZoneCore,
-} from './touch-handler-hit-testing';
+import { buildCrossingBasisAtPoint, getLbdTrianglePoints } from './touch-handler-hit-testing';
 import {
     DRAG_CROSS_ARM_LENGTH_FLOATING,
     DRAG_CROSS_ARM_LENGTH_TABBED,
@@ -500,7 +497,7 @@ export function clearAxisSelections(state: TouchHandlerState): void {
 }
 
 /** Transiently highlight a set of axis circle keys as a drag preview. */
-export function showAxisKeysPreview(state: TouchHandlerState, keys: Iterable<string>): void {
+function showAxisKeysPreview(state: TouchHandlerState, keys: Iterable<string>): void {
     const className = state.styles['circular-axis-selected'] ?? 'circular-axis-selected';
     state.previewAxisKeys ??= new Set<string>();
     for (const key of keys) {
@@ -557,29 +554,19 @@ export function showDragLabel(
     const labelWidth = state.dragLabelEl.offsetWidth || 40;
     const labelHeight = state.dragLabelEl.offsetHeight || 22;
 
-    let x: number;
-    let y: number;
+    const result = computeDragLabelPosition({
+        layoutMode: state.layoutMode,
+        clientX,
+        clientY,
+        hostRect,
+        labelWidth,
+        labelHeight,
+    });
 
-    if (state.layoutMode === LayoutMode.Tabbed) {
-        state.dragLabelEl.style.position = 'fixed';
-        state.dragLabelEl.style.zIndex = '10000';
-        x = clientX - labelWidth / 2;
-        y = clientY - labelHeight - 50;
-        x = clamp(x, 4, window.innerWidth - labelWidth - 4);
-        y = clamp(y, 4, window.innerHeight - labelHeight - 4);
-    } else {
-        state.dragLabelEl.style.position = '';
-        state.dragLabelEl.style.zIndex = '';
-        const localX = clientX - hostRect.left;
-        const localY = clientY - hostRect.top;
-        x = localX + 14;
-        y = localY + 14;
-        x = clamp(x, 4, hostRect.width - labelWidth - 4);
-        y = clamp(y, 4, hostRect.height - labelHeight - 4);
-    }
-
-    state.dragLabelEl.style.left = `${x}px`;
-    state.dragLabelEl.style.top = `${y}px`;
+    state.dragLabelEl.style.position = result.position;
+    state.dragLabelEl.style.zIndex = result.zIndex;
+    state.dragLabelEl.style.left = `${result.x}px`;
+    state.dragLabelEl.style.top = `${result.y}px`;
 }
 
 /** Hide the floating drag label and reset its positioning style. */
@@ -587,19 +574,4 @@ export function hideDragLabel(state: TouchHandlerState): void {
     state.dragLabelEl.style.display = 'none';
     state.dragLabelEl.style.position = '';
     state.dragLabelEl.style.zIndex = '';
-}
-
-// ── LBD dead zone check ────────────────────────────────────────────────────
-
-/**
- * Check whether a client-pixel point falls inside the LBD dead-zone triangle
- * where axis-circle proximity detection should not fire.
- */
-export function isInLbdDeadZone(
-    state: TouchHandlerState,
-    clientX: number,
-    clientY: number
-): boolean {
-    const p = clientToSvgPoint(state.svgRoot, clientX, clientY);
-    return isInLbdDeadZoneCore(state.svgRoot, p);
 }

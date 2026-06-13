@@ -1,7 +1,7 @@
 // Application Layer - Main application initialization and coordination
 import { CubeController } from '@/cube-controller';
 import { StatePersistence } from '@/cube/core/state-persistence';
-import { EventBus } from '@/events/event-bus';
+import { getEventBus } from '@/event-bus-accessor';
 import { EventName } from '@/types';
 import { ViewManager } from '@/view-manager/view-manager';
 
@@ -18,7 +18,9 @@ import { slugify } from './global';
 export class Application {
     private controller: CubeController;
     private viewManager: ViewManager;
-    public static eventBus = new EventBus();
+    public static get eventBus() {
+        return getEventBus();
+    }
 
     /**
      * Constructor initializes the cube controller and view manager,

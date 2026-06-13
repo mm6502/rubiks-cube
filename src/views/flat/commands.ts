@@ -1,4 +1,5 @@
 import { Application } from '@/application';
+import { createUndoRedoCommands } from '@/cube/commands/undo-redo';
 import { Face, StickerId } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import {
@@ -128,7 +129,9 @@ export function handleKeyUp(ctx: FlatCommandContext, event: KeyboardEvent): bool
 }
 
 export function getCommands(ctx: FlatCommandContext): Command[] {
+    const undoRedo = createUndoRedoCommands(ctx.state.model?.getMoveHistory() ?? null, 'flat');
     return [
+        ...undoRedo,
         {
             id: 'flat.cube-walk',
             label: 'Cube Walk',
@@ -181,32 +184,6 @@ export function getCommands(ctx: FlatCommandContext): Command[] {
                     viewType: ctx.getViewType(),
                 });
             },
-        },
-        {
-            id: 'flat.undo',
-            label: 'Undo',
-            category: CommandCategory.VIEW,
-            showInHeader: true,
-            icon: '↩',
-            tooltip: 'Undo last move.',
-            keyBindings: [{ key: '[' }, { key: ',' }],
-            displayOrder: 900,
-            overflowPriority: 901,
-            action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
-            isEnabled: () => ctx.canUndo(),
-        },
-        {
-            id: 'flat.redo',
-            label: 'Redo',
-            category: CommandCategory.VIEW,
-            showInHeader: true,
-            icon: '↪',
-            tooltip: 'Redo last undone move.',
-            keyBindings: [{ key: ']' }, { key: '.' }],
-            displayOrder: 901,
-            overflowPriority: 900,
-            action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
-            isEnabled: () => ctx.canRedo(),
         },
     ];
 }

@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-type
 // Event type definitions and payload interfaces for the Commanding and Eventing System
 //
 // This module defines the event interfaces used for communication between the CubeController,
@@ -15,8 +16,10 @@
 // - definition: Detailed cube2 move definition for the executed move
 // - movedCubies: Detailed information about which cubies changed and how
 // - Compile-time safety: Readonly<T> prevents accidental mutations
-import { CubeState, ReadonlyCubie, StickerId } from '@/cube/types';
+import { CubeState } from '@/cube/types/cube-state';
+import { ReadonlyCubie } from '@/cube/types/cubie';
 import type { MoveDefinition } from '@/cube/types/move';
+import { StickerId } from '@/cube/types/sticker';
 
 import type { ViewRotation } from './geometry';
 

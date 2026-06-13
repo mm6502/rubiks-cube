@@ -139,7 +139,7 @@ export function classifyCubieSubType(
  * Helper to classify a center cubie based on its two non-extreme components.
  * Returns FIXED_CENTER, X_CENTER, or OBLIQUE_CENTER depending on symmetry.
  */
-export function classifyCenterSubType(values: number[], cubeSize: number): CubieSubType {
+function classifyCenterSubType(values: number[], cubeSize: number): CubieSubType {
     const absValues = values.map(value => Math.abs(value));
     const zeroCount = absValues.filter(value => approximatelyEqual(value, 0)).length;
 

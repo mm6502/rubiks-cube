@@ -1,11 +1,12 @@
 import { Application } from '@/application';
+import { createUndoRedoCommands } from '@/cube/commands/undo-redo';
 import { Command, CommandCategory, EventName, ViewRotation } from '@/types';
 
 import * as rendering from './rendering';
-import type { BasicViewInternalData } from './basic-view';
 import { isGhostVisible } from './ghost-stickers';
 import { isLinked, setLinked } from './linked-rotations';
 import type { BasicTouchHandler } from './touch-handler';
+import type { BasicViewInternalData } from './types';
 
 export interface BasicViewCommandContext {
     readonly state: BasicViewInternalData;
@@ -23,33 +24,12 @@ export interface BasicViewCommandContext {
 }
 
 export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
+    const undoRedo = createUndoRedoCommands(
+        ctx.state.model?.getMoveHistory() ?? null,
+        ctx.getViewType()
+    );
     return [
-        {
-            id: `${ctx.getViewType()}.undo`,
-            label: 'Undo',
-            category: CommandCategory.VIEW,
-            showInHeader: true,
-            icon: '↩',
-            tooltip: 'Undo last move.',
-            keyBindings: [{ key: '[' }, { key: ',' }],
-            displayOrder: 900,
-            overflowPriority: 901,
-            action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
-            isEnabled: () => ctx.state.model?.getMoveHistory().canUndo() ?? false,
-        },
-        {
-            id: `${ctx.getViewType()}.redo`,
-            label: 'Redo',
-            category: CommandCategory.VIEW,
-            showInHeader: true,
-            icon: '↪',
-            tooltip: 'Redo last undone move.',
-            keyBindings: [{ key: ']' }, { key: '.' }],
-            displayOrder: 901,
-            overflowPriority: 900,
-            action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
-            isEnabled: () => ctx.state.model?.getMoveHistory().canRedo() ?? false,
-        },
+        ...undoRedo,
         {
             id: 'reset-view',
             label: 'Reset View',

@@ -1,5 +1,7 @@
 // View interfaces for cube visualization
-import { ReadOnlyCubeModel, Size2D, StickerId } from '@/cube/types';
+import { Size2D } from '@/cube/types/cubie';
+import { ReadOnlyCubeModel } from '@/cube/types/model';
+import { StickerId } from '@/cube/types/sticker';
 import { Command, MoveExecutedEvent } from '@/types';
 
 /** Layout mode for the application — floating panels (desktop) or tabbed (mobile/tablet). */

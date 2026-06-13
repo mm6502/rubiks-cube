@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-type
 // Basic 3D Cube Visualization
 import { Application } from '@/application';
 import {
@@ -37,55 +38,10 @@ import { GhostStickers, getGhostOpacityIndex, isGhostVisible } from './ghost-sti
 import { createBasicInteractionAdapter } from './interaction-adapter';
 import { isLinked, setLinked } from './linked-rotations';
 import { BasicTouchHandler } from './touch-handler';
+import { BasicVariant } from './types';
+import type { BasicViewInternalData, BasicViewState } from './types';
 
-/**
- * Variant type for basic view (front or back).
- */
-export const BasicVariant = {
-    Front: 'front',
-    Back: 'back',
-} as const;
-
-export type BasicVariant = (typeof BasicVariant)[keyof typeof BasicVariant];
-
-/**
- * State persisted for the basic view.
- */
-export interface BasicViewState {
-    viewRight: Vector3;
-    viewUp: Vector3;
-    viewForward: Vector3;
-    isTilted: boolean;
-    isPitched: boolean;
-    faceDirectMode: boolean;
-    linked: boolean;
-    ghostOpacityIndex: number;
-}
-
-/**
- * Full internal state shared between all basic-view modules.
- * Defined here so modules can import it as a type without creating runtime
- * circular dependencies.
- */
-export type BasicViewInternalData = {
-    model?: ReadOnlyCubeModel;
-    container: HTMLElement | null;
-    cubeElement: HTMLElement | null;
-    cubeContainer: HTMLElement | null;
-    styles: Record<string, string>;
-    variant: BasicVariant;
-    viewType: string;
-    viewRight: Vector3;
-    viewUp: Vector3;
-    viewForward: Vector3;
-    isTilted: boolean;
-    isPitched: boolean;
-    isHovered: boolean;
-    layoutMode: LayoutMode;
-    currentSelected?: StickerId;
-    selectedFace?: string;
-    selectedCubiePosition?: Vector3;
-};
+export type { BasicVariant, BasicViewInternalData, BasicViewState } from './types';
 
 export class BasicView implements CubeView {
     private state: BasicViewInternalData;
@@ -107,6 +63,8 @@ export class BasicView implements CubeView {
             cubeElement: null,
             cubeContainer: null,
             styles: styles as Record<string, string>,
+            stickerClass: styles['sticker'] ?? 'sticker',
+            highlightedClass: styles['highlighted'] ?? 'highlighted',
             variant,
             viewType,
             viewRight: defaultVectors.viewRight,

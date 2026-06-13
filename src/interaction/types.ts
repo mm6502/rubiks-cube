@@ -51,14 +51,6 @@ export type DragGesture = {
 };
 
 /**
- * Local selected-face state owned by each view.
- */
-export type FaceSelectionState = {
-    /** The face currently selected in the view, or undefined if none. */
-    selectedFace?: Face;
-};
-
-/**
  * Canonical interaction hit categories used across all view adapters.
  */
 export const HitKind = {

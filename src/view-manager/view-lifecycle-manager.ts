@@ -1,6 +1,6 @@
-import { Application } from '@/application';
 import { CubeModel, CubeView, LayoutMode } from '@/cube/types';
 import { logger } from '@/diagnostics/logger';
+import { getEventBus } from '@/event-bus-accessor';
 import { EventName, ViewStateChangedEvent } from '@/types';
 
 import { CommandManager } from './command-manager';
@@ -50,10 +50,7 @@ export class ViewLifecycleManager {
         this.onPanelRemoved = callbacks.onPanelRemoved;
 
         // Subscribe to view state change events for immediate persistence.
-        Application.eventBus.on(
-            EventName.VIEW_STATE_CHANGED,
-            this.handleViewStateChanged.bind(this)
-        );
+        getEventBus().on(EventName.VIEW_STATE_CHANGED, this.handleViewStateChanged.bind(this));
     }
 
     /**

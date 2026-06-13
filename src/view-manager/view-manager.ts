@@ -1,7 +1,7 @@
 // View Manager - Handles dynamic view creation and management.
-import { Application } from '@/application';
 import { CubeModel, CubeView, LayoutMode, StickerId } from '@/cube/types';
 import { logger } from '@/diagnostics/logger';
+import { getEventBus } from '@/event-bus-accessor';
 import buttonStyles from '@/styles/buttons.module.css';
 import { Command, EventName, HighlightChangedEvent, KeyBinding, MoveExecutedEvent } from '@/types';
 
@@ -182,21 +182,15 @@ export class ViewManager implements CommandManager {
         this.renderGlobalCommands();
 
         // Subscribe to MOVE_EXECUTED events to update all views
-        Application.eventBus.on(EventName.MOVE_EXECUTED, this.handleMoveExecuted.bind(this));
+        getEventBus().on(EventName.MOVE_EXECUTED, this.handleMoveExecuted.bind(this));
 
         // Also subscribe to MOVE_EXECUTED to refresh command button enabled/disabled states.
         // This runs independently of view updates so command states stay in sync after every
         // move, undo, and redo operation.
-        Application.eventBus.on(
-            EventName.MOVE_EXECUTED,
-            this.handleCommandStatesRefresh.bind(this)
-        );
+        getEventBus().on(EventName.MOVE_EXECUTED, this.handleCommandStatesRefresh.bind(this));
 
         // Also subscribe to highlight change events so external emitters can update views
-        Application.eventBus.on(
-            EventName.HIGHLIGHT_CHANGED,
-            this.handleHighlightChanged.bind(this)
-        );
+        getEventBus().on(EventName.HIGHLIGHT_CHANGED, this.handleHighlightChanged.bind(this));
 
         // Re-scale view content whenever the viewport size changes (debounced).
         if (typeof window !== 'undefined') {
@@ -646,7 +640,7 @@ export class ViewManager implements CommandManager {
         try {
             const viewId =
                 typeof sourceView.getViewType === 'function' ? sourceView.getViewType() : undefined;
-            Application.eventBus.emit(EventName.HIGHLIGHT_CHANGED, {
+            getEventBus().emit(EventName.HIGHLIGHT_CHANGED, {
                 stickerId,
                 viewId,
             } as HighlightChangedEvent);

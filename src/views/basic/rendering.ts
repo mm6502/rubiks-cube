@@ -4,8 +4,8 @@ import { CubeStateUtils } from '@/cube/utils';
 import { computeAvailableContentSize } from '@/cube/utils/view-utils';
 import { MoveExecutedEvent } from '@/types';
 
-import type { BasicViewInternalData } from './basic-view';
 import { BASIC_VIEW_ANGLES, BASIC_VIEW_SCALE } from './constants';
+import type { BasicViewInternalData } from './types';
 
 /**
  * Maps an axis-aligned unit vector expressed in **CSS 3D space** to the

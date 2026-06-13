@@ -9,8 +9,8 @@ import {
 } from '@/interaction/keyboard-moves';
 import { EventName, MoveRequestedEvent } from '@/types';
 
-import { CircularCubeViewInternalData } from './circular-view';
 import { isNavigationKey, navigate } from './keyboard-cube-walking';
+import { CircularCubeViewInternalData } from './types';
 
 /**
  * Handle a key press for the circular view, with a preview mode for keydown pre-checking.

@@ -377,6 +377,7 @@
 /* flow layout: buttons size to content and wrap naturally */
 .command-group-buttons--flow {
     /* inherits flex/gap/wrap from .command-group-buttons; no overrides needed */
+    min-width: 0;
 }
 
 /* stack layout: each button occupies its own full-width row */

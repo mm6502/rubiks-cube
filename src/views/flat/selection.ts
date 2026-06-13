@@ -91,7 +91,7 @@ export function updateSelected(state: FlatViewInternalData, selectedSticker?: St
 /**
  * Apply a CSS class to surface-adjacent stickers that lie on a different face.
  */
-export function applyAdjacentClass(
+function applyAdjacentClass(
     state: FlatViewInternalData,
     stickerId: StickerId,
     className: string

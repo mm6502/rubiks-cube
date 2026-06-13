@@ -27,6 +27,8 @@ describe('BasicCubeSelector', () => {
         state = {
             container,
             styles,
+            stickerClass: 'sticker',
+            highlightedClass: 'highlighted',
             currentSelected: undefined,
             model: undefined,
             cubeElement: null,

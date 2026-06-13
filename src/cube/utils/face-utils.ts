@@ -66,8 +66,8 @@ export function getCornerFacesInStandardOrder(position: Position3D, cubeSize: nu
     const max = cubeSize - 1;
 
     // Determine which faces this corner has
-    const hasU = position.y === max;
     const hasD = position.y === 0;
+    const hasU = position.y === max;
     const hasF = position.z === 0;
     const hasB = position.z === max;
     const hasL = position.x === 0;
@@ -91,7 +91,7 @@ export function getCornerFacesInStandardOrder(position: Position3D, cubeSize: nu
  * @param position Cubie position
  * @returns Array of faces available at this position
  */
-export function getAvailableFaces(position: Position3D, cubeSize: number): Face[] {
+function getAvailableFaces(position: Position3D, cubeSize: number): Face[] {
     const maxIndex = cubeSize - 1;
 
     // Count faces to determine cubie type
