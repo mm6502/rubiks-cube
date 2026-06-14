@@ -48,7 +48,7 @@ export function initialize(
         cubeElement,
         cubeContainer,
         styles,
-        stickerClass: styles['cubie-face'] ?? 'cubie-face',
+        stickerClass: styles['sticker'] ?? 'sticker',
         highlightedClass: styles['highlighted'] ?? 'highlighted',
         variant,
         viewType,

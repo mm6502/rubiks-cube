@@ -8,7 +8,7 @@ import type { BasicViewInternalData } from './basic-2-view';
 /**
  * Build a single cubie DOM element with its sticker faces.
  *
- * Each cubie is a `div.cubie` containing child `div.cubie-face` elements,
+ * Each cubie is a `div.cubie` containing child `div.sticker` elements,
  * one per visible face.  Colors never change — only positions do.
  *
  * @param cubie - The cubie data (position, stickers, etc.)
@@ -44,9 +44,8 @@ export function buildCubieElement(
     // Create sticker face divs for each visible face
     cubie.stickers.forEach(sticker => {
         const faceEl = document.createElement('div');
-        faceEl.className = styles['cubie-face'] ?? '';
+        faceEl.className = styles['sticker'] ?? '';
         faceEl.setAttribute('data-sticker-id', sticker.id);
-        faceEl.setAttribute('data-cubie-face', sticker.currentFace);
         faceEl.setAttribute('data-basic-face', sticker.currentFace);
         faceEl.style.backgroundColor = resolveCubeColor(sticker.color);
 
@@ -199,7 +198,6 @@ export function updateCubiePositions(
 
             // Update face transform
             faceEl.style.transform = getFaceTransform(sticker.currentFace, cubieHalf);
-            faceEl.setAttribute('data-cubie-face', sticker.currentFace);
             faceEl.setAttribute('data-basic-face', sticker.currentFace);
         });
     });
