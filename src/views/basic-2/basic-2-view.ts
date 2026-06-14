@@ -141,7 +141,7 @@ export class BasicView implements CubeView {
             cubeElement: null,
             cubeContainer: null,
             styles: styles as Record<string, string>,
-            stickerClass: styles['cubie-face'] ?? 'cubie-face',
+            stickerClass: styles['sticker'] ?? 'sticker',
             highlightedClass: styles['highlighted'] ?? 'highlighted',
             variant,
             viewType,
@@ -229,6 +229,7 @@ export class BasicView implements CubeView {
             },
             viewId: this.state.viewType,
             adapter,
+            getModel: () => this.state.model ?? null,
         });
         this.touchHandler.attach();
 

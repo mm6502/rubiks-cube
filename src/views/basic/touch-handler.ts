@@ -1,7 +1,9 @@
 import { Application } from '@/application';
 import { Face } from '@/cube/types';
+import type { CubeState, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { normalize2 } from '@/cube/utils/math';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { computeDragLabelPosition } from '@/interaction/drag-label-positioning';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { inferMoveFromDrag, inferMoveFromFaceRotation, toFar } from '@/interaction/move-inference';
@@ -60,6 +62,12 @@ export type BasicTouchHandlerOptions = {
     viewId: string;
     /** Adapter for direction remapping. */
     adapter: ViewInteractionAdapter;
+    /**
+     * Optional accessor for the cube model.
+     * When provided, touch-handler uses CubeStateUtils for sticker lookup
+     * instead of relying on DOM attributes like data-basic-pos.
+     */
+    getModel?: () => ReadOnlyCubeModel | null;
 };
 
 /**
@@ -89,6 +97,7 @@ export class BasicTouchHandler {
     ) => void;
     private readonly viewId: string;
     private readonly adapter: ViewInteractionAdapter;
+    private readonly getModel: (() => ReadOnlyCubeModel | null) | undefined;
 
     private layoutMode: LayoutMode = 'floating';
     private faceDirectMode = false;
@@ -143,6 +152,7 @@ export class BasicTouchHandler {
         this.onViewRotated = options.onViewRotated;
         this.viewId = options.viewId;
         this.adapter = options.adapter;
+        this.getModel = options.getModel;
 
         // Full-face invisible hit target (enables starting a drag anywhere on the face)
         this.haloHitTargetEl = document.createElement('div');
@@ -850,8 +860,13 @@ export class BasicTouchHandler {
     }
 
     private applyFaceSelectionStyling(): void {
+        // Some views (e.g. Basic 2) lack the 'face-selected' CSS class.
+        // Skip DOM manipulation when the class name is empty to avoid
+        // DOMTokenList.remove('') throwing SyntaxError.
+        const faceSelected = this.styles['face-selected'];
+        if (!faceSelected) return;
+
         const stickers = this.host.querySelectorAll(`.${this.styles['sticker']}`);
-        const faceSelected = this.styles['face-selected'] ?? '';
 
         stickers.forEach(node => {
             const el = node as HTMLElement;
@@ -872,22 +887,42 @@ export class BasicTouchHandler {
         const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
         if (!element) return undefined;
 
-        const stickerEl = element.closest(`.${this.styles['sticker']}`) as HTMLElement | null;
+        const stickerClass = this.getState().stickerClass || 'sticker';
+        const stickerEl = element.closest(`.${stickerClass}`) as HTMLElement | null;
         if (!stickerEl || !this.host.contains(stickerEl)) return undefined;
 
         const face = stickerEl.getAttribute('data-basic-face') as Face | null;
-        const posText = stickerEl.getAttribute('data-basic-pos');
-        if (!face || posText === null) return undefined;
+        if (!face) return undefined;
 
-        const cubeSize = this.getCubeSize();
-        const pos = Number(posText);
-        if (!Number.isFinite(pos)) return undefined;
+        const posText = stickerEl.getAttribute('data-basic-pos');
+        let row: number;
+        let col: number;
+
+        if (posText !== null) {
+            // Fast path: Basic view with grid positions
+            const pos = Number(posText);
+            if (!Number.isFinite(pos)) return undefined;
+            const cubeSize = this.getCubeSize();
+            row = Math.floor(pos / cubeSize);
+            col = pos % cubeSize;
+        } else {
+            // Fallback: use CubeStateUtils for views without grid positions (Basic 2)
+            const stickerId = stickerEl.getAttribute('data-sticker-id') as StickerId | null;
+            if (!stickerId) return undefined;
+            const model = this.getModel?.();
+            if (!model) return undefined;
+            const sticker = CubeStateUtils.getStickerById(model.getCurrentState(), stickerId);
+            if (!sticker || !Number.isFinite(sticker.facePosition)) return undefined;
+            const cubeSize = this.getCubeSize();
+            row = Math.floor(sticker.facePosition / cubeSize);
+            col = sticker.facePosition % cubeSize;
+        }
 
         return {
             stickerElement: stickerEl,
             face,
-            row: Math.floor(pos / cubeSize),
-            col: pos % cubeSize,
+            row,
+            col,
             stickerId: stickerEl.getAttribute('data-sticker-id') ?? undefined,
         };
     }
@@ -985,15 +1020,26 @@ export class BasicTouchHandler {
         face: Face,
         cubeSize: number
     ): { upDir: Point2D; rightDir: Point2D } | undefined {
-        const s00 = this.host.querySelector(
+        let s00 = this.host.querySelector(
             `[data-basic-face="${face}"][data-basic-pos="0"]`
         ) as HTMLElement | null;
-        const s01 = this.host.querySelector(
+        let s01 = this.host.querySelector(
             `[data-basic-face="${face}"][data-basic-pos="1"]`
         ) as HTMLElement | null;
-        const s10 = this.host.querySelector(
+        let s10 = this.host.querySelector(
             `[data-basic-face="${face}"][data-basic-pos="${cubeSize}"]`
         ) as HTMLElement | null;
+
+        // Fallback: use CubeStateUtils for views without data-basic-pos (Basic 2)
+        if ((!s00 || !s01 || !s10) && this.getModel) {
+            const model = this.getModel();
+            if (model) {
+                const state = model.getCurrentState();
+                if (!s00) s00 = this.resolveBasisElement(state, face, 0);
+                if (!s01) s01 = this.resolveBasisElement(state, face, 1);
+                if (!s10) s10 = this.resolveBasisElement(state, face, cubeSize);
+            }
+        }
 
         /* c8 ignore if */
         if (!s00 || !s01 || !s10) return undefined;
@@ -1015,6 +1061,21 @@ export class BasicTouchHandler {
         if (!rightDir || !upDir) return undefined;
 
         return { upDir, rightDir };
+    }
+
+    /**
+     * Resolve a single DOM element for getFaceScreenBasisFromDOM fallback.
+     * Uses CubeStateUtils to find the sticker at a given face/position
+     * and reads its DOM screen position from the data-sticker-id element.
+     */
+    private resolveBasisElement(
+        cubeState: CubeState,
+        face: Face,
+        position: number
+    ): HTMLElement | null {
+        const sticker = CubeStateUtils.getStickerAt(cubeState, face, position);
+        if (!sticker) return null;
+        return this.host.querySelector(`[data-sticker-id="${sticker.id}"]`) as HTMLElement | null;
     }
 
     /**

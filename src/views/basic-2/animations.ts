@@ -1,6 +1,5 @@
 // Animation system for Basic 2 per-cubie view
-import { Axis, Face, QuarterTurn } from '@/cube/types';
-import { getFaceRotationAxis } from '@/cube/utils/sticker-position';
+import { Axis, QuarterTurn } from '@/cube/types';
 import { MoveExecutedEvent } from '@/types';
 
 /**
@@ -97,10 +96,15 @@ export function animateLayer(
         [Axis.Z]: '0,0,1',
     };
 
-    // Calculate CSS angle using getFaceRotationAxis for correct sign
-    // For slice moves (M, E, S), use equivalent face
-    const primaryFace = getPrimaryFaceForAxis(axis, angle);
-    const { effectiveAngle } = getFaceRotationAxis(primaryFace, angle);
+    // Calculate CSS rotation angle from MoveDefinition angle (already in degrees).
+    //
+    // CSS 3D coordinate axes are:
+    //   CSS X = model X  (same direction)
+    //   CSS Y = model -Y (model Y is inverted: y=max → CSS top)
+    //   CSS Z = model -Z (model Z is centered at +Z → CSS front)
+    //
+    // So Y and Z axis rotations must be negated to match CSS space.
+    const effectiveAngle = axis === Axis.Y || axis === Axis.Z ? -angle : angle;
 
     const animation = pivot.animate(
         [{ transform: 'none' }, { transform: `rotate3d(${axisVec[axis]},${effectiveAngle}deg)` }],
@@ -112,25 +116,6 @@ export function animateLayer(
     );
 
     return { animation, pivot };
-}
-
-/**
- * Get the primary face for an axis to use with getFaceRotationAxis.
- * For face moves, returns the face being turned.
- * For slice moves, returns the equivalent face (M→L, E→D, S→F).
- */
-function getPrimaryFaceForAxis(axis: Axis, angle: QuarterTurn): Face {
-    switch (axis) {
-        case Axis.X:
-            // Positive angle = R, negative = L
-            return angle > 0 ? Face.R : Face.L;
-        case Axis.Y:
-            // Positive angle = U, negative = D
-            return angle > 0 ? Face.U : Face.D;
-        case Axis.Z:
-            // Positive angle = B, negative = F
-            return angle > 0 ? Face.B : Face.F;
-    }
 }
 
 /**

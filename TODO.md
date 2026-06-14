@@ -7,7 +7,20 @@ status and future plans.
 
 ## Current tasks
 
-(nothing atm)
+- Either
+  - Find a way how to implement face selection halo for Basic 2 view or
+  - Remove face-selection halo from Basic and Flat views - replace with all
+    stickers being highlighted when a face is selected. (Implementing for basic
+    2 view as a child to the center cubie on given face will be problematic for
+    even sized cubes.)
+
+- Interior blockers in Basic 2 view seem to have no real purpose. Consider
+  removing them.
+
+- Implement ghost stickers for Basic 2 view.
+
+- Review and update link rotations for Basic/Basic2 views. Should it link only
+  the same view, or across both views?
 
 ## Future Tasks
 

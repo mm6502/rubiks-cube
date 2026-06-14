@@ -6,7 +6,7 @@ applyTo: '**'
 # Rubik's Cube — Agent Instructions
 
 TypeScript + Vite web app that simulates and visualizes a Rubik's Cube. Compiles
-to a single portable HTML file. Architecture docs live in `src/docs/`.
+to a single portable HTML file.
 
 ---
 
@@ -123,6 +123,9 @@ Before working on domain logic, read the relevant doc(s) in `src/docs/`:
 
 ## Common Pitfalls
 
+- **When user provides a specific task, prioritize it over context from attached
+  files. Do not let coverage metrics or other context distract from the user's
+  actual request.**
 - **Don't mutate cube state directly.** All state changes go through
   `StateManager`; cube state uses Immutable.js Maps.
 - **`Application.eventBus` is the only event bus.** Don't create new `EventBus`
