@@ -1,0 +1,57 @@
+name: Cleanup
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# Cleans up gh-pages subdirectory when a feature branch is deleted.
+# Triggered on branch deletion (delete event).
+on:
+  delete:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    # Only run for non-main branch deletions
+    if: github.event.ref_type == 'branch' && github.event.ref != 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+
+      - name: Derive branch slug
+        id: slug
+        run: |
+          BRANCH="${{ github.event.ref }}"
+          # Replace slashes with dashes for filesystem-safe slug
+          SLUG=$(echo "$BRANCH" | tr '/' '-')
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Remove deployment directory
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SLUG="${{ steps.slug.outputs.slug }}"
+          DEPLOY_DIR="gh-pages/$SLUG"
+
+          if [ -d "$DEPLOY_DIR" ]; then
+            echo "Removing deployment directory: $DEPLOY_DIR"
+            rm -rf "$DEPLOY_DIR"
+          else
+            echo "Deployment directory not found: $DEPLOY_DIR (skipping)"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+
+          git commit -m "Remove deployment for deleted branch ${{ steps.slug.outputs.branch }}" || true
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" 2>/dev/null || true
+          git push origin gh-pages
