@@ -6,7 +6,13 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 // but its own type definitions haven't been updated yet.
 type BuildOptionsV8 = BuildOptions & { codeSplitting?: boolean };
 
+// Dynamic base path for GitHub Pages subdirectory deployment.
+// VITE_BASE_PATH is set by CI/CD workflows per branch.
+// Default is '/rubiks-cube/' for main branch root deployment.
+const BASE_PATH = process.env.VITE_BASE_PATH || '/rubiks-cube/';
+
 export default defineConfig({
+    base: BASE_PATH,
     plugins: [viteSingleFile({ useRecommendedBuildConfig: false })],
     build: {
         target: 'es2020',
