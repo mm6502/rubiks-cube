@@ -24,7 +24,7 @@ jobs:
         with:
           ref: gh-pages
 
-      - name: Derive branch slug
+      - name: Derive branch slug and deploy directory
         id: slug
         run: |
           BRANCH="${{ github.event.ref }}"
@@ -32,13 +32,19 @@ jobs:
           SLUG=$(echo "$BRANCH" | tr '/' '-')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          # feat/* branches use the same shortened deploy directory as deploy.yml
+          if [[ "$BRANCH" == feat/* ]]; then
+            SHORT=$(echo "${BRANCH#feat/}" | sed 's/\([A-Z]\)[a-z]*/\1/g' | tr -d '-' | head -c 20)
+            echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_dir=$SLUG" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Remove deployment directory
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          SLUG="${{ steps.slug.outputs.slug }}"
-          DEPLOY_DIR="gh-pages/$SLUG"
+          DEPLOY_DIR="${{ steps.slug.outputs.deploy_dir }}"
 
           if [ -d "$DEPLOY_DIR" ]; then
             echo "Removing deployment directory: $DEPLOY_DIR"

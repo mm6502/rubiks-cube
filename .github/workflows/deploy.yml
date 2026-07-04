@@ -5,7 +5,11 @@ env:
 
 # Deploys to GitHub Pages from main and feature branches.
 # - main → gh-pages root (https://mm6502.github.io/rubiks-cube/)
-# - feature branches → gh-pages/<branch-slug>/ (https://mm6502.github.io/rubiks-cube/<branch-slug>/)
+# - feat/* branches → gh-pages/feat/<short>/ (https://mm6502.github.io/rubiks-cube/feat/<short>/)
+# - other branches → gh-pages/<branch-slug>/ (https://mm6502.github.io/rubiks-cube/<branch-slug>/)
+#
+# The app compiles to a single self-contained HTML file — VITE_BASE_PATH is
+# always /rubiks-cube/ since there are no relative asset URLs to resolve.
 #
 # main deploy: triggered after CI quality gate passes on main.
 # feature branch deploy: triggered on push to any non-main branch.
@@ -40,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Derive branch slug
+      - name: Derive branch slug and deploy directory
         id: slug
         run: |
           BRANCH="${{ github.event.workflow_run && github.event.workflow_run.head_ref || github.ref_name }}"
@@ -48,16 +52,20 @@ jobs:
           SLUG=$(echo "$BRANCH" | tr '/' '-')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          # feat/* branches get a shortened deploy directory (e.g., feat/AnotherGreatFeature → feat/AGF)
+          if [[ "$BRANCH" == feat/* ]]; then
+            # Take first letter of each PascalCase word after feat/
+            SHORT=$(echo "${BRANCH#feat/}" | sed 's/\([A-Z]\)[a-z]*/\1/g' | tr -d '-' | head -c 20)
+            echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_dir=$SLUG" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set base path
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            # main branch → root deployment
-            echo "VITE_BASE_PATH=/rubiks-cube/" >> "$GITHUB_ENV"
-          else
-            # Feature branch → subdirectory deployment
-            echo "VITE_BASE_PATH=/rubiks-cube/${{ steps.slug.outputs.slug }}/" >> "$GITHUB_ENV"
-          fi
+          # App compiles to a single self-contained HTML file — no relative asset URLs.
+          # VITE_BASE_PATH is always the root path; only the deploy directory differs.
+          echo "VITE_BASE_PATH=/rubiks-cube/" >> "$GITHUB_ENV"
 
       - name: Build
         run: npm run build
@@ -66,16 +74,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          DEPLOY_DIR="${{ steps.slug.outputs.deploy_dir }}"
           publish_dir="$RUNNER_TEMP/gh-pages"
           mkdir -p "$publish_dir"
-          cp -R dist/. "$publish_dir/"
           cd "$publish_dir"
-          touch .nojekyll
 
-          # Initialize gh-pages branch if it doesn't exist
-          if ! git rev-parse --verify gh-pages >/dev/null 2>&1; then
-            git init --initial-branch=gh-pages
+          # Clone gh-pages into the temp dir to preserve existing deployments
+          git init --initial-branch=gh-pages
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" 2>/dev/null || true
+          git fetch origin gh-pages 2>/dev/null || true
+          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            git checkout -b gh-pages origin/gh-pages 2>/dev/null || true
           fi
+
+          # Remove old deployment for this branch, then place new files
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # main → root deployment: clear root (keep subdirectories)
+            find . -maxdepth 1 -type f -delete
+          else
+            # Feature branch → subdirectory deployment
+            rm -rf "$DEPLOY_DIR"
+          fi
+          mkdir -p "$DEPLOY_DIR"
+          cp -R "$RUNNER_TEMP/../dist/." "$DEPLOY_DIR/"
+          touch .nojekyll
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -89,14 +111,4 @@ jobs:
           fi
 
           git commit -m "$COMMIT_MSG" --allow-empty || true
-
-          # Fetch gh-pages from remote to avoid push rejection
-          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" 2>/dev/null || true
-          git fetch origin gh-pages 2>/dev/null || true
-
-          # Merge remote gh-pages if it exists (preserves other branch deployments)
-          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
-            git merge origin/gh-pages --allow-unrelated-histories --no-edit || true
-          fi
-
           git push origin gh-pages
