@@ -56,6 +56,10 @@ jobs:
           if [[ "$BRANCH" == feat/* ]]; then
             # Take first letter of each PascalCase word after feat/
             SHORT=$(echo "${BRANCH#feat/}" | sed 's/\([A-Z]\)[a-z]*/\1/g' | tr -d '-' | head -c 20)
+            # Fallback: if the branch name has no uppercase letters, use first 20 chars of the slug
+            if [ -z "$SHORT" ]; then
+              SHORT=$(echo "$SLUG" | head -c 20)
+            fi
             echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
           else
             echo "deploy_dir=$SLUG" >> "$GITHUB_OUTPUT"
@@ -96,7 +100,7 @@ jobs:
             rm -rf "$DEPLOY_DIR"
           fi
           mkdir -p "$DEPLOY_DIR"
-          cp -R "$RUNNER_TEMP/../dist/." "$DEPLOY_DIR/"
+          cp -R "$GITHUB_WORKSPACE/dist/." "$DEPLOY_DIR/"
           touch .nojekyll
 
           git config user.name "github-actions[bot]"
