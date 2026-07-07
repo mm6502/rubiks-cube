@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -52,15 +53,17 @@ jobs:
           SLUG=$(echo "$BRANCH" | tr '/' '-')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-          # feat/* branches get a shortened deploy directory (e.g., feat/AnotherGreatFeature → feat/AGF)
+          # feat/* branches: abbreviate PascalCase names (e.g., feat/AnotherGreatFeature → feat/AGF).
+          # For lowercase/kebab-case names the slug is used as-is (e.g., feat/my-feature → feat/my-feature).
           if [[ "$BRANCH" == feat/* ]]; then
-            # Take first letter of each PascalCase word after feat/
-            SHORT=$(echo "${BRANCH#feat/}" | sed 's/\([A-Z]\)[a-z]*/\1/g' | tr -d '-' | head -c 20)
-            # Fallback: if the branch name has no uppercase letters, use first 20 chars of the slug
-            if [ -z "$SHORT" ]; then
-              SHORT=$(echo "$SLUG" | head -c 20)
+            SUFFIX="${BRANCH#feat/}"
+            # Abbreviate only when the suffix contains at least one uppercase letter (PascalCase)
+            if echo "$SUFFIX" | grep -q '[A-Z]'; then
+              SHORT=$(echo "$SUFFIX" | sed 's/\([A-Z]\)[a-z]*/\1/g' | tr -d '-' | head -c 20)
+              echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
+            else
+              echo "deploy_dir=feat/$SUFFIX" >> "$GITHUB_OUTPUT"
             fi
-            echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
           else
             echo "deploy_dir=$SLUG" >> "$GITHUB_OUTPUT"
           fi
@@ -116,3 +119,50 @@ jobs:
 
           git commit -m "$COMMIT_MSG" --allow-empty || true
           git push origin gh-pages
+
+      - name: Post deployment URL
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DEPLOY_DIR="${{ steps.slug.outputs.deploy_dir }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          OWNER="${{ github.repository_owner }}"
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            DEPLOY_URL="https://${OWNER}.github.io/${REPO_NAME}/"
+            BRANCH="main"
+          else
+            DEPLOY_URL="https://${OWNER}.github.io/${REPO_NAME}/${DEPLOY_DIR}/"
+            BRANCH="${{ steps.slug.outputs.branch }}"
+          fi
+
+          # Always write a job summary so the URL is visible in the workflow run
+          {
+            echo "## 🚀 Deployed"
+            echo ""
+            echo "| Field  | Value |"
+            echo "| ------ | ----- |"
+            echo "| Branch | \`${BRANCH}\` |"
+            echo "| URL    | [${DEPLOY_URL}](${DEPLOY_URL}) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Post a PR comment when the push is from a feature branch with an open PR
+          if [ "${{ github.event_name }}" = "push" ]; then
+            PR_NUMBER=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls?head=${OWNER}:${BRANCH}&state=open" \
+              | jq -r '.[0].number // empty')
+
+            if [ -n "$PR_NUMBER" ]; then
+              BODY=$(jq -n --arg url "$DEPLOY_URL" --arg sha "${{ github.sha }}" \
+                '"## 🚀 Branch deployed\n\n**URL:** \($url)\n\n*Commit: `\($sha)`*"')
+              curl -sS \
+                -X POST \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+                -d "{\"body\":${BODY}}" \
+                || echo "Warning: failed to post PR comment (non-fatal)"
+            fi
+          fi
