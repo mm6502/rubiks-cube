@@ -5,7 +5,7 @@ env:
 
 # Deploys to GitHub Pages from main and feature branches.
 # - main → gh-pages root (https://mm6502.github.io/rubiks-cube/)
-# - feat/* branches → gh-pages/feat/<short>/ (https://mm6502.github.io/rubiks-cube/feat/<short>/)
+# - feat/* branches → gh-pages/feat/<initials>/ (https://mm6502.github.io/rubiks-cube/feat/<initials>/)
 # - other branches → gh-pages/<branch-slug>/ (https://mm6502.github.io/rubiks-cube/<branch-slug>/)
 #
 # The app compiles to a single self-contained HTML file — VITE_BASE_PATH is
@@ -53,17 +53,15 @@ jobs:
           SLUG=$(echo "$BRANCH" | tr '/' '-')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-          # feat/* branches: abbreviate PascalCase names (e.g., feat/AnotherGreatFeature → feat/AGF).
-          # For lowercase/kebab-case names the slug is used as-is (e.g., feat/my-feature → feat/my-feature).
+          # feat/* branches: abbreviate to initials, always lower case.
+          # Works for both PascalCase (e.g., feat/AnotherGreatFeature → feat/agf)
+          # and kebab-case (e.g., feat/my-feature → feat/mf).
           if [[ "$BRANCH" == feat/* ]]; then
             SUFFIX="${BRANCH#feat/}"
-            # Abbreviate only when the suffix contains at least one uppercase letter (PascalCase)
-            if echo "$SUFFIX" | grep -q '[A-Z]'; then
-              SHORT=$(echo "$SUFFIX" | sed 's/\([A-Z]\)[a-z]*/\1/g' | tr -d '-' | head -c 20)
-              echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
-            else
-              echo "deploy_dir=feat/$SUFFIX" >> "$GITHUB_OUTPUT"
-            fi
+            # Insert a separator before each uppercase letter, convert to lower case,
+            # split on separators, take the first character of each segment.
+            SHORT=$(echo "$SUFFIX" | sed 's/\([A-Z]\)/-\1/g' | tr '[:upper:]' '[:lower:]' | tr -- '-_' '\n' | grep -v '^$' | cut -c1 | tr -d '\n' | head -c 20)
+            echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
           else
             echo "deploy_dir=$SLUG" >> "$GITHUB_OUTPUT"
           fi
