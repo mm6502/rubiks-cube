@@ -35,12 +35,8 @@ jobs:
           # feat/* branches use the same shortened deploy directory as deploy.yml
           if [[ "$BRANCH" == feat/* ]]; then
             SUFFIX="${BRANCH#feat/}"
-            if echo "$SUFFIX" | grep -q '[A-Z]'; then
-              SHORT=$(echo "$SUFFIX" | sed 's/\([A-Z]\)[a-z]*/\1/g' | tr -d '-' | head -c 20)
-              echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
-            else
-              echo "deploy_dir=feat/$SUFFIX" >> "$GITHUB_OUTPUT"
-            fi
+            SHORT=$(echo "$SUFFIX" | sed 's/\([A-Z]\)/-\1/g' | tr '[:upper:]' '[:lower:]' | tr -- '-_' '\n' | awk 'NF{print}' | cut -c1 | tr -d '\n' | head -c 20)
+            echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
           else
             echo "deploy_dir=$SLUG" >> "$GITHUB_OUTPUT"
           fi
