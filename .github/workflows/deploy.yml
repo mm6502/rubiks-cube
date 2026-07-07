@@ -32,6 +32,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -60,7 +61,7 @@ jobs:
             SUFFIX="${BRANCH#feat/}"
             # Insert a separator before each uppercase letter, convert to lower case,
             # split on separators, take the first character of each segment.
-            SHORT=$(echo "$SUFFIX" | sed 's/\([A-Z]\)/-\1/g' | tr '[:upper:]' '[:lower:]' | tr -- '-_' '\n' | grep -v '^$' | cut -c1 | tr -d '\n' | head -c 20)
+            SHORT=$(echo "$SUFFIX" | sed 's/\([A-Z]\)/-\1/g' | tr '[:upper:]' '[:lower:]' | tr -- '-_' '\n' | awk 'NF{print}' | cut -c1 | tr -d '\n' | head -c 20)
             echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
           else
             echo "deploy_dir=$SLUG" >> "$GITHUB_OUTPUT"
