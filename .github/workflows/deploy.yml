@@ -5,7 +5,7 @@ env:
 
 # Deploys to GitHub Pages from main and feature branches.
 # - main → gh-pages root (https://mm6502.github.io/rubiks-cube/)
-# - feat/* branches → gh-pages/feat/<short>/ (https://mm6502.github.io/rubiks-cube/feat/<short>/)
+# - feat/* branches → gh-pages/feat/<initials>/ (https://mm6502.github.io/rubiks-cube/feat/<initials>/)
 # - other branches → gh-pages/<branch-slug>/ (https://mm6502.github.io/rubiks-cube/<branch-slug>/)
 #
 # The app compiles to a single self-contained HTML file — VITE_BASE_PATH is
@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -52,14 +53,14 @@ jobs:
           SLUG=$(echo "$BRANCH" | tr '/' '-')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-          # feat/* branches get a shortened deploy directory (e.g., feat/AnotherGreatFeature → feat/AGF)
+          # feat/* branches: abbreviate to initials, always lower case.
+          # Works for both PascalCase (e.g., feat/AnotherGreatFeature → feat/agf)
+          # and kebab-case (e.g., feat/my-feature → feat/mf).
           if [[ "$BRANCH" == feat/* ]]; then
-            # Take first letter of each PascalCase word after feat/
-            SHORT=$(echo "${BRANCH#feat/}" | sed 's/\([A-Z]\)[a-z]*/\1/g' | tr -d '-' | head -c 20)
-            # Fallback: if the branch name has no uppercase letters, use first 20 chars of the slug
-            if [ -z "$SHORT" ]; then
-              SHORT=$(echo "$SLUG" | head -c 20)
-            fi
+            SUFFIX="${BRANCH#feat/}"
+            # Insert a separator before each uppercase letter, convert to lower case,
+            # split on separators, take the first character of each segment.
+            SHORT=$(echo "$SUFFIX" | sed 's/\([A-Z]\)/-\1/g' | tr '[:upper:]' '[:lower:]' | tr -- '-_' '\n' | grep -v '^$' | cut -c1 | tr -d '\n' | head -c 20)
             echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
           else
             echo "deploy_dir=$SLUG" >> "$GITHUB_OUTPUT"
@@ -116,3 +117,50 @@ jobs:
 
           git commit -m "$COMMIT_MSG" --allow-empty || true
           git push origin gh-pages
+
+      - name: Post deployment URL
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DEPLOY_DIR="${{ steps.slug.outputs.deploy_dir }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          OWNER="${{ github.repository_owner }}"
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            DEPLOY_URL="https://${OWNER}.github.io/${REPO_NAME}/"
+            BRANCH="main"
+          else
+            DEPLOY_URL="https://${OWNER}.github.io/${REPO_NAME}/${DEPLOY_DIR}/"
+            BRANCH="${{ steps.slug.outputs.branch }}"
+          fi
+
+          # Always write a job summary so the URL is visible in the workflow run
+          {
+            echo "## 🚀 Deployed"
+            echo ""
+            echo "| Field  | Value |"
+            echo "| ------ | ----- |"
+            echo "| Branch | \`${BRANCH}\` |"
+            echo "| URL    | [${DEPLOY_URL}](${DEPLOY_URL}) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Post a PR comment when the push is from a feature branch with an open PR
+          if [ "${{ github.event_name }}" = "push" ]; then
+            PR_NUMBER=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls?head=${OWNER}:${BRANCH}&state=open" \
+              | jq -r '.[0].number // empty')
+
+            if [ -n "$PR_NUMBER" ]; then
+              BODY=$(jq -n --arg url "$DEPLOY_URL" --arg sha "${{ github.sha }}" \
+                '"## 🚀 Branch deployed\n\n**URL:** \($url)\n\n*Commit: `\($sha)`*"')
+              curl -sS \
+                -X POST \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+                -d "{\"body\":${BODY}}" \
+                || echo "Warning: failed to post PR comment (non-fatal)"
+            fi
+          fi
