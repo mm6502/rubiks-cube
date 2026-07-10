@@ -167,7 +167,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           # Post a PR comment when the push is from a feature branch with an open PR
-          if [ "${{ github.event_name }}" = "push" ]; then
+          if [[ "${{ github.event_name }}" == "push" ]]; then
             PR_NUMBER=$(curl -sS \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
