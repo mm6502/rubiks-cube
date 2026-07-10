@@ -101,12 +101,14 @@ jobs:
           fi
 
           # Retry loop: fetch latest state, apply changes, push.
-          # Retries handle concurrent deployments where another branch pushed first.
+          # Retries handle concurrent deployments where another branch pushed in between.
           for attempt in 1 2 3 4 5; do
             git fetch origin gh-pages 2>/dev/null || true
             if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
-              # First attempt: checkout; subsequent attempts: reset to updated remote.
-              git checkout -b gh-pages origin/gh-pages 2>/dev/null || git reset --hard origin/gh-pages
+              # Switch to gh-pages (works on first attempt with unborn branch or on retries)
+              # then sync to the just-fetched remote state.
+              git checkout gh-pages 2>/dev/null || git checkout -b gh-pages origin/gh-pages
+              git reset --hard origin/gh-pages
             fi
 
             # Remove old deployment for this slot, then place new files
@@ -122,12 +124,12 @@ jobs:
             touch .nojekyll
 
             git add --all
-            git commit -m "$COMMIT_MSG" --allow-empty || true
+            git commit -m "$COMMIT_MSG" --allow-empty
 
             if git push origin gh-pages; then
               break
             elif [ "$attempt" -lt 5 ]; then
-              echo "Push rejected (concurrent deployment); retrying in $((attempt * 2))s... (attempt $attempt/5)"
+              echo "Push failed; retrying in $((attempt * 2))s... (attempt $attempt/5)"
               sleep $((attempt * 2))
             else
               echo "::error::Failed to push to gh-pages after 5 attempts"
