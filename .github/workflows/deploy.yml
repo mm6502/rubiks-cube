@@ -54,10 +54,14 @@ jobs:
           SLUG=$(echo "$BRANCH" | tr '/' '-')
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-          # feat/* branches: abbreviate to initials, always lower case.
-          # Works for both PascalCase (e.g., feat/AnotherGreatFeature → feat/agf)
-          # and kebab-case (e.g., feat/my-feature → feat/mf).
-          if [[ "$BRANCH" == feat/* ]]; then
+          # main (workflow_run) → root deployment (deploy_dir=.)
+          # feat/* branches → gh-pages/feat/<initials>/ using abbreviated initials, always lower case.
+          #   Works for both PascalCase (e.g., feat/AnotherGreatFeature → feat/agf)
+          #   and kebab-case (e.g., feat/my-feature → feat/mf).
+          # other branches → gh-pages/<branch-slug>/
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "deploy_dir=." >> "$GITHUB_OUTPUT"
+          elif [[ "$BRANCH" == feat/* ]]; then
             SUFFIX="${BRANCH#feat/}"
             # Insert a separator before each uppercase letter, convert to lower case,
             # split on separators, take the first character of each segment.
@@ -85,39 +89,51 @@ jobs:
           mkdir -p "$publish_dir"
           cd "$publish_dir"
 
-          # Clone gh-pages into the temp dir to preserve existing deployments
           git init --initial-branch=gh-pages
           git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" 2>/dev/null || true
-          git fetch origin gh-pages 2>/dev/null || true
-          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
-            git checkout -b gh-pages origin/gh-pages 2>/dev/null || true
-          fi
-
-          # Remove old deployment for this branch, then place new files
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            # main → root deployment: clear root (keep subdirectories)
-            find . -maxdepth 1 -type f -delete
-          else
-            # Feature branch → subdirectory deployment
-            rm -rf "$DEPLOY_DIR"
-          fi
-          mkdir -p "$DEPLOY_DIR"
-          cp -R "$GITHUB_WORKSPACE/dist/." "$DEPLOY_DIR/"
-          touch .nojekyll
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add --all
 
-          # Determine commit message based on branch type
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             COMMIT_MSG="Deploy main (${{ github.event.workflow_run.head_sha }})"
           else
             COMMIT_MSG="Deploy ${{ steps.slug.outputs.branch }} (${{ github.sha }})"
           fi
 
-          git commit -m "$COMMIT_MSG" --allow-empty || true
-          git push origin gh-pages
+          # Retry loop: fetch latest state, apply changes, push.
+          # Retries handle concurrent deployments where another branch pushed first.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin gh-pages 2>/dev/null || true
+            if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+              # First attempt: checkout; subsequent attempts: reset to updated remote.
+              git checkout -b gh-pages origin/gh-pages 2>/dev/null || git reset --hard origin/gh-pages
+            fi
+
+            # Remove old deployment for this slot, then place new files
+            if [ "${{ github.event_name }}" = "workflow_run" ]; then
+              # main → root deployment: clear root-level files (keep subdirectories)
+              find . -maxdepth 1 -type f -delete
+            else
+              # Feature branch → subdirectory deployment
+              rm -rf "$DEPLOY_DIR"
+            fi
+            mkdir -p "$DEPLOY_DIR"
+            cp -R "$GITHUB_WORKSPACE/dist/." "$DEPLOY_DIR/"
+            touch .nojekyll
+
+            git add --all
+            git commit -m "$COMMIT_MSG" --allow-empty || true
+
+            if git push origin gh-pages; then
+              break
+            elif [ "$attempt" -lt 5 ]; then
+              echo "Push rejected (concurrent deployment); retrying in $((attempt * 2))s... (attempt $attempt/5)"
+              sleep $((attempt * 2))
+            else
+              echo "::error::Failed to push to gh-pages after 5 attempts"
+              exit 1
+            fi
+          done
 
       - name: Post deployment URL
         env:
