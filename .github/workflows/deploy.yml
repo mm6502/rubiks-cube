@@ -124,12 +124,16 @@ jobs:
             touch .nojekyll
 
             git add --all
-            git commit -m "$COMMIT_MSG" --allow-empty
+            if git diff --cached --quiet; then
+              echo "No changes to deploy; deployment is already up to date"
+              break
+            fi
+            git commit -m "$COMMIT_MSG"
 
             if git push origin gh-pages; then
               break
             elif [ "$attempt" -lt 5 ]; then
-              echo "Push failed; retrying in $((attempt * 2))s... (attempt $attempt/5)"
+              echo "Push failed (likely due to concurrent deployment); retrying in $((attempt * 2))s... (attempt $attempt/5)"
               sleep $((attempt * 2))
             else
               echo "::error::Failed to push to gh-pages after 5 attempts"
