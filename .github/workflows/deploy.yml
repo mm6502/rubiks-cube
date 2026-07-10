@@ -105,10 +105,9 @@ jobs:
           for attempt in 1 2 3 4 5; do
             git fetch origin gh-pages 2>/dev/null || true
             if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
-              # Switch to gh-pages (works on first attempt with unborn branch or on retries)
-              # then sync to the just-fetched remote state.
-              git checkout gh-pages 2>/dev/null || git checkout -b gh-pages origin/gh-pages
-              git reset --hard origin/gh-pages
+              # Create or reset gh-pages to the just-fetched remote state
+              # (works on first attempt with unborn branch and on retries alike).
+              git switch -C gh-pages origin/gh-pages
             fi
 
             # Remove old deployment for this slot, then place new files
@@ -133,7 +132,7 @@ jobs:
             if git push origin gh-pages; then
               break
             elif [ "$attempt" -lt 5 ]; then
-              echo "Push failed (likely due to concurrent deployment); retrying in $((attempt * 2))s... (attempt $attempt/5)"
+              echo "Push failed (likely due to concurrent deployment); waiting $((attempt * 2))s before retry attempt $((attempt + 1))/5..."
               sleep $((attempt * 2))
             else
               echo "::error::Failed to push to gh-pages after 5 attempts"
