@@ -7,6 +7,11 @@
     align-items: center;
     flex: 1;
     position: relative;
+    background: radial-gradient(
+        circle at 50% 50%,
+        var(--color-domain-cube-glow) 45%,
+        var(--color-domain-cube-interior) 66%
+    );
 }
 
 .cube-wrapper {
@@ -72,6 +77,12 @@
     border: 5px solid var(--color-domain-sticker-selected);
     box-shadow: 0 0 8px var(--color-domain-sticker-selected-box);
     /* No transform or position:relative — they break preserve-3d sibling layout */
+}
+
+/* Sticker appearance when its face is selected */
+.sticker.face-selected {
+    border-color: var(--color-domain-face-selected);
+    box-shadow: inset 0 0 0 2px var(--color-domain-face-selected-glow);
 }
 
 /* Cube blocker — non-interactive background behind each face */

@@ -769,6 +769,11 @@ export class BasicTouchHandler {
         );
     }
 
+    /**
+     * Returns a directional arrow label (e.g. "→" / "→2") for a
+     * background view-rotation drag, or undefined if the gesture
+     * hasn't yet exceeded the commit distance.
+     */
     private getBackgroundDragPreviewLabel(gesture: DragGesture): string | undefined {
         if (gesture.distancePx < this.activeCommitDistancePx) return undefined;
 
@@ -792,6 +797,17 @@ export class BasicTouchHandler {
     // Halo overlay positioning & styling
     // -------------------------------------------------------------------------
 
+    /**
+     * Positions the invisible halo hit target over the selected face.
+     *
+     * For Basic view, finds the `.face` DOM element and covers it.
+     * For Basic 2 view (no `.face` element), delegates to
+     * {@link positionHaloFromStickers} to compute a bounding box from
+     * all stickers on the selected face.
+     *
+     * Also applies the halo ring CSS (`face-selected-surface`) when
+     * the view supports it (Basic/Flat).
+     */
     private updateHaloPosition(): void {
         this.clearFaceSurfaceHaloStyling();
 
@@ -808,8 +824,9 @@ export class BasicTouchHandler {
         ) as HTMLElement | null;
 
         if (!faceEl) {
-            this.haloHitTargetEl.style.display = 'none';
-            this.haloFaceCenter = undefined;
+            // Basic 2 fallback: no face <div> — compute bounding box from all
+            // stickers belonging to the selected face.
+            this.positionHaloFromStickers();
             return;
         }
 
@@ -844,6 +861,65 @@ export class BasicTouchHandler {
         this.haloHitTargetEl.style.display = 'block';
     }
 
+    /**
+     * Fallback for views (Basic 2) that lack a `.face` DOM element.
+     * Computes the halo hit target bounding box from all stickers belonging
+     * to the selected face.
+     */
+    private positionHaloFromStickers(): void {
+        const stickers = this.host.querySelectorAll(
+            `[data-basic-face="${this.selectedFace}"].${this.styles['sticker']}`
+        );
+
+        if (stickers.length === 0) {
+            this.haloHitTargetEl.style.display = 'none';
+            this.haloFaceCenter = undefined;
+            return;
+        }
+
+        const hostRect = this.host.getBoundingClientRect();
+        const firstRect = stickers[0].getBoundingClientRect();
+
+        let minX = firstRect.left;
+        let minY = firstRect.top;
+        let maxX = firstRect.right;
+        let maxY = firstRect.bottom;
+
+        for (let i = 1; i < stickers.length; i++) {
+            const r = stickers[i].getBoundingClientRect();
+            if (r.left < minX) minX = r.left;
+            if (r.top < minY) minY = r.top;
+            if (r.right > maxX) maxX = r.right;
+            if (r.bottom > maxY) maxY = r.bottom;
+        }
+
+        const faceRect = {
+            left: minX,
+            top: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+        };
+
+        const centerX = faceRect.left + faceRect.width / 2;
+        const centerY = faceRect.top + faceRect.height / 2;
+        const faceSizeOnScreen = Math.min(faceRect.width, faceRect.height);
+
+        this.haloFaceCenter = { x: centerX, y: centerY, size: faceSizeOnScreen };
+
+        this.haloHitTargetEl.style.left = `${faceRect.left - hostRect.left}px`;
+        this.haloHitTargetEl.style.top = `${faceRect.top - hostRect.top}px`;
+        this.haloHitTargetEl.style.width = `${faceRect.width}px`;
+        this.haloHitTargetEl.style.height = `${faceRect.height}px`;
+        this.haloHitTargetEl.style.display = 'block';
+    }
+
+    /**
+     * Removes halo ring styling from all face elements.
+     *
+     * Clears the `--basic-face-halo-ring-width` custom property and the
+     * `face-selected-surface` CSS class from every `.face` element.
+     * No-op in views that lack a `.face` class (Basic 2).
+     */
     private clearFaceSurfaceHaloStyling(): void {
         const faceClass = this.styles['face'] ?? '';
         if (!faceClass) return;
@@ -859,6 +935,13 @@ export class BasicTouchHandler {
         });
     }
 
+    /**
+     * Applies the `face-selected` CSS class to every sticker whose
+     * `data-basic-face` matches the currently selected face.
+     *
+     * Removes the class from all other stickers.
+     * No-op in views that lack a `face-selected` CSS class.
+     */
     private applyFaceSelectionStyling(): void {
         // Some views (e.g. Basic 2) lack the 'face-selected' CSS class.
         // Skip DOM manipulation when the class name is empty to avoid
@@ -883,6 +966,19 @@ export class BasicTouchHandler {
     // Hit detection
     // -------------------------------------------------------------------------
 
+    /**
+     * Resolves a pointer position to a sticker hit on the cube.
+     *
+     * Uses `document.elementFromPoint` to find the element under the
+     * pointer, then walks up to the nearest `.sticker` element.
+     * Extracts the sticker's face, grid position, and DOM id.
+     *
+     * For Basic view, reads `data-basic-pos` for fast grid position.
+     * For Basic 2 (no `data-basic-pos`), falls back to
+     * `CubeStateUtils.getStickerById` via `data-sticker-id`.
+     *
+     * @returns The resolved hit, or undefined if no sticker was found.
+     */
     private getStickerHitFromPoint(clientX: number, clientY: number): StickerHit | undefined {
         const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
         if (!element) return undefined;
@@ -927,6 +1023,13 @@ export class BasicTouchHandler {
         };
     }
 
+    /**
+     * Tests whether the given client coordinates fall within the
+     * halo hit target rectangle.
+     *
+     * Returns false when no face is selected or the hit target is
+     * hidden (e.g. no `.face` element and no stickers on the face).
+     */
     private isHaloHitTargetAtPoint(clientX: number, clientY: number): boolean {
         if (!this.selectedFace || this.haloHitTargetEl.style.display === 'none') return false;
         const r = this.haloHitTargetEl.getBoundingClientRect();
@@ -1162,6 +1265,13 @@ export class BasicTouchHandler {
         );
     }
 
+    /**
+     * Shows a dashed cross overlay at the pointer-down position whose
+     * arms represent zone boundaries between adjacent drag directions.
+     *
+     * The cross arms are the bisectors between the face's screen-space
+     * up and right vectors, rotated ±45° to form the four drag zones.
+     */
     private showDragDecisionCross(
         basis: { upDir: Point2D; rightDir: Point2D },
         clientX: number,
@@ -1247,11 +1357,20 @@ export class BasicTouchHandler {
 // Module-level helpers
 // -------------------------------------------------------------------------
 
+/**
+ * Returns the screen-space center point of an element's bounding rectangle.
+ * Used to compute the rotation center for halo/face-direct drag gestures.
+ */
 function getElementCenter(element: HTMLElement): { x: number; y: number } {
     const rect = element.getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
+/**
+ * Positions an SVG line so that it passes through a center point and
+ * extends `armLength` pixels in both directions along the given unit vector.
+ * Used by the drag decision cross and radial line overlays.
+ */
 function setSvgLineFromCenter(
     line: SVGLineElement,
     center: Point2D,
