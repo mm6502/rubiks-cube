@@ -26,7 +26,7 @@ export function initialize(
 ): BasicViewInternalData {
     container.tabIndex = 0;
 
-    const cubeElement = buildCubeElement(model, styles, viewType, onStickerSelected);
+    const cubeElement = buildCubeElement(model, styles, viewType);
 
     let cubeContainer = container.querySelector('.cube-container') as HTMLElement;
     if (!cubeContainer) {
@@ -44,6 +44,7 @@ export function initialize(
     const defaultVectors = getDefaultVectors(variant);
     const state: BasicViewInternalData = {
         model,
+        onStickerSelected,
         container,
         cubeElement,
         cubeContainer,
@@ -88,8 +89,7 @@ export function destroy(state: BasicViewInternalData): void {
 function buildCubeElement(
     model: ReadOnlyCubeModel,
     styles: Record<string, string>,
-    _viewType: string,
-    _onStickerSelected: (id: StickerId) => void
+    _viewType: string
 ): HTMLElement {
     const cubeElement = document.createElement('div');
     cubeElement.className = styles['cube'] ?? '';

@@ -56,7 +56,7 @@
         background-color 0.2s,
         box-shadow 0.2s;
     forced-color-adjust: none;
-    color-scheme: only light;
+    color-scheme: light only;
     backface-visibility: hidden;
 }
 

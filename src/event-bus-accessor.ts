@@ -1,13 +1,13 @@
 // fallow-ignore-file unused-export
 import { EventBus } from '@/events/event-bus';
 
-// Default instance used in tests and any context where Application isn't initialized.
-// Application.constructor replaces this with the shared app bus via setEventBus().
+// Shared singleton used by getEventBus() and Application.eventBus.
+// Tests may replace it via setEventBus() when they need an isolated bus.
 let _eventBus: EventBus = new EventBus();
 
 /**
- * Register the shared EventBus instance.
- * Called by Application constructor to install the app-wide bus.
+ * Replace the shared EventBus instance.
+ * Primarily used by tests that need an isolated app-wide bus.
  */
 export function setEventBus(bus: EventBus): void {
     _eventBus = bus;

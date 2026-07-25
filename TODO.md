@@ -13,7 +13,7 @@ status and future plans.
     interior faces to cubies, or at least a single interior face for the cube as
     a whole. Reason: The cube is currently hollow, and messes with the visual
     perception of the cube as a solid object. This is especially noticeable when
-    the cube is rotated and the interior is visible - the backgorund highlight
+    the cube is rotated and the interior is visible - the background highlight
     color is visible through the cube.
 
 - Review and update link rotations for Basic/Basic2 views. Should it link only
