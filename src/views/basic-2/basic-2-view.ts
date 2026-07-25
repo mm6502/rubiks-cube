@@ -92,6 +92,7 @@ export type BasicViewInternalData = {
     container: HTMLElement | null;
     cubeElement: HTMLElement | null;
     cubeContainer: HTMLElement | null;
+    ghostAnchorContainer?: HTMLElement | null;
     styles: Record<string, string>;
     stickerClass: string;
     highlightedClass: string;
@@ -284,11 +285,14 @@ export class BasicView implements CubeView {
         };
         Application.eventBus.on(EventName.BASIC_VIEW_GHOST_TOGGLED, this.ghostToggledListener);
 
-        // Create ghost stickers on the cube element.
-        /* c8 ignore if — cubeElement always created in initialization */
-        if (this.state.cubeElement) {
+        // Create ghost stickers on the ghost-anchor wrapper (scoped root),
+        // not the whole cube element — the shared GhostStickers module's
+        // data-basic-face query would otherwise be ambiguous against cubie
+        // sticker divs that share the same attribute shape.
+        /* c8 ignore if — cubeElement/ghostAnchorContainer always created in initialization */
+        if (this.state.cubeElement && this.state.ghostAnchorContainer) {
             this.ghostStickers = new GhostStickers(
-                this.state.cubeElement,
+                this.state.ghostAnchorContainer,
                 () => this.state.model ?? null
             );
             this.ghostStickers.create();

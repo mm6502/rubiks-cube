@@ -126,6 +126,28 @@
         translateZ(var(--face-translate-z-front, 150px));
 }
 
+/* Ghost anchor wrapper — groups the six per-face ghost-anchor host divs.
+   Scoped so the shared GhostStickers module's data-basic-face query never
+   matches a cubie sticker div; must preserve 3D so its rotated children
+   (ghost-anchor) render in true cube space rather than being flattened. */
+.ghost-anchor-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-style: preserve-3d;
+    pointer-events: none;
+}
+
+/* Ghost anchor — invisible full-face host div per Face. Sized/positioned
+   like a face plane so the shared ghost-strip CSS (percentage-based
+   positioning) attaches correctly, mirroring Basic view's face container. */
+.ghost-anchor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
 /* Touch notice */
 .touch-notice {
     position: absolute;

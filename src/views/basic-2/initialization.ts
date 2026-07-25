@@ -6,7 +6,7 @@ import { getDefaultVectors } from '@/views/basic/navigation';
 
 import * as cubieRendering from './cubie-rendering';
 import type { BasicVariant, BasicViewInternalData } from './basic-2-view';
-import { initializeBlockers, updateSize } from './rendering';
+import { initializeBlockers, initializeGhostAnchors, updateSize } from './rendering';
 
 /**
  * Builds the full DOM structure for a Basic 2 cube view and returns the
@@ -69,6 +69,7 @@ export function initialize(
     if (!cubeElement.style.width) {
         cubieRendering.initializeCubies(state, 300);
         initializeBlockers(state, 300);
+        initializeGhostAnchors(state, 300);
     }
 
     return state;

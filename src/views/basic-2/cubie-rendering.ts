@@ -63,8 +63,11 @@ export function buildCubieElement(
 
 /**
  * Get the CSS transform for a sticker face based on its current face.
+ *
+ * Also reused at full-face scale (halfSize = cube size / 2) to position the
+ * ghost-anchor host elements in `rendering.ts`.
  */
-function getFaceTransform(face: Face, halfSize: number): string {
+export function getFaceTransform(face: Face, halfSize: number): string {
     switch (face) {
         case Face.F:
             return `translateZ(${halfSize}px)`;

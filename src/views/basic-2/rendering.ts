@@ -158,6 +158,9 @@ export function updateSize(state: BasicViewInternalData): void {
 
     // Update blocker sizes and transforms
     initializeBlockers(state, faceSize);
+
+    // Update ghost-anchor sizes and transforms
+    initializeGhostAnchors(state, faceSize);
 }
 
 /**
@@ -213,6 +216,50 @@ export function initializeBlockers(state: BasicViewInternalData, size: number): 
             el.style.width = `${size}px`;
             el.style.height = `${size}px`;
         }
+    });
+}
+
+/**
+ * Initialize the ghost-anchor wrapper and its six per-face host divs, with
+ * correct transforms and sizes.
+ *
+ * These anchors exist purely so the shared `GhostStickers` module (which
+ * queries `[data-basic-face="X"]:not([data-basic-pos])` for a host element)
+ * has a valid full-face target in Basic 2's per-cubie DOM. They are built
+ * inside a dedicated `.ghost-anchor-container` wrapper — never alongside
+ * cubie sticker divs — so the query can never resolve to the wrong element.
+ * The wrapper reference is stored on `state.ghostAnchorContainer` so it can
+ * be passed to `GhostStickers` as its scoped root instead of the whole cube.
+ */
+export function initializeGhostAnchors(state: BasicViewInternalData, size: number): void {
+    if (!state.cubeElement) return;
+
+    const halfSize = size / 2;
+
+    let wrapper = state.cubeElement.querySelector(
+        `.${state.styles['ghost-anchor-container']}`
+    ) as HTMLElement | null;
+    if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.className = state.styles['ghost-anchor-container'] ?? '';
+        wrapper.setAttribute('aria-hidden', 'true');
+        state.cubeElement.appendChild(wrapper);
+    }
+    state.ghostAnchorContainer = wrapper;
+
+    const faces = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
+
+    faces.forEach(face => {
+        let anchor = wrapper!.querySelector(`[data-basic-face="${face}"]`) as HTMLElement | null;
+        if (!anchor) {
+            anchor = document.createElement('div');
+            anchor.className = state.styles['ghost-anchor'] ?? '';
+            anchor.setAttribute('data-basic-face', face);
+            wrapper!.appendChild(anchor);
+        }
+        anchor.style.transform = cubieRendering.getFaceTransform(face, halfSize);
+        anchor.style.width = `${size}px`;
+        anchor.style.height = `${size}px`;
     });
 }
 
