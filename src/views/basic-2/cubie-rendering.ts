@@ -135,9 +135,13 @@ export function initializeCubies(state: BasicViewInternalData, size: number): vo
                 if (!cubie) continue;
 
                 // Build and append cubie element
-                const cubieEl = buildCubieElement(cubie, cubieSize, cubeSize, state.styles, () => {
-                    // Sticker selection handled by touch handler
-                });
+                const cubieEl = buildCubieElement(
+                    cubie,
+                    cubieSize,
+                    cubeSize,
+                    state.styles,
+                    state.onStickerSelected ?? (() => {})
+                );
 
                 state.cubeElement.appendChild(cubieEl);
             }

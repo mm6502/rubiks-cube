@@ -2,7 +2,7 @@
 // for Basic 2's ghost stickers (U3): anchors must exist in the DOM by the
 // time initialize() returns, alongside cubies and blockers.
 // See docs/plans/2026-07-25-001-feat-basic-2-ghost-stickers-plan.md
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StateManager } from '@/cube/core/state-manager';
 import { Face } from '@/cube/types';
@@ -60,6 +60,26 @@ describe('initialization - ghost-anchor wiring', () => {
         expect(state.ghostAnchorContainer).toBe(
             state.cubeElement!.querySelector('.ghost-anchor-container')
         );
+    });
+
+    it('wires the sticker-selection callback into the rendered cubie stickers', () => {
+        const onStickerSelected = vi.fn();
+        const state = initialize(
+            container,
+            model,
+            styles,
+            'front',
+            'basic-2-front',
+            onStickerSelected
+        );
+
+        const sticker = state.cubeElement!.querySelector('[data-sticker-id]') as HTMLElement | null;
+        expect(sticker).not.toBeNull();
+
+        sticker!.click();
+
+        expect(onStickerSelected).toHaveBeenCalledTimes(1);
+        expect(onStickerSelected).toHaveBeenCalledWith(sticker!.getAttribute('data-sticker-id'));
     });
 
     it('does not throw when the container has zero size (fallback anchor-init path)', () => {

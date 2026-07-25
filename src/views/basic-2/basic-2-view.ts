@@ -89,6 +89,7 @@ export interface BasicViewState {
  */
 export type BasicViewInternalData = {
     model?: ReadOnlyCubeModel;
+    onStickerSelected?: (id: StickerId) => void;
     container: HTMLElement | null;
     cubeElement: HTMLElement | null;
     cubeContainer: HTMLElement | null;
