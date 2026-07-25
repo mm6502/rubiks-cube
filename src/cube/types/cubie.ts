@@ -1,28 +1,12 @@
+// fallow-ignore-file unused-type
 import { Map as IMap } from 'immutable';
 
+import { CubieId } from '@/cube/types/ids';
 import { Sticker, StickerId } from '@/cube/types/sticker';
-import { Branded } from '@/global';
 import type { Position3D } from '@/types/geometry';
 
+export type { CubieId, PositionKey } from '@/cube/types/ids';
 export type { Position2D, Position3D, Size2D, Vector2, Vector3 } from '@/types/geometry';
-
-/**
- * A cubie ID for use in CubeState3D.cubiesById
- * @param x X coordinate (0 to cubeSize-1)
- * @param y Y coordinate (0 to cubeSize-1)
- * @param z Z coordinate (0 to cubeSize-1)
- * @returns Cubie ID in format "id_XX_YY_ZZ" (zero-padded coordinates)
- **/
-export type CubieId = Branded<string, 'CubieId'>;
-
-/**
- * A position key for use in CubeState3D.cubiesByPosition
- * @param x X coordinate (0 to cubeSize-1)
- * @param y Y coordinate (0 to cubeSize-1)
- * @param z Z coordinate (0 to cubeSize-1)
- * @returns Position key in format "pos_XX_YY_ZZ" (zero-padded coordinates)
- **/
-export type PositionKey = Branded<string, 'PositionKey'>;
 
 /**
  * Type of cubie: corner, edge, center, or virtual center

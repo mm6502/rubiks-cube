@@ -95,3 +95,17 @@ export const FACE_COLORS: Record<Face, Color> = {
     [Face.L]: Color.GREEN,
     [Face.R]: Color.BLUE,
 };
+
+/**
+ * Which edge of a face: top, bottom, left, or right.
+ * Used to describe ghost strip positions and cube edge mappings.
+ */
+export const FaceEdge = {
+    TOP: 'top',
+    BOTTOM: 'bottom',
+    LEFT: 'left',
+    RIGHT: 'right',
+} as const;
+
+// fallow-ignore-next-line unused-type
+export type FaceEdge = (typeof FaceEdge)[keyof typeof FaceEdge];

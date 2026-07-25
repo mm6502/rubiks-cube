@@ -1,4 +1,4 @@
-import { getInverseMove, parseStringMove } from './move-parser';
+import { getInverseMoveString, parseStringMove } from './move-parser';
 
 describe('move-parser', () => {
     describe('parseStringMove', () => {
@@ -110,105 +110,105 @@ describe('move-parser', () => {
         });
     });
 
-    describe('getInverseMove', () => {
+    describe('getInverseMoveString', () => {
         it('should invert regular moves without modifier', () => {
-            expect(getInverseMove('R')).toBe("R'");
-            expect(getInverseMove('U')).toBe("U'");
-            expect(getInverseMove('F')).toBe("F'");
-            expect(getInverseMove('L')).toBe("L'");
-            expect(getInverseMove('D')).toBe("D'");
-            expect(getInverseMove('B')).toBe("B'");
+            expect(getInverseMoveString('R')).toBe("R'");
+            expect(getInverseMoveString('U')).toBe("U'");
+            expect(getInverseMoveString('F')).toBe("F'");
+            expect(getInverseMoveString('L')).toBe("L'");
+            expect(getInverseMoveString('D')).toBe("D'");
+            expect(getInverseMoveString('B')).toBe("B'");
         });
 
         it('should invert moves with apostrophe', () => {
-            expect(getInverseMove("R'")).toBe('R');
-            expect(getInverseMove("U'")).toBe('U');
-            expect(getInverseMove("F'")).toBe('F');
+            expect(getInverseMoveString("R'")).toBe('R');
+            expect(getInverseMoveString("U'")).toBe('U');
+            expect(getInverseMoveString("F'")).toBe('F');
         });
 
         it('should invert moves with 2 modifier', () => {
-            expect(getInverseMove('R2')).toBe("R2'");
-            expect(getInverseMove('U2')).toBe("U2'");
-            expect(getInverseMove('F2')).toBe("F2'");
-            expect(getInverseMove('L2')).toBe("L2'");
-            expect(getInverseMove('D2')).toBe("D2'");
-            expect(getInverseMove('B2')).toBe("B2'");
+            expect(getInverseMoveString('R2')).toBe("R2'");
+            expect(getInverseMoveString('U2')).toBe("U2'");
+            expect(getInverseMoveString('F2')).toBe("F2'");
+            expect(getInverseMoveString('L2')).toBe("L2'");
+            expect(getInverseMoveString('D2')).toBe("D2'");
+            expect(getInverseMoveString('B2')).toBe("B2'");
         });
 
         it('should invert moves with 2 prime modifier', () => {
-            expect(getInverseMove("R2'")).toBe('R2');
-            expect(getInverseMove("U2'")).toBe('U2');
-            expect(getInverseMove("F2'")).toBe('F2');
-            expect(getInverseMove("L2'")).toBe('L2');
-            expect(getInverseMove("D2'")).toBe('D2');
-            expect(getInverseMove("B2'")).toBe('B2');
+            expect(getInverseMoveString("R2'")).toBe('R2');
+            expect(getInverseMoveString("U2'")).toBe('U2');
+            expect(getInverseMoveString("F2'")).toBe('F2');
+            expect(getInverseMoveString("L2'")).toBe('L2');
+            expect(getInverseMoveString("D2'")).toBe('D2');
+            expect(getInverseMoveString("B2'")).toBe('B2');
         });
 
         it('should invert wide moves', () => {
-            expect(getInverseMove('Rw')).toBe("Rw'");
-            expect(getInverseMove("Rw'")).toBe('Rw');
-            expect(getInverseMove('Rw2')).toBe("Rw2'");
+            expect(getInverseMoveString('Rw')).toBe("Rw'");
+            expect(getInverseMoveString("Rw'")).toBe('Rw');
+            expect(getInverseMoveString('Rw2')).toBe("Rw2'");
         });
 
         it('should invert numbered wide moves', () => {
-            expect(getInverseMove('2Rw')).toBe("2Rw'");
-            expect(getInverseMove("2Rw'")).toBe('2Rw');
-            expect(getInverseMove('2Rw2')).toBe("2Rw2'");
-            expect(getInverseMove("2Rw2'")).toBe('2Rw2');
+            expect(getInverseMoveString('2Rw')).toBe("2Rw'");
+            expect(getInverseMoveString("2Rw'")).toBe('2Rw');
+            expect(getInverseMoveString('2Rw2')).toBe("2Rw2'");
+            expect(getInverseMoveString("2Rw2'")).toBe('2Rw2');
         });
 
         it('should invert slice moves', () => {
-            expect(getInverseMove('M')).toBe("M'");
-            expect(getInverseMove("M'")).toBe('M');
-            expect(getInverseMove('M2')).toBe("M2'");
-            expect(getInverseMove('E')).toBe("E'");
-            expect(getInverseMove('S')).toBe("S'");
+            expect(getInverseMoveString('M')).toBe("M'");
+            expect(getInverseMoveString("M'")).toBe('M');
+            expect(getInverseMoveString('M2')).toBe("M2'");
+            expect(getInverseMoveString('E')).toBe("E'");
+            expect(getInverseMoveString('S')).toBe("S'");
         });
 
         it('should invert rotation moves', () => {
-            expect(getInverseMove('x')).toBe("x'");
-            expect(getInverseMove("x'")).toBe('x');
-            expect(getInverseMove('x2')).toBe("x2'");
+            expect(getInverseMoveString('x')).toBe("x'");
+            expect(getInverseMoveString("x'")).toBe('x');
+            expect(getInverseMoveString('x2')).toBe("x2'");
         });
 
         it('should invert slice moves with modifiers', () => {
-            expect(getInverseMove("M'")).toBe('M');
-            expect(getInverseMove('M2')).toBe("M2'");
-            expect(getInverseMove("M2'")).toBe('M2');
-            expect(getInverseMove("E'")).toBe('E');
-            expect(getInverseMove('E2')).toBe("E2'");
-            expect(getInverseMove("E2'")).toBe('E2');
-            expect(getInverseMove("S'")).toBe('S');
-            expect(getInverseMove('S2')).toBe("S2'");
-            expect(getInverseMove("S2'")).toBe('S2');
+            expect(getInverseMoveString("M'")).toBe('M');
+            expect(getInverseMoveString('M2')).toBe("M2'");
+            expect(getInverseMoveString("M2'")).toBe('M2');
+            expect(getInverseMoveString("E'")).toBe('E');
+            expect(getInverseMoveString('E2')).toBe("E2'");
+            expect(getInverseMoveString("E2'")).toBe('E2');
+            expect(getInverseMoveString("S'")).toBe('S');
+            expect(getInverseMoveString('S2')).toBe("S2'");
+            expect(getInverseMoveString("S2'")).toBe('S2');
         });
 
         it('should invert wide moves with modifiers', () => {
-            expect(getInverseMove("Rw'")).toBe('Rw');
-            expect(getInverseMove('Rw2')).toBe("Rw2'");
-            expect(getInverseMove("Rw2'")).toBe('Rw2');
-            expect(getInverseMove("Uw'")).toBe('Uw');
-            expect(getInverseMove('Fw2')).toBe("Fw2'");
+            expect(getInverseMoveString("Rw'")).toBe('Rw');
+            expect(getInverseMoveString('Rw2')).toBe("Rw2'");
+            expect(getInverseMoveString("Rw2'")).toBe('Rw2');
+            expect(getInverseMoveString("Uw'")).toBe('Uw');
+            expect(getInverseMoveString('Fw2')).toBe("Fw2'");
         });
 
         it('should invert numbered moves', () => {
-            expect(getInverseMove('2R')).toBe("2R'");
-            expect(getInverseMove("2R'")).toBe('2R');
-            expect(getInverseMove('2R2')).toBe("2R2'");
-            expect(getInverseMove('3U')).toBe("3U'");
+            expect(getInverseMoveString('2R')).toBe("2R'");
+            expect(getInverseMoveString("2R'")).toBe('2R');
+            expect(getInverseMoveString('2R2')).toBe("2R2'");
+            expect(getInverseMoveString('3U')).toBe("3U'");
         });
 
         it('should handle fallback cases', () => {
-            expect(getInverseMove('XYZ')).toBe("XYZ'");
-            expect(getInverseMove("XYZ'")).toBe('XYZ');
-            expect(getInverseMove('XYZ2')).toBe("XYZ2'");
-            expect(getInverseMove("XYZ2'")).toBe('XYZ2');
+            expect(getInverseMoveString('XYZ')).toBe("XYZ'");
+            expect(getInverseMoveString("XYZ'")).toBe('XYZ');
+            expect(getInverseMoveString('XYZ2')).toBe("XYZ2'");
+            expect(getInverseMoveString("XYZ2'")).toBe('XYZ2');
         });
 
         it('inverse of inverse returns original for 2 and 2-prime moves', () => {
-            expect(getInverseMove(getInverseMove('R2'))).toBe('R2');
-            expect(getInverseMove(getInverseMove("U2'"))).toBe("U2'");
-            expect(getInverseMove(getInverseMove("M2'"))).toBe("M2'");
+            expect(getInverseMoveString(getInverseMoveString('R2'))).toBe('R2');
+            expect(getInverseMoveString(getInverseMoveString("U2'"))).toBe("U2'");
+            expect(getInverseMoveString(getInverseMoveString("M2'"))).toBe("M2'");
         });
     });
 

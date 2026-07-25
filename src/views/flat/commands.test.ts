@@ -8,10 +8,16 @@ import { EventName } from '@/types';
 import { type FlatCommandContext, getCommands, handleKeyDown, handleKeyUp } from './commands';
 
 function createMockContext(overrides?: Partial<FlatCommandContext>): FlatCommandContext {
+    const moveHistoryMock = {
+        canUndo: vi.fn().mockReturnValue(true),
+        canRedo: vi.fn().mockReturnValue(true),
+    } as any;
+
     const state = {
         currentSelected: undefined as StickerId | undefined,
         model: {
             getCurrentState: () => ({}),
+            getMoveHistory: () => moveHistoryMock,
         } as any,
         cubeWalk: false,
         isRotated: false,
@@ -192,7 +198,8 @@ describe('getCommands', () => {
         const cmds = getCommands(ctx);
         const undo = cmds.find(c => c.id === 'flat.undo')!;
         expect(undo.isEnabled!()).toBe(true);
-        (ctx.canUndo as Mock).mockReturnValue(false);
+        const moveHistory = ctx.state.model!.getMoveHistory();
+        (moveHistory.canUndo as Mock).mockReturnValue(false);
         expect(undo.isEnabled!()).toBe(false);
     });
 
@@ -200,7 +207,8 @@ describe('getCommands', () => {
         const cmds = getCommands(ctx);
         const redo = cmds.find(c => c.id === 'flat.redo')!;
         expect(redo.isEnabled!()).toBe(true);
-        (ctx.canRedo as Mock).mockReturnValue(false);
+        const moveHistory = ctx.state.model!.getMoveHistory();
+        (moveHistory.canRedo as Mock).mockReturnValue(false);
         expect(redo.isEnabled!()).toBe(false);
     });
 

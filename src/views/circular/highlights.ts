@@ -1,7 +1,7 @@
 import { StickerId } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 
-import { CircularCubeViewInternalData } from './circular-view';
+import { CircularCubeViewInternalData } from './types';
 
 /**
  * Remove selection highlight from all stickers. @internal

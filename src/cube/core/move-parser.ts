@@ -30,35 +30,7 @@ export function parseStringMove(moveString: string, cubeSize: number = 3): MoveD
  * @param move - The move notation to invert
  * @returns The inverse move notation
  */
-export function getInverseMove(move: string): string {
-    // Handle single-character stem moves (faces/slices/rotations): X, X', X2.
-    if (move.length === 1 || (move.length === 2 && (move[1] === "'" || move[1] === '2'))) {
-        const face = move[0];
-        const modifier = move.length > 1 ? move[1] : '';
-        if (modifier === '') return `${face}'`;
-        if (modifier === "'") return face;
-        if (modifier === '2') return `${face}2'`;
-    }
-
-    // Handle single-character stem + 2' suffix: X2'.
-    if (move.length === 3 && move[1] === '2' && move[2] === "'") {
-        return `${move[0]}2`;
-    }
-
-    // Handle wide moves and regular moves
-    const match = move.match(/^(\d*)([LRUDFBMES])(w?)(['2]|2')?$/);
-    if (match) {
-        const [, num, face, w, modifier] = match;
-        const prefix = num || (w ? '' : ''); // keep num, or empty
-        const wide = w || '';
-        if (modifier === '' || modifier === undefined) return `${prefix}${face}${wide}'`;
-        if (modifier === "'") return `${prefix}${face}${wide}`;
-        if (modifier === '2') return `${prefix}${face}${wide}2'`;
-        if (modifier === "2'") return `${prefix}${face}${wide}2`;
-    }
-
-    // Fallback
-    if (move.endsWith("2'")) return move.slice(0, -1);
+export function getInverseMoveString(move: string): string {
     if (move.endsWith("'")) return move.slice(0, -1);
     if (move.endsWith('2')) return move + "'";
     return move + "'";

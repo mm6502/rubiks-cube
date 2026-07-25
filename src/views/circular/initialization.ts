@@ -1,11 +1,11 @@
 ﻿import { Application } from '@/application';
-import { Axis, Face, Position3D, PositionKey, ReadOnlyCubeModel, StickerId } from '@/cube/types';
+import { Axis, Face, Position3D, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { getPositionKey } from '@/cube/utils';
 import { logger } from '@/diagnostics/logger';
 import { EventName } from '@/types';
 
-import { CircularCubeViewInternalData } from './circular-view';
 import { AxisCircle, SVGAxisCoords, getCenterOfElement, isPointOnCircle } from './svg-tools';
+import { CircularCubeViewInternalData, StickerLookupMap } from './types';
 import rawSvg from './view.svg?raw';
 
 /**
@@ -144,12 +144,6 @@ function svgToCubeMapping(
 
     return { cubePosition, cubeFace };
 }
-
-/**
- * Sticker lookup map: position3D → face → SVG element ID
- * Allows efficient lookup of which SVG sticker to update for a given cube sticker
- */
-export type StickerLookupMap = Map<PositionKey, Map<Face, string>>;
 
 /**
  * Return type for buildStickerLookupMap

@@ -1,6 +1,6 @@
-import { Application } from '@/application';
+// fallow-ignore-file unused-class-member
 import { MoveHistory } from '@/cube/core/move-history';
-import { getInverseMove, parseStringMove } from '@/cube/core/move-parser';
+import { getInverseMoveString, parseStringMove } from '@/cube/core/move-parser';
 import { StateManager } from '@/cube/core/state-manager';
 import {
     CubeModel,
@@ -10,6 +10,7 @@ import {
     MoveResult,
     ReadOnlyCubeModel,
 } from '@/cube/types';
+import { getEventBus } from '@/event-bus-accessor';
 import { Command, EventName, MoveRequestedEvent } from '@/types';
 
 import { getCommands as getCommandsInternal } from './cube-controller.commands';
@@ -31,9 +32,9 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         this.moveHistory = new MoveHistory();
 
         // Listen to moveRequested events
-        Application.eventBus.on(EventName.MOVE_REQUESTED, this.handleMoveRequested.bind(this));
-        Application.eventBus.on(EventName.UNDO_REQUESTED, this.handleUndoRequested.bind(this));
-        Application.eventBus.on(EventName.REDO_REQUESTED, this.handleRedoRequested.bind(this));
+        getEventBus().on(EventName.MOVE_REQUESTED, this.handleMoveRequested.bind(this));
+        getEventBus().on(EventName.UNDO_REQUESTED, this.handleUndoRequested.bind(this));
+        getEventBus().on(EventName.REDO_REQUESTED, this.handleRedoRequested.bind(this));
     }
 
     /**
@@ -71,7 +72,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         if (!skipUndoLogic) {
             const lastMove = this.moveHistory.getLastMove();
             const nextRedoMove = this.moveHistory.getRedoStack()[0];
-            if (lastMove !== undefined && getInverseMove(lastMove) === move) {
+            if (lastMove !== undefined && getInverseMoveString(lastMove) === move) {
                 this.moveHistory.undo();
             } else if (nextRedoMove !== undefined && nextRedoMove === move) {
                 this.moveHistory.redo();
@@ -82,7 +83,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
 
         // Emit event if requested.
         if (emitEvent && lastResult && lastDefinition) {
-            Application.eventBus.emit(EventName.MOVE_EXECUTED, {
+            getEventBus().emit(EventName.MOVE_EXECUTED, {
                 moveDetails: {
                     notation: move,
                     definition: lastDefinition,
@@ -166,7 +167,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         if (!lastMove) return false;
 
         // Get the inverse move notation.
-        const inverseMove = getInverseMove(lastMove);
+        const inverseMove = getInverseMoveString(lastMove);
 
         // Get pre-state before undo.
         const preState = this.getCurrentState();
@@ -181,7 +182,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         const [inverseDefinition] = parseStringMove(inverseMove);
 
         // Emit event for undo operation.
-        Application.eventBus.emit(EventName.MOVE_EXECUTED, {
+        getEventBus().emit(EventName.MOVE_EXECUTED, {
             moveDetails: {
                 notation: inverseMove,
                 definition: inverseDefinition,
@@ -216,7 +217,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         const [redoDefinition] = parseStringMove(move);
 
         // Emit event for redo operation.
-        Application.eventBus.emit(EventName.MOVE_EXECUTED, {
+        getEventBus().emit(EventName.MOVE_EXECUTED, {
             moveDetails: {
                 notation: move,
                 definition: redoDefinition,

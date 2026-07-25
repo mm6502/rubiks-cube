@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-type
 import { Axis, Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { DragStateMachine } from '@/interaction/drag-state-machine';

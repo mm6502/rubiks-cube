@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-class-member
 import { DragDirection, DragGesture, Point2D } from './types';
 
 type PointerLike = {

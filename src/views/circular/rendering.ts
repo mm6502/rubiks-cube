@@ -7,8 +7,8 @@ import { MoveExecutedEvent } from '@/types';
 
 import * as highlights from './highlights';
 import { animateMove } from './animations';
-import { CircularCubeViewInternalData } from './circular-view';
 import { GHOST_OPACITY_LEVELS } from './constants';
+import { CircularCubeViewInternalData } from './types';
 
 /**
  * Sets the fill attribute for a sticker SVG element if present in cache

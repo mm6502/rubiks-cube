@@ -8,8 +8,8 @@ import { getAdjacentStickerOnSurface } from '@/cube/utils/surface-walking';
 import { logger } from '@/diagnostics/logger';
 import { NavDirection } from '@/types';
 
-import { CircularCubeViewInternalData } from './circular-view';
 import { AxisCircle, getCenterOfElement, getRadiusOfElement } from './svg-tools';
+import { CircularCubeViewInternalData } from './types';
 
 /**
  * Check if a keyboard event is a navigation key (arrow keys).

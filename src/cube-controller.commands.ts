@@ -1,9 +1,12 @@
-import { Application } from '@/application';
+import { createUndoRedoCommands } from '@/cube/commands/undo-redo';
 import { ReadOnlyCubeModel } from '@/cube/types';
+import { getEventBus } from '@/event-bus-accessor';
 import { Command, CommandCategory, EventName, GroupLayout } from '@/types';
 
 export function getCommands(model: ReadOnlyCubeModel): Command[] {
+    const undoRedo = createUndoRedoCommands(model.getMoveHistory(), 'cube');
     return [
+        ...undoRedo,
         {
             id: 'reset-cube',
             label: 'Reset Cube',
@@ -11,7 +14,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
             tooltip: 'Reset cube to solved state.',
-            action: () => Application.eventBus.emit(EventName.CUBE_RESET_REQUESTED, {}),
+            action: () => getEventBus().emit(EventName.CUBE_RESET_REQUESTED, {}),
         },
         {
             id: 'scramble-cube',
@@ -20,7 +23,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
             tooltip: 'Scramble the cube with random moves.',
-            action: () => Application.eventBus.emit(EventName.CUBE_SCRAMBLE_REQUESTED, {}),
+            action: () => getEventBus().emit(EventName.CUBE_SCRAMBLE_REQUESTED, {}),
         },
         {
             id: 'clear-storage',
@@ -29,7 +32,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
             tooltip: 'Clear saved cube state and layout.',
-            action: () => Application.eventBus.emit(EventName.STORAGE_CLEAR_REQUESTED, {}),
+            action: () => getEventBus().emit(EventName.STORAGE_CLEAR_REQUESTED, {}),
         },
         {
             id: 'export-state',
@@ -38,7 +41,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
             tooltip: 'Save cube state to file.',
-            action: () => Application.eventBus.emit(EventName.STATE_EXPORT_REQUESTED, {}),
+            action: () => getEventBus().emit(EventName.STATE_EXPORT_REQUESTED, {}),
         },
         {
             id: 'import-state',
@@ -47,29 +50,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'State Management',
             groupLayout: GroupLayout.FLOW,
             tooltip: 'Import cube state from file.',
-            action: () => Application.eventBus.emit(EventName.STATE_IMPORT_REQUESTED, {}),
-        },
-        {
-            id: 'undo-move',
-            label: 'Undo Move',
-            category: CommandCategory.CONTROLLER,
-            group: 'Move Management',
-            groupLayout: GroupLayout.FLOW,
-            tooltip: 'Undo the last move.',
-            keyBindings: [{ key: '[' }, { key: ',' }],
-            action: () => Application.eventBus.emit(EventName.UNDO_REQUESTED, {}),
-            isEnabled: () => model.getMoveHistory().canUndo(),
-        },
-        {
-            id: 'redo-move',
-            label: 'Redo Move',
-            category: CommandCategory.CONTROLLER,
-            group: 'Move Management',
-            groupLayout: GroupLayout.FLOW,
-            tooltip: 'Redo the last undone move.',
-            keyBindings: [{ key: ']' }, { key: '.' }],
-            action: () => Application.eventBus.emit(EventName.REDO_REQUESTED, {}),
-            isEnabled: () => model.getMoveHistory().canRedo(),
+            action: () => getEventBus().emit(EventName.STATE_IMPORT_REQUESTED, {}),
         },
         {
             id: 'move-f-prime',
@@ -80,7 +61,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 1/.Front',
             tooltip: 'Rotate front face counter-clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "F'",
                     viewId: 'controller',
                     tentative: false,
@@ -95,7 +76,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 1/.Front',
             tooltip: 'Rotate front face clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'F',
                     viewId: 'controller',
                     tentative: false,
@@ -109,7 +90,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 1/.Front',
             tooltip: 'Rotate front face 180°.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'F2',
                     viewId: 'controller',
                     tentative: false,
@@ -124,7 +105,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 2/.Back',
             tooltip: 'Rotate back face counter-clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "B'",
                     viewId: 'controller',
                     tentative: false,
@@ -139,7 +120,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 2/.Back',
             tooltip: 'Rotate back face clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'B',
                     viewId: 'controller',
                     tentative: false,
@@ -153,7 +134,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 2/.Back',
             tooltip: 'Rotate back face 180°.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'B2',
                     viewId: 'controller',
                     tentative: false,
@@ -168,7 +149,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 1/.Up',
             tooltip: 'Rotate top face counter-clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "U'",
                     viewId: 'controller',
                     tentative: false,
@@ -183,7 +164,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 1/.Up',
             tooltip: 'Rotate top face clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'U',
                     viewId: 'controller',
                     tentative: false,
@@ -197,7 +178,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 1/.Up',
             tooltip: 'Rotate top face 180°.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'U2',
                     viewId: 'controller',
                     tentative: false,
@@ -212,7 +193,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 2/.Down',
             tooltip: 'Rotate bottom face counter-clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "D'",
                     viewId: 'controller',
                     tentative: false,
@@ -227,7 +208,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 2/.Down',
             tooltip: 'Rotate bottom face clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'D',
                     viewId: 'controller',
                     tentative: false,
@@ -241,7 +222,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 2/.Down',
             tooltip: 'Rotate bottom face 180°.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'D2',
                     viewId: 'controller',
                     tentative: false,
@@ -256,7 +237,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 2/.Left',
             tooltip: 'Rotate left face counter-clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "L'",
                     viewId: 'controller',
                     tentative: false,
@@ -271,7 +252,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 2/.Left',
             tooltip: 'Rotate left face clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'L',
                     viewId: 'controller',
                     tentative: false,
@@ -285,7 +266,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 2/.Left',
             tooltip: 'Rotate left face 180°.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'L2',
                     viewId: 'controller',
                     tentative: false,
@@ -300,7 +281,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 1/.Right',
             tooltip: 'Rotate right face counter-clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "R'",
                     viewId: 'controller',
                     tentative: false,
@@ -315,7 +296,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 1/.Right',
             tooltip: 'Rotate right face clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'R',
                     viewId: 'controller',
                     tentative: false,
@@ -329,7 +310,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Basic 1/.Right',
             tooltip: 'Rotate right face 180°.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'R2',
                     viewId: 'controller',
                     tentative: false,
@@ -346,7 +327,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             tooltip:
                 'Rotate middle slice (between L and R) counter-clockwise (follows L direction).',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "M'",
                     viewId: 'controller',
                     tentative: false,
@@ -361,7 +342,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Extended/.Middle',
             tooltip: 'Rotate middle slice (between L and R) clockwise (follows L direction).',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'M',
                     viewId: 'controller',
                     tentative: false,
@@ -375,7 +356,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Extended/.Middle',
             tooltip: 'Rotate middle slice 180° (follows L direction).',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'M2',
                     viewId: 'controller',
                     tentative: false,
@@ -391,7 +372,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             tooltip:
                 'Rotate equatorial slice (between U and D) counter-clockwise (follows D direction).',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "E'",
                     viewId: 'controller',
                     tentative: false,
@@ -406,7 +387,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Extended/.Equatorial',
             tooltip: 'Rotate equatorial slice (between U and D) clockwise (follows D direction).',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'E',
                     viewId: 'controller',
                     tentative: false,
@@ -420,7 +401,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Extended/.Equatorial',
             tooltip: 'Rotate equatorial slice 180° (follows D direction).',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'E2',
                     viewId: 'controller',
                     tentative: false,
@@ -436,7 +417,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             tooltip:
                 'Rotate standing slice (between F and B) counter-clockwise (follows F direction).',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "S'",
                     viewId: 'controller',
                     tentative: false,
@@ -452,7 +433,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Extended/.Standing',
             tooltip: 'Rotate standing slice (between F and B) clockwise (follows F direction).',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'S',
                     viewId: 'controller',
                     tentative: false,
@@ -466,7 +447,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Extended/.Standing',
             tooltip: 'Rotate standing slice 180° (follows F direction).',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'S2',
                     viewId: 'controller',
                     tentative: false,
@@ -482,7 +463,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Whole Cube Rotations/.x',
             tooltip: 'Rotate entire cube around x-axis (R direction) counter-clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "x'",
                     viewId: 'controller',
                     tentative: false,
@@ -497,7 +478,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Whole Cube Rotations/.x',
             tooltip: 'Rotate entire cube around x-axis (R direction) clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'x',
                     viewId: 'controller',
                     tentative: false,
@@ -511,7 +492,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Whole Cube Rotations/.x',
             tooltip: 'Rotate entire cube around x-axis 180°.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'x2',
                     viewId: 'controller',
                     tentative: false,
@@ -527,7 +508,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Whole Cube Rotations/.y',
             tooltip: 'Rotate entire cube around y-axis (U direction) counter-clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "y'",
                     viewId: 'controller',
                     tentative: false,
@@ -542,7 +523,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Whole Cube Rotations/.y',
             tooltip: 'Rotate entire cube around y-axis (U direction) clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'y',
                     viewId: 'controller',
                     tentative: false,
@@ -556,7 +537,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Whole Cube Rotations/.y',
             tooltip: 'Rotate entire cube around y-axis 180°.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'y2',
                     viewId: 'controller',
                     tentative: false,
@@ -571,7 +552,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Whole Cube Rotations/.z',
             tooltip: 'Rotate entire cube around z-axis (F direction) counter-clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: "z'",
                     viewId: 'controller',
                     tentative: false,
@@ -586,7 +567,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Whole Cube Rotations/.z',
             tooltip: 'Rotate entire cube around z-axis (F direction) clockwise.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'z',
                     viewId: 'controller',
                     tentative: false,
@@ -600,7 +581,7 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
             group: 'Whole Cube Rotations/.z',
             tooltip: 'Rotate entire cube around z-axis 180°.',
             action: () =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
                     moveNotation: 'z2',
                     viewId: 'controller',
                     tentative: false,
