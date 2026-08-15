@@ -1,6 +1,6 @@
 # Code Quality Evaluation
 
-Last evaluated: 2026-06-06
+Last evaluated: 2026-08-15
 
 ## ✅ Strengths
 
@@ -31,13 +31,13 @@ Last evaluated: 2026-06-06
     moves-view.ts)
   - Null/undefined checks throughout codebase, especially in view components
 
-- Testing (9/10)
-  - 88 test files covering core functionality
+- Testing (10/10)
+  - 93 test files covering core functionality
   - Comprehensive unit tests for critical logic (move engine, navigation,
     invariants, state management)
   - Well-structured tests with descriptive names and proper setup/teardown
   - Good coverage of edge cases and integration scenarios
-  - 2040 individual tests passing (all pass)
+  - 2087 individual tests passing in the latest run
 
 - Code Organization (9/10)
   - Clear directory structure: src/ with logical grouping
@@ -71,24 +71,17 @@ Last evaluated: 2026-06-06
   - Consider structured error types instead of generic errors
 
 - Test Coverage (8/10)
-  - Overall coverage: 92.45% stmts, 82.99% branches, 95.68% funcs, 93.64% lines
-  - Branch coverage at 82.99% slipped below the 85% target
-  - Coverage decreased ~1pp overall due to new code added since last evaluation
-    (2 new source files) without full coverage
-  - Core modules remain excellent: cube/core (94.44% stmts, 88.64% branch),
+  - Overall coverage is now above the target: 92.92% statements, 85.04%
+    branches, 93.78% functions, and 93.91% lines
+  - The project is now passing the full coverage gate, but a few UI-heavy
+    modules still lag behind the broader codebase
+  - Basic 2 coverage improved substantially, but it remains the weakest view
+    module at 73.14% statements, 60% branches, 64.4% functions, and 74.71% lines
+  - Core modules remain excellent: cube/core (94.28% stmts, 88.30% branch),
     cube/utils (95.33% stmts, 91.30% branch)
-  - View components coverage:
-    - basic views: 94.27% stmts, 85.28% branch
-    - moves views: 93.28% stmts, 83.58% branch
-    - flat views: 95.97% stmts, 90.32% branch
-    - circular views: 94.07% stmts, 83.89% branch
-  - view-manager at 94.90% stmts, 86.18% branch
-  - diagnostics/logger.ts at 100% stmts, 100% funcs, 100% lines
-  - diagnostics/diagnostics.ts at 100% stmts, 90% branch
-  - interaction at 94.30% stmts, 93.36% branch
-  - **NEW: basic-2 view module** — only 3.37% stmts, 1.60% branch. This is a
-    newly added view (6 source files, ~500 statements) with minimal test
-    coverage, representing the largest coverage gap in the codebase
+  - View components coverage remains strong overall: basic (92.36% stmts, 84.54%
+    branch), flat (95.62% stmts, 89.22% branch), circular (93.84% stmts, 83.66%
+    branch), and moves (93.15% stmts, 83.07% branch)
 
 - Component Size (8/10)
   - Circular touch-handler successfully decomposed into sub-modules
@@ -97,108 +90,68 @@ Last evaluated: 2026-06-06
   - Good modular decomposition achieved
 
 - Missing Tooling (7/10)
-  - No pre-commit hooks (Husky) for quality gates
-  - No CI/CD workflow visible
+  - No pre-commit hooks or CI workflow are currently visible in the repo
   - A subset of files remains intentionally outside formatting scope via
     `.prettierignore` (`*.html`, `package-lock.json`)
-  - Branch coverage target (85%) has slipped: 82.99% overall
-  - Per-file threshold exceptions defined in `vitest.config.ts` for two accepted
-    ceilings: `basic/touch-handler.ts` (jsdom pointer-event limit) and
-    `basic/basic-view.ts` (WebGL context limit)
-  - `/* c8 ignore if */` annotations applied across 14 files to exclude provably
-    unreachable fail-guard branches
-  - **Critical: basic-2** view module at 3.37% stmts / 1.60% branch — needs test
-    coverage added as main priority
+  - A few environment-bound branches remain covered by the existing threshold
+    strategy and test-environment constraints
+  - The Basic 2 view is still the best place for incremental future coverage
+    gains
 
 ## 📊 Metrics Summary
 
-| Metric             | Value                                        |
-| ------------------ | -------------------------------------------- |
-| Source Files:      | 193 (104 .ts source + 88 .test.ts + 1 setup) |
-| Test Files:        | 88                                           |
-| Test Count:        | 2040 passing tests                           |
-| Test Coverage:     | 92.45% stmts, 93.64% lns,                    |
-|                    | 82.99% brnchs, 95.68% fncs                   |
-| TypeScript Strict: | ✅ Enabled                                   |
-| Linting:           | ✅ ESLint configured, no errors              |
-| Build:             | ✅ Vite with optimizations                   |
-| Formatting:        | ✅ Prettier configured                       |
-| Dependencies:      | Minimal (Immutable.js only)                  |
-| Dev Dependencies:  | Modern stack (Vitest, TypeScript 5.3)        |
+| Metric                 | Value                 |
+| ---------------------- | --------------------- |
+| Test Files:            | 93                    |
+| Test Count:            | 2087 passing tests    |
+| TypeScript Check:      | ✅ Passed             |
+| Linting:               | ✅ Passed             |
+| Build:                 | ✅ Passed             |
+| Coverage (statements): | 92.92%                |
+| Coverage (branches):   | 85.04%                |
+| Coverage (functions):  | 93.78%                |
+| Coverage (lines):      | 93.91%                |
+| Quality Gate:          | ✅ npm run all passed |
 
 ## 📈 Per-Module Coverage (current)
 
 | Module             | Stmts  | Branch | Funcs  | Lines  |
 | ------------------ | ------ | ------ | ------ | ------ |
-| **All files**      | 92.45% | 82.99% | 95.68% | 93.64% |
-| src/cube/core      | 94.44% | 88.64% | 100%   | 94.18% |
+| **All files**      | 92.92% | 85.04% | 93.78% | 93.91% |
+| src/cube/core      | 94.28% | 88.30% | 100%   | 94.07% |
 | src/cube/utils     | 95.33% | 91.30% | 100%   | 95.55% |
-| src/interaction    | 94.30% | 93.36% | 96.55% | 94.79% |
-| src/events         | 100%   | 100%   | 100%   | 100%   |
-| src/types          | 100%   | 100%   | 100%   | 100%   |
-| src/about          | 100%   | 100%   | 100%   | 100%   |
-| src/icons          | 100%   | 100%   | 100%   | 100%   |
-| src/views/moves    | 93.28% | 83.58% | 96.77% | 95.74% |
-| src/views/basic    | 94.27% | 85.28% | 91.91% | 95.30% |
-| src/views/flat     | 95.97% | 90.32% | 97.56% | 96.87% |
-| src/views/circular | 94.07% | 83.89% | 98.15% | 95.54% |
-| src/views/basic-2  | 3.37%  | 1.60%  | 6.48%  | 3.70%  |
+| src/interaction    | 94.83% | 93.50% | 96.66% | 95.33% |
+| src/views/basic    | 92.36% | 84.54% | 93%    | 93.78% |
+| src/views/basic-2  | 73.14% | 60%    | 64.4%  | 74.71% |
+| src/views/flat     | 95.62% | 89.22% | 96.44% | 96.54% |
+| src/views/circular | 93.84% | 83.66% | 97.48% | 95.32% |
+| src/views/moves    | 93.15% | 83.07% | 96.29% | 95.65% |
 | src/view-manager   | 94.90% | 86.18% | 94.02% | 95.71% |
 | src/diagnostics    | 100%   | 91.30% | 100%   | 100%   |
-| src (root)         | 96.58% | 90.84% | 96.72% | 97.30% |
+| src (root)         | 96.30% | 90.84% | 95.31% | 97%    |
 
-**Notable low-coverage files:** `basic/touch-handler.ts` (95.02% stmts / 79.38%
-branch), `basic/basic-view.ts` (84.61% stmts / 76.53% branch).
+**Notable files:** `src/views/basic/touch-handler.ts` (88.99% statements, 76.53%
+branches, 98.14% functions, 91.17% lines) and `src/views/basic/basic-view.ts`
+(84.54% statements, 78.30% branches, 77.77% functions, 84.18% lines). These
+remain below the broader project average, but are still within the existing
+accepted-ceiling guidance for environment- constrained browser/WebGL paths.
 
 ## 🎯 Priority Recommendations
 
-Overall branch coverage (82.99%) slipped below the 85% target. The primary
-driver is the newly added `src/views/basic-2` module with near-zero coverage.
+The repository is in a healthy state overall. The main opportunities now are
+incremental rather than critical:
 
-### Critical Priority
+1. **Keep branch coverage above the target** — the current 85.04% branch result
+   is above the project floor and should remain green with continued coverage
+   upkeep.
+2. **Continue improving Basic 2 coverage** — it remains the weakest view module
+   and is still the best place for incremental test gains.
+3. **Add lightweight CI and pre-commit quality checks** — this would help keep
+   the current health level stable as the codebase evolves.
 
-1. **`src/views/basic-2`** — **3.37% stmts / 1.60% branch / 6.48% functions.**
-   This is a new view module (6 files: `basic-2-view.ts`, `animations.ts`,
-   `cubie-rendering.ts`, `initialization.ts`, `rendering.ts`, `index.ts`) with
-   ~500 statements and only 17 covered. Every uncovered function is a risk.
-   Files in this module have 0% branch coverage across the board.
-   - **Action:** Write test coverage for the basic-2 view module as the #1
-     priority to lift overall branch coverage back above 85%.
+Overall Grade: A- (92/100)
 
-### Accepted Ceilings (no further action)
-
-1. **`basic/touch-handler.ts`** — 79.38% branch. Requires multi-pointer
-   `PointerEvent` dispatch not available in jsdom. Per-file threshold exception
-   set in `vitest.config.ts` (floor: 75%).
-2. **`basic/basic-view.ts`** — 76.53% branch. Coupled to Three.js WebGL
-   camera/renderer state unreachable without a full WebGL context. Per-file
-   threshold exception set in `vitest.config.ts` (floor: 70%).
-
-### Secondary Candidates
-
-**`src/views/moves`** at 83.58% branch — the only mature module below 85%
-without an accepted-ceiling justification. Branch coverage here is a tractable
-target.
-
-Overall Grade: B+ (88/100)
-
-This codebase maintains strong quality with excellent type safety, clean
-architecture, and an expanded test suite (2040 tests across 88 files).
-
-- **2040 passing tests** across **88 test files**, **104 source files** (193
-  total .ts files)
-- **Zero TypeScript errors**, clean build and linting
-- **Overall branch coverage: 82.99%** — slipped below the 85% target
-- **Uncovered new module: `src/views/basic-2`** at 3.37% stmts is the primary
-  cause of the coverage regression
-- **Per-file threshold exceptions** documented in `vitest.config.ts` for two
-  accepted-ceiling files, preventing silent regression
-- **`/* c8 ignore if */` annotations** applied across source files to exclude
-  provably unreachable fail-guard branches
-- All modules except `basic-2` remain above the 70% global threshold floor
-
-The codebase has one clear actionable gap: writing tests for `basic-2`. The
-remaining two sub-85% files (`basic/touch-handler.ts` at 79.38% and
-`basic/basic-view.ts` at 76.53%) are gated by test-environment constraints, not
-missing test effort. Once basic-2 is covered, branch coverage will likely return
-above 85%.
+This codebase now shows strong quality across architecture, type safety,
+validation, testing, and build health. The biggest remaining improvement
+opportunities are incremental quality-of-life enhancements rather than urgent
+stability issues.

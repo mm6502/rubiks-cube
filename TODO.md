@@ -7,8 +7,7 @@ status and future plans.
 
 ## Current tasks
 
-- Review and update link rotations for Basic/Basic2 views. Should it link only
-  the same view, or across both views?
+(Nothing atm)
 
 ## Future Tasks
 

@@ -57,6 +57,38 @@ describe('BasicView (Basic 2) - ghost stickers integration', () => {
         expect(isGhostVisible()).toBe(false);
     });
 
+    it('persists and restores state values including ghost opacity and link flags', () => {
+        const view = createView('basic-2-front', model);
+
+        view.setState({
+            viewRight: { x: 1, y: 0, z: 0 },
+            viewUp: { x: 0, y: 1, z: 0 },
+            viewForward: { x: 0, y: 0, z: 1 },
+            isTilted: true,
+            isPitched: true,
+            faceDirectMode: true,
+            linked: false,
+            ghostOpacityIndex: 2,
+        });
+
+        const persisted = view.getState();
+        expect(persisted.isTilted).toBe(true);
+        expect(persisted.isPitched).toBe(true);
+        expect(persisted.ghostOpacityIndex).toBe(2);
+        expect(persisted.linked).toBe(false);
+    });
+
+    it('tears down the cube DOM and clears the cube element reference on destroy', () => {
+        const view = createView('basic-2-front', model);
+        const container = document.createElement('div');
+        view.create(container, model);
+
+        view.destroy();
+
+        expect(view.getCubeElement()).toBeNull();
+        expect(container.querySelector('.cube')).toBeNull();
+    });
+
     it('shows only silhouette-edge ghost strips once toggled on, hiding the rest', () => {
         const view = createView('basic-2-front', model);
         const cubeElement = view.getCubeElement()!;

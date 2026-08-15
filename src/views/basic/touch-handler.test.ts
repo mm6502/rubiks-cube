@@ -1,6 +1,8 @@
 import { Application } from '@/application';
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { DragDirection, HitKind } from '@/interaction/types';
 import { EventName } from '@/types';
 
 import type { BasicViewInternalData } from './basic-view';
@@ -1020,6 +1022,190 @@ describe('BasicTouchHandler', () => {
         // Verify drag decision SVG is visible (showDragDecisionCross was called)
         const svg = fixture.host.querySelector('svg[aria-hidden]') as SVGSVGElement;
         expect(svg).not.toBeNull();
+        handler.destroy();
+    });
+
+    it('getFaceScreenBasisFromDOM returns undefined for degenerate vectors', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        const stickers = fixture.host.querySelectorAll(
+            `.${styles.sticker}`
+        ) as NodeListOf<HTMLElement>;
+        stickers.forEach(el => {
+            el.getBoundingClientRect = () =>
+                ({ left: 100, right: 100, top: 100, bottom: 100, width: 0, height: 0 }) as DOMRect;
+        });
+
+        expect(handler['getFaceScreenBasisFromDOM'](Face.F, 3)).toBeUndefined();
+        handler.destroy();
+    });
+
+    it('getFaceScreenBasisFromDOM uses model fallback when data-basic-pos is missing', () => {
+        const state = createState(fixture);
+        const getModel = vi.fn(() => ({ getCurrentState: () => ({}) }) as any);
+        const handler = new BasicTouchHandler({
+            host: fixture.host,
+            styles: styles as Record<string, string>,
+            getCubeSize: () => 3,
+            getState: () => state,
+            onStickerSelected: vi.fn(),
+            onViewRotated: vi.fn(),
+            viewId: 'basic-front',
+            adapter: { mapDragDirection: d => d },
+            getModel,
+        });
+        handler.attach();
+
+        const stickers = fixture.host.querySelectorAll(
+            `.${styles.sticker}`
+        ) as NodeListOf<HTMLElement>;
+        stickers.forEach((el, index) => {
+            el.removeAttribute('data-basic-pos');
+            el.getBoundingClientRect = () =>
+                ({
+                    left: 50 + index,
+                    right: 60 + index,
+                    top: 20 + index,
+                    bottom: 30 + index,
+                    width: 10,
+                    height: 10,
+                }) as DOMRect;
+        });
+
+        const stickerAtSpy = vi.spyOn(CubeStateUtils, 'getStickerAt').mockImplementation(
+            (_cubeState, _face, position) =>
+                ({
+                    id: `F-${position}`,
+                }) as any
+        );
+
+        const basis = handler['getFaceScreenBasisFromDOM'](Face.F, 3);
+
+        expect(basis).toEqual({
+            upDir: expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }),
+            rightDir: expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }),
+        });
+        expect(getModel).toHaveBeenCalled();
+        expect(stickerAtSpy).toHaveBeenCalled();
+        handler.destroy();
+    });
+
+    it('createInteractionContext and tap-without-drag helpers expose the expected snapshot', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        const context = handler['createInteractionContext']();
+        expect(context).toEqual({ cubeSize: 3, selectedFace: undefined });
+        expect(handler['wasTapWithoutDrag'](100, 100)).toBe(false);
+
+        handler.destroy();
+    });
+
+    it('exercises the remaining early-return and fallback branches in gesture helpers', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        handler['activePointerId'] = 7;
+        handler['onPointerUp'](pointer('pointerup', 8, 100, 100));
+        expect(handler['activePointerId']).toBe(7);
+
+        handler['activePointerId'] = 8;
+        handler['activePointerAllowsDrag'] = false;
+        handler['activePointerOrigin'] = { x: 100, y: 100 };
+        handler['onPointerUp'](pointer('pointerup', 8, 100, 100));
+        expect(handler['activePointerId']).toBeUndefined();
+
+        handler['activePointerId'] = 9;
+        handler['activePointerAllowsDrag'] = false;
+        handler['onPointerCancel'](pointer('pointercancel', 10, 100, 100));
+        expect(handler['activePointerId']).toBe(9);
+
+        handler['activePointerId'] = 10;
+        handler['activePointerAllowsDrag'] = false;
+        handler['onPointerCancel'](pointer('pointercancel', 10, 100, 100));
+        expect(handler['activePointerId']).toBeUndefined();
+
+        handler['suppressNextClick'] = false;
+        expect(() =>
+            handler['onClickCapture'](new MouseEvent('click', { bubbles: true, cancelable: true }))
+        ).not.toThrow();
+
+        handler['activePointerId'] = 11;
+        handler['onPointerDown'](pointer('pointerdown', 11, 120, 120));
+        expect(handler['activePointerId']).toBe(11);
+
+        handler['activeGestureKind'] = HitKind.HALO;
+        handler['selectedFace'] = undefined;
+        expect(
+            handler['inferMoveNotationForGesture']({
+                pointerId: 1,
+                start: { x: 0, y: 0 },
+                current: { x: 100, y: 100 },
+                deltaX: 100,
+                deltaY: 100,
+                distancePx: 100,
+                direction: DragDirection.RIGHT,
+            })
+        ).toBeUndefined();
+
+        handler['haloFaceCenter'] = undefined;
+        expect(
+            handler['inferHaloRotation']({
+                pointerId: 1,
+                start: { x: 0, y: 0 },
+                current: { x: 50, y: 50 },
+                deltaX: 50,
+                deltaY: 50,
+                distancePx: 100,
+                direction: DragDirection.RIGHT,
+                angularDisplacementRad: undefined,
+            })
+        ).toBeUndefined();
+
+        handler['pendingStickerCross'] = undefined;
+        handler['startHit'] = {
+            stickerElement: fixture.stickerEl,
+            face: Face.F,
+            row: 0,
+            col: 0,
+            stickerId: 'F-0',
+        };
+        const adapter = handler['adapter'] as any;
+        adapter.mapDragDirection = () => DragDirection.UP;
+        expect(
+            handler['inferStickerLayerMove']({
+                pointerId: 1,
+                start: { x: 0, y: 0 },
+                current: { x: 100, y: 100 },
+                deltaX: 100,
+                deltaY: 100,
+                distancePx: 100,
+                direction: DragDirection.RIGHT,
+            })
+        ).toBeDefined();
+
+        handler['finalizeBackgroundGesture']({
+            pointerId: 1,
+            start: { x: 0, y: 0 },
+            current: { x: 100, y: 100 },
+            deltaX: 100,
+            deltaY: 100,
+            distancePx: 100,
+            direction: 'bogus' as DragDirection,
+        });
+        expect(
+            handler['getBackgroundDragPreviewLabel']({
+                pointerId: 1,
+                start: { x: 0, y: 0 },
+                current: { x: 100, y: 100 },
+                deltaX: 50,
+                deltaY: 50,
+                distancePx: 100,
+                direction: 'bogus' as DragDirection,
+            })
+        ).toBeUndefined();
+
         handler.destroy();
     });
 });

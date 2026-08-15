@@ -173,6 +173,14 @@ describe('BasicView - command actions', () => {
     // link-rotations command
     // -----------------------------------------------------------------------
 
+    it('link-rotations command calls setLinked for the current view family', () => {
+        const setLinkedSpy = vi.spyOn(linkedRotations, 'setLinked');
+
+        getCmd('link-rotations').action();
+
+        expect(setLinkedSpy).toHaveBeenCalledWith(expect.any(Boolean), 'basic-front');
+    });
+
     it('link-rotations command calls setLinked and emits VIEW_STATE_CHANGED', () => {
         const setLinkedSpy = vi.spyOn(linkedRotations, 'setLinked');
         const emitSpy = vi.spyOn(Application.eventBus, 'emit');
@@ -336,6 +344,17 @@ describe('BasicView – linked rotation listener', () => {
         expect((view as any).state.viewForward).toEqual(initialForward);
     });
 
+    it('ignores BASIC_VIEW_ROTATION_LINKED from a different family', () => {
+        const initialForward = { ...(view as any).state.viewForward };
+
+        Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
+            rotation: 'left',
+            sourceViewType: 'basic-2-front',
+        });
+
+        expect((view as any).state.viewForward).toEqual(initialForward);
+    });
+
     it('destroy() removes BASIC_VIEW_ROTATION_LINKED listener', () => {
         view.destroy();
 
@@ -425,12 +444,12 @@ describe('BasicView – setState with faceDirectMode and linked', () => {
     it('setState with linked=true calls setLinked', () => {
         const setLinkedSpy = vi.spyOn(linkedRotations, 'setLinked');
         view.setState({ linked: true });
-        expect(setLinkedSpy).toHaveBeenCalledWith(true);
+        expect(setLinkedSpy).toHaveBeenCalledWith(true, 'basic-front');
     });
 
     it('setState with linked=false calls setLinked(false)', () => {
         const setLinkedSpy = vi.spyOn(linkedRotations, 'setLinked');
         view.setState({ linked: false });
-        expect(setLinkedSpy).toHaveBeenCalledWith(false);
+        expect(setLinkedSpy).toHaveBeenCalledWith(false, 'basic-front');
     });
 });

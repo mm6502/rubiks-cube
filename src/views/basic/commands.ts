@@ -43,7 +43,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             action: () => {
                 ctx.resetView();
                 ctx.emitStateChanged();
-                if (isLinked()) {
+                if (isLinked(ctx.state.viewType)) {
                     Application.eventBus.emit(EventName.BASIC_VIEW_RESET_LINKED, {
                         sourceViewType: ctx.state.viewType,
                     });
@@ -92,15 +92,18 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             icon: '⛓',
             showInHeader: true,
             displayOrder: 580,
-            tooltip: 'Link view rotations between Basic Front and Basic Back.',
-            isActive: () => isLinked(),
+            tooltip: 'Link view rotations within the current view family.',
+            isActive: () => isLinked(ctx.state.viewType),
             action: () => {
-                setLinked(!isLinked());
-                Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
-                    viewType: 'basic-front',
-                });
-                Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
-                    viewType: 'basic-back',
+                const nextValue = !isLinked(ctx.state.viewType);
+                setLinked(nextValue, ctx.state.viewType);
+                const familyViewTypes = ctx.state.viewType.startsWith('basic-2-')
+                    ? ['basic-2-front', 'basic-2-back']
+                    : ['basic-front', 'basic-back'];
+                familyViewTypes.forEach(viewType => {
+                    Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {
+                        viewType,
+                    });
                 });
             },
         },
@@ -170,7 +173,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             action: () => {
                 ctx.rotateViewLeft();
                 ctx.emitStateChanged();
-                if (isLinked()) {
+                if (isLinked(ctx.state.viewType)) {
                     Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
                         rotation: ViewRotation.Left,
                         sourceViewType: ctx.state.viewType,
@@ -189,7 +192,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             action: () => {
                 ctx.rotateViewRight();
                 ctx.emitStateChanged();
-                if (isLinked()) {
+                if (isLinked(ctx.state.viewType)) {
                     Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
                         rotation: ViewRotation.Right,
                         sourceViewType: ctx.state.viewType,
@@ -208,7 +211,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             action: () => {
                 ctx.rotateViewUp();
                 ctx.emitStateChanged();
-                if (isLinked()) {
+                if (isLinked(ctx.state.viewType)) {
                     Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
                         rotation: ViewRotation.Up,
                         sourceViewType: ctx.state.viewType,
@@ -227,7 +230,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             action: () => {
                 ctx.rotateViewDown();
                 ctx.emitStateChanged();
-                if (isLinked()) {
+                if (isLinked(ctx.state.viewType)) {
                     Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
                         rotation: ViewRotation.Down,
                         sourceViewType: ctx.state.viewType,

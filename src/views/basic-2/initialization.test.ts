@@ -2,13 +2,15 @@
 // for Basic 2's ghost stickers (U3): anchors must exist in the DOM by the
 // time initialize() returns, alongside cubies.
 // See docs/plans/2026-07-25-001-feat-basic-2-ghost-stickers-plan.md
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Application } from '@/application';
 import { StateManager } from '@/cube/core/state-manager';
 import { Face } from '@/cube/types';
 import type { ReadOnlyCubeModel } from '@/cube/types';
+import { EventName } from '@/types';
 
-import { initialize } from './initialization';
+import { destroy, initialize } from './initialization';
 
 const styles: Record<string, string> = {
     cube: 'cube',
@@ -38,6 +40,10 @@ describe('initialization - ghost-anchor wiring', () => {
         model = {
             getCurrentState: () => stateManager.getCurrentState(),
         } as ReadOnlyCubeModel;
+    });
+
+    afterEach(() => {
+        container.remove();
     });
 
     it('populates all six ghost-anchor elements by the time initialize() returns', () => {
@@ -79,6 +85,45 @@ describe('initialization - ghost-anchor wiring', () => {
 
         expect(onStickerSelected).toHaveBeenCalledTimes(1);
         expect(onStickerSelected).toHaveBeenCalledWith(sticker!.getAttribute('data-sticker-id'));
+    });
+
+    it('emits highlight-change events for sticker hover and hover exit', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+        const state = initialize(container, model, styles, 'front', 'basic-2-front', () => {});
+
+        const sticker = state.cubeElement!.querySelector('[data-sticker-id]') as HTMLElement;
+        sticker.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+        expect(emitSpy).toHaveBeenCalledWith(
+            EventName.HIGHLIGHT_CHANGED,
+            expect.objectContaining({
+                stickerId: sticker.getAttribute('data-sticker-id'),
+                viewId: 'basic-2-front',
+            })
+        );
+
+        const outside = document.createElement('div');
+        document.body.appendChild(outside);
+        state.cubeElement!.dispatchEvent(
+            new MouseEvent('mouseout', { bubbles: true, relatedTarget: outside })
+        );
+
+        expect(emitSpy).toHaveBeenCalledWith(
+            EventName.HIGHLIGHT_CHANGED,
+            expect.objectContaining({ stickerId: undefined, viewId: 'basic-2-front' })
+        );
+        outside.remove();
+    });
+
+    it('removes the cube element from the DOM when the state is destroyed', () => {
+        const state = initialize(container, model, styles, 'front', 'basic-2-front', () => {});
+        const cubeElement = state.cubeElement!;
+
+        expect(document.body.contains(cubeElement)).toBe(true);
+
+        destroy(state);
+
+        expect(document.body.contains(cubeElement)).toBe(false);
     });
 
     it('does not throw when the container has zero size (fallback anchor-init path)', () => {

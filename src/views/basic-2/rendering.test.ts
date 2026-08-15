@@ -1,13 +1,22 @@
 // Unit tests for rendering.ts — scoped to initializeGhostAnchors, the new
 // ghost-anchor wrapper/host lifecycle added for Basic 2's ghost stickers.
 // See docs/plans/2026-07-25-001-feat-basic-2-ghost-stickers-plan.md
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Face } from '@/cube/types';
 
+import * as cubieRendering from './cubie-rendering';
 import { getLayerCubieElements } from './animations';
 import type { BasicViewInternalData } from './basic-2-view';
-import { initializeGhostAnchors } from './rendering';
+import {
+    getMinimumSize,
+    getVisibleFacesWithPositions,
+    initializeGhostAnchors,
+    resize,
+    update,
+    updateRotation,
+    updateSize,
+} from './rendering';
 
 const styles: Record<string, string> = {
     'ghost-anchor-container': 'ghost-anchor-container',
@@ -112,6 +121,73 @@ describe('rendering - initializeGhostAnchors', () => {
         expect(state.ghostAnchorContainer).toBe(
             cubeElement.querySelector('.ghost-anchor-container')
         );
+    });
+
+    it('returns the expected visible/hidden face slots for tilted and pitched layouts', () => {
+        state.isTilted = true;
+        let result = getVisibleFacesWithPositions(state);
+        expect(result.visibleFaces.map(face => face.position)).toEqual([
+            'top',
+            'bottom-left',
+            'bottom-right',
+        ]);
+        expect(result.hiddenFaces.map(face => face.position)).toEqual([
+            'top-left',
+            'top-right',
+            'middle-bottom',
+        ]);
+
+        state.isPitched = true;
+        result = getVisibleFacesWithPositions(state);
+        expect(result.visibleFaces.map(face => face.position)).toEqual([
+            'top-left',
+            'middle-bottom-pitched',
+            'top-right',
+        ]);
+        expect(result.hiddenFaces.map(face => face.position)).toEqual([
+            'top',
+            'bottom-left',
+            'bottom-right',
+        ]);
+    });
+
+    it('applies skip-animation transforms and restores the transition style', () => {
+        state.cubeElement!.style.transition = 'opacity 1s';
+
+        updateRotation(state, true);
+
+        expect(state.cubeElement!.style.transform).toContain('rotateX(-25deg)');
+        expect(state.cubeElement!.style.transition).toBe('opacity 1s');
+    });
+
+    it('recalculates cube size, rebuilds cubies, and exposes the minimum size', () => {
+        const initializeCubiesSpy = vi
+            .spyOn(cubieRendering, 'initializeCubies')
+            .mockImplementation(() => {});
+        state.container = document.createElement('div');
+        Object.defineProperty(state.container, 'clientWidth', { configurable: true, value: 600 });
+        Object.defineProperty(state.container, 'clientHeight', { configurable: true, value: 600 });
+
+        updateSize(state);
+        expect(initializeCubiesSpy).toHaveBeenCalledWith(state, 330);
+        expect(getMinimumSize()).toEqual({ width: 300, height: 300 });
+    });
+
+    it('rebuilds the cubie DOM during update and delegates to resize', () => {
+        const initializeCubiesSpy = vi
+            .spyOn(cubieRendering, 'initializeCubies')
+            .mockImplementation(() => {});
+        const existing = document.createElement('div');
+        existing.setAttribute('data-cubie-id', 'cubie-1');
+        cubeElement.appendChild(existing);
+
+        update(state, {} as any);
+
+        expect(initializeCubiesSpy).toHaveBeenCalled();
+        expect(cubeElement.querySelectorAll('[data-cubie-id]')).toHaveLength(0);
+
+        resize(state);
+        expect(initializeCubiesSpy).toHaveBeenCalled();
     });
 
     it('is excluded from getLayerCubieElements, which only matches [data-cubie-id]', () => {

@@ -3,8 +3,7 @@
 For current code quality evaluation, see
 [code quality evaluation](code-quality-evaluation.md).
 
-Last quality snapshot: 2026-04-03 (1290 tests passing; coverage: 90.06% stmts,
-80.51% branches, 90.99% lines, 93.45% funcs).
+Last quality snapshot: 2026-08-15 (92 test files passing; 2071 tests passing).
 
 ✅ **Complete (100%)**
 
@@ -26,8 +25,15 @@ Last quality snapshot: 2026-04-03 (1290 tests passing; coverage: 90.06% stmts,
 - [x] (Apr 2026) Ghost hint stickers (Flat and Circular views)
 - [x] (May 2026) Refactor token system in
       [tokens.scss](./src/styles/tokens.scss)
+- [x] (Jul 2026) Implement Basic 2 as a cubie-based clone of Basic view to
+      enable move animations
+- [x] (Jul 2026) Address Basic 2 review-thread issues and event-bus doc
+      follow-up
 - [x] (Aug 2026) Solid cube interior for Basic 2 view with per-cubie interior
       faces and blocker removal
+- [x] (Aug 2026) Scope linked rotations by view family for Basic and Basic 2,
+      keeping Basic and Basic 2 toggles independent while preserving same-family
+      propagation
 
 🚧 **Planned**
 
@@ -41,7 +47,6 @@ Last quality snapshot: 2026-04-03 (1290 tests passing; coverage: 90.06% stmts,
 
 ### Medium Term (maybe)
 
-- [?] Make clone of Basic view with separate cubies to enable move animations
 - [?] Move sequence "optimization" (eg. canceling out moves - like U followed by
   U' becomes no move; U followed by U becomes U2; z,z,z becomes z')
 - [?] Add interactive features to Moves View (select, copy, see

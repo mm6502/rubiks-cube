@@ -36,7 +36,7 @@ import styles from './basic-view.module.css';
 import { getBasicViewCommands } from './commands';
 import { GhostStickers, getGhostOpacityIndex, isGhostVisible } from './ghost-stickers';
 import { createBasicInteractionAdapter } from './interaction-adapter';
-import { isLinked, setLinked } from './linked-rotations';
+import { isLinked, isSameFamily, setLinked } from './linked-rotations';
 import { BasicTouchHandler } from './touch-handler';
 import { BasicVariant } from './types';
 import type { BasicViewInternalData, BasicViewState } from './types';
@@ -140,7 +140,7 @@ export class BasicView implements CubeView {
                 rendering.updateFaceLabels(this.state, direction);
                 this.updateGhostEdges();
                 this.emitStateChanged();
-                if (isLinked()) {
+                if (isLinked(this.state.viewType)) {
                     for (let i = 0; i < steps; i++) {
                         Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
                             rotation,
@@ -156,8 +156,13 @@ export class BasicView implements CubeView {
 
         // Subscribe to linked rotation events from the peer view.
         this.linkedRotationListener = (event: BasicViewRotationLinkedEvent) => {
-            /* c8 ignore if — guard against self-events */
-            if (event.sourceViewType === this.state.viewType) return;
+            /* c8 ignore if — guard against self-events and cross-family events */
+            if (
+                event.sourceViewType === this.state.viewType ||
+                !isSameFamily(event.sourceViewType, this.state.viewType)
+            ) {
+                return;
+            }
             switch (event.rotation) {
                 /* c8 ignore next */
                 case ViewRotation.Left:
@@ -182,8 +187,13 @@ export class BasicView implements CubeView {
 
         // Subscribe to linked reset events from the peer view.
         this.linkedResetListener = (event: BasicViewResetLinkedEvent) => {
-            /* c8 ignore if — guard against self-events */
-            if (event.sourceViewType === this.state.viewType) return;
+            /* c8 ignore if — guard against self-events and cross-family events */
+            if (
+                event.sourceViewType === this.state.viewType ||
+                !isSameFamily(event.sourceViewType, this.state.viewType)
+            ) {
+                return;
+            }
             this.resetView();
             this.emitStateChanged();
         };
@@ -318,7 +328,7 @@ export class BasicView implements CubeView {
             /* c8 ignore else if */ else if (r === ViewRotation.Up) this.rotateViewUp();
             /* c8 ignore else if */ else if (r === ViewRotation.Down) this.rotateViewDown();
             /* c8 ignore if — guard when not linked */
-            if (isLinked()) {
+            if (isLinked(this.state.viewType)) {
                 Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
                     rotation: r,
                     sourceViewType: this.state.viewType,
@@ -466,7 +476,7 @@ export class BasicView implements CubeView {
             isTilted: this.state.isTilted,
             isPitched: this.state.isPitched,
             faceDirectMode: this.touchHandler?.isFaceDirectMode() ?? false,
-            linked: isLinked(),
+            linked: isLinked(this.state.viewType),
             ghostOpacityIndex: this.ghostStickers?.getOpacityIndex() ?? 0,
         };
     }
@@ -501,7 +511,9 @@ export class BasicView implements CubeView {
             this.state.isPitched = viewState['isPitched'];
         if (typeof viewState['faceDirectMode'] === 'boolean')
             this.touchHandler?.setFaceDirectMode(viewState['faceDirectMode']);
-        if (typeof viewState['linked'] === 'boolean') setLinked(viewState['linked']);
+        if (typeof viewState['linked'] === 'boolean') {
+            setLinked(viewState['linked'], this.state.viewType);
+        }
 
         // Restore ghost opacity — support both new (ghostOpacityIndex) and legacy (showGhosts)
         let ghostIndex: number | null = null;
