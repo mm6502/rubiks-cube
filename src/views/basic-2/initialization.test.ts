@@ -1,6 +1,6 @@
 // Unit tests for initialization.ts — scoped to the ghost-anchor wiring added
 // for Basic 2's ghost stickers (U3): anchors must exist in the DOM by the
-// time initialize() returns, alongside cubies and blockers.
+// time initialize() returns, alongside cubies.
 // See docs/plans/2026-07-25-001-feat-basic-2-ghost-stickers-plan.md
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,7 +16,6 @@ const styles: Record<string, string> = {
     'cube-wrapper': 'cube-wrapper',
     cubie: 'cubie',
     sticker: 'sticker',
-    'cube-blocker': 'cube-blocker',
     front: 'front',
     back: 'back',
     right: 'right',

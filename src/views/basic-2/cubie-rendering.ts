@@ -41,24 +41,47 @@ export function buildCubieElement(
     cubieEl.style.width = `${cubieSize}px`;
     cubieEl.style.height = `${cubieSize}px`;
 
-    // Create sticker face divs for each visible face
+    renderCubieFaces(cubieEl, cubie, cubieHalf, styles, onStickerSelected);
+
+    return cubieEl;
+}
+
+function renderCubieFaces(
+    cubieEl: HTMLElement,
+    cubie: ReadonlyCubie,
+    cubieHalf: number,
+    styles: Record<string, string>,
+    onStickerSelected: (id: StickerId) => void
+): void {
+    cubieEl.replaceChildren();
+
+    const stickerFaces = new Set<Face>();
+
     cubie.stickers.forEach(sticker => {
         const faceEl = document.createElement('div');
-        faceEl.className = styles['sticker'] ?? '';
+        faceEl.className = styles['sticker'] ?? 'sticker';
         faceEl.setAttribute('data-sticker-id', sticker.id);
         faceEl.setAttribute('data-basic-face', sticker.currentFace);
         faceEl.style.backgroundColor = resolveCubeColor(sticker.color);
-
-        // Set face transform based on current face
         faceEl.style.transform = getFaceTransform(sticker.currentFace, cubieHalf);
-
-        // Add click listener
         faceEl.addEventListener('click', () => onStickerSelected(sticker.id));
 
         cubieEl.appendChild(faceEl);
+        stickerFaces.add(sticker.currentFace);
     });
 
-    return cubieEl;
+    const interiorFaces = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
+    interiorFaces.forEach(face => {
+        if (stickerFaces.has(face)) return;
+
+        const interiorEl = document.createElement('div');
+        interiorEl.className = styles['cubie-interior'] ?? 'cubie-interior';
+        interiorEl.style.transform = getFaceTransform(face, cubieHalf);
+        interiorEl.style.backgroundColor = 'var(--color-domain-cube-interior)';
+        interiorEl.style.pointerEvents = 'none';
+        interiorEl.setAttribute('aria-hidden', 'true');
+        cubieEl.appendChild(interiorEl);
+    });
 }
 
 /**
@@ -175,7 +198,9 @@ function getCubieAtPosition(
  */
 export function updateCubiePositions(
     cubeElement: HTMLElement,
-    movedCubies: { after: ReadonlyCubie[] }
+    movedCubies: { after: ReadonlyCubie[] },
+    styles?: Record<string, string>,
+    onStickerSelected?: (id: StickerId) => void
 ): void {
     const cubeSize = getCubeSizeFromElement(cubeElement);
 
@@ -196,17 +221,7 @@ export function updateCubiePositions(
 
         cubieEl.style.transform = `translate3d(${cx}px, ${cy}px, ${cz}px)`;
 
-        // Update sticker faces
-        cubie.stickers.forEach(sticker => {
-            const faceEl = cubieEl.querySelector(
-                `[data-sticker-id="${sticker.id}"]`
-            ) as HTMLElement;
-            if (!faceEl) return;
-
-            // Update face transform
-            faceEl.style.transform = getFaceTransform(sticker.currentFace, cubieHalf);
-            faceEl.setAttribute('data-basic-face', sticker.currentFace);
-        });
+        renderCubieFaces(cubieEl, cubie, cubieHalf, styles ?? {}, onStickerSelected ?? (() => {}));
     });
 }
 

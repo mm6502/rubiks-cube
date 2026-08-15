@@ -26,6 +26,8 @@ Last quality snapshot: 2026-04-03 (1290 tests passing; coverage: 90.06% stmts,
 - [x] (Apr 2026) Ghost hint stickers (Flat and Circular views)
 - [x] (May 2026) Refactor token system in
       [tokens.scss](./src/styles/tokens.scss)
+- [x] (Aug 2026) Solid cube interior for Basic 2 view with per-cubie interior
+      faces and blocker removal
 
 🚧 **Planned**
 

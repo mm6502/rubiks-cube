@@ -156,67 +156,8 @@ export function updateSize(state: BasicViewInternalData): void {
     // Reinitialize cubies with updated size (positions and face transforms both depend on size)
     cubieRendering.initializeCubies(state, faceSize);
 
-    // Update blocker sizes and transforms
-    initializeBlockers(state, faceSize);
-
     // Update ghost-anchor sizes and transforms
     initializeGhostAnchors(state, faceSize);
-}
-
-/**
- * Initialize blocker divs with correct transforms and sizes.
- */
-export function initializeBlockers(state: BasicViewInternalData, size: number): void {
-    if (!state.cubeElement) return;
-
-    const halfSize = size / 2;
-    // Each cubie's sticker faces sit at the cube element boundary:
-    //   Right face:  x = faceSize  (cx + cubieSize for rightmost cubie)
-    //   Left face:   x = 0
-    //   Top face:    y = 0
-    //   Bottom face: y = faceSize
-    //   Front face:  z = +halfSize
-    //   Back face:   z = -halfSize
-    // The blocker planes use T = halfSize - 4 to sit just inside (4px) each face,
-    // avoiding z-fighting with sticker faces while still covering the interior.
-
-    const q = (selector: string) =>
-        state.cubeElement!.querySelector(selector) as HTMLElement | null;
-
-    const blockers = [
-        {
-            el: q(`.${state.styles['cube-blocker']}.${state.styles.front}`),
-            transform: `translateZ(${halfSize - 4}px)`,
-        },
-        {
-            el: q(`.${state.styles['cube-blocker']}.${state.styles.back}`),
-            transform: `rotateY(180deg) translateZ(${halfSize - 4}px)`,
-        },
-        {
-            el: q(`.${state.styles['cube-blocker']}.${state.styles.right}`),
-            transform: `rotateY(90deg) translateZ(${halfSize - 4}px)`,
-        },
-        {
-            el: q(`.${state.styles['cube-blocker']}.${state.styles.left}`),
-            transform: `rotateY(-90deg) translateZ(${halfSize - 4}px)`,
-        },
-        {
-            el: q(`.${state.styles['cube-blocker']}.${state.styles.top}`),
-            transform: `rotateX(90deg) translateZ(${halfSize - 4}px)`,
-        },
-        {
-            el: q(`.${state.styles['cube-blocker']}.${state.styles.bottom}`),
-            transform: `rotateX(-90deg) translateZ(${halfSize - 4}px)`,
-        },
-    ];
-
-    blockers.forEach(({ el, transform }) => {
-        if (el) {
-            el.style.transform = transform;
-            el.style.width = `${size}px`;
-            el.style.height = `${size}px`;
-        }
-    });
 }
 
 /**
@@ -261,18 +202,6 @@ export function initializeGhostAnchors(state: BasicViewInternalData, size: numbe
         anchor.style.width = `${size}px`;
         anchor.style.height = `${size}px`;
     });
-}
-
-/**
- * Show or hide all blocker planes. Call with false when a layer animation
- * starts (blockers cannot cover rotating-layer gaps), and with true when
- * the animation finishes or is interrupted.
- */
-export function setBlockersVisible(state: BasicViewInternalData, visible: boolean): void {
-    if (!state.cubeElement) return;
-    state.cubeElement
-        .querySelectorAll(`.${state.styles['cube-blocker']}`)
-        .forEach(el => ((el as HTMLElement).style.visibility = visible ? '' : 'hidden'));
 }
 
 /**

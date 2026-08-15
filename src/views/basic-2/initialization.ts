@@ -1,4 +1,4 @@
-// Initialization for Basic 2 view — builds cube DOM with blockers only (no face divs)
+// Initialization for Basic 2 view — builds per-cubie cube DOM (no face divs)
 import { Application } from '@/application';
 import { ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { EventName } from '@/types';
@@ -6,7 +6,7 @@ import { getDefaultVectors } from '@/views/basic/navigation';
 
 import * as cubieRendering from './cubie-rendering';
 import type { BasicVariant, BasicViewInternalData } from './basic-2-view';
-import { initializeBlockers, initializeGhostAnchors, updateSize } from './rendering';
+import { initializeGhostAnchors, updateSize } from './rendering';
 
 /**
  * Builds the full DOM structure for a Basic 2 cube view and returns the
@@ -69,7 +69,6 @@ export function initialize(
     updateSize(state);
     if (!cubeElement.style.width) {
         cubieRendering.initializeCubies(state, 300);
-        initializeBlockers(state, 300);
         initializeGhostAnchors(state, 300);
     }
 
@@ -84,7 +83,7 @@ export function destroy(state: BasicViewInternalData): void {
 }
 
 /**
- * Build the cube element with blocker divs only (no face divs for Basic 2).
+ * Build the cube element that hosts the cubies for Basic 2.
  */
 function buildCubeElement(
     model: ReadOnlyCubeModel,
@@ -95,29 +94,10 @@ function buildCubeElement(
     cubeElement.className = styles['cube'] ?? '';
     cubeElement.setAttribute('data-view-type', _viewType);
 
-    // Create blocker divs (unchanged from basic view)
+    // Keep the cube container size metadata in sync with the model size.
     const cubeSize = model.getCurrentState().cubeSize ?? 3;
-    const halfSize = 150; // Will be updated by initializeBlockers
-
-    const blockerPositions = [
-        { face: 'front', transform: `translateZ(${halfSize}px)` },
-        { face: 'back', transform: `rotateY(180deg) translateZ(${halfSize}px)` },
-        { face: 'right', transform: `rotateY(90deg) translateZ(${halfSize}px)` },
-        { face: 'left', transform: `rotateY(-90deg) translateZ(${halfSize}px)` },
-        { face: 'top', transform: `rotateX(90deg) translateZ(${halfSize}px)` },
-        { face: 'bottom', transform: `rotateX(-90deg) translateZ(${halfSize}px)` },
-    ];
-
-    blockerPositions.forEach(({ face, transform }) => {
-        const blocker = document.createElement('div');
-        blocker.className = `${styles['cube-blocker'] ?? ''} ${styles[face] ?? ''}`;
-        blocker.style.transform = transform;
-        blocker.style.width = `${cubeSize * 100}px`;
-        blocker.style.height = `${cubeSize * 100}px`;
-        blocker.style.background = 'var(--color-domain-cube-interior)';
-        blocker.style.pointerEvents = 'none';
-        cubeElement.appendChild(blocker);
-    });
+    cubeElement.style.width = `${cubeSize * 100}px`;
+    cubeElement.style.height = `${cubeSize * 100}px`;
 
     return cubeElement;
 }

@@ -52,7 +52,6 @@ import {
     getMinimumSize,
     getVisibleFacesWithPositions,
     resize,
-    setBlockersVisible,
     update,
     updateFaceLabels,
     updateRotation,
@@ -490,12 +489,13 @@ export class BasicView implements CubeView {
             // prefers-reduced-motion, unknown definition, or no matching layer cubies
             cubieRendering.updateCubiePositions(
                 this.state.cubeElement!,
-                event.moveDetails.movedCubies
+                event.moveDetails.movedCubies,
+                this.state.styles,
+                this.state.onStickerSelected
             );
             return;
         }
 
-        setBlockersVisible(this.state, false);
         this.activeAnimation = { ...result, event };
 
         result.animation.finished
@@ -506,10 +506,11 @@ export class BasicView implements CubeView {
                     animations.finalizeLayer(pivot, cubieElements, this.state.cubeElement!);
                     cubieRendering.updateCubiePositions(
                         this.state.cubeElement!,
-                        event.moveDetails!.movedCubies!
+                        event.moveDetails!.movedCubies!,
+                        this.state.styles,
+                        this.state.onStickerSelected
                     );
                     result.animation.cancel(); // remove fill effect after DOM is updated
-                    setBlockersVisible(this.state, true);
                     this.ghostStickers?.updateColors();
                     this.restoreSelection();
                 }
@@ -536,13 +537,13 @@ export class BasicView implements CubeView {
         // Update positions and sticker faces from the interrupted move
         cubieRendering.updateCubiePositions(
             this.state.cubeElement!,
-            event.moveDetails!.movedCubies!
+            event.moveDetails!.movedCubies!,
+            this.state.styles,
+            this.state.onStickerSelected
         );
 
         // Remove fill effect after DOM is updated
         animation.cancel();
-
-        setBlockersVisible(this.state, true);
 
         // Update ghost stickers and selection
         this.ghostStickers?.updateColors();
