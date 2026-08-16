@@ -17,6 +17,8 @@ vi.mock('./cube/core/state-persistence', () => ({
         clearState: vi.fn(),
         downloadState: vi.fn(),
         uploadState: vi.fn(),
+        loadLastSize: vi.fn(),
+        saveLastSize: vi.fn(),
     },
 }));
 
@@ -700,6 +702,101 @@ describe('Application', () => {
 
             // Act & Assert — must not throw
             expect(() => app2.initialize()).not.toThrow();
+        });
+    });
+
+    describe('size selector', () => {
+        beforeEach(() => {
+            vi.clearAllMocks();
+            document.body.innerHTML = `
+                <div id="app">
+                    <div id="visualizations"></div>
+                    <div class="size-options"></div>
+                </div>
+            `;
+        });
+
+        it('builds a radio option for every supported size and reflects the active size', () => {
+            // Arrange
+            const app = new Application();
+            app.initialize();
+
+            // Act
+            const radios = Array.from(
+                document.querySelectorAll<HTMLInputElement>('.size-options input[type="radio"]')
+            );
+
+            // Assert — 2–7 offered, default 3 checked.
+            expect(radios.map(r => r.value)).toEqual(['2', '3', '4', '5', '6', '7']);
+            expect(radios.find(r => r.value === '3')?.checked).toBe(true);
+        });
+
+        it('switches the cube to a solved cube of the new size and persists it', () => {
+            // Arrange
+            const app = new Application();
+            app.initialize();
+            const saveLastSizeSpy = vi.spyOn(StatePersistence, 'saveLastSize');
+
+            // Act — select size 4 via the radio.
+            const radio4 = document.querySelector<HTMLInputElement>(
+                '.size-options input[value="4"]'
+            )!;
+            radio4.checked = true;
+            radio4.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Assert
+            expect(app.getCurrentSize()).toBe(4);
+            expect(saveLastSizeSpy).toHaveBeenCalledWith(4);
+            expect((app as any).controller.getCubeSize()).toBe(4);
+        });
+
+        it('preserves the previous size state across switch and back (per-size slots)', () => {
+            // Arrange — mock persistence round-trips the current size.
+            const saveSpy = vi.spyOn(StatePersistence, 'saveState');
+            const app = new Application();
+            app.initialize();
+
+            // Act — scramble 3x3, switch to 4x4, switch back.
+            (app as any).controller.scramble(5);
+            const exportSpy = vi.spyOn((app as any).controller, 'exportState');
+            (app as any).switchSize(4);
+            (app as any).switchSize(3);
+
+            // Assert — the 3x3 state was saved on the way out (R4/R6 per-size).
+            expect(saveSpy).toHaveBeenCalled();
+            expect(exportSpy).toHaveBeenCalled();
+            expect(app.getCurrentSize()).toBe(3);
+        });
+
+        it('first launch with no saved size defaults to 3x3', () => {
+            // Arrange
+            (StatePersistence.loadLastSize as any).mockReturnValue(null);
+            const app = new Application();
+
+            // Assert
+            expect(app.getCurrentSize()).toBe(3);
+        });
+
+        it('restores a saved last size on launch', () => {
+            // Arrange
+            (StatePersistence.loadLastSize as any).mockReturnValue(6);
+            const app = new Application();
+
+            // Assert
+            expect(app.getCurrentSize()).toBe(6);
+        });
+
+        it('falls back to a solved cube when the restored state is corrupted', () => {
+            // Arrange
+            (StatePersistence.loadLastSize as any).mockReturnValue(4);
+            (StatePersistence.loadState as any).mockReturnValue('corrupted-string');
+            (StatePersistence.stringToState as any).mockReturnValue(null);
+            const app = new Application();
+
+            // Act — must not throw; controller is a solved 4x4.
+            expect(() => app.initialize()).not.toThrow();
+            expect(app.getCurrentSize()).toBe(4);
+            expect((app as any).controller.isSolved()).toBe(true);
         });
     });
 });

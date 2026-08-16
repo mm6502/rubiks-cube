@@ -18,17 +18,38 @@ import { slugify } from './global';
 export class Application {
     private controller: CubeController;
     private viewManager: ViewManager;
+    private readonly initialSize: number;
     public static get eventBus() {
         return getEventBus();
     }
+
+    /** Sizes offered by the size selector. */
+    public static readonly SUPPORTED_SIZES = [2, 3, 4, 5, 6, 7] as const;
 
     /**
      * Constructor initializes the cube controller and view manager,
      * but does not perform any DOM-dependent initialization.
      */
     constructor() {
-        this.controller = new CubeController();
+        // Restore the last selected size (default 3×3 on first launch).
+        const lastSize = StatePersistence.loadLastSize();
+        this.initialSize = this.isSupportedSize(lastSize) ? lastSize! : 3;
+        this.controller = new CubeController(this.initialSize);
         this.viewManager = new ViewManager(this.controller);
+    }
+
+    /**
+     * Return the size this application instance was created with.
+     */
+    getCurrentSize(): number {
+        return this.controller.getCubeSize();
+    }
+
+    /**
+     * True when the given size is one the size selector offers.
+     */
+    private isSupportedSize(size: number | null | undefined): size is number {
+        return size != null && (Application.SUPPORTED_SIZES as readonly number[]).includes(size);
     }
 
     /**
@@ -46,6 +67,9 @@ export class Application {
             this.viewManager.initialize();
             // Note: Default selected sticker is now set by ViewManager when first view is created.
             this.setupEventListeners();
+
+            // Set up the cube-size selector (radio group) and the size-switch path.
+            this.setupSizeSelector();
 
             // Control sections are now native <details> elements styled with CSS; no JS toggles required.
             // Restore/persist visibility of these sections when opted in.
@@ -69,7 +93,7 @@ export class Application {
      * Restore previously saved cube state from localStorage.
      */
     private restoreSavedState(): void {
-        const loadedStateString = StatePersistence.loadState();
+        const loadedStateString = StatePersistence.loadState(this.getCurrentSize());
         if (!loadedStateString) return;
 
         try {
@@ -86,6 +110,113 @@ export class Application {
         } catch (error) {
             logger.error('Failed to restore saved state:', error);
         }
+    }
+
+    /**
+     * Set up the cube-size selector: build the radio group, wire change
+     * handling (including arrow-key navigation), and reflect the active size.
+     */
+    private setupSizeSelector(): void {
+        const container = document.querySelector<HTMLElement>('.size-options');
+        if (!container) {
+            logger.warn('Size selector container not found');
+            return;
+        }
+
+        container.innerHTML = '';
+        const radios: HTMLInputElement[] = [];
+
+        for (const size of Application.SUPPORTED_SIZES) {
+            const label = document.createElement('label');
+            label.className = 'size-option';
+
+            const radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = 'cube-size';
+            radio.value = String(size);
+            radio.checked = size === this.getCurrentSize();
+            // Minimum touch target (44×44 effective via padding; kept in CSS).
+            label.setAttribute('aria-label', `${size} by ${size}`);
+
+            const span = document.createElement('span');
+            span.textContent = `${size}×${size}`;
+
+            label.appendChild(radio);
+            label.appendChild(span);
+            container.appendChild(label);
+            radios.push(radio);
+
+            radio.addEventListener('change', () => {
+                if (radio.checked) {
+                    this.switchSize(size);
+                }
+            });
+        }
+
+        // Arrow-key navigation across the radio group.
+        container.setAttribute('role', 'radiogroup');
+        container.addEventListener('keydown', e => {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            e.preventDefault();
+            const index = radios.findIndex(r => r.checked);
+            if (index < 0) return;
+            const delta = e.key === 'ArrowRight' ? 1 : -1;
+            const nextIndex = (index + delta + radios.length) % radios.length;
+            radios[nextIndex].checked = true;
+            radios[nextIndex].focus();
+            const size = parseInt(radios[nextIndex].value, 10);
+            if (Number.isInteger(size)) {
+                this.switchSize(size);
+            }
+        });
+    }
+
+    /**
+     * Switch the active cube to the given size:
+     * save the current size's state, dispose the controller and view manager,
+     * recreate them for the new size, restore that size's state, rebuild the
+     * view picker, and persist the selected size.
+     */
+    private switchSize(newSize: number): void {
+        if (newSize === this.getCurrentSize()) return;
+        if (!this.isSupportedSize(newSize)) return;
+
+        logger.log(`Switching cube size to ${newSize}`);
+
+        // 1. Save the current size's state.
+        const exported = this.controller.exportState();
+        StatePersistence.saveState(exported.state, exported.moveHistory);
+
+        // 2. Tear down the old controller and view manager.
+        this.controller.dispose();
+        this.viewManager.dispose();
+
+        // 3. Recreate for the new size.
+        this.controller = new CubeController(newSize);
+        this.viewManager = new ViewManager(this.controller);
+
+        // 4. Restore the new size's state (or leave it solved).
+        this.restoreSavedState();
+
+        // 5. Rebuild views for the new size and reflect the selector state.
+        this.viewManager.initialize();
+        this.syncSizeSelector();
+
+        // 6. Persist the selected size.
+        StatePersistence.saveLastSize(newSize);
+        logger.info(`Cube size switched to ${newSize}`);
+    }
+
+    /**
+     * Reflect the active cube size in the size selector radio group.
+     */
+    private syncSizeSelector(): void {
+        const radios = document.querySelectorAll<HTMLInputElement>(
+            '.size-options input[name="cube-size"]'
+        );
+        radios.forEach(radio => {
+            radio.checked = parseInt(radio.value, 10) === this.getCurrentSize();
+        });
     }
 
     private setupAboutButton(): void {
@@ -158,8 +289,8 @@ export class Application {
         // Also remove any control visibility persistence entries.
         this.clearControlVisibilityPersistence();
 
-        // Clear saved cube state.
-        StatePersistence.clearState();
+        // Clear saved cube state for the current size.
+        StatePersistence.clearState(this.getCurrentSize());
     }
 
     /** Handle cube state export request. */
