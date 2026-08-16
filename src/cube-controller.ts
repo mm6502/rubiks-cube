@@ -22,19 +22,50 @@ import { logger } from './diagnostics/logger';
 export class CubeController implements CubeModel, ReadOnlyCubeModel {
     private stateManager: StateManager;
     private moveHistory: MoveHistory;
+    private readonly cubeSize: number;
+    private readonly boundMoveRequested: (event: MoveRequestedEvent) => void;
+    private readonly boundUndoRequested: (event: any) => void;
+    private readonly boundRedoRequested: (event: any) => void;
+    private disposed: boolean = false;
 
     /**
      * Create a new CubeController.
      * @param cubeSize The size of the cube (default is 3 for 3x3x3).
      */
     constructor(cubeSize: number = 3) {
+        this.cubeSize = cubeSize;
         this.stateManager = new StateManager(cubeSize);
         this.moveHistory = new MoveHistory();
 
+        // Store bound handlers so they can be removed on dispose().
+        this.boundMoveRequested = this.handleMoveRequested.bind(this);
+        this.boundUndoRequested = this.handleUndoRequested.bind(this);
+        this.boundRedoRequested = this.handleRedoRequested.bind(this);
+
         // Listen to moveRequested events
-        getEventBus().on(EventName.MOVE_REQUESTED, this.handleMoveRequested.bind(this));
-        getEventBus().on(EventName.UNDO_REQUESTED, this.handleUndoRequested.bind(this));
-        getEventBus().on(EventName.REDO_REQUESTED, this.handleRedoRequested.bind(this));
+        getEventBus().on(EventName.MOVE_REQUESTED, this.boundMoveRequested);
+        getEventBus().on(EventName.UNDO_REQUESTED, this.boundUndoRequested);
+        getEventBus().on(EventName.REDO_REQUESTED, this.boundRedoRequested);
+    }
+
+    /**
+     * Release the controller's event-bus listeners so the instance can be
+     * safely discarded (e.g. when replacing a controller on a size switch).
+     * After disposal the instance must not be reused.
+     */
+    dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        getEventBus().off(EventName.MOVE_REQUESTED, this.boundMoveRequested);
+        getEventBus().off(EventName.UNDO_REQUESTED, this.boundUndoRequested);
+        getEventBus().off(EventName.REDO_REQUESTED, this.boundRedoRequested);
+    }
+
+    /**
+     * Get the size of this cube (e.g. 3 for 3x3x3).
+     */
+    getCubeSize(): number {
+        return this.cubeSize;
     }
 
     /**
@@ -55,7 +86,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         let lastResult: MoveResult | null = null;
         let lastDefinition: MoveDefinition | undefined;
 
-        for (const moveObj of parseStringMove(move)) {
+        for (const moveObj of parseStringMove(move, this.cubeSize)) {
             // Display move applied, unless skipUndoLogic is true.
             // This is used for scrambling.
             if (!hiddenMove) logger.info(`Applying move: ${move}`);
@@ -179,7 +210,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         const postState = this.getCurrentState();
 
         // Parse the inverse move to get its definition (needed for animation).
-        const [inverseDefinition] = parseStringMove(inverseMove);
+        const [inverseDefinition] = parseStringMove(inverseMove, this.cubeSize);
 
         // Emit event for undo operation.
         getEventBus().emit(EventName.MOVE_EXECUTED, {
@@ -214,7 +245,7 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
         const postState = this.getCurrentState();
 
         // Parse the move to get its definition (needed for animation).
-        const [redoDefinition] = parseStringMove(move);
+        const [redoDefinition] = parseStringMove(move, this.cubeSize);
 
         // Emit event for redo operation.
         getEventBus().emit(EventName.MOVE_EXECUTED, {

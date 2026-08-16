@@ -374,4 +374,57 @@ describe('CubeController Core Functionality', () => {
             expect(currentState.cubiesByPosition).toEqual(stateAfterR.cubiesByPosition);
         });
     });
+
+    describe('multi-size support', () => {
+        it('reports the configured cube size', () => {
+            expect(new CubeController().getCubeSize()).toBe(3);
+            expect(new CubeController(2).getCubeSize()).toBe(2);
+            expect(new CubeController(7).getCubeSize()).toBe(7);
+        });
+
+        it('parses moves against the active size (4x4 R rotates the far layer)', () => {
+            const four = new CubeController(4);
+            const result = four.applyMove('R');
+            // For a 4x4, R is layer index 3. The moved cubies should sit on x=3
+            // both before and after the move.
+            expect(result).not.toBeNull();
+            const movedBefore = result!.movedCubies.before;
+            expect(movedBefore.length).toBeGreaterThan(0);
+            expect(movedBefore.every(c => c.position.x === 3)).toBe(true);
+        });
+
+        it('whole-cube rotation on a 5x5 produces a legal state', () => {
+            const five = new CubeController(5);
+            five.applyMove('x');
+            expect(five.isSolved()).toBe(false);
+            // Whole-cube rotation permutes all 6 faces but keeps the cube legal:
+            // applying the inverse x' returns to solved.
+            five.applyMove("x'");
+            expect(five.isSolved()).toBe(true);
+        });
+
+        it('2x2 cube stays legal under U and R moves', () => {
+            const two = new CubeController(2);
+            two.applyMove('U');
+            two.applyMove('R');
+            // 2x2 has 8 physical cubies (no centers) plus 6 virtual-center
+            // cubies; moves must not throw and must unsolve the cube.
+            expect(two.isSolved()).toBe(false);
+            const cubies = two.getCurrentState().cubiesById;
+            const physicalCount = [...cubies.values()].filter(
+                c => c.type !== 'virtual_center'
+            ).length;
+            expect(physicalCount).toBe(8);
+        });
+
+        it('undo/redo parse at the active size', () => {
+            const four = new CubeController(4);
+            four.applyMove('R');
+            expect(four.isSolved()).toBe(false);
+            expect(four.undo()).toBe(true);
+            expect(four.isSolved()).toBe(true);
+            expect(four.redo()).toBe(true);
+            expect(four.isSolved()).toBe(false);
+        });
+    });
 });

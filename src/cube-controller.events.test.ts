@@ -250,4 +250,49 @@ describe('CubeController Event Handling', () => {
             expect(history.getCurrentIndex()).toBe(1);
         });
     });
+
+    describe('dispose', () => {
+        it('unregisters move listener so moves are no longer applied', () => {
+            // Arrange
+            const first = new CubeController();
+            const spy = vi.spyOn(first as any, 'applyMove');
+
+            // Act
+            first.dispose();
+            Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                moveNotation: 'F',
+                viewId: 'test-view',
+                tentative: false,
+            });
+
+            // Assert — the disposed controller's handler is gone.
+            expect(spy).not.toHaveBeenCalled();
+        });
+
+        it('is idempotent (calling dispose twice is safe)', () => {
+            const first = new CubeController();
+            expect(() => {
+                first.dispose();
+                first.dispose();
+            }).not.toThrow();
+        });
+
+        it('a live controller still applies moves after a sibling is disposed', () => {
+            // Arrange
+            const first = new CubeController();
+            const second = new CubeController();
+            first.dispose();
+
+            // Act — only `second` should handle the move request.
+            Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                moveNotation: 'F',
+                viewId: 'test-view',
+                tentative: false,
+            });
+
+            // Assert — second controller applied the move exactly once and is unsolved.
+            expect(second.isSolved()).toBe(false);
+            expect(first.isSolved()).toBe(true);
+        });
+    });
 });
