@@ -171,7 +171,14 @@ export function initializeCubies(state: BasicViewInternalData, size: number): vo
         }
     }
 
-    // Store cubie size for later use
+    // Store cubie size for later use. It lives on BOTH the cube element (so
+    // getCubeSizeFromElement can derive the active cube size during a move's
+    // post-animation rehome) and the state object (for external consumers).
+    // Storing only on `state` was the original defect: updateCubiePositions
+    // reads `cubeElement.cubieSize`, so a missing element-level value made it
+    // fall back to cubeSize=3 and snap non-3 layers to wrong coordinates.
+    const cubeElementWithSize = state.cubeElement as HTMLElement & { cubieSize?: number };
+    cubeElementWithSize.cubieSize = cubieSize;
     (state as BasicViewInternalData & { cubieSize?: number }).cubieSize = cubieSize;
 }
 
