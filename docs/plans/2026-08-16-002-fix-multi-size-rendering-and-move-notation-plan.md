@@ -40,6 +40,24 @@ review isolated six concrete breakpoints:
 The goal is to restore visual parity for all supported sizes without regressing
 the 3×3 experience.
 
+### Current regression note (post-animation corner orientation)
+
+A partial fix was attempted for the Basic 2 re-render path, but it exposed a
+new, distinct regression: the move rotation itself remains correct, yet corner
+cubies are visibly re-oriented with the wrong sticker faces after the turn
+finishes. In other words, the layer rotates correctly, but the final post-move
+repaint applies stale or incorrectly ordered sticker metadata to the affected
+corner cubies. This appears to be a view-layer issue introduced while fixing the
+repaint/DOM update path, not a core cube-model invariant problem.
+
+This means the work is still split between:
+
+- the already-resolved size/geometric defects in the Basic 2 layer layout and
+  ghost sizing, and
+- a separate corner-orientation regression that occurs after animation
+  finalization and must be isolated before we consider the move-visual fix
+  complete.
+
 ---
 
 ## Canonical terminology and execution order
