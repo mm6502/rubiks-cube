@@ -72,8 +72,8 @@ describe('CubeController Core Functionality', () => {
             // Act
             const moves: string[] = model.scramble();
 
-            // Assert
-            expect(moves).toHaveLength(20);
+            // Assert — default count is size-scaled: 8 × 3 = 24 for a 3x3.
+            expect(moves).toHaveLength(24);
             expect(model.isSolved()).toBe(false);
             expect(model.getMoveHistory().getCurrentMoves()).toHaveLength(0);
         });
@@ -102,6 +102,25 @@ describe('CubeController Core Functionality', () => {
                     expect(["'", '2']).toContain(move[1]);
                 }
             });
+        });
+
+        it('scales default scramble length with cube size (8 x N)', () => {
+            expect(new CubeController(2).scramble()).toHaveLength(16);
+            expect(new CubeController(4).scramble()).toHaveLength(32);
+            expect(new CubeController(7).scramble()).toHaveLength(56);
+        });
+
+        it('honors an explicit move count regardless of size', () => {
+            expect(new CubeController(7).scramble(10)).toHaveLength(10);
+            expect(new CubeController(2).scramble(10)).toHaveLength(10);
+        });
+
+        it('a 4x4 scramble produces a legal, non-solved state', () => {
+            const four = new CubeController(4);
+            const moves = four.scramble();
+            expect(moves).toHaveLength(32);
+            expect(four.isSolved()).toBe(false);
+            expect(four.getMoveHistory().getCurrentMoves()).toHaveLength(0);
         });
     });
 

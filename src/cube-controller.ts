@@ -130,10 +130,11 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
 
     /**
      * Scramble the cube with a series of random moves.
-     * @param moveCount The number of random moves to apply (default is 20).
+     * @param moveCount The number of random moves to apply. Defaults to a
+     * size-scaled count (`8 × cubeSize`), so larger cubes get a longer scramble.
      * @returns An array of the move notations applied during scrambling.
      */
-    scramble(moveCount: number = 20): string[] {
+    scramble(moveCount: number = this.cubeSize * 8): string[] {
         // Clear move history before scrambling.
         this.moveHistory.clear();
 
