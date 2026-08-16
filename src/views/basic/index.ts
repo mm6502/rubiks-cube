@@ -1,3 +1,4 @@
+import { SUPPORTED_SIZES } from '@/cube/types';
 import { ViewFactory, ViewVariant } from '@/view-manager/view-registry';
 
 import { BasicView } from './basic-view';
@@ -22,7 +23,7 @@ export const basicViewFactory: ViewFactory = {
     },
 
     getSupportedSizes(): number[] {
-        return [2, 3, 4, 5, 6, 7];
+        return [...SUPPORTED_SIZES];
     },
 
     getVariants(): ViewVariant[] {

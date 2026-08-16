@@ -1,4 +1,4 @@
-import { CubeView } from '@/cube/types';
+import { CubeView, SUPPORTED_SIZES } from '@/cube/types';
 import { ViewFactory } from '@/view-manager/view-registry';
 
 import { FlatView } from './flat-view';
@@ -19,7 +19,7 @@ export const flatViewFactory: ViewFactory = {
     },
 
     getSupportedSizes(): number[] {
-        return [2, 3, 4, 5, 6, 7];
+        return [...SUPPORTED_SIZES];
     },
 
     getDefaultConfig(): { x: number; y: number; width: number; height: number } {

@@ -1,6 +1,7 @@
 // Application Layer - Main application initialization and coordination
 import { CubeController } from '@/cube-controller';
 import { StatePersistence } from '@/cube/core/state-persistence';
+import { SUPPORTED_SIZES, isSupportedSize } from '@/cube/types';
 import { getEventBus } from '@/event-bus-accessor';
 import { EventName } from '@/types';
 import { ViewManager } from '@/view-manager/view-manager';
@@ -24,7 +25,7 @@ export class Application {
     }
 
     /** Sizes offered by the size selector. */
-    public static readonly SUPPORTED_SIZES = [2, 3, 4, 5, 6, 7] as const;
+    public static readonly SUPPORTED_SIZES = SUPPORTED_SIZES;
 
     /**
      * Constructor initializes the cube controller and view manager,
@@ -49,7 +50,7 @@ export class Application {
      * True when the given size is one the size selector offers.
      */
     private isSupportedSize(size: number | null | undefined): size is number {
-        return size != null && (Application.SUPPORTED_SIZES as readonly number[]).includes(size);
+        return isSupportedSize(size);
     }
 
     /**
@@ -183,9 +184,16 @@ export class Application {
 
         logger.log(`Switching cube size to ${newSize}`);
 
-        // 1. Save the current size's state.
+        // 1. Save the current size's state. If the save fails (e.g. storage
+        // quota exceeded or private-mode blocking), abort the switch so the
+        // in-memory progress is not silently discarded when we dispose below.
         const exported = this.controller.exportState();
-        StatePersistence.saveState(exported.state, exported.moveHistory);
+        const saved = StatePersistence.saveState(exported.state, exported.moveHistory);
+        if (!saved) {
+            logger.warn(`Aborting size switch to ${newSize}: current state could not be saved`);
+            this.syncSizeSelector();
+            return;
+        }
 
         // 2. Tear down the old controller and view manager.
         this.controller.dispose();

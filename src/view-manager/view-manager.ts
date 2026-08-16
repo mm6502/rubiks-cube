@@ -139,6 +139,10 @@ export class ViewManager implements CommandManager {
         this.viewLifecycleManager?.dispose();
         this.viewLifecycleManager = null;
 
+        // The interaction handler registers its own pointer listeners.
+        this.panelInteractionHandler?.dispose();
+        this.panelInteractionHandler = null;
+
         if (typeof window !== 'undefined') {
             window.removeEventListener('resize', this.boundWindowResize);
         }

@@ -736,6 +736,9 @@ describe('Application', () => {
             const app = new Application();
             app.initialize();
             const saveLastSizeSpy = vi.spyOn(StatePersistence, 'saveLastSize');
+            // The switch aborts when the current state cannot be saved; make the
+            // mock save succeed so the switch proceeds.
+            (StatePersistence.saveState as any).mockReturnValue(true);
 
             // Act — select size 4 via the radio.
             const radio4 = document.querySelector<HTMLInputElement>(
@@ -753,6 +756,7 @@ describe('Application', () => {
         it('preserves the previous size state across switch and back (per-size slots)', () => {
             // Arrange — mock persistence round-trips the current size.
             const saveSpy = vi.spyOn(StatePersistence, 'saveState');
+            (StatePersistence.saveState as any).mockReturnValue(true);
             const app = new Application();
             app.initialize();
 
@@ -766,6 +770,21 @@ describe('Application', () => {
             expect(saveSpy).toHaveBeenCalled();
             expect(exportSpy).toHaveBeenCalled();
             expect(app.getCurrentSize()).toBe(3);
+        });
+
+        it('aborts the switch and keeps the current cube when saving fails', () => {
+            // Arrange
+            (StatePersistence.saveState as any).mockReturnValue(false);
+            const app = new Application();
+            app.initialize();
+            const controller = (app as any).controller;
+
+            // Act — attempt to switch to size 4.
+            (app as any).switchSize(4);
+
+            // Assert — the switch did not happen and the original controller survives.
+            expect(app.getCurrentSize()).toBe(3);
+            expect((app as any).controller).toBe(controller);
         });
 
         it('first launch with no saved size defaults to 3x3', () => {

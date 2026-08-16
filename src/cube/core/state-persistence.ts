@@ -31,6 +31,7 @@ import {
     PositionKey,
     Sticker,
     StickerId,
+    isSupportedSize,
 } from '@/cube/types';
 import { getPositionKey } from '@/cube/utils/coordinates';
 import { createFlatView } from '@/cube/utils/state-conversion';
@@ -460,7 +461,7 @@ export class StatePersistence {
             const stored = localStorage.getItem(LAST_SIZE_KEY);
             if (!stored) return null;
             const size = parseInt(stored, 10);
-            return Number.isInteger(size) && size >= 2 && size <= 7 ? size : null;
+            return isSupportedSize(size) ? size : null;
         } catch (error) {
             logger.error('Failed to load last size:', error);
             return null;

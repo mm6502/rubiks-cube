@@ -1014,4 +1014,22 @@ describe('ViewManager', () => {
         expect(container.innerHTML).toBe('');
         expect(viewManager['activeViews'].size).toBe(0);
     });
+
+    it('dispose tears down the panel interaction handler pointer listeners', () => {
+        // Arrange
+        document.body.innerHTML = '<div id="visualizations"></div>';
+        viewManager.initialize();
+        const handler = viewManager['panelInteractionHandler'] as any;
+        expect(handler).toBeTruthy();
+
+        const removeSpy = vi.spyOn(document, 'removeEventListener');
+
+        // Act
+        viewManager.dispose();
+
+        // Assert — the document-level pointermove/pointerup listeners are removed.
+        expect(removeSpy).toHaveBeenCalledWith('pointermove', expect.any(Function));
+        expect(removeSpy).toHaveBeenCalledWith('pointerup', expect.any(Function));
+        expect(viewManager['panelInteractionHandler']).toBeNull();
+    });
 });

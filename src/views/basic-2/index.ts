@@ -1,5 +1,5 @@
 // Basic 2 View Factory — registers basic-2-front and basic-2-back variants
-import { CubeView } from '@/cube/types';
+import { CubeView, SUPPORTED_SIZES } from '@/cube/types';
 
 import { BasicView } from './basic-2-view';
 
@@ -38,7 +38,7 @@ export default class Basic2ViewFactory {
     }
 
     static getSupportedSizes(): number[] {
-        return [2, 3, 4, 5, 6, 7];
+        return [...SUPPORTED_SIZES];
     }
 
     static getVariants(): Array<{

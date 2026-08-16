@@ -1,6 +1,6 @@
 // fallow-ignore-file unused-export unused-type
 // View Registry - Discovers and registers views at build time
-import { CubeView } from '@/cube/types';
+import { CubeView, SUPPORTED_SIZES } from '@/cube/types';
 import { logger } from '@/diagnostics/logger';
 
 /**
@@ -26,7 +26,7 @@ export interface ViewVariant {
 /**
  * Sizes every view supports by default unless a factory declares otherwise.
  */
-export const DEFAULT_SUPPORTED_SIZES: number[] = [2, 3, 4, 5, 6, 7];
+export const DEFAULT_SUPPORTED_SIZES: readonly number[] = SUPPORTED_SIZES;
 
 /**
  * Factory interface for creating cube view instances
