@@ -960,4 +960,58 @@ describe('ViewManager', () => {
         // Act & Assert
         expect(() => viewManager.showView('ghost')).not.toThrow();
     });
+
+    // ─── dispose lifecycle ────────────────────────────────────────────────────
+
+    it('dispose unregisters event-bus listeners so a disposed manager is inert', () => {
+        // Arrange — initialize so listeners are registered.
+        document.body.innerHTML = '<div id="visualizations"></div>';
+        viewManager.initialize();
+
+        const disposeSpy = vi.spyOn(viewManager['viewLifecycleManager'] as any, 'dispose');
+
+        // Act
+        viewManager.dispose();
+
+        // Assert — lifecycle manager (VIEW_STATE_CHANGED) was disposed.
+        expect(disposeSpy).toHaveBeenCalled();
+
+        // Disposed manager must not react to MOVE_EXECUTED.
+        const updateSpy = vi.spyOn(viewManager as any, 'updateViews');
+        Application.eventBus.emit(EventName.MOVE_EXECUTED, {} as any);
+        expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('dispose removes the window resize listener and media-query listener', () => {
+        // Arrange
+        document.body.innerHTML = '<div id="visualizations"></div>';
+        viewManager.initialize();
+
+        const removeResize = vi.spyOn(window, 'removeEventListener');
+        // matchMedia may be absent in jsdom; only assert MQ cleanup when present.
+        const mq = viewManager['mediaQueryList'] as MediaQueryList | null;
+        const removeMq = mq ? vi.spyOn(mq, 'removeEventListener') : null;
+
+        // Act
+        viewManager.dispose();
+
+        // Assert
+        expect(removeResize).toHaveBeenCalled();
+        if (removeMq) expect(removeMq).toHaveBeenCalled();
+    });
+
+    it('dispose is idempotent and clears the visualizations container', () => {
+        // Arrange
+        document.body.innerHTML = '<div id="visualizations"><div class="stale-panel"></div></div>';
+        viewManager.initialize();
+
+        // Act
+        viewManager.dispose();
+        viewManager.dispose();
+
+        // Assert — container cleared, no throw on double dispose.
+        const container = document.getElementById('visualizations') as HTMLElement;
+        expect(container.innerHTML).toBe('');
+        expect(viewManager['activeViews'].size).toBe(0);
+    });
 });

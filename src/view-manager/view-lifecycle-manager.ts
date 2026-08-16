@@ -23,6 +23,8 @@ export class ViewLifecycleManager {
     private getLayoutMode: () => LayoutMode;
     private onPanelAdded: ((viewType: string, container: HTMLElement) => void) | undefined;
     private onPanelRemoved: ((viewType: string) => void) | undefined;
+    private readonly boundViewStateChanged: (event: ViewStateChangedEvent) => void;
+    private disposed: boolean = false;
 
     constructor(
         cubeModel: CubeModel,
@@ -48,9 +50,20 @@ export class ViewLifecycleManager {
         this.getLayoutMode = callbacks.getLayoutMode;
         this.onPanelAdded = callbacks.onPanelAdded;
         this.onPanelRemoved = callbacks.onPanelRemoved;
+        this.boundViewStateChanged = this.handleViewStateChanged.bind(this);
 
         // Subscribe to view state change events for immediate persistence.
-        getEventBus().on(EventName.VIEW_STATE_CHANGED, this.handleViewStateChanged.bind(this));
+        getEventBus().on(EventName.VIEW_STATE_CHANGED, this.boundViewStateChanged);
+    }
+
+    /**
+     * Unregister the event-bus listener. Called when the owning ViewManager
+     * is disposed (e.g. on cube-size switch) to prevent listener accumulation.
+     */
+    dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        getEventBus().off(EventName.VIEW_STATE_CHANGED, this.boundViewStateChanged);
     }
 
     /**

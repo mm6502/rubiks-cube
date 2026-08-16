@@ -95,6 +95,8 @@ export class ViewManager implements CommandManager {
     private readonly boundCommandStatesRefresh: () => void;
     private readonly boundHighlightChanged: (event: HighlightChangedEvent) => void;
     private readonly boundWindowResize: () => void;
+    private mediaQueryList: MediaQueryList | null = null;
+    private boundMediaQueryChange: ((e: MediaQueryListEvent) => void) | null = null;
     private disposed: boolean = false;
 
     //#endregion Private Fields
@@ -133,8 +135,17 @@ export class ViewManager implements CommandManager {
         getEventBus().off(EventName.MOVE_EXECUTED, this.boundCommandStatesRefresh);
         getEventBus().off(EventName.HIGHLIGHT_CHANGED, this.boundHighlightChanged);
 
+        // The lifecycle manager registers its own VIEW_STATE_CHANGED listener.
+        this.viewLifecycleManager?.dispose();
+        this.viewLifecycleManager = null;
+
         if (typeof window !== 'undefined') {
             window.removeEventListener('resize', this.boundWindowResize);
+        }
+        if (this.mediaQueryList && this.boundMediaQueryChange) {
+            this.mediaQueryList.removeEventListener('change', this.boundMediaQueryChange);
+            this.mediaQueryList = null;
+            this.boundMediaQueryChange = null;
         }
 
         // Destroy each open view and clear the container so a fresh view
@@ -179,11 +190,13 @@ export class ViewManager implements CommandManager {
         // Determine initial layout mode and listen for breakpoint changes
         if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
             const mq = window.matchMedia('(min-width: 1025px)');
-            this.layoutMode = mq.matches ? 'floating' : LayoutMode.Tabbed;
-            mq.addEventListener('change', (e: MediaQueryListEvent) => {
+            this.mediaQueryList = mq;
+            this.boundMediaQueryChange = (e: MediaQueryListEvent) => {
                 this.layoutMode = e.matches ? 'floating' : LayoutMode.Tabbed;
                 this.applyLayoutMode();
-            });
+            };
+            this.layoutMode = mq.matches ? 'floating' : LayoutMode.Tabbed;
+            mq.addEventListener('change', this.boundMediaQueryChange);
         }
 
         // Create panel interaction handler
