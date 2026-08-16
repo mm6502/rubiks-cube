@@ -7,7 +7,7 @@ import { CommandManager } from './command-manager';
 import { PanelInteractionHandler } from './panel-interaction-handler';
 import { loadPanelState, savePanelState } from './panel-positioning';
 import { PlaceholderView } from './placeholder-view';
-import { createView, getAvailableViews, getViewTitle } from './view-registry';
+import { createView, getAvailableViews, getViewTitle, viewSupportsSize } from './view-registry';
 
 /**
  * Manages the lifecycle of view panels including creation, showing, hiding, and state persistence.
@@ -54,6 +54,13 @@ export class ViewLifecycleManager {
     }
 
     /**
+     * The cube size of the current model (used to filter views).
+     */
+    private getActiveCubeSize(): number {
+        return this.cubeModel.getReadOnlyModel().getCurrentState().cubeSize ?? 3;
+    }
+
+    /**
      * Creates the view control checkboxes for showing/hiding views.
      */
     createViewControls(): void {
@@ -68,15 +75,24 @@ export class ViewLifecycleManager {
 
         // Get all available views.
         const availableViews = getAvailableViews();
+        const activeSize = this.getActiveCubeSize();
 
         // Create checkboxes for each view.
         availableViews.forEach(viewType => {
+            const supported = viewSupportsSize(viewType, activeSize);
             const label = document.createElement('label');
             label.className = 'view-checkbox';
 
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.id = `show-${viewType}`;
+
+            // Unsupported views are disabled with a neutral note; they keep
+            // their checked state so switching back re-enables and re-shows.
+            if (!supported) {
+                checkbox.disabled = true;
+                checkbox.classList.add('view-checkbox--unsupported');
+            }
 
             // Set default checked state for some views.
             if (
@@ -93,6 +109,16 @@ export class ViewLifecycleManager {
 
             label.appendChild(checkbox);
             label.appendChild(text);
+
+            // Neutral note explaining why the view is unavailable at this size.
+            if (!supported) {
+                const note = document.createElement('span');
+                note.className = 'view-checkbox-note';
+                note.textContent = 'Current size unsupported';
+                note.id = `note-${viewType}`;
+                checkbox.setAttribute('aria-describedby', note.id);
+                label.appendChild(note);
+            }
 
             // Add event listener.
             checkbox.addEventListener('change', e => {
@@ -111,9 +137,9 @@ export class ViewLifecycleManager {
         // Load saved visibility preferences.
         this.restoreVisibleViews();
 
-        // Show initially checked views.
+        // Show initially checked views (only those supported at this size).
         const checkedViews = document.querySelectorAll(
-            '.view-checkbox input[type="checkbox"]:checked'
+            '.view-checkbox input[type="checkbox"]:checked:not(:disabled)'
         );
         checkedViews.forEach(checkbox => {
             const viewType = (checkbox as HTMLInputElement).id.replace('show-', '');

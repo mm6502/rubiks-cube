@@ -18,6 +18,10 @@ export const flatViewFactory: ViewFactory = {
         return 'Flat View';
     },
 
+    getSupportedSizes(): number[] {
+        return [2, 3, 4, 5, 6, 7];
+    },
+
     getDefaultConfig(): { x: number; y: number; width: number; height: number } {
         return { x: 600, y: 310, width: 300, height: 300 };
     },

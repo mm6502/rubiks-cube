@@ -24,6 +24,11 @@ export interface ViewVariant {
 }
 
 /**
+ * Sizes every view supports by default unless a factory declares otherwise.
+ */
+export const DEFAULT_SUPPORTED_SIZES: number[] = [2, 3, 4, 5, 6, 7];
+
+/**
  * Factory interface for creating cube view instances
  */
 export interface ViewFactory {
@@ -51,6 +56,13 @@ export interface ViewFactory {
      * @returns Default position (x, y) and dimensions (width, height)
      */
     getDefaultConfig(): { x: number; y: number; width: number; height: number };
+
+    /**
+     * Optional: Gets the cube sizes this view supports.
+     * Views that omit this are treated as supporting all sizes 2–7.
+     * @returns Array of supported cube sizes
+     */
+    getSupportedSizes?(): number[];
 
     /**
      * Optional: Gets all variants this factory provides (for multi-variant factories)
@@ -93,6 +105,9 @@ for (const [, module] of Object.entries(viewModules)) {
                 getViewType: () => variant.viewType,
                 getTitle: () => variant.title,
                 getDefaultConfig: () => variant.defaultConfig,
+                // Multi-variant factories share the parent's size capability.
+                getSupportedSizes: () =>
+                    factory.getSupportedSizes?.() ?? [...DEFAULT_SUPPORTED_SIZES],
             });
         }
     } else {
@@ -150,6 +165,19 @@ export function createView(viewType: string, config?: any): CubeView | undefined
 export function getViewTitle(viewType: string): string {
     const factory = getViewFactory(viewType);
     return factory?.getTitle() || viewType;
+}
+
+/**
+ * Returns whether a view type supports the given cube size.
+ * Views that omit a size declaration are treated as supporting all sizes 2–7.
+ * @param viewType - The view type to query
+ * @param cubeSize - The cube size to check
+ * @returns True when the view supports the size
+ */
+export function viewSupportsSize(viewType: string, cubeSize: number): boolean {
+    const factory = getViewFactory(viewType);
+    const supported = factory?.getSupportedSizes?.() ?? DEFAULT_SUPPORTED_SIZES;
+    return supported.includes(cubeSize);
 }
 
 /**

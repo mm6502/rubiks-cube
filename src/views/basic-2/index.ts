@@ -37,6 +37,10 @@ export default class Basic2ViewFactory {
         return DEFAULT_CONFIG;
     }
 
+    static getSupportedSizes(): number[] {
+        return [2, 3, 4, 5, 6, 7];
+    }
+
     static getVariants(): Array<{
         viewType: string;
         title: string;

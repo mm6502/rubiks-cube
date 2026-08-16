@@ -21,7 +21,7 @@ import { CommandManager } from './command-manager';
 import { PanelInteractionHandler } from './panel-interaction-handler';
 import { loadPanelState, savePanelState } from './panel-positioning';
 import { ViewLifecycleManager } from './view-lifecycle-manager';
-import { createView, getAvailableViews, getViewTitle } from './view-registry';
+import { createView, getAvailableViews, getViewTitle, viewSupportsSize } from './view-registry';
 
 // Mock modules
 vi.mock('@/diagnostics/logger');
@@ -56,7 +56,9 @@ describe('ViewLifecycleManager', () => {
         vi.clearAllMocks();
         // Mock CubeModel
         mockCubeModel = {
-            getReadOnlyModel: vi.fn().mockReturnValue({}),
+            getReadOnlyModel: vi.fn().mockReturnValue({
+                getCurrentState: vi.fn().mockReturnValue({ cubeSize: 3 }),
+            }),
         } as any;
 
         // Mock PanelInteractionHandler
@@ -89,6 +91,7 @@ describe('ViewLifecycleManager', () => {
         // Mock view registry
         vi.mocked(getAvailableViews).mockReturnValue(['basic-front', 'flat']);
         vi.mocked(getViewTitle).mockImplementation(viewType => `Title for ${viewType}`);
+        vi.mocked(viewSupportsSize).mockReturnValue(true);
         vi.mocked(createView).mockImplementation(viewType => {
             const mockView: CubeView = {
                 getViewType: vi.fn().mockReturnValue(viewType),
@@ -227,6 +230,24 @@ describe('ViewLifecycleManager', () => {
             viewLifecycleManager.createViewControls();
 
             expect(warnSpy).toHaveBeenCalledWith('View controls container not found');
+        });
+
+        it('disables checkboxes for views that do not support the active size', () => {
+            // Unsupported at size 3 (mock scenario): mark the flat view unsupported.
+            vi.mocked(viewSupportsSize).mockImplementation(viewType => viewType !== 'flat');
+            viewLifecycleManager.createViewControls();
+
+            const flatCheckbox = document.getElementById('show-flat') as HTMLInputElement;
+            const basicCheckbox = document.getElementById('show-basic-front') as HTMLInputElement;
+
+            expect(flatCheckbox.disabled).toBe(true);
+            expect(basicCheckbox.disabled).toBe(false);
+
+            // The unsupported view carries a neutral note wired via aria-describedby.
+            const note = document.getElementById('note-flat');
+            expect(note).not.toBeNull();
+            expect(note?.textContent).toBe('Current size unsupported');
+            expect(flatCheckbox.getAttribute('aria-describedby')).toBe('note-flat');
         });
     });
 

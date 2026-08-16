@@ -21,6 +21,10 @@ export const basicViewFactory: ViewFactory = {
         return { x: 20, y: 20, width: 300, height: 300 };
     },
 
+    getSupportedSizes(): number[] {
+        return [2, 3, 4, 5, 6, 7];
+    },
+
     getVariants(): ViewVariant[] {
         return [
             {
