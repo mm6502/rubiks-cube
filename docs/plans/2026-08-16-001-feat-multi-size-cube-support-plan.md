@@ -1,7 +1,7 @@
 ---
 title: 'feat: Multi-size cube support (2–7)'
 type: feat
-status: active
+status: completed
 date: 2026-08-16
 origin: docs/brainstorms/2026-08-16-multi-size-2-7-support-requirements.md
 ---
