@@ -158,7 +158,8 @@ export class FlatView implements CubeView {
                 if (face) {
                     const faceGrid = displayGrid.get(face);
                     if (faceGrid) {
-                        const faceDiv = this.createFaceElement(face, faceGrid);
+                        const cubeSize = _model.getCurrentState().cubeSize;
+                        const faceDiv = this.createFaceElement(face, faceGrid, cubeSize);
                         cell.appendChild(faceDiv);
                     }
                 }
@@ -226,8 +227,8 @@ export class FlatView implements CubeView {
      * Creates the DOM element for a single cube face and attaches hover/click
      * listeners for highlight and selection feedback.
      */
-    private createFaceElement(face: Face, faceGrid: FaceGrid): HTMLElement {
-        const faceDiv = rendering.createFaceElement(face, faceGrid, this.state.styles);
+    private createFaceElement(face: Face, faceGrid: FaceGrid, cubeSize: number): HTMLElement {
+        const faceDiv = rendering.createFaceElement(face, faceGrid, this.state.styles, cubeSize);
 
         // Attach interaction listeners (rendering module produces DOM only).
         faceDiv.querySelectorAll(`.${this.state.styles['flat-sticker']}`).forEach(sticker => {

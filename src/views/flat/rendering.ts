@@ -171,10 +171,14 @@ export function buildLegendHTML(styles: Record<string, string>, isMobile: boolea
 export function createFaceElement(
     face: Face,
     faceGrid: FaceGrid,
-    styles: Record<string, string>
+    styles: Record<string, string>,
+    cubeSize: number
 ): HTMLElement {
     const faceDiv = document.createElement('div');
     faceDiv.className = styles['flat-face'];
+    // Set grid template columns/rows dynamically based on cube size
+    faceDiv.style.gridTemplateColumns = `repeat(${cubeSize}, 1fr)`;
+    faceDiv.style.gridTemplateRows = `repeat(${cubeSize}, 1fr)`;
 
     const n = faceGrid.grid.length;
     for (let row = 0; row < n; row++) {

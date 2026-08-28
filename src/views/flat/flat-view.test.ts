@@ -61,7 +61,7 @@ describe('FlatView', () => {
             const faceGrid = {
                 grid: [[], []],
             };
-            expect(() => view2['createFaceElement'](Face.F, faceGrid as any)).not.toThrow();
+            expect(() => view2['createFaceElement'](Face.F, faceGrid as any, 3)).not.toThrow();
         });
     });
     let view: FlatView;
