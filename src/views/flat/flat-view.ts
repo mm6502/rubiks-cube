@@ -180,7 +180,8 @@ export class FlatView implements CubeView {
 
         // Create ghost strips on all non-layout-adjacent edges
         this.ghostStrips = new GhostStrips(flatContainer, this.state.styles);
-        this.ghostStrips.create();
+        const cubeSize = _model.getCurrentState().cubeSize;
+        this.ghostStrips.create(cubeSize);
 
         this.touchHandler = new FlatTouchHandler({
             host: flatContainer,
@@ -263,6 +264,9 @@ export class FlatView implements CubeView {
     update(model: ReadOnlyCubeModel): void {
         rendering.update(this.state, model);
         this.restoreSelection();
+        // Recreate ghost strips if cube size changed
+        const cubeSize = model.getCurrentState().cubeSize;
+        this.ghostStrips?.updateSizeIfNeeded(cubeSize);
         this.ghostStrips?.updateColors();
     }
 
@@ -270,6 +274,9 @@ export class FlatView implements CubeView {
     public updateSelective(event?: MoveExecutedEvent): void {
         rendering.updateSelective(this.state, event);
         this.restoreSelection();
+        // Recreate ghost strips if cube size changed
+        const cubeSize = this.state.model?.getCurrentState().cubeSize ?? 3;
+        this.ghostStrips?.updateSizeIfNeeded(cubeSize);
         this.ghostStrips?.updateColors();
     }
 

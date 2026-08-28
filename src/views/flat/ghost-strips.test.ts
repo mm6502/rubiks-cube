@@ -162,3 +162,146 @@ describe('ghost hints', () => {
         expect(gs.getShowGhosts()).toBe(true);
     });
 });
+
+describe('ghost hints (multi-size cubes)', () => {
+    let view: FlatView;
+    let container: HTMLElement;
+    let controller: CubeController;
+
+    beforeEach(() => {
+        container = document.createElement('div');
+        container.style.width = '800px';
+        container.style.height = '600px';
+        document.body.appendChild(container);
+    });
+
+    afterEach(() => {
+        view?.destroy();
+        controller?.dispose();
+        document.body.removeChild(container);
+    });
+
+    it('2×2 cube creates 2 ghost stickers per strip (28 total)', () => {
+        controller = new CubeController(2);
+        view = new FlatView(styles);
+        view.create(container, controller);
+
+        const strips = container.querySelectorAll(`.${ghostStyles['flat-ghost-strip']}`);
+        expect(strips.length).toBe(14);
+
+        const ghosts = container.querySelectorAll(`.${ghostStyles['flat-ghost-sticker']}`);
+        expect(ghosts.length).toBe(28); // 14 strips × 2 stickers per strip
+    });
+
+    it('4×4 cube creates 4 ghost stickers per strip (56 total)', () => {
+        controller = new CubeController(4);
+        view = new FlatView(styles);
+        view.create(container, controller);
+
+        const strips = container.querySelectorAll(`.${ghostStyles['flat-ghost-strip']}`);
+        expect(strips.length).toBe(14);
+
+        const ghosts = container.querySelectorAll(`.${ghostStyles['flat-ghost-sticker']}`);
+        expect(ghosts.length).toBe(56); // 14 strips × 4 stickers per strip
+    });
+
+    it('7×7 cube creates 7 ghost stickers per strip (98 total)', () => {
+        controller = new CubeController(7);
+        view = new FlatView(styles);
+        view.create(container, controller);
+
+        const strips = container.querySelectorAll(`.${ghostStyles['flat-ghost-strip']}`);
+        expect(strips.length).toBe(14);
+
+        const ghosts = container.querySelectorAll(`.${ghostStyles['flat-ghost-sticker']}`);
+        expect(ghosts.length).toBe(98); // 14 strips × 7 stickers per strip
+    });
+
+    it('reconstructs ghost strips when cube size changes', () => {
+        // Start with 3×3
+        controller = new CubeController(3);
+        view = new FlatView(styles);
+        view.create(container, controller);
+
+        let ghosts = container.querySelectorAll(`.${ghostStyles['flat-ghost-sticker']}`);
+        expect(ghosts.length).toBe(42); // 3×3
+
+        // Switch to 2×2 by recreating view
+        controller.dispose();
+        container.innerHTML = '';
+        controller = new CubeController(2);
+        view.destroy();
+        view = new FlatView(styles);
+        view.create(container, controller);
+
+        ghosts = container.querySelectorAll(`.${ghostStyles['flat-ghost-sticker']}`);
+        expect(ghosts.length).toBe(28); // 2×2
+
+        // Switch to 5×5
+        controller.dispose();
+        container.innerHTML = '';
+        controller = new CubeController(5);
+        view.destroy();
+        view = new FlatView(styles);
+        view.create(container, controller);
+
+        ghosts = container.querySelectorAll(`.${ghostStyles['flat-ghost-sticker']}`);
+        expect(ghosts.length).toBe(70); // 5×5 (14 × 5)
+    });
+
+    it('ghost stickers find correct source stickers for 2×2 cube', () => {
+        controller = new CubeController(2);
+        view = new FlatView(styles);
+        view.create(container, controller);
+
+        // Check that each ghost can find its source
+        const ghosts = container.querySelectorAll(
+            `.${ghostStyles['flat-ghost-sticker']}`
+        ) as NodeListOf<HTMLElement>;
+
+        let foundCount = 0;
+        for (const ghost of ghosts) {
+            const face = ghost.getAttribute('data-ghost-source-face');
+            const pos = ghost.getAttribute('data-ghost-source-pos');
+
+            const sourceEl = container.querySelector(
+                `.${styles['flat-sticker']}[data-face="${face}"][data-pos="${pos}"]`
+            );
+
+            if (sourceEl) {
+                foundCount++;
+            }
+        }
+
+        // All ghosts should find their source stickers
+        expect(foundCount).toBe(28);
+    });
+
+    it('ghost stickers find correct source stickers for 7×7 cube', () => {
+        controller = new CubeController(7);
+        view = new FlatView(styles);
+        view.create(container, controller);
+
+        // Check that each ghost can find its source
+        const ghosts = container.querySelectorAll(
+            `.${ghostStyles['flat-ghost-sticker']}`
+        ) as NodeListOf<HTMLElement>;
+
+        let foundCount = 0;
+        for (const ghost of ghosts) {
+            const face = ghost.getAttribute('data-ghost-source-face');
+            const pos = ghost.getAttribute('data-ghost-source-pos');
+
+            const sourceEl = container.querySelector(
+                `.${styles['flat-sticker']}[data-face="${face}"][data-pos="${pos}"]`
+            );
+
+            if (sourceEl) {
+                foundCount++;
+            }
+        }
+
+        // All ghosts should find their source stickers
+        expect(foundCount).toBe(98);
+    });
+});
