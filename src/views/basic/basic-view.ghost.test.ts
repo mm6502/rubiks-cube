@@ -12,10 +12,10 @@ import {
     setGhostOpacityIndex,
 } from '@/views/basic/ghost-stickers';
 
-import { BasicView } from './basic-2-view';
+import { BasicView } from './basic-view';
 import { getVisibleFacesWithPositions } from './rendering';
 
-function createView(viewType: 'basic-2-front' | 'basic-2-back', model: CubeController): BasicView {
+function createView(viewType: 'basic-front' | 'basic-back', model: CubeController): BasicView {
     const view = new BasicView({ viewType });
     const container = document.createElement('div');
     view.create(container, model);
@@ -41,7 +41,7 @@ describe('BasicView (Basic 2) - ghost stickers integration', () => {
     });
 
     it('cycles ghost opacity off -> 75% -> 100% -> off via the ghost-hints command', () => {
-        const view = createView('basic-2-front', model);
+        const view = createView('basic-front', model);
 
         expect(isGhostVisible()).toBe(false);
 
@@ -58,7 +58,7 @@ describe('BasicView (Basic 2) - ghost stickers integration', () => {
     });
 
     it('persists and restores state values including ghost opacity and link flags', () => {
-        const view = createView('basic-2-front', model);
+        const view = createView('basic-front', model);
 
         view.setState({
             viewRight: { x: 1, y: 0, z: 0 },
@@ -79,7 +79,7 @@ describe('BasicView (Basic 2) - ghost stickers integration', () => {
     });
 
     it('tears down the cube DOM and clears the cube element reference on destroy', () => {
-        const view = createView('basic-2-front', model);
+        const view = createView('basic-front', model);
         const container = document.createElement('div');
         view.create(container, model);
 
@@ -90,7 +90,7 @@ describe('BasicView (Basic 2) - ghost stickers integration', () => {
     });
 
     it('shows only silhouette-edge ghost strips once toggled on, hiding the rest', () => {
-        const view = createView('basic-2-front', model);
+        const view = createView('basic-front', model);
         const cubeElement = view.getCubeElement()!;
 
         vi.useFakeTimers();
@@ -132,8 +132,8 @@ describe('BasicView (Basic 2) - ghost stickers integration', () => {
     });
 
     it('syncs ghost opacity to the peer view via BASIC_VIEW_GHOST_TOGGLED', () => {
-        const frontView = createView('basic-2-front', model);
-        const backView = createView('basic-2-back', model);
+        const frontView = createView('basic-front', model);
+        const backView = createView('basic-back', model);
 
         ghostHintsAction(frontView)();
 
@@ -142,7 +142,7 @@ describe('BasicView (Basic 2) - ghost stickers integration', () => {
     });
 
     it('refreshes ghost sticker colors after a move via update(), without a manual toggle', () => {
-        const view = createView('basic-2-front', model);
+        const view = createView('basic-front', model);
         const cubeElement = view.getCubeElement()!;
 
         vi.useFakeTimers();
@@ -173,7 +173,7 @@ describe('BasicView (Basic 2) - ghost stickers integration', () => {
     });
 
     it('does not throw when toggling ghosts immediately after create()', () => {
-        const view = createView('basic-2-front', model);
+        const view = createView('basic-front', model);
         expect(() => ghostHintsAction(view)()).not.toThrow();
     });
 });

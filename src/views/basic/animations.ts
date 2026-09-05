@@ -1,9 +1,9 @@
-// Animation system for Basic 2 per-cubie view
+// Animation system for the Basic per-cubie view
 import { Axis, QuarterTurn } from '@/cube/types';
 import { MoveExecutedEvent } from '@/types';
 
 /**
- * Animation configuration for Basic 2 view.
+ * Animation configuration for the Basic view.
  */
 export type BasicAnimationConfig = {
     /** Duration in milliseconds */

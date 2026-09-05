@@ -803,8 +803,7 @@ export class BasicTouchHandler {
     /**
      * Positions the invisible halo hit target over the selected face.
      *
-     * For Basic view, finds the `.face` DOM element and covers it.
-     * For Basic 2 view (no `.face` element), delegates to
+     * The Basic view has no `.face` DOM element, so it delegates to
      * {@link positionHaloFromStickers} to compute a bounding box from
      * all stickers on the selected face.
      *
@@ -827,8 +826,8 @@ export class BasicTouchHandler {
         ) as HTMLElement | null;
 
         if (!faceEl) {
-            // Basic 2 fallback: no face <div> — compute bounding box from all
-            // stickers belonging to the selected face.
+            // No face <div> in the per-cubie Basic view — compute bounding
+            // box from all stickers belonging to the selected face.
             this.positionHaloFromStickers();
             return;
         }
@@ -865,9 +864,9 @@ export class BasicTouchHandler {
     }
 
     /**
-     * Fallback for views (Basic 2) that lack a `.face` DOM element.
-     * Computes the halo hit target bounding box from all stickers belonging
-     * to the selected face.
+     * Fallback for the per-cubie Basic view, which lacks a `.face` DOM
+     * element. Computes the halo hit target bounding box from all stickers
+     * belonging to the selected face.
      */
     private positionHaloFromStickers(): void {
         const stickers = this.host.querySelectorAll(
@@ -921,7 +920,7 @@ export class BasicTouchHandler {
      *
      * Clears the `--basic-face-halo-ring-width` custom property and the
      * `face-selected-surface` CSS class from every `.face` element.
-     * No-op in views that lack a `.face` class (Basic 2).
+     * No-op in the per-cubie Basic view, which has no `.face` class.
      */
     private clearFaceSurfaceHaloStyling(): void {
         const faceClass = this.styles['face'] ?? '';
@@ -946,7 +945,7 @@ export class BasicTouchHandler {
      * No-op in views that lack a `face-selected` CSS class.
      */
     private applyFaceSelectionStyling(): void {
-        // Some views (e.g. Basic 2) lack the 'face-selected' CSS class.
+        // The per-cubie Basic view lacks the 'face-selected' CSS class.
         // Skip DOM manipulation when the class name is empty to avoid
         // DOMTokenList.remove('') throwing SyntaxError.
         const faceSelected = this.styles['face-selected'];
@@ -976,9 +975,8 @@ export class BasicTouchHandler {
      * pointer, then walks up to the nearest `.sticker` element.
      * Extracts the sticker's face, grid position, and DOM id.
      *
-     * For Basic view, reads `data-basic-pos` for fast grid position.
-     * For Basic 2 (no `data-basic-pos`), falls back to
-     * `CubeStateUtils.getStickerById` via `data-sticker-id`.
+     * Reads `data-basic-pos` for fast grid position when present; otherwise
+     * falls back to `CubeStateUtils.getStickerById` via `data-sticker-id`.
      *
      * @returns The resolved hit, or undefined if no sticker was found.
      */
@@ -1005,7 +1003,7 @@ export class BasicTouchHandler {
             row = Math.floor(pos / cubeSize);
             col = pos % cubeSize;
         } else {
-            // Fallback: use CubeStateUtils for views without grid positions (Basic 2)
+            // Fallback: resolve via CubeStateUtils when grid positions are absent.
             const stickerId = stickerEl.getAttribute('data-sticker-id') as StickerId | null;
             if (!stickerId) return undefined;
             const model = this.getModel?.();
@@ -1136,7 +1134,7 @@ export class BasicTouchHandler {
             `[data-basic-face="${face}"][data-basic-pos="${cubeSize}"]`
         ) as HTMLElement | null;
 
-        // Fallback: use CubeStateUtils for views without data-basic-pos (Basic 2)
+        // Fallback: resolve via CubeStateUtils when data-basic-pos is absent.
         if ((!s00 || !s01 || !s10) && this.getModel) {
             const model = this.getModel();
             if (model) {

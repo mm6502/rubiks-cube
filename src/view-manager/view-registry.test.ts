@@ -84,15 +84,8 @@ describe('ViewRegistry', () => {
         }
     });
 
-    it('basic, basic-2, flat, and moves support all sizes 2-7', () => {
-        for (const viewType of [
-            'basic-front',
-            'basic-back',
-            'basic-2-front',
-            'basic-2-back',
-            'flat',
-            'moves',
-        ]) {
+    it('basic, flat, and moves support all sizes 2-7', () => {
+        for (const viewType of ['basic-front', 'basic-back', 'flat', 'moves']) {
             for (const size of [2, 3, 4, 5, 6, 7]) {
                 expect(viewSupportsSize(viewType, size)).toBe(true);
             }

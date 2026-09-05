@@ -29,11 +29,6 @@ export default defineConfig({
                 'src/views/basic/touch-handler.ts': {
                     branches: 75,
                 },
-                // basic/basic-view.ts: remaining branches coupled to Three.js WebGL
-                //   camera/renderer state unreachable without a full WebGL context (R9 best-effort)
-                'src/views/basic/basic-view.ts': {
-                    branches: 70,
-                },
             },
             include: ['src/**/*.ts'],
             exclude: [

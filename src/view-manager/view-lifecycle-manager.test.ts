@@ -514,4 +514,189 @@ describe('ViewLifecycleManager', () => {
             expect(checkbox.checked).toBe(true); // default
         });
     });
+
+    describe('legacy basic-2 visibility reconciliation (R7)', () => {
+        beforeEach(() => {
+            const container = document.createElement('div');
+            container.className = 'view-controls';
+            document.body.appendChild(container);
+        });
+
+        afterEach(() => {
+            document.body.innerHTML = '';
+            localStorage.clear();
+        });
+
+        it('checks basic-front when the legacy basic-2-front was enabled and basic-front was hidden', () => {
+            localStorage.setItem(
+                'rubiksCubeVisibleViews',
+                JSON.stringify({ 'basic-2-front': true, 'basic-front': false, flat: true })
+            );
+
+            viewLifecycleManager['createViewControls']();
+
+            const basicFrontCheckbox = document.getElementById(
+                'show-basic-front'
+            ) as HTMLInputElement;
+            expect(basicFrontCheckbox.checked).toBe(true);
+        });
+
+        it('checks basic-back when the legacy basic-2-back was enabled', () => {
+            // Include basic-back among available views for this scenario.
+            vi.mocked(getAvailableViews).mockReturnValue(['basic-front', 'basic-back', 'flat']);
+            localStorage.setItem(
+                'rubiksCubeVisibleViews',
+                JSON.stringify({ 'basic-2-back': true, 'basic-back': false, flat: true })
+            );
+
+            viewLifecycleManager['createViewControls']();
+
+            const basicBackCheckbox = document.getElementById(
+                'show-basic-back'
+            ) as HTMLInputElement;
+            expect(basicBackCheckbox.checked).toBe(true);
+        });
+
+        it('honors an explicit hide of basic-front/basic-back when no basic-2 pref exists', () => {
+            localStorage.setItem(
+                'rubiksCubeVisibleViews',
+                JSON.stringify({ 'basic-front': false, flat: true })
+            );
+
+            viewLifecycleManager['createViewControls']();
+
+            const basicFrontCheckbox = document.getElementById(
+                'show-basic-front'
+            ) as HTMLInputElement;
+            expect(basicFrontCheckbox.checked).toBe(false);
+        });
+
+        it('does not check basic-front when the legacy basic-2 entries are disabled', () => {
+            localStorage.setItem(
+                'rubiksCubeVisibleViews',
+                JSON.stringify({ 'basic-2-front': false, 'basic-front': false, flat: true })
+            );
+
+            viewLifecycleManager['createViewControls']();
+
+            const basicFrontCheckbox = document.getElementById(
+                'show-basic-front'
+            ) as HTMLInputElement;
+            expect(basicFrontCheckbox.checked).toBe(false);
+        });
+
+        it('persists the adopted sibling as visible so a second launch keeps the Basic view (cross-launch R7)', () => {
+            // First launch: user opted into basic-2-front but had hidden
+            // basic-front to declutter.
+            localStorage.setItem(
+                'rubiksCubeVisibleViews',
+                JSON.stringify({ 'basic-2-front': true, 'basic-front': false, flat: true })
+            );
+            viewLifecycleManager['createViewControls']();
+
+            // After the first launch's reconcile + cleanup, the visibility map
+            // must have the surviving sibling enabled and the legacy key gone.
+            const afterFirst = JSON.parse(localStorage.getItem('rubiksCubeVisibleViews')!);
+            expect(afterFirst['basic-front']).toBe(true);
+            expect(afterFirst).not.toHaveProperty('basic-2-front');
+
+            // Second launch (fresh lifecycle manager over the same storage): the
+            // surviving sibling is enabled, so the user still sees a Basic view.
+            document.body.innerHTML = '';
+            const secondContainer = document.createElement('div');
+            secondContainer.className = 'view-controls';
+            document.body.appendChild(secondContainer);
+            const secondManager = new ViewLifecycleManager(
+                mockCubeModel,
+                {
+                    'view-panel': 'view-panel',
+                    'view-header': 'view-header',
+                    'view-title': 'view-title',
+                    'view-content': 'view-content',
+                },
+                mockVisualizationsContainer,
+                mockPanelInteractionHandler,
+                mockActiveViews,
+                mockCommandManager,
+                {
+                    onUpdateFocus: mockOnUpdateFocus,
+                    getLayoutMode: () => 'floating' as const,
+                }
+            );
+            secondManager['createViewControls']();
+
+            const basicFrontCheckbox = document.getElementById(
+                'show-basic-front'
+            ) as HTMLInputElement;
+            expect(basicFrontCheckbox.checked).toBe(true);
+        });
+    });
+
+    describe('legacy basic-2 stale-data cleanup (R11)', () => {
+        beforeEach(() => {
+            const container = document.createElement('div');
+            container.className = 'view-controls';
+            document.body.appendChild(container);
+        });
+
+        afterEach(() => {
+            document.body.innerHTML = '';
+            localStorage.clear();
+        });
+
+        it('removes legacy basic-2 panel keys and visibility entries without touching live keys', () => {
+            localStorage.setItem('view-panel-basic-2-front', '{"legacy":true}');
+            localStorage.setItem('view-panel-basic-2-back', '{"legacy":true}');
+            localStorage.setItem('view-panel-basic-front', '{"live":true}');
+            localStorage.setItem(
+                'rubiksCubeVisibleViews',
+                JSON.stringify({ 'basic-2-front': true, 'basic-front': true, flat: true })
+            );
+
+            viewLifecycleManager['createViewControls']();
+
+            expect(localStorage.getItem('view-panel-basic-2-front')).toBeNull();
+            expect(localStorage.getItem('view-panel-basic-2-back')).toBeNull();
+            expect(localStorage.getItem('view-panel-basic-front')).toBe('{"live":true}');
+
+            const visibility = JSON.parse(localStorage.getItem('rubiksCubeVisibleViews')!);
+            expect(visibility).not.toHaveProperty('basic-2-front');
+            expect(visibility).not.toHaveProperty('basic-2-back');
+            expect(visibility['basic-front']).toBe(true);
+            expect(visibility['flat']).toBe(true);
+        });
+
+        it('runs the cleanup only once (marker key gates a second pass)', () => {
+            localStorage.setItem('view-panel-basic-2-front', '{"legacy":true}');
+            localStorage.setItem(
+                'rubiksCubeVisibleViews',
+                JSON.stringify({ 'basic-2-front': true })
+            );
+
+            viewLifecycleManager['createViewControls']();
+            // Re-seed the legacy key (simulating a second launch that still has
+            // stale data) and re-run — the marker must prevent a second pass.
+            localStorage.setItem('view-panel-basic-2-front', '{"legacy":true}');
+            viewLifecycleManager['createViewControls']();
+
+            expect(localStorage.getItem('view-panel-basic-2-front')).toBe('{"legacy":true}');
+            expect(localStorage.getItem('basic-view-absorbed-v1')).toBe('1');
+        });
+
+        it('sets the marker after the first cleanup run', () => {
+            viewLifecycleManager['createViewControls']();
+
+            expect(localStorage.getItem('basic-view-absorbed-v1')).toBe('1');
+        });
+
+        it('does not touch rubikCube_* cube-state keys', () => {
+            localStorage.setItem('rubikCube_autoSave', '{"saved":true}');
+            localStorage.setItem('view-panel-basic-2-front', '{"legacy":true}');
+
+            viewLifecycleManager['createViewControls']();
+
+            expect(localStorage.getItem('rubikCube_autoSave')).toBe('{"saved":true}');
+            expect(localStorage.getItem('view-panel-basic-2-front')).toBeNull();
+        });
+    });
 });

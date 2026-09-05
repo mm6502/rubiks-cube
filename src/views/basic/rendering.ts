@@ -1,42 +1,37 @@
-import { Face, ReadOnlyCubeModel, Size2D, Vector3, resolveCubeColor } from '@/cube/types';
+// Rendering for Basic view — per-cubie (no face divs)
+import { Face, ReadOnlyCubeModel, Size2D, Vector3 } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils';
-import { computeAvailableContentSize } from '@/cube/utils/view-utils';
-import { MoveExecutedEvent } from '@/types';
 
-import { BASIC_VIEW_ANGLES, BASIC_VIEW_SCALE } from './constants';
+import * as cubieRendering from './cubie-rendering';
 import type { BasicViewInternalData } from './types';
 
 /**
- * Maps an axis-aligned unit vector expressed in **CSS 3D space** to the
+ * CSS angle constants for basic view base orientation.
+ */
+const BASIC_VIEW_ANGLES = {
+    BASE_X: -25,
+    BASE_Y: -35,
+    PITCHED_BASE_X: 25,
+    TILTED_BASE_Y: 35,
+    HOVER: 1.05,
+} as const;
+
+/**
+ * Maps an axis-aligned unit vector expressed in CSS 3D space to the
  * corresponding cube Face.
- *
- * Differs from `vectorToFace` only on the Y axis: in the CSS 3D cube layout
- * the Face.U element is positioned at CSS −Y (visual up) and Face.D at CSS +Y
- * (visual down), which is the opposite of the model convention where Face.U
- * lives at model +Y.
- *
- * Convention: CSS +X=R, CSS −X=L, CSS +Y=D, CSS −Y=U, CSS +Z=F, CSS −Z=B.
  */
 function faceFromCSSDir(v: Vector3): Face {
     if (v.x === 1) return Face.R;
     if (v.x === -1) return Face.L;
-    if (v.y === 1) return Face.D; // CSS +Y is visual-down = model Down face
-    if (v.y === -1) return Face.U; // CSS −Y is visual-up  = model Up   face
+    if (v.y === 1) return Face.D;
+    if (v.y === -1) return Face.U;
     if (v.z === 1) return Face.F;
     return Face.B;
 }
 
 /**
  * Updates the CSS transform of the cube element based on current rotation values.
- *
- * The user-controlled orientation is expressed as three orthogonal unit vectors
- * (viewRight, viewUp, viewForward) stored in model space.  These are combined
- * into a CSS matrix3d (column-major) so the cube always shows exactly the right
- * face toward the viewer, with no accumulated floating-point error.
- *
- * Base aesthetic angles (isTilted / isPitched) are applied first as simple
- * rotateX / rotateY so the cube sits at a comfortable viewing angle.
  */
 export function updateRotation(state: BasicViewInternalData, skipAnimation?: boolean): void {
     if (!state.cubeElement) return;
@@ -44,23 +39,13 @@ export function updateRotation(state: BasicViewInternalData, skipAnimation?: boo
     const baseX = state.isPitched ? BASIC_VIEW_ANGLES.PITCHED_BASE_X : BASIC_VIEW_ANGLES.BASE_X;
     const baseY = state.isTilted ? BASIC_VIEW_ANGLES.TILTED_BASE_Y : BASIC_VIEW_ANGLES.BASE_Y;
 
-    // Build a column-major CSS matrix3d from the orientation vectors.
-    // R (rows = vR, vU, vF) maps model directions to screen directions:
-    //   R * vR = (1,0,0)  (model viewRight → screen right)
-    //   R * vU = (0,1,0)  (model viewUp    → screen up)
-    //   R * vF = (0,0,1)  (model viewFwd   → toward viewer)
-    // CSS matrix3d column-major:
-    //   col1 = (vR.x, vU.x, vF.x, 0)
-    //   col2 = (vR.y, vU.y, vF.y, 0)
-    //   col3 = (vR.z, vU.z, vF.z, 0)
-    //   col4 = (0, 0, 0, 1)
     const { viewRight: vR, viewUp: vU, viewForward: vF } = state;
     const m = `matrix3d(${vR.x},${vU.x},${vF.x},0, ${vR.y},${vU.y},${vF.y},0, ${vR.z},${vU.z},${vF.z},0, 0,0,0,1)`;
 
     const transforms = [`rotateX(${baseX}deg)`, `rotateY(${baseY}deg)`, m];
 
     if (state.isHovered && state.layoutMode !== LayoutMode.Tabbed) {
-        transforms.push(`scale(${BASIC_VIEW_SCALE.HOVER})`);
+        transforms.push(`scale(${BASIC_VIEW_ANGLES.HOVER})`);
     }
 
     const transition = state.cubeElement.style.transition;
@@ -78,16 +63,7 @@ export function updateRotation(state: BasicViewInternalData, skipAnimation?: boo
 }
 
 /**
- * Calculates which faces should be visible for label placement based on
- * current orientation vectors.
- *
- * The three orientation vectors (viewForward, viewRight, viewUp) each point to
- * one of the six axis-aligned model directions (±X, ±Y, ±Z) which correspond
- * directly to the six cube faces (R, L, U, D, F, B).
- *
- * The isTilted flag controls which CSS slot layout is used (mirroring the base
- * aesthetic Y-angle of ±35°).  The isPitched flag controls which set of three
- * faces counts as "visible".
+ * Calculates which faces should be visible for label placement.
  */
 export function getVisibleFacesWithPositions(state: BasicViewInternalData): {
     visibleFaces: Array<{ face: Face; position: string }>;
@@ -95,9 +71,6 @@ export function getVisibleFacesWithPositions(state: BasicViewInternalData): {
 } {
     const { viewForward: vF, viewRight: vR, viewUp: vU } = state;
 
-    // Each face is identified by its CSS-space direction.
-    // vU maps to CSS +Y (visual-DOWN), so the visual-top face is in the neg(vU)
-    // CSS direction; visual-bottom is in the +vU CSS direction.
     const fwdFace = faceFromCSSDir(vF);
     const rightFace = faceFromCSSDir(vR);
     const upFace = faceFromCSSDir({ x: -vU.x || 0, y: -vU.y || 0, z: -vU.z || 0 });
@@ -108,8 +81,6 @@ export function getVisibleFacesWithPositions(state: BasicViewInternalData): {
     const slotFaces: Record<string, Face> = {};
 
     if (state.isTilted) {
-        // Tilted layout: base Y = +35° (looking from slightly left).
-        // Front face appears at bottom-right, left face at bottom-left.
         slotFaces['top'] = upFace;
         slotFaces['bottom-left'] = leftFace;
         slotFaces['bottom-right'] = fwdFace;
@@ -117,8 +88,6 @@ export function getVisibleFacesWithPositions(state: BasicViewInternalData): {
         slotFaces['top-right'] = rightFace;
         slotFaces['middle-bottom'] = downFace;
     } else {
-        // Normal layout: base Y = -35° (looking from slightly right).
-        // Front face appears at bottom-left, right face at bottom-right.
         slotFaces['top'] = upFace;
         slotFaces['bottom-left'] = fwdFace;
         slotFaces['bottom-right'] = rightFace;
@@ -131,9 +100,6 @@ export function getVisibleFacesWithPositions(state: BasicViewInternalData): {
     let hiddenPositions: string[];
 
     if (state.isPitched) {
-        // When pitched (+25° X), the bottom face comes toward the viewer.
-        // The faces previously visible at bottom-left/right shift to the top row;
-        // the faces previously hidden at top-left/right drop to the bottom row.
         const prevTopLeft = slotFaces['top-left'];
         const prevTopRight = slotFaces['top-right'];
         slotFaces['top-left'] = slotFaces['bottom-left'];
@@ -162,11 +128,122 @@ export function getVisibleFacesWithPositions(state: BasicViewInternalData): {
 }
 
 /**
+ * Recalculates and applies the cube size from the available container space.
+ */
+export function updateSize(state: BasicViewInternalData): void {
+    if (!state.cubeElement || !state.container) return;
+
+    const containerWidth = state.container.clientWidth;
+    const containerHeight = state.container.clientHeight;
+    const availableSize = {
+        width: containerWidth > 0 ? containerWidth : 300,
+        height: containerHeight > 0 ? containerHeight : 300,
+    };
+
+    const scale = state.layoutMode === LayoutMode.Tabbed ? 0.5 : 0.55;
+    const faceSize = Math.min(availableSize.width, availableSize.height) * scale;
+
+    state.cubeElement.style.width = `${faceSize}px`;
+    state.cubeElement.style.height = `${faceSize}px`;
+
+    const defaultSize = 300;
+    const scaledPerspective = 1000 * (faceSize / defaultSize);
+    const cubeWrapper = state.cubeElement.parentElement as HTMLElement;
+    if (cubeWrapper) {
+        cubeWrapper.style.perspective = `${scaledPerspective}px`;
+    }
+
+    // Reinitialize cubies with updated size (positions and face transforms both depend on size)
+    cubieRendering.initializeCubies(state, faceSize);
+
+    // Update ghost-anchor sizes and transforms
+    initializeGhostAnchors(state, faceSize);
+}
+
+/**
+ * Initialize the ghost-anchor wrapper and its six per-face host divs, with
+ * correct transforms and sizes.
+ *
+ * These anchors exist purely so the shared `GhostStickers` module (which
+ * queries `[data-basic-face="X"]:not([data-basic-pos])` for a host element)
+ * has a valid full-face target in the Basic view's per-cubie DOM. They are built
+ * inside a dedicated `.ghost-anchor-container` wrapper — never alongside
+ * cubie sticker divs — so the query can never resolve to the wrong element.
+ * The wrapper reference is stored on `state.ghostAnchorContainer` so it can
+ * be passed to `GhostStickers` as its scoped root instead of the whole cube.
+ */
+export function initializeGhostAnchors(state: BasicViewInternalData, size: number): void {
+    if (!state.cubeElement) return;
+
+    const halfSize = size / 2;
+
+    let wrapper = state.cubeElement.querySelector(
+        `.${state.styles['ghost-anchor-container']}`
+    ) as HTMLElement | null;
+    if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.className = state.styles['ghost-anchor-container'] ?? '';
+        wrapper.setAttribute('aria-hidden', 'true');
+        state.cubeElement.appendChild(wrapper);
+    }
+    state.ghostAnchorContainer = wrapper;
+
+    const faces = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
+
+    faces.forEach(face => {
+        let anchor = wrapper!.querySelector(`[data-basic-face="${face}"]`) as HTMLElement | null;
+        if (!anchor) {
+            anchor = document.createElement('div');
+            anchor.className = state.styles['ghost-anchor'] ?? '';
+            anchor.setAttribute('data-basic-face', face);
+            wrapper!.appendChild(anchor);
+        }
+        anchor.style.transform = cubieRendering.getFaceTransform(face, halfSize);
+        anchor.style.width = `${size}px`;
+        anchor.style.height = `${size}px`;
+    });
+}
+
+/**
+ * Triggers a size recalculation.
+ */
+export function resize(state: BasicViewInternalData): void {
+    updateSize(state);
+}
+
+/**
+ * Returns the minimum recommended size for this view.
+ */
+export function getMinimumSize(): Size2D {
+    return { width: 300, height: 300 };
+}
+
+/**
+ * Full repaint: syncs all cubie positions and sticker faces from the model.
+ */
+export function update(state: BasicViewInternalData, _model: ReadOnlyCubeModel): void {
+    if (!state.cubeElement) return;
+
+    // Reinitialize all cubies from the model state
+    const faceSize = state.cubeElement.style.width
+        ? parseFloat(state.cubeElement.style.width)
+        : 300;
+
+    // Clear existing cubies
+    const existingCubies = state.cubeElement.querySelectorAll('[data-cubie-id]');
+    existingCubies.forEach(el => el.remove());
+
+    cubieRendering.initializeCubies(state, faceSize);
+}
+
+// =========================================================================
+// Face Labels
+// =========================================================================
+
+/**
  * Builds a map of CSS face position → original face letter by reading the
  * virtual center cubies from the model.  After whole-cube rotations the
  * virtual centers track where each original face ended up.
- *
- * Returns null when the model is unavailable or doesn't have virtual centers.
  */
 function buildFaceMap(model: ReadOnlyCubeModel | undefined): Map<Face, Face> | null {
     if (!model) return null;
@@ -178,7 +255,6 @@ function buildFaceMap(model: ReadOnlyCubeModel | undefined): Map<Face, Face> | n
             const vc = CubeStateUtils.getVirtualCenterCubie(cubeState, originalFace);
             const sticker = vc.stickers.first();
             if (sticker) {
-                // sticker.currentFace = which CSS position this original face is now at
                 result.set(sticker.currentFace as Face, originalFace);
             }
         }
@@ -193,8 +269,8 @@ const pendingLabelTimers = new WeakMap<Element, Map<string, ReturnType<typeof se
 type LabelTarget = {
     posKey: string;
     face: Face;
-    baseClass: string; // 'face-label' or 'hidden-face-label'
-    posClass: string; // e.g. 'face-label-front-top'
+    baseClass: string;
+    posClass: string;
     viewPrefix: string;
 };
 
@@ -242,32 +318,27 @@ function createLabelElement(target: LabelTarget, spinInClass: string): HTMLEleme
  * Updates face label DOM elements, animating only the labels that actually
  * changed (different face letter or layout prefix).  Unchanged labels are
  * left alone.
- *
- * @param direction Controls the animation axis: 'horizontal' (scaleX, default)
- *                  for left/right rotations, 'vertical' (scaleY) for up/down.
  */
 export function updateFaceLabels(
     state: BasicViewInternalData,
     direction: 'horizontal' | 'vertical' = 'horizontal'
 ): void {
+    /* c8 ignore if */
     if (!state.cubeContainer) return;
 
     const faceMap = buildFaceMap(state.model);
     const targets = buildTargets(state, faceMap);
 
-    // Build a map of existing labels by position key.
     const existingByPos = new Map<string, HTMLElement>();
     state.cubeContainer
         .querySelectorAll<HTMLElement>(`[data-pos]`)
         .forEach(el => existingByPos.set(el.dataset['pos']!, el));
 
-    // First render — no animation.
     if (existingByPos.size === 0) {
         targets.forEach(t => state.cubeContainer!.appendChild(createLabelElement(t, '')));
         return;
     }
 
-    // Retrieve (or create) the per-container timer map.
     let timerMap = pendingLabelTimers.get(state.cubeContainer);
     if (!timerMap) {
         timerMap = new Map();
@@ -283,7 +354,6 @@ export function updateFaceLabels(
         : state.styles['face-label-spinning-in'];
     const container = state.cubeContainer;
 
-    // Determine which positions are being removed (not in new targets).
     const newPosKeys = new Set(targets.map(t => t.posKey));
     existingByPos.forEach((el, posKey) => {
         if (!newPosKeys.has(posKey)) {
@@ -298,21 +368,15 @@ export function updateFaceLabels(
             existing.dataset['face'] === target.face &&
             existing.dataset['prefix'] === target.viewPrefix;
 
-        if (unchanged) {
-            // Nothing to do — label is already correct.
-            return;
-        }
+        if (unchanged) return;
 
-        // Cancel any in-flight timer for this position.
         const prev = timerMap!.get(target.posKey);
         if (prev !== undefined) clearTimeout(prev);
 
-        // Spin out the old label (if any).
         if (existing) {
             existing.classList.add(spinOutClass);
         }
 
-        // After spin-out, remove old and insert new with spin-in.
         const posKey = target.posKey;
         const timer = setTimeout(() => {
             timerMap!.delete(posKey);
@@ -321,178 +385,5 @@ export function updateFaceLabels(
         }, 120);
 
         timerMap!.set(posKey, timer);
-    });
-}
-
-/**
- * Initializes 3D CSS positioning for all cube faces to a given pixel size.
- */
-export function initializeFaces(state: BasicViewInternalData, size: number): void {
-    if (!state.cubeElement) return;
-
-    const faces = state.cubeElement.querySelectorAll(
-        `.${state.styles.face}`
-    ) as NodeListOf<HTMLElement>;
-    faces.forEach(face => {
-        face.style.width = `${size}px`;
-        face.style.height = `${size}px`;
-    });
-
-    const blockers = state.cubeElement.querySelectorAll(
-        `.${state.styles['cube-blocker']}`
-    ) as NodeListOf<HTMLElement>;
-    blockers.forEach(blocker => {
-        blocker.style.width = `${size}px`;
-        blocker.style.height = `${size}px`;
-    });
-
-    const halfSize = size / 2;
-    const blockerInset = 4;
-
-    const q = (selector: string) =>
-        state.cubeElement!.querySelector(selector) as HTMLElement | null;
-
-    const front = q(`.${state.styles.face}.${state.styles.front}`);
-    const back = q(`.${state.styles.face}.${state.styles.back}`);
-    const right = q(`.${state.styles.face}.${state.styles.right}`);
-    const left = q(`.${state.styles.face}.${state.styles.left}`);
-    const top = q(`.${state.styles.face}.${state.styles.top}`);
-    const bottom = q(`.${state.styles.face}.${state.styles.bottom}`);
-
-    const frontBlocker = q(`.${state.styles['cube-blocker']}.${state.styles.front}`);
-    const backBlocker = q(`.${state.styles['cube-blocker']}.${state.styles.back}`);
-    const rightBlocker = q(`.${state.styles['cube-blocker']}.${state.styles.right}`);
-    const leftBlocker = q(`.${state.styles['cube-blocker']}.${state.styles.left}`);
-    const topBlocker = q(`.${state.styles['cube-blocker']}.${state.styles.top}`);
-    const bottomBlocker = q(`.${state.styles['cube-blocker']}.${state.styles.bottom}`);
-
-    if (front) front.style.transform = `translateZ(${halfSize}px)`;
-    if (back) back.style.transform = `rotateY(180deg) translateZ(${halfSize}px)`;
-    if (right) right.style.transform = `rotateY(90deg) translateZ(${halfSize}px)`;
-    if (left) left.style.transform = `rotateY(-90deg) translateZ(${halfSize}px)`;
-    if (top) top.style.transform = `rotateX(90deg) translateZ(${halfSize}px)`;
-    if (bottom) bottom.style.transform = `rotateX(-90deg) translateZ(${halfSize}px)`;
-
-    const blockerZ = halfSize - blockerInset;
-    if (frontBlocker) frontBlocker.style.transform = `translateZ(${blockerZ}px)`;
-    if (backBlocker) backBlocker.style.transform = `rotateY(180deg) translateZ(${blockerZ}px)`;
-    if (rightBlocker) rightBlocker.style.transform = `rotateY(90deg) translateZ(${blockerZ}px)`;
-    if (leftBlocker) leftBlocker.style.transform = `rotateY(-90deg) translateZ(${blockerZ}px)`;
-    if (topBlocker) topBlocker.style.transform = `rotateX(90deg) translateZ(${blockerZ}px)`;
-    if (bottomBlocker) bottomBlocker.style.transform = `rotateX(-90deg) translateZ(${blockerZ}px)`;
-}
-
-/**
- * Recalculates and applies the cube size from the available container space.
- */
-export function updateSize(state: BasicViewInternalData): void {
-    if (!state.cubeElement || !state.container) return;
-
-    const availableSize = computeAvailableContentSize(state.container);
-    if (availableSize.width <= 0 || availableSize.height <= 0) return;
-
-    // We want more space around the cube in Tabbed mode
-    // to leave more space where background can be dragged.
-    const scale =
-        state.layoutMode === LayoutMode.Tabbed ? BASIC_VIEW_SCALE.TABBED : BASIC_VIEW_SCALE.DEFAULT;
-    const faceSize = Math.min(availableSize.width, availableSize.height) * scale;
-
-    state.cubeElement.style.width = `${faceSize}px`;
-    state.cubeElement.style.height = `${faceSize}px`;
-
-    const defaultSize = 300;
-    const scaledPerspective = 1000 * (faceSize / defaultSize);
-    const cubeWrapper = state.cubeElement.parentElement as HTMLElement;
-    if (cubeWrapper) {
-        cubeWrapper.style.perspective = `${scaledPerspective}px`;
-    }
-
-    initializeFaces(state, faceSize);
-}
-
-/**
- * Triggers a size recalculation (called on container resize events).
- */
-export function resize(state: BasicViewInternalData): void {
-    updateSize(state);
-}
-
-/**
- * Returns the minimum recommended size for this view.
- */
-export function getMinimumSize(): Size2D {
-    return { width: 300, height: 300 };
-}
-
-/**
- * Full repaint: syncs all sticker colours and IDs from the model.
- */
-export function update(state: BasicViewInternalData, model: ReadOnlyCubeModel): void {
-    if (!state.cubeElement) return;
-
-    const cubeState = model.getCurrentState();
-    const cubeSize = cubeState.cubeSize ?? 3;
-    const faces: Face[] = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
-    const faceNames = ['front', 'back', 'right', 'left', 'top', 'bottom'];
-
-    faces.forEach((face, faceIdx) => {
-        const faceDiv = state.cubeElement!.querySelector(
-            `.${state.styles.face}.${state.styles[faceNames[faceIdx]]}`
-        ) as HTMLElement;
-        if (!faceDiv) return;
-
-        const stickerElements = faceDiv.querySelectorAll(`.${state.styles.sticker}`);
-        for (let i = 0; i < cubeSize * cubeSize; i++) {
-            const sticker = CubeStateUtils.getStickerAt(cubeState, face, i);
-            if (!sticker) continue;
-
-            const element = stickerElements[i] as HTMLElement;
-            if (element) {
-                element.style.backgroundColor = resolveCubeColor(sticker.color);
-                element.setAttribute('data-sticker-id', sticker.id);
-            }
-        }
-    });
-}
-
-/**
- * Selective repaint: updates only the stickers that moved in the last operation.
- */
-export function updateSelective(state: BasicViewInternalData, event: MoveExecutedEvent): void {
-    if (!state.cubeElement || !state.model) return;
-
-    const cubeState = state.model.getCurrentState();
-    const cubeSize = cubeState.cubeSize ?? 3;
-    const positionsToUpdate = new Set<string>();
-
-    event.moveDetails.movedCubies?.after.forEach(cubie => {
-        cubie.stickers.forEach(sticker => {
-            positionsToUpdate.add(`${sticker.currentFace}_${sticker.facePosition}`);
-        });
-    });
-
-    const faceNames = ['front', 'back', 'right', 'left', 'top', 'bottom'];
-    const faces: Face[] = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
-
-    faces.forEach((face, faceIdx) => {
-        const faceDiv = state.cubeElement!.querySelector(
-            `.${state.styles.face}.${state.styles[faceNames[faceIdx]]}`
-        ) as HTMLElement;
-        if (!faceDiv) return;
-
-        const stickerElements = faceDiv.querySelectorAll(`.${state.styles.sticker}`);
-
-        for (let position = 0; position < cubeSize * cubeSize; position++) {
-            if (!positionsToUpdate.has(`${face}_${position}`)) continue;
-
-            const sticker = CubeStateUtils.getStickerAt(cubeState, face, position);
-            if (!sticker) continue;
-
-            const element = stickerElements[position] as HTMLElement;
-            if (!element) continue;
-
-            element.style.backgroundColor = resolveCubeColor(sticker.color);
-            element.setAttribute('data-sticker-id', sticker.id);
-        }
     });
 }

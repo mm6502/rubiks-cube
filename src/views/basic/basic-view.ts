@@ -1,5 +1,5 @@
-// fallow-ignore-file unused-type
-// Basic 3D Cube Visualization
+// fallow-ignore-file unused-type unused-class-member
+// Basic View — per-cubie 3D architecture with move animations
 import { Application } from '@/application';
 import {
     CubeView,
@@ -27,21 +27,50 @@ import {
     MoveRequestedEvent,
     ViewRotation,
 } from '@/types';
+import { getBasicViewCommands } from '@/views/basic/commands';
+import { GhostStickers, getGhostOpacityIndex, isGhostVisible } from '@/views/basic/ghost-stickers';
+import { createBasicInteractionAdapter } from '@/views/basic/interaction-adapter';
+import { isLinked, isSameFamily, setLinked } from '@/views/basic/linked-rotations';
+import {
+    alignCubeToView,
+    getDefaultVectors,
+    isNavigationKey,
+    navigate,
+    resetView,
+    rotateViewDown,
+    rotateViewLeft,
+    rotateViewRight,
+    rotateViewUp,
+} from '@/views/basic/navigation';
+import { updateHighlight, updateSelected } from '@/views/basic/selection';
+import { BasicTouchHandler } from '@/views/basic/touch-handler';
 
+import * as animations from './animations';
+import * as cubieRendering from './cubie-rendering';
 import * as initialization from './initialization';
-import * as navigation from './navigation';
-import * as rendering from './rendering';
-import * as selection from './selection';
 import styles from './basic-view.module.css';
-import { getBasicViewCommands } from './commands';
-import { GhostStickers, getGhostOpacityIndex, isGhostVisible } from './ghost-stickers';
-import { createBasicInteractionAdapter } from './interaction-adapter';
-import { isLinked, isSameFamily, setLinked } from './linked-rotations';
-import { BasicTouchHandler } from './touch-handler';
+import {
+    getMinimumSize,
+    getVisibleFacesWithPositions,
+    resize,
+    update,
+    updateFaceLabels,
+    updateRotation,
+} from './rendering';
 import { BasicVariant } from './types';
 import type { BasicViewInternalData, BasicViewState } from './types';
 
 export type { BasicVariant, BasicViewInternalData, BasicViewState } from './types';
+
+/**
+ * Result of starting an animation — held during animation to support interrupts.
+ */
+type ActiveAnimation = {
+    animation: Animation;
+    pivot: HTMLElement;
+    cubieElements: HTMLElement[];
+    event: MoveExecutedEvent;
+};
 
 export class BasicView implements CubeView {
     private state: BasicViewInternalData;
@@ -50,13 +79,14 @@ export class BasicView implements CubeView {
     private linkedRotationListener: ((e: BasicViewRotationLinkedEvent) => void) | null = null;
     private linkedResetListener: ((e: BasicViewResetLinkedEvent) => void) | null = null;
     private ghostToggledListener: ((e: BasicViewGhostToggledEvent) => void) | null = null;
+    private activeAnimation: ActiveAnimation | null = null;
 
     constructor(config?: { viewType?: string }) {
         const viewType = config?.viewType === 'basic-back' ? 'basic-back' : 'basic-front';
         const variant: BasicVariant =
             viewType === 'basic-back' ? BasicVariant.Back : BasicVariant.Front;
 
-        const defaultVectors = navigation.getDefaultVectors(variant);
+        const defaultVectors = getDefaultVectors(variant);
         this.state = {
             model: undefined,
             container: null,
@@ -120,9 +150,9 @@ export class BasicView implements CubeView {
             id => this.updateSelected(id)
         );
         // Apply the correct default orientation for this variant.
-        navigation.resetView(this.state);
-        rendering.updateRotation(this.state, true);
-        rendering.updateFaceLabels(this.state);
+        resetView(this.state);
+        updateRotation(this.state, true);
+        updateFaceLabels(this.state);
 
         // Wire up touch/pointer interaction.
         const adapter = createBasicInteractionAdapter(
@@ -135,9 +165,9 @@ export class BasicView implements CubeView {
             getCubeSize: () => this.state.model?.getCurrentState().cubeSize ?? 3,
             getState: () => this.state,
             onStickerSelected: id => this.updateSelected(id as StickerId | undefined),
-            onViewRotated: (direction: 'horizontal' | 'vertical', rotation, steps) => {
-                rendering.updateRotation(this.state);
-                rendering.updateFaceLabels(this.state, direction);
+            onViewRotated: (_direction: 'horizontal' | 'vertical', rotation, steps) => {
+                updateRotation(this.state);
+                updateFaceLabels(this.state, _direction);
                 this.updateGhostEdges();
                 this.emitStateChanged();
                 if (isLinked(this.state.viewType)) {
@@ -151,6 +181,7 @@ export class BasicView implements CubeView {
             },
             viewId: this.state.viewType,
             adapter,
+            getModel: () => this.state.model ?? null,
         });
         this.touchHandler.attach();
 
@@ -203,9 +234,7 @@ export class BasicView implements CubeView {
         this.ghostToggledListener = (event: BasicViewGhostToggledEvent) => {
             /* c8 ignore if — guard against self-events */
             if (event.sourceViewType === this.state.viewType) return;
-            const { visibleFaces, hiddenFaces } = rendering.getVisibleFacesWithPositions(
-                this.state
-            );
+            const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(this.state);
             this.ghostStickers?.setOpacityIndex(
                 event.opacityIndex,
                 visibleFaces,
@@ -217,11 +246,14 @@ export class BasicView implements CubeView {
         };
         Application.eventBus.on(EventName.BASIC_VIEW_GHOST_TOGGLED, this.ghostToggledListener);
 
-        // Create ghost stickers on the cube element.
-        /* c8 ignore if — cubeElement always created in initialization */
-        if (this.state.cubeElement) {
+        // Create ghost stickers on the ghost-anchor wrapper (scoped root),
+        // not the whole cube element — the shared GhostStickers module's
+        // data-basic-face query would otherwise be ambiguous against cubie
+        // sticker divs that share the same attribute shape.
+        /* c8 ignore if — cubeElement/ghostAnchorContainer always created in initialization */
+        if (this.state.cubeElement && this.state.ghostAnchorContainer) {
             this.ghostStickers = new GhostStickers(
-                this.state.cubeElement,
+                this.state.ghostAnchorContainer,
                 () => this.state.model ?? null
             );
             this.ghostStickers.create();
@@ -238,23 +270,14 @@ export class BasicView implements CubeView {
 
     update(model: ReadOnlyCubeModel): void {
         this.state.model = model;
-        rendering.update(this.state, model);
+        update(this.state, model);
         this.ghostStickers?.updateColors();
         this.restoreSelection();
     }
 
     updateSelective(event?: MoveExecutedEvent): void {
-        if (event) {
-            rendering.updateSelective(this.state, event);
-            this.ghostStickers?.updateColors();
-            this.restoreSelection();
-            // Whole-cube rotations (x/y/z) change which original face is at each
-            // visible CSS position — update labels so they reflect the new mapping.
-            const notation = event.moveDetails?.notation ?? '';
-            if (/^[xyz]['2]?$/.test(notation) && this.state.model) {
-                const direction = notation.charAt(0) === 'x' ? 'vertical' : 'horizontal';
-                rendering.updateFaceLabels(this.state, direction);
-            }
+        if (event && this.state.model) {
+            this.handleMoveExecuted(event);
         }
     }
 
@@ -279,18 +302,18 @@ export class BasicView implements CubeView {
     }
 
     resize(): void {
-        rendering.resize(this.state);
+        resize(this.state);
         this.touchHandler?.resize();
     }
 
     setLayoutMode(mode: LayoutMode): void {
         this.state.layoutMode = mode;
         this.touchHandler?.setLayoutMode(mode);
-        rendering.resize(this.state);
+        resize(this.state);
     }
 
     getMinimumSize(): Size2D {
-        return rendering.getMinimumSize();
+        return getMinimumSize();
     }
 
     // -------------------------------------------------------------------------
@@ -320,7 +343,7 @@ export class BasicView implements CubeView {
 
         // Plain arrow keys — sticker navigation.
         /* c8 ignore if — guard for non-navigation keys */
-        if (!navigation.isNavigationKey(event)) return false;
+        if (!isNavigationKey(event)) return false;
 
         const onRotated = (r: ViewRotation): void => {
             if (r === ViewRotation.Left) this.rotateViewLeft();
@@ -336,7 +359,7 @@ export class BasicView implements CubeView {
             }
         };
 
-        const handled = navigation.navigate(
+        const handled = navigate(
             event,
             preview,
             this.state,
@@ -344,7 +367,8 @@ export class BasicView implements CubeView {
             onRotated
         );
         if (handled && !preview) {
-            rendering.updateRotation(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state);
         }
         return handled;
     }
@@ -397,24 +421,120 @@ export class BasicView implements CubeView {
     // -------------------------------------------------------------------------
 
     updateHighlight(highlightedSticker?: StickerId): void {
-        selection.updateHighlight(this.state, highlightedSticker);
+        updateHighlight(this.state, highlightedSticker);
     }
 
     updateSelected(selectedSticker?: StickerId): void {
-        selection.updateSelected(this.state, selectedSticker);
+        updateSelected(this.state, selectedSticker);
     }
 
     // -------------------------------------------------------------------------
-    // Move handling
+    // Move handling with animation
     // -------------------------------------------------------------------------
 
+    /**
+     * Whole-cube rotations (x/y/z) change which original face sits at each
+     * visible CSS position — refresh the corner/hidden face labels so they
+     * reflect the new face mapping after the move lands. No-op for face and
+     * slice moves. The label DOM is built from model virtual centers that are
+     * already in post-move state, so any post-move call point is correct.
+     */
+    private refreshFaceLabelsAfterWholeCubeMove(event: MoveExecutedEvent): void {
+        const notation = event.moveDetails?.notation ?? '';
+        if (!/^[xyz]['2]?$/.test(notation)) return;
+        const direction = notation.charAt(0) === 'x' ? 'vertical' : 'horizontal';
+        updateFaceLabels(this.state, direction);
+    }
+
     handleMoveExecuted(event: MoveExecutedEvent): void {
-        if (event.moveDetails?.movedCubies && this.state.model) {
-            this.updateSelective(event);
-            /* c8 ignore else if — fallback when no movedCubies */
-        } else if (this.state.model) {
+        if (!this.state.model) return;
+
+        // Finalize any running animation (interrupt)
+        this.finalizeAnimation();
+
+        if (!event.moveDetails?.movedCubies) {
             this.update(this.state.model);
+            // No-cubie path (e.g. whole-cube rotation with no tracked cubies)
+            // still needs the label refresh.
+            this.refreshFaceLabelsAfterWholeCubeMove(event);
+            return;
         }
+
+        // Try to animate
+        const result = animations.animateMove(event, this.state.cubeElement!, undefined);
+
+        if (!result) {
+            // prefers-reduced-motion, unknown definition, or no matching layer cubies
+            cubieRendering.updateCubiePositions(
+                this.state.cubeElement!,
+                event.moveDetails.movedCubies,
+                this.state.styles,
+                this.state.onStickerSelected
+            );
+            // Reduced-motion / non-animated whole-cube path.
+            this.refreshFaceLabelsAfterWholeCubeMove(event);
+            return;
+        }
+
+        this.activeAnimation = { ...result, event };
+
+        result.animation.finished
+            .then(() => {
+                if (this.activeAnimation?.event === event) {
+                    const { pivot, cubieElements } = this.activeAnimation;
+                    this.activeAnimation = null;
+                    animations.finalizeLayer(pivot, cubieElements, this.state.cubeElement!);
+                    cubieRendering.updateCubiePositions(
+                        this.state.cubeElement!,
+                        event.moveDetails!.movedCubies!,
+                        this.state.styles,
+                        this.state.onStickerSelected
+                    );
+                    result.animation.cancel(); // remove fill effect after DOM is updated
+                    this.ghostStickers?.updateColors();
+                    this.restoreSelection();
+                    // Animated whole-cube path — refresh labels post-move.
+                    this.refreshFaceLabelsAfterWholeCubeMove(event);
+                }
+            })
+            .catch(() => {
+                // Cancelled via finalizeAnimation() — do nothing
+            });
+    }
+
+    /**
+     * Finalize (interrupt) the current animation.
+     *
+     * Phase 1: cubies snap from pre-A to post-A position.
+     * No color flash — sticker colors update correctly.
+     */
+    private finalizeAnimation(): void {
+        if (!this.activeAnimation) return;
+        const { animation, pivot, cubieElements, event } = this.activeAnimation;
+        this.activeAnimation = null;
+
+        // Reparent cubies from pivot back to cube
+        animations.finalizeLayer(pivot, cubieElements, this.state.cubeElement!);
+
+        // Update positions and sticker faces from the interrupted move
+        cubieRendering.updateCubiePositions(
+            this.state.cubeElement!,
+            event.moveDetails!.movedCubies!,
+            this.state.styles,
+            this.state.onStickerSelected
+        );
+
+        // Remove fill effect after DOM is updated
+        animation.cancel();
+
+        // If the interrupted move was a whole-cube rotation, its result is now
+        // visible (cubies snapped to post-move positions) — refresh labels so
+        // the corner-face mapping matches before the next move proceeds.
+        this.refreshFaceLabelsAfterWholeCubeMove(event);
+
+        // Update ghost stickers and selection
+        this.ghostStickers?.updateColors();
+        this.restoreSelection();
     }
 
     // -------------------------------------------------------------------------
@@ -422,48 +542,47 @@ export class BasicView implements CubeView {
     // -------------------------------------------------------------------------
 
     rotateViewLeft(): void {
-        navigation.rotateViewLeft(this.state);
-        rendering.updateRotation(this.state);
-        rendering.updateFaceLabels(this.state, 'horizontal');
+        rotateViewLeft(this.state);
+        updateRotation(this.state);
+        updateFaceLabels(this.state, 'horizontal');
         this.updateGhostEdges();
     }
 
     rotateViewRight(): void {
-        navigation.rotateViewRight(this.state);
-        rendering.updateRotation(this.state);
-        rendering.updateFaceLabels(this.state, 'horizontal');
+        rotateViewRight(this.state);
+        updateRotation(this.state);
+        updateFaceLabels(this.state, 'horizontal');
         this.updateGhostEdges();
     }
 
     rotateViewUp(): void {
-        navigation.rotateViewUp(this.state);
-        rendering.updateRotation(this.state);
-        rendering.updateFaceLabels(this.state, 'vertical');
+        rotateViewUp(this.state);
+        updateRotation(this.state);
+        updateFaceLabels(this.state, 'vertical');
         this.updateGhostEdges();
     }
 
     rotateViewDown(): void {
-        navigation.rotateViewDown(this.state);
-        rendering.updateRotation(this.state);
-        rendering.updateFaceLabels(this.state, 'vertical');
+        rotateViewDown(this.state);
+        updateRotation(this.state);
+        updateFaceLabels(this.state, 'vertical');
         this.updateGhostEdges();
     }
 
     resetView(): void {
-        navigation.resetView(this.state);
-        rendering.updateRotation(this.state);
-        rendering.updateFaceLabels(this.state);
+        resetView(this.state);
+        updateRotation(this.state);
+        updateFaceLabels(this.state);
         this.updateGhostEdges();
     }
 
     alignCubeToView(): void {
-        navigation.alignCubeToView(this.state);
-        rendering.updateRotation(this.state, true);
-        rendering.updateFaceLabels(this.state);
+        alignCubeToView(this.state);
+        updateRotation(this.state, true);
+        updateFaceLabels(this.state);
         this.updateGhostEdges();
     }
 
-    // (Rendering helpers removed; tests updated to call rendering.updateRotation)
     // -------------------------------------------------------------------------
     // State persistence
     // -------------------------------------------------------------------------
@@ -486,14 +605,14 @@ export class BasicView implements CubeView {
         if (!state || typeof state !== 'object') return;
         const viewState = state as Record<string, unknown>;
 
-        // Migrate old format (xRotation/yRotation/zRotation) — reset to default.
+        // Migrate old format — reset to default.
         /* c8 ignore if — migration for old state format */
         if (
             typeof viewState['xRotation'] === 'number' ||
             typeof viewState['yRotation'] === 'number' ||
             typeof viewState['zRotation'] === 'number'
         ) {
-            navigation.resetView(this.state);
+            resetView(this.state);
         } else {
             const vR = viewState['viewRight'];
             const vU = viewState['viewUp'];
@@ -515,7 +634,7 @@ export class BasicView implements CubeView {
             setLinked(viewState['linked'], this.state.viewType);
         }
 
-        // Restore ghost opacity — support both new (ghostOpacityIndex) and legacy (showGhosts)
+        // Restore ghost opacity
         let ghostIndex: number | null = null;
         /* c8 ignore if — guard for invalid ghostOpacityIndex */
         if (typeof viewState['ghostOpacityIndex'] === 'number') {
@@ -526,9 +645,7 @@ export class BasicView implements CubeView {
         }
         /* c8 ignore if — guard when no ghost index provided */
         if (ghostIndex !== null) {
-            const { visibleFaces, hiddenFaces } = rendering.getVisibleFacesWithPositions(
-                this.state
-            );
+            const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(this.state);
             this.ghostStickers?.setOpacityIndex(
                 ghostIndex,
                 visibleFaces,
@@ -538,8 +655,8 @@ export class BasicView implements CubeView {
             );
         }
 
-        rendering.updateRotation(this.state, true);
-        rendering.updateFaceLabels(this.state);
+        updateRotation(this.state, true);
+        updateFaceLabels(this.state);
     }
 
     // -------------------------------------------------------------------------
@@ -547,6 +664,9 @@ export class BasicView implements CubeView {
     // -------------------------------------------------------------------------
 
     destroy(): void {
+        // Finalize any running animation
+        this.finalizeAnimation();
+
         if (this.linkedRotationListener) {
             Application.eventBus.off(
                 EventName.BASIC_VIEW_ROTATION_LINKED,
@@ -577,7 +697,7 @@ export class BasicView implements CubeView {
     }
 
     private toggleGhosts(): void {
-        const { visibleFaces, hiddenFaces } = rendering.getVisibleFacesWithPositions(this.state);
+        const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(this.state);
         this.ghostStickers?.toggle(
             visibleFaces,
             hiddenFaces,
@@ -593,7 +713,7 @@ export class BasicView implements CubeView {
 
     private updateGhostEdges(): void {
         if (!isGhostVisible()) return;
-        const { visibleFaces, hiddenFaces } = rendering.getVisibleFacesWithPositions(this.state);
+        const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(this.state);
         this.ghostStickers?.updateVisibleEdges(
             visibleFaces,
             hiddenFaces,

@@ -2,9 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { basicViewFactory } from './index';
 
-// BasicView itself imports styles; nothing exported from the factory uses CSS,
-// but mocking the module keeps the tests isolated in case the constructor
-// accesses styles during initialization.
+// BasicView itself imports the CSS module; mocking it keeps the factory test
+// isolated from the full engine's DOM/CSS module processing.
 vi.mock('./basic-view.module.css', () => ({
     default: {
         someClass: 'someClass',
@@ -13,7 +12,7 @@ vi.mock('./basic-view.module.css', () => ({
 
 describe('basicViewFactory', () => {
     describe('create', () => {
-        it('should create a new BasicView instance', () => {
+        it('should create a BasicView instance', () => {
             // Act
             const view = basicViewFactory.create();
 
@@ -117,6 +116,16 @@ describe('basicViewFactory', () => {
             expect(variants[0].title).toBe('Basic (Front)');
             expect(variants[1].viewType).toBe('basic-back');
             expect(variants[1].title).toBe('Basic (Back)');
+        });
+    });
+
+    describe('getSupportedSizes', () => {
+        it('supports all sizes 2-7', () => {
+            // Act
+            const sizes = basicViewFactory.getSupportedSizes!();
+
+            // Assert
+            expect(sizes).toEqual([2, 3, 4, 5, 6, 7]);
         });
     });
 });
