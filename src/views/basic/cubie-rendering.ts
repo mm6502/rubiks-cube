@@ -1,4 +1,4 @@
-// Per-cubie DOM rendering for Basic 2 view
+// Per-cubie DOM rendering for the Basic view
 import { Face, resolveCubeColor } from '@/cube/types';
 import type { Position3D, ReadonlyCubie, StickerId } from '@/cube/types';
 import { getPositionKey } from '@/cube/utils/coordinates';

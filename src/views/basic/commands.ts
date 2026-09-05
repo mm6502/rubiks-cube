@@ -97,8 +97,8 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             action: () => {
                 const nextValue = !isLinked(ctx.state.viewType);
                 setLinked(nextValue, ctx.state.viewType);
-                // After the Basic 2 absorb, the whole Basic family is one set of
-                // sibling variants — emit for both so peer views refresh.
+                // The whole Basic family is one set of sibling variants —
+                // emit for both so peer views refresh.
                 const familyViewTypes = ['basic-front', 'basic-back'];
                 familyViewTypes.forEach(viewType => {
                     Application.eventBus.emit(EventName.VIEW_STATE_CHANGED, {

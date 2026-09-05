@@ -1,4 +1,4 @@
-// Rendering for Basic 2 view — cubie-based (no face divs)
+// Rendering for Basic view — per-cubie (no face divs)
 import { Face, ReadOnlyCubeModel, Size2D, Vector3 } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils';
@@ -166,7 +166,7 @@ export function updateSize(state: BasicViewInternalData): void {
  *
  * These anchors exist purely so the shared `GhostStickers` module (which
  * queries `[data-basic-face="X"]:not([data-basic-pos])` for a host element)
- * has a valid full-face target in Basic 2's per-cubie DOM. They are built
+ * has a valid full-face target in the Basic view's per-cubie DOM. They are built
  * inside a dedicated `.ghost-anchor-container` wrapper — never alongside
  * cubie sticker divs — so the query can never resolve to the wrong element.
  * The wrapper reference is stored on `state.ghostAnchorContainer` so it can

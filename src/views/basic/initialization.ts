@@ -1,4 +1,4 @@
-// Initialization for Basic 2 view — builds per-cubie cube DOM (no face divs)
+// Initialization for Basic view — builds per-cubie cube DOM (no face divs)
 import { Application } from '@/application';
 import { ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { EventName } from '@/types';
@@ -9,12 +9,12 @@ import { initializeGhostAnchors, updateSize } from './rendering';
 import type { BasicVariant, BasicViewInternalData } from './types';
 
 /**
- * Builds the full DOM structure for a Basic 2 cube view and returns the
+ * Builds the full DOM structure for a Basic cube view and returns the
  * populated internal state object.
  *
- * Unlike the static Basic view, Basic 2 uses a per-cubie DOM: each surface
- * cubie is its own `div.cubie` in 3D space with sticker-face children.
- * There are no face divs or sticker grids.
+ * The Basic view uses a per-cubie DOM: each surface cubie is its own
+ * `div.cubie` in 3D space with sticker-face children. There are no face divs
+ * or sticker grids.
  */
 export function initialize(
     container: HTMLElement,
@@ -83,7 +83,7 @@ export function destroy(state: BasicViewInternalData): void {
 }
 
 /**
- * Build the cube element that hosts the cubies for Basic 2.
+ * Build the cube element that hosts the cubies for the Basic view.
  */
 function buildCubeElement(
     model: ReadOnlyCubeModel,

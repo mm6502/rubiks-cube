@@ -6,9 +6,9 @@
 const linkedStates = new Map<string, boolean>();
 
 function getFamilyKey(viewType: string): string {
-    // Basic 2 was absorbed into the Basic family — every Basic viewType
-    // (basic-front/basic-back) shares the single 'basic' family, while any
-    // other viewType keeps its own key so cross-family events stay distinct.
+    // Every Basic viewType (basic-front/basic-back) shares the single
+    // 'basic' family, while any other viewType keeps its own key so
+    // cross-family events stay distinct.
     return viewType.startsWith('basic-') ? 'basic' : viewType;
 }
 
