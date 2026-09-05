@@ -431,7 +431,7 @@ export class ViewLifecycleManager {
      * An explicit hide of both `basic-front` and `basic-back` (both false)
      * with no `basic-2-*` preference is honored as-is.
      */
-private reconcileLegacyBasic2Visibility(): void {
+    private reconcileLegacyBasic2Visibility(): void {
         const saved = localStorage.getItem('rubiksCubeVisibleViews');
         if (!saved) return;
 
