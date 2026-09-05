@@ -215,11 +215,11 @@ describe('layer stability - animated move through the real view (integration)', 
 
     it('rehomes a 4x4 U-layer cubie to the correct size-aware coordinates after an animated move', async () => {
         const { CubeController } = await import('@/cube-controller');
-        const { BasicView } = await import('./basic-2-view');
+        const { BasicView } = await import('./basic-view');
         installAnimationMocks();
 
         const model = new CubeController(4);
-        const view = new BasicView({ viewType: 'basic-2-front' });
+        const view = new BasicView({ viewType: 'basic-front' });
         const container = document.createElement('div');
         view.create(container, model);
 
@@ -270,11 +270,11 @@ describe('layer stability - animated move through the real view (integration)', 
 
     it('keeps a 3x3 animated layer on its baseline coordinates', async () => {
         const { CubeController } = await import('@/cube-controller');
-        const { BasicView } = await import('./basic-2-view');
+        const { BasicView } = await import('./basic-view');
         installAnimationMocks();
 
         const model = new CubeController(3);
-        const view = new BasicView({ viewType: 'basic-2-front' });
+        const view = new BasicView({ viewType: 'basic-front' });
         const container = document.createElement('div');
         view.create(container, model);
 

@@ -1,18 +1,20 @@
+// Initialization for Basic 2 view — builds per-cubie cube DOM (no face divs)
 import { Application } from '@/application';
-import { Face, ReadOnlyCubeModel, StickerId, resolveCubeColor } from '@/cube/types';
-import { CubeStateUtils } from '@/cube/utils';
+import { ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { EventName } from '@/types';
+import { getDefaultVectors } from '@/views/basic/navigation';
 
-import * as navigation from './navigation';
-import * as rendering from './rendering';
+import * as cubieRendering from './cubie-rendering';
+import { initializeGhostAnchors, updateSize } from './rendering';
 import type { BasicVariant, BasicViewInternalData } from './types';
 
 /**
- * Builds the full DOM structure for a basic cube view, wires up all event
- * listeners, and returns the populated internal state object.
+ * Builds the full DOM structure for a Basic 2 cube view and returns the
+ * populated internal state object.
  *
- * Event listeners close over the returned state object, so mutations applied
- * to it after this function returns are immediately visible to those handlers.
+ * Unlike the static Basic view, Basic 2 uses a per-cubie DOM: each surface
+ * cubie is its own `div.cubie` in 3D space with sticker-face children.
+ * There are no face divs or sticker grids.
  */
 export function initialize(
     container: HTMLElement,
@@ -24,7 +26,7 @@ export function initialize(
 ): BasicViewInternalData {
     container.tabIndex = 0;
 
-    const cubeElement = buildCubeElement(model, styles, viewType, onStickerSelected);
+    const cubeElement = buildCubeElement(model, styles, viewType);
 
     let cubeContainer = container.querySelector('.cube-container') as HTMLElement;
     if (!cubeContainer) {
@@ -38,11 +40,11 @@ export function initialize(
     cubeWrapper.appendChild(cubeElement);
     cubeContainer.appendChild(cubeWrapper);
 
-    // Build the state object before attaching remaining event listeners so that
-    // the closures below always reference the canonical state instance.
-    const defaultVectors = navigation.getDefaultVectors(variant);
+    // Build the state object before attaching remaining event listeners
+    const defaultVectors = getDefaultVectors(variant);
     const state: BasicViewInternalData = {
         model,
+        onStickerSelected,
         container,
         cubeElement,
         cubeContainer,
@@ -61,15 +63,13 @@ export function initialize(
         currentSelected: undefined,
     };
 
-    // Render initial face labels
-    rendering.updateFaceLabels(state);
-
     attachContainerListeners(container, cubeElement, state);
 
-    // Set initial size; fall back to a default if the container is not yet laid out.
-    rendering.updateSize(state);
+    // Set initial size (also initializes cubies)
+    updateSize(state);
     if (!cubeElement.style.width) {
-        rendering.initializeFaces(state, 300);
+        cubieRendering.initializeCubies(state, 300);
+        initializeGhostAnchors(state, 300);
     }
 
     return state;
@@ -83,10 +83,27 @@ export function destroy(state: BasicViewInternalData): void {
 }
 
 /**
+ * Build the cube element that hosts the cubies for Basic 2.
+ */
+function buildCubeElement(
+    model: ReadOnlyCubeModel,
+    styles: Record<string, string>,
+    _viewType: string
+): HTMLElement {
+    const cubeElement = document.createElement('div');
+    cubeElement.className = styles['cube'] ?? '';
+    cubeElement.setAttribute('data-view-type', _viewType);
+
+    // Keep the cube container size metadata in sync with the model size.
+    const cubeSize = model.getCurrentState().cubeSize ?? 3;
+    cubeElement.style.width = `${cubeSize * 100}px`;
+    cubeElement.style.height = `${cubeSize * 100}px`;
+
+    return cubeElement;
+}
+
+/**
  * Emits a HIGHLIGHT_CHANGED event with the sticker's id for the given view.
- * Called by the mouseover listener on each sticker element.
- *
- * @internal Exported for testing.
  */
 export function handleStickerMouseOver(element: HTMLElement, viewType: string): void {
     const stickerId = element.getAttribute('data-sticker-id');
@@ -95,9 +112,6 @@ export function handleStickerMouseOver(element: HTMLElement, viewType: string): 
 
 /**
  * Emits a HIGHLIGHT_CHANGED event to clear the highlight for the given view.
- * Called by the mouseout listener on each sticker element.
- *
- * @internal Exported for testing.
  */
 export function handleStickerMouseOut(viewType: string): void {
     Application.eventBus.emit(EventName.HIGHLIGHT_CHANGED, {
@@ -107,131 +121,26 @@ export function handleStickerMouseOut(viewType: string): void {
 }
 
 /**
- * Attaches mouseover, mouseout, and click listeners to a single sticker element.
- *
- * @internal Exported for testing.
+ * Attaches mouse/touch event listeners to the container and cube element.
  */
-export function attachStickerListeners(
-    stickerElement: HTMLElement,
-    viewType: string,
-    onStickerSelected: (id: StickerId) => void
-): void {
-    stickerElement.addEventListener('mouseover', e => {
-        handleStickerMouseOver(e.currentTarget as HTMLElement, viewType);
-    });
-    stickerElement.addEventListener('mouseout', () => {
-        handleStickerMouseOut(viewType);
-    });
-    stickerElement.addEventListener('click', e => {
-        const target = e.currentTarget as HTMLElement;
-        const stickerId = target.getAttribute('data-sticker-id') as StickerId;
-        onStickerSelected(stickerId!);
-    });
-}
-
-/**
- * Builds a single face's blocker element and face div populated with 9 sticker elements.
- *
- * @internal Exported for testing.
- */
-export function buildCubeFace(
-    face: Face,
-    faceName: string,
-    model: ReadOnlyCubeModel,
-    styles: Record<string, string>,
-    viewType: string,
-    onStickerSelected: (id: StickerId) => void
-): { blocker: HTMLElement; faceDiv: HTMLElement } {
-    const blocker = document.createElement('div');
-    blocker.className = `${styles['cube-blocker'] ?? ''} ${styles[faceName] ?? ''}`;
-    blocker.setAttribute('data-face', faceName);
-
-    const faceDiv = document.createElement('div');
-    faceDiv.className = `${styles.face ?? ''} ${styles[faceName] ?? ''}`;
-    faceDiv.setAttribute('data-basic-face', face);
-
-    const cubeState = model.getCurrentState();
-    const cubeSize = cubeState.cubeSize;
-    for (let i = 0; i < cubeSize * cubeSize; i++) {
-        const sticker = CubeStateUtils.getStickerAt(cubeState, face, i);
-        if (!sticker) continue;
-
-        const stickerElement = document.createElement('div');
-        stickerElement.className = styles.sticker ?? '';
-        stickerElement.setAttribute('data-sticker-id', sticker.id);
-        stickerElement.setAttribute('data-basic-face', face);
-        stickerElement.setAttribute('data-basic-pos', String(i));
-        stickerElement.style.backgroundColor = resolveCubeColor(sticker.color);
-
-        attachStickerListeners(stickerElement, viewType, onStickerSelected);
-        faceDiv.appendChild(stickerElement);
-    }
-
-    return { blocker, faceDiv };
-}
-
-/**
- * Builds the entire cube element with all 6 faces and their sticker DOM elements.
- *
- * @internal Exported for testing.
- */
-export function buildCubeElement(
-    model: ReadOnlyCubeModel,
-    styles: Record<string, string>,
-    viewType: string,
-    onStickerSelected: (id: StickerId) => void
-): HTMLElement {
-    const cubeElement = document.createElement('div');
-    cubeElement.className = styles.cube ?? '';
-    cubeElement.id = viewType;
-
-    const faces: Face[] = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
-    const faceNames = ['front', 'back', 'right', 'left', 'top', 'bottom'];
-
-    faces.forEach((face, idx) => {
-        const { blocker, faceDiv } = buildCubeFace(
-            face,
-            faceNames[idx],
-            model,
-            styles,
-            viewType,
-            onStickerSelected
-        );
-        cubeElement.appendChild(blocker);
-        cubeElement.appendChild(faceDiv);
-    });
-
-    return cubeElement;
-}
-
-/**
- * Attaches container-level and cube-level event listeners:
- * mouseenter/mouseleave for hover state and focus, mousedown/mouseup for move
- * requests, and click for VIEW_INTERACTED.
- *
- * @internal Exported for testing.
- */
-export function attachContainerListeners(
-    container: HTMLElement,
+function attachContainerListeners(
+    _container: HTMLElement,
     cubeElement: HTMLElement,
     state: BasicViewInternalData
 ): void {
-    container.addEventListener('mouseenter', () => {
-        container.focus();
-        Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: state.viewType });
+    // Mouseover/out for highlighting
+    cubeElement.addEventListener('mouseover', (event: MouseEvent) => {
+        const target = event.target as HTMLElement;
+        const stickerEl = target.closest('[data-sticker-id]');
+        if (stickerEl) {
+            handleStickerMouseOver(stickerEl as HTMLElement, state.viewType);
+        }
     });
 
-    cubeElement.addEventListener('mouseenter', () => {
-        state.isHovered = true;
-        rendering.updateRotation(state);
-    });
-
-    cubeElement.addEventListener('mouseleave', () => {
-        state.isHovered = false;
-        rendering.updateRotation(state);
-    });
-
-    cubeElement.addEventListener('click', () => {
-        Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: state.viewType });
+    cubeElement.addEventListener('mouseout', (event: MouseEvent) => {
+        const relatedTarget = event.relatedTarget as HTMLElement;
+        if (!cubeElement.contains(relatedTarget)) {
+            handleStickerMouseOut(state.viewType);
+        }
     });
 }
