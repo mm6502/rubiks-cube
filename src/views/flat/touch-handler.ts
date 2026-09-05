@@ -14,7 +14,12 @@ import {
     isHaloHitTargetAtPoint,
     wasTapWithoutDrag,
 } from './touch-handler-hit-testing';
-import { finalizeGesture, handleTap, updateFromGesture } from './touch-handler-interaction';
+import {
+    finalizeGesture,
+    handleTap,
+    inferMoveNotationForGesture,
+    updateFromGesture,
+} from './touch-handler-interaction';
 import {
     applyFaceSelectionStyling,
     cancelZoneRadiusPx,
@@ -384,7 +389,15 @@ export class FlatTouchHandler {
 
     /** Commits or discards the inferred move when the drag completes. */
     private finalizeGesture(gesture: DragGesture): void {
+        // Check if a move will be emitted before clearing the selection
+        const moveNotation = inferMoveNotationForGesture(this.s, gesture);
+
         finalizeGesture(this.s, gesture);
+
+        // Clear face selection after move is emitted
+        if (moveNotation) {
+            this.selectFace(undefined);
+        }
     }
 
     /** Shows the drag-direction label overlay near the given client coordinates. */

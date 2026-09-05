@@ -616,6 +616,9 @@ export class BasicTouchHandler {
             tentative: false,
         };
         Application.eventBus.emit(EventName.MOVE_REQUESTED, payload);
+
+        // Clear face selection after move is emitted
+        this.selectFace(undefined);
     }
 
     /**

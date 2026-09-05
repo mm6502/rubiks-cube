@@ -719,6 +719,10 @@ export function onDragEnd(state: TouchHandlerState, gesture: DragGesture): void 
         };
         Application.eventBus.emit(EventName.MOVE_REQUESTED, payload);
     }
+
+    // Clear face selection after move is emitted
+    state.selectedFace = undefined;
+    hideHalo(state);
 }
 
 // ── Pointer-down sub-handlers ───────────────────────────────────────────────
