@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-export
 /**
  * Adds resize handles to a panel element for user interaction
  * @param panel - The panel element to add resize handles to
@@ -14,5 +13,3 @@ export function addResizeHandles(panel: HTMLElement, styles: Record<string, stri
         panel.appendChild(handle);
     });
 }
-
-export default addResizeHandles;

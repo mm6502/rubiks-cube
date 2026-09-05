@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-class-member
 import { Face, FaceEdge } from '@/cube/types';
 
 import ghostStyles from './ghost-strips.module.css';
@@ -397,11 +396,6 @@ export class GhostStrips {
 
     /** Whether ghosts are currently shown. */
     isVisible(): boolean {
-        return this.opacityIndex > 0;
-    }
-
-    /** Get ghost state for serialization. */
-    getShowGhosts(): boolean {
         return this.opacityIndex > 0;
     }
 

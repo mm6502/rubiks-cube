@@ -117,7 +117,7 @@ function buildCubeElement(
 /**
  * Emits a HIGHLIGHT_CHANGED event with the sticker's id for the given view.
  */
-export function handleStickerMouseOver(element: HTMLElement, viewType: string): void {
+function handleStickerMouseOver(element: HTMLElement, viewType: string): void {
     const stickerId = element.getAttribute('data-sticker-id');
     Application.eventBus.emit(EventName.HIGHLIGHT_CHANGED, { stickerId, viewId: viewType });
 }
@@ -125,7 +125,7 @@ export function handleStickerMouseOver(element: HTMLElement, viewType: string): 
 /**
  * Emits a HIGHLIGHT_CHANGED event to clear the highlight for the given view.
  */
-export function handleStickerMouseOut(viewType: string): void {
+function handleStickerMouseOut(viewType: string): void {
     Application.eventBus.emit(EventName.HIGHLIGHT_CHANGED, {
         stickerId: undefined,
         viewId: viewType,

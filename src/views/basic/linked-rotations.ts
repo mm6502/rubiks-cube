@@ -12,7 +12,7 @@ function getFamilyKey(viewType: string): string {
     return viewType.startsWith('basic-') ? 'basic' : viewType;
 }
 
-export function getFamilyKeyFromViewType(viewType?: string): string {
+function getFamilyKeyFromViewType(viewType?: string): string {
     if (!viewType) return 'basic';
     return getFamilyKey(viewType);
 }

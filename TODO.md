@@ -7,18 +7,23 @@ status and future plans.
 
 ## Current tasks
 
-- [ ] Add support for custom cube sizes (e.g., 2×2, 4×4, 5×5+)
-  - [x] Add Flat view support for custom cube sizes
-  - [x] Add Basic view support for custom cube sizes
-  - [x] Add Basic 2 view support for custom cube sizes
-    - [ ] Debug Basic 2 view support for custom cube sizes
-  - [ ] Add Circular view support for custom cube sizes
-    - [ ] Add 2x2 support
-    - [ ] Add 4x4 support
-    - [ ] Add 5x5 support
-    - [ ] Add 6x6 support
-    - [ ] Add 7x7 support
-  - [ ] Obsolete Basic view in favor of Basic 2 view
+- [ ] Moves view icon fallback for size-specific moves — numbered slice/wide
+      moves (`2M`, `3E`, `4S`, `2Rw`, ...) render no icon on n>3 cubes; add a
+      family-glyph + notation-label fallback reusing the existing icon set (zero
+      new SVG assets). Requirements:
+      [docs/brainstorms/2026-09-05-moves-view-icon-fallback-requirements.md](docs/brainstorms/2026-09-05-moves-view-icon-fallback-requirements.md)
+  - [ ] Feasibility check (at planning): numbered-wide engine support (path A)
+        vs. notation-regex fallback (path C); scramble pool probability check
+  - [ ] Resolver design (canonical-family on `MoveDefinition`)
+  - [ ] Renderer integration in the Moves view
+  - [ ] Unit tests + browser verification (sizes 4–7)
+
+- [ ] Add Circular view support for custom cube sizes (2×2–7×7)
+  - [ ] Add 2×2 support (independent follow-up)
+  - [ ] Add 4×4 support (independent follow-up)
+  - [ ] Add 5×5 support (independent follow-up)
+  - [ ] Add 6×6 support (independent follow-up)
+  - [ ] Add 7×7 support (independent follow-up)
 
 ## Future Tasks
 

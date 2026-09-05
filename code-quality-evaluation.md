@@ -1,6 +1,6 @@
 # Code Quality Evaluation
 
-Last evaluated: 2026-08-15
+Last evaluated: 2026-09-05
 
 ## ✅ Strengths
 
@@ -15,7 +15,7 @@ Last evaluated: 2026-08-15
 
 - Type Safety (10/10)
   - Strict TypeScript configuration with all strict mode flags enabled
-  - Zero compilation errors verified
+  - Zero compilation errors verified (type-check clean on 2026-09-05)
   - Comprehensive type definitions across all modules
   - Excellent use of generics and type narrowing
   - Strong type inference throughout
@@ -31,13 +31,16 @@ Last evaluated: 2026-08-15
     moves-view.ts)
   - Null/undefined checks throughout codebase, especially in view components
 
-- Testing (10/10)
-  - 93 test files covering core functionality
+- Testing (9/10)
+  - 92 test files covering core functionality
   - Comprehensive unit tests for critical logic (move engine, navigation,
     invariants, state management)
   - Well-structured tests with descriptive names and proper setup/teardown
   - Good coverage of edge cases and integration scenarios
-  - 2087 individual tests passing in the latest run
+  - 2039 individual tests passing in the latest run (2026-09-05)
+  - Dedicated per-module suites cover animations, corner-orientation,
+    cubie-rendering, ghost-stickers, initialization, layer-stability, rendering,
+    touch-handler, commands, core API, and manual rotation
 
 - Code Organization (9/10)
   - Clear directory structure: src/ with logical grouping
@@ -48,14 +51,23 @@ Last evaluated: 2026-08-15
     hit-testing, interaction, overlays, fretboard)
   - Flat touch-handler decomposed into focused sub-modules (hit-testing,
     interaction, overlays, types)
-  - Dedicated test files added for 4 flat view modules (legend-drag, commands,
-    touch-handler-hit-testing, touch-handler-interaction)
+  - Basic view family shares one implementation with front/back variants and
+    family-scoped linked rotations (no duplicated per-variant engine)
+
+- Tooling & Automation (9/10)
+  - Husky pre-commit hook (lint-staged + type-check) and pre-push hook
+    (`npm test && npm run build`) are in place
+  - GitHub Actions CI workflow (`.github/workflows/ci.yml`) runs lint, format
+    check, type check, unit tests with the coverage gate, and a production build
+    on every push and on PRs to main
+  - Separate deploy (gh-pages) and branch-cleanup workflows
 
 - Documentation (9/10)
   - Comprehensive architecture documentation in docs
   - Extensive inline JSDoc comments
   - Clear README with project structure
   - Design decision rationale documented
+  - Cutover requirements + plan docs tracked (2026-09-05)
 
 - Immutability & State Management (10/10)
   - Immutable.js integration for state safety
@@ -70,88 +82,93 @@ Last evaluated: 2026-08-15
   - Some functions lack parameter validation (especially in view components)
   - Consider structured error types instead of generic errors
 
-- Test Coverage (8/10)
-  - Overall coverage is now above the target: 92.92% statements, 85.04%
-    branches, 93.78% functions, and 93.91% lines
-  - The project is now passing the full coverage gate, but a few UI-heavy
-    modules still lag behind the broader codebase
-  - Basic 2 coverage improved substantially, but it remains the weakest view
-    module at 73.14% statements, 60% branches, 64.4% functions, and 74.71% lines
-  - Core modules remain excellent: cube/core (94.28% stmts, 88.30% branch),
-    cube/utils (95.33% stmts, 91.30% branch)
-  - View components coverage remains strong overall: basic (92.36% stmts, 84.54%
-    branch), flat (95.62% stmts, 89.22% branch), circular (93.84% stmts, 83.66%
-    branch), and moves (93.15% stmts, 83.07% branch)
+- Test Coverage (9/10)
+  - Overall coverage is strong: 94.28% statements, 85.93% branches, 96.16%
+    functions, and 95.38% lines — comfortably above the 70% gate
+  - The command/core/manual-rotation suites in `src/views/basic/` give full
+    coverage of the view's command layer (`commands.ts` at 91.83% stmts) and its
+    rotation/state-persistence behaviour
+  - Core modules remain excellent: cube/core (93.97% stmts, 88.81% branch),
+    cube/utils (95.53% stmts, 91.59% branch)
+  - View modules are all strong: basic (92.87% stmts, 80.55% branch), flat
+    (95.50% stmts, 89.34% branch), circular (93.85% stmts, 83.66% branch), moves
+    (93.19% stmts, 83.07% branch)
+  - One per-file branch ceiling exists in `vitest.config.ts`:
+    `src/views/basic/touch-handler.ts` is capped at 75% branches because some
+    multi-pointer gesture paths need a real PointerEvent dispatch loop that
+    jsdom cannot provide
 
 - Component Size (8/10)
   - Circular touch-handler successfully decomposed into sub-modules
   - Flat touch-handler successfully decomposed into sub-modules
   - cube-controller.ts at 343 lines is reasonable
   - Good modular decomposition achieved
+  - Note: `src/views/basic/basic-view.ts` remains large (~700+ lines); direct
+    coverage of its deepest animation/orchestration paths is the remaining
+    incremental opportunity
 
-- Missing Tooling (7/10)
-  - No pre-commit hooks or CI workflow are currently visible in the repo
-  - A subset of files remains intentionally outside formatting scope via
-    `.prettierignore` (`*.html`, `package-lock.json`)
-  - A few environment-bound branches remain covered by the existing threshold
-    strategy and test-environment constraints
-  - The Basic 2 view is still the best place for incremental future coverage
-    gains
+- Missing Tooling — none significant; CI runs lint, format check, type-check,
+  tests with the coverage gate, and a production build, and the pre-push hook
+  mirrors the same checks locally
 
 ## 📊 Metrics Summary
 
 | Metric                 | Value                 |
 | ---------------------- | --------------------- |
-| Test Files:            | 93                    |
-| Test Count:            | 2087 passing tests    |
+| Test Files:            | 92                    |
+| Test Count:            | 2039 passing tests    |
 | TypeScript Check:      | ✅ Passed             |
 | Linting:               | ✅ Passed             |
 | Build:                 | ✅ Passed             |
-| Coverage (statements): | 92.92%                |
-| Coverage (branches):   | 85.04%                |
-| Coverage (functions):  | 93.78%                |
-| Coverage (lines):      | 93.91%                |
+| Coverage (statements): | 94.28%                |
+| Coverage (branches):   | 85.93%                |
+| Coverage (functions):  | 96.16%                |
+| Coverage (lines):      | 95.38%                |
 | Quality Gate:          | ✅ npm run all passed |
 
-## 📈 Per-Module Coverage (current)
+## 📈 Per-Module Coverage (current, 2026-09-05)
 
 | Module             | Stmts  | Branch | Funcs  | Lines  |
 | ------------------ | ------ | ------ | ------ | ------ |
-| **All files**      | 92.92% | 85.04% | 93.78% | 93.91% |
-| src/cube/core      | 94.28% | 88.30% | 100%   | 94.07% |
-| src/cube/utils     | 95.33% | 91.30% | 100%   | 95.55% |
+| **All files**      | 94.28% | 85.93% | 96.16% | 95.38% |
+| src/cube/core      | 93.97% | 88.81% | 100%   | 93.72% |
+| src/cube/utils     | 95.53% | 91.59% | 100%   | 95.76% |
 | src/interaction    | 94.83% | 93.50% | 96.66% | 95.33% |
-| src/views/basic    | 92.36% | 84.54% | 93%    | 93.78% |
-| src/views/basic-2  | 73.14% | 60%    | 64.4%  | 74.71% |
-| src/views/flat     | 95.62% | 89.22% | 96.44% | 96.54% |
-| src/views/circular | 93.84% | 83.66% | 97.48% | 95.32% |
-| src/views/moves    | 93.15% | 83.07% | 96.29% | 95.65% |
-| src/view-manager   | 94.90% | 86.18% | 94.02% | 95.71% |
+| src/views/basic    | 92.87% | 80.55% | 91.98% | 94.89% |
+| src/views/flat     | 95.50% | 89.34% | 96.62% | 96.37% |
+| src/views/circular | 93.85% | 83.66% | 97.49% | 95.33% |
+| src/views/moves    | 93.19% | 83.07% | 96.42% | 95.68% |
+| src/view-manager   | 94.61% | 86.29% | 94.30% | 95.66% |
 | src/diagnostics    | 100%   | 91.30% | 100%   | 100%   |
-| src (root)         | 96.30% | 90.84% | 95.31% | 97%    |
+| src (root)         | 93.38% | 85.26% | 93.67% | 94.85% |
 
-**Notable files:** `src/views/basic/touch-handler.ts` (88.99% statements, 76.53%
-branches, 98.14% functions, 91.17% lines) and `src/views/basic/basic-view.ts`
-(84.54% statements, 78.30% branches, 77.77% functions, 84.18% lines). These
-remain below the broader project average, but are still within the existing
-accepted-ceiling guidance for environment- constrained browser/WebGL paths.
+**Notable files (within the consolidated basic view):**
+
+- `src/views/basic/commands.ts` — 91.83% stmts / 81.25% branch / 77.77% funcs.
+  `basic-view.commands.test.ts` covers reset-view, align-cube-to-view,
+  face-direct-mode, link-rotations, undo/redo, and rotate-view commands.
+- `src/views/basic/basic-view.ts` — 84.1% stmts / 70.17% branch / 76.27% funcs.
+  The core/commands/manual-rotation suites give solid coverage; the
+  animation-interrupt and destroy paths remain the lightest-covered areas.
+- `src/views/basic/touch-handler.ts` — 94.31% stmts / 78.84% branch — healthy
+  (see per-file branch ceiling note under Test Coverage).
 
 ## 🎯 Priority Recommendations
 
-The repository is in a healthy state overall. The main opportunities now are
-incremental rather than critical:
+The repository is in a healthy state. Remaining opportunities are incremental:
 
-1. **Keep branch coverage above the target** — the current 85.04% branch result
-   is above the project floor and should remain green with continued coverage
-   upkeep.
-2. **Continue improving Basic 2 coverage** — it remains the weakest view module
-   and is still the best place for incremental test gains.
-3. **Add lightweight CI and pre-commit quality checks** — this would help keep
-   the current health level stable as the codebase evolves.
+1. **Top up `basic-view.ts` direct coverage** — add targeted tests for the
+   remaining uncovered orchestration/animation paths (animation-interrupt and
+   destroy branches).
+2. **Consider raising the coverage thresholds** — the current 85.93% branch /
+   94.28% statements results sit well above the 70% floor; raising the gate
+   (e.g. to ~85%) would catch gradual coverage regressions earlier while the CI
+   coverage gate is now active.
 
-Overall Grade: A- (92/100)
+Overall Grade: A (93/100)
 
-This codebase now shows strong quality across architecture, type safety,
-validation, testing, and build health. The biggest remaining improvement
-opportunities are incremental quality-of-life enhancements rather than urgent
-stability issues.
+The codebase shows strong architecture, type safety, documentation, testing, and
+a green quality gate enforced in CI (lint, format, type-check, tests with the
+coverage gate, and a production build). The Basic view family is unified on a
+single per-cubie engine with solid coverage across its modules. Remaining work
+is incremental coverage polish rather than urgent fixes.

@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-type
 import { Map as IMap } from 'immutable';
 
 import { CubieId } from '@/cube/types/ids';

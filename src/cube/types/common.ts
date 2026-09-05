@@ -107,7 +107,9 @@ export const FaceEdge = {
     RIGHT: 'right',
 } as const;
 
-// fallow-ignore-next-line unused-type
+/**
+ * Type representing the edges of a face.
+ */
 export type FaceEdge = (typeof FaceEdge)[keyof typeof FaceEdge];
 
 /**
@@ -118,6 +120,9 @@ export type FaceEdge = (typeof FaceEdge)[keyof typeof FaceEdge];
  */
 export const SUPPORTED_SIZES = [2, 3, 4, 5, 6, 7] as const;
 
+/**
+ * Type representing the supported cube sizes.
+ */
 export type CubeSize = (typeof SUPPORTED_SIZES)[number];
 
 /**

@@ -3,7 +3,7 @@
 For current code quality evaluation, see
 [code quality evaluation](code-quality-evaluation.md).
 
-Last quality snapshot: 2026-08-15 (92 test files passing; 2071 tests passing).
+Last quality snapshot: 2026-09-05 (92 test files passing; 2039 tests passing).
 
 ✅ **Complete (100%)**
 
@@ -34,22 +34,26 @@ Last quality snapshot: 2026-08-15 (92 test files passing; 2071 tests passing).
 - [x] (Aug 2026) Scope linked rotations by view family for Basic and Basic 2,
       keeping Basic and Basic 2 toggles independent while preserving same-family
       propagation
+- [x] (Sep 2026) Multi-size cube support (2×2–7×7) across the Flat, Basic and
+      Basic 2 views — size selector, per-size saved state, and per-view size
+      capability declarations
+- [x] (Sep 2026) Cut over Basic 2 to replace the Basic view — the animated
+      per-cubie engine is now the single Basic view (see
+      [docs/brainstorms/2026-09-05-basic2-cutover-requirements.md](docs/brainstorms/2026-09-05-basic2-cutover-requirements.md))
 
 🚧 **Planned**
 
-- [ ] Add support for custom cube sizes (e.g., 2×2, 4×4, 5×5+)
-  - [x] Add Flat view support for custom cube sizes
-  - [x] Add Basic view support for custom cube sizes
-  - [x] Add Basic 2 view support for custom cube sizes
-    - [x] Debug Basic 2 view support for custom cube sizes
-  - [ ] Circular view: add 2x2 support (independent follow-up)
-  - [ ] Circular view: add 4x4 support (independent follow-up)
-  - [ ] Circular view: add 5x5 support (independent follow-up)
-  - [ ] Circular view: add 6x6 support (independent follow-up)
-  - [ ] Circular view: add 7x7 support (independent follow-up)
-  - [x] Cut over Basic 2 to replace the Basic view (the animated per-cubie
-        engine is now the single Basic view — see
-        [docs/brainstorms/2026-09-05-basic2-cutover-requirements.md](docs/brainstorms/2026-09-05-basic2-cutover-requirements.md))
+- [ ] Moves view icon fallback for size-specific moves (in progress — see
+      [docs/brainstorms/2026-09-05-moves-view-icon-fallback-requirements.md](docs/brainstorms/2026-09-05-moves-view-icon-fallback-requirements.md))
+  - Numbered slice/wide moves render as text on n>3; add family-glyph + label
+    fallback reusing existing icons (no new SVG assets)
+
+- [ ] Add Circular view support for custom cube sizes (2×2–7×7)
+  - [ ] 2×2 (independent follow-up)
+  - [ ] 4×4 (independent follow-up)
+  - [ ] 5×5 (independent follow-up)
+  - [ ] 6×6 (independent follow-up)
+  - [ ] 7×7 (independent follow-up)
 
 ## Future Enhancements
 

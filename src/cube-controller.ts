@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-class-member
 import { getCubeInvariants } from '@/cube/core/cube-invariants';
 import { MoveHistory } from '@/cube/core/move-history';
 import { getInverseMoveString, parseStringMove } from '@/cube/core/move-parser';

@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-export
 import { CubeView, ReadOnlyCubeModel, Size2D } from '@/cube/types';
 import { Command } from '@/types';
 
@@ -55,5 +54,3 @@ export class PlaceholderView implements CubeView {
         // Cleanup if needed
     }
 }
-
-export default PlaceholderView;

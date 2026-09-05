@@ -4,5 +4,4 @@ public
 dist
 .github/*
 !.github/AGENTS.md
-*.html
 package-lock.json

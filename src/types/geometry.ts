@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-type
 import { Branded } from '@/global';
 
 /**

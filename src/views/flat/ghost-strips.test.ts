@@ -132,17 +132,17 @@ describe('ghost hints', () => {
         }
     });
 
-    it('getShowGhosts returns true when visible, false when hidden', () => {
+    it('ghost strips toggle visibility via isVisible', () => {
         const gs = view.getGhostStrips()!;
 
         // Initially visible (opacityIndex = 1)
-        expect(gs.getShowGhosts()).toBe(true);
+        expect(gs.isVisible()).toBe(true);
 
         // Toggle twice: 75% → 100% → off
         getCmd().action(); // → 100%
-        expect(gs.getShowGhosts()).toBe(true);
+        expect(gs.isVisible()).toBe(true);
         getCmd().action(); // → off
-        expect(gs.getShowGhosts()).toBe(false);
+        expect(gs.isVisible()).toBe(false);
     });
 
     it('setShowGhosts cycles visibility correctly', () => {
@@ -154,12 +154,12 @@ describe('ghost hints', () => {
         // Set to hidden
         gs.setShowGhosts(false);
         expect(gs.getOpacityIndex()).toBe(0);
-        expect(gs.getShowGhosts()).toBe(false);
+        expect(gs.isVisible()).toBe(false);
 
         // Set back to visible
         gs.setShowGhosts(true);
         expect(gs.getOpacityIndex()).toBe(1);
-        expect(gs.getShowGhosts()).toBe(true);
+        expect(gs.isVisible()).toBe(true);
     });
 });
 

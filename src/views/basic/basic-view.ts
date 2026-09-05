@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-type unused-class-member
+// fallow-ignore-file unused-type
 // Basic View — per-cubie 3D architecture with move animations
 import { Application } from '@/application';
 import {
@@ -275,6 +275,9 @@ export class BasicView implements CubeView {
         this.restoreSelection();
     }
 
+    // Called by ViewManager via the CubeView interface (updateSelective?); fallow
+    // cannot see interface-member calls, so this is suppressed as a known pattern.
+    // fallow-ignore-next-line unused-class-member
     updateSelective(event?: MoveExecutedEvent): void {
         if (event && this.state.model) {
             this.handleMoveExecuted(event);
@@ -306,6 +309,9 @@ export class BasicView implements CubeView {
         this.touchHandler?.resize();
     }
 
+    // Called by ViewManager via the CubeView interface (setLayoutMode?); fallow
+    // cannot see interface-member calls, so this is suppressed as a known pattern.
+    // fallow-ignore-next-line unused-class-member
     setLayoutMode(mode: LayoutMode): void {
         this.state.layoutMode = mode;
         this.touchHandler?.setLayoutMode(mode);

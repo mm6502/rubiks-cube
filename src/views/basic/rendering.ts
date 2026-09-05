@@ -9,7 +9,7 @@ import type { BasicViewInternalData } from './types';
 /**
  * CSS angle constants for basic view base orientation.
  */
-const BASIC_VIEW_ANGLES = {
+export const BASIC_VIEW_ANGLES = {
     BASE_X: -25,
     BASE_Y: -35,
     PITCHED_BASE_X: 25,

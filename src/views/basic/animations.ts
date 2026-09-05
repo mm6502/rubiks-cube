@@ -15,7 +15,7 @@ export type BasicAnimationConfig = {
 /**
  * Default animation configuration.
  */
-export const DEFAULT_BASIC_ANIMATION_CONFIG: BasicAnimationConfig = {
+const DEFAULT_BASIC_ANIMATION_CONFIG: BasicAnimationConfig = {
     duration: 300,
     easing: 'ease-out',
 };
