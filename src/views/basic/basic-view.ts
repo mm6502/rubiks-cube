@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-type unused-class-member
 // Basic View — per-cubie 3D architecture with move animations
 import { Application } from '@/application';
 import {
