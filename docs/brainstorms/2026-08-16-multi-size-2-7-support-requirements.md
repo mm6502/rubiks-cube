@@ -69,9 +69,12 @@ scrambling cubes of size 2–7. No solver is needed.
 **Scramble**
 
 - R10. Scramble works for every supported size (2–7).
-- R11. Scramble move count scales with cube size — a minimum of `8 × N` moves
-  (e.g., 56 for 7×7, 16 for 2×2). The exact formula beyond this floor is a
-  planning decision.
+- R11. Scramble move count scales with cube size — `max(11, 20 × (N − 2))` moves
+  (11 for 2×2, 20 for 3×3, 40 for 4×4, 60 for 5×5, 80 for 6×6, 100 for 7×7). An
+  explicit move count overrides this default.
+- R11b. Scramble draws from face and single-inner-layer (slice) moves for sizes
+  4–7 so inner layers and centers are also scrambled; consecutive moves never
+  share a rotation axis. Wide moves and whole-cube rotations are not used.
 
 **Even-size support**
 
@@ -120,8 +123,10 @@ scrambling cubes of size 2–7. No solver is needed.
   back to 4×4 — the scrambled 4×4 state is intact.
 - AE3. **Covers R12.** Import a 2×2 state — it loads correctly with no error log
   about virtual-center sticker positions.
-- AE4. **Covers R11.** A 7×7 scramble produces at least 56 moves and more moves
-  than a 2×2 scramble.
+- AE4. **Covers R11.** A 7×7 scramble produces 100 moves and more moves than a
+  2×2 scramble (11).
+- AE4b. **Covers R11b.** Scramble a 4×4 — inner-layer centers are displaced from
+  their original positions, and no two consecutive scramble moves share an axis.
 - AE5. **Covers R12.** Scramble a 4×4, save, restore, and re-import — the state
   round-trips with no errors and legal notation.
 - AE6. **Covers R16.** Apply a face move and a whole-cube rotation at 2×2 and

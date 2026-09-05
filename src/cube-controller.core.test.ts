@@ -1,6 +1,24 @@
 // CubeController core functionality tests
+import { getCubeInvariants } from '@/cube/core/cube-invariants';
+
 import { CubeController } from './cube-controller';
-import { Face } from './cube/types';
+import { CubieType } from './cube/types';
+
+/**
+ * Map of center-cubie ID to its position, used to assert that a scramble
+ * actually relocates centers on large cubes. Tracking by ID (not position) is
+ * required because the set of center positions is invariant across moves —
+ * only which cubie occupies each position changes.
+ */
+function centerIdToPosition(cube: CubeController): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const cubie of cube.getCurrentState().cubiesById.values()) {
+        if (cubie.type === CubieType.CENTER) {
+            map.set(cubie.id, `${cubie.position.x},${cubie.position.y},${cubie.position.z}`);
+        }
+    }
+    return map;
+}
 
 describe('CubeController Core Functionality', () => {
     let model: CubeController;
@@ -72,8 +90,8 @@ describe('CubeController Core Functionality', () => {
             // Act
             const moves: string[] = model.scramble();
 
-            // Assert — default count is size-scaled: 8 × 3 = 24 for a 3x3.
-            expect(moves).toHaveLength(24);
+            // Assert — default count is size-scaled: max(11, 20 × (3−2)) = 20.
+            expect(moves).toHaveLength(20);
             expect(model.isSolved()).toBe(false);
             expect(model.getMoveHistory().getCurrentMoves()).toHaveLength(0);
         });
@@ -88,26 +106,70 @@ describe('CubeController Core Functionality', () => {
             expect(model.getMoveHistory().getCurrentMoves()).toHaveLength(0);
         });
 
-        it('should return valid move strings', () => {
+        it('returns only single-layer turns that are in the move table', () => {
             // Act
-            const moves: string[] = model.scramble(5);
+            const moves: string[] = model.scramble(20);
+            const defs = getCubeInvariants(3).moveDefinitions;
 
-            // Assert
+            // Assert — every move must exist in the table and describe a turn
+            // of exactly one layer, so wide moves and whole-cube rotations
+            // (which turn several layers at once) can never appear.
             moves.forEach(move => {
-                expect(typeof move).toBe('string');
-                expect(move.length).toBeGreaterThan(0);
-                expect(move.length).toBeLessThanOrEqual(2);
-                expect(Object.values(Face)).toContain(move[0] as Face);
-                if (move.length === 2) {
-                    expect(["'", '2']).toContain(move[1]);
-                }
+                const def = defs.get(move);
+                expect(def).toBeDefined();
+                expect(def!.layerIndices).toHaveLength(1);
             });
         });
 
-        it('scales default scramble length with cube size (8 x N)', () => {
-            expect(new CubeController(2).scramble()).toHaveLength(16);
-            expect(new CubeController(4).scramble()).toHaveLength(32);
-            expect(new CubeController(7).scramble()).toHaveLength(56);
+        it('drops the bare M/E/S exception and never doubles an alias', () => {
+            // A physical turn can be registered as both the bare slice (M) and
+            // the numbered slice (2M). The pool keeps the numbered spelling
+            // and drops the bare M/E/S exception (per the scramble design), so
+            // for sizes 4+ no emitted move is a bare M/E/S, and each physical
+            // (axis, layer, angle) is always spelled the same way.
+            for (const size of [3, 4, 5]) {
+                const cube = new CubeController(size);
+                const moves = cube.scramble(40);
+                const defs = getCubeInvariants(size).moveDefinitions;
+                const nameByTurn = new Map<string, string>();
+                moves.forEach(move => {
+                    if (size > 3) {
+                        // Bare M/E/S never reaches the emitted scramble.
+                        expect(move).not.toMatch(/^[MES]['2]?$/);
+                    }
+                    const def = defs.get(move)!;
+                    const key = `${def.axis}:${def.layerIndices.join(',')}:${def.angle}`;
+                    const seenName = nameByTurn.get(key);
+                    if (seenName !== undefined) {
+                        expect(move).toBe(seenName);
+                    } else {
+                        nameByTurn.set(key, move);
+                    }
+                });
+            }
+        });
+
+        it('never repeats a rotation axis on consecutive moves', () => {
+            const sizes = [2, 3, 4, 5, 6, 7];
+            for (const size of sizes) {
+                const cube = new CubeController(size);
+                const moves = cube.scramble();
+                const defs = getCubeInvariants(size).moveDefinitions;
+                for (let i = 1; i < moves.length; i++) {
+                    const prevAxis = defs.get(moves[i - 1])!.axis;
+                    const axis = defs.get(moves[i])!.axis;
+                    expect(axis).not.toBe(prevAxis);
+                }
+            }
+        });
+
+        it('scales default scramble length with cube size (max(11, 20 × (n−2)))', () => {
+            expect(new CubeController(2).scramble()).toHaveLength(11);
+            expect(new CubeController(3).scramble()).toHaveLength(20);
+            expect(new CubeController(4).scramble()).toHaveLength(40);
+            expect(new CubeController(5).scramble()).toHaveLength(60);
+            expect(new CubeController(6).scramble()).toHaveLength(80);
+            expect(new CubeController(7).scramble()).toHaveLength(100);
         });
 
         it('honors an explicit move count regardless of size', () => {
@@ -118,9 +180,45 @@ describe('CubeController Core Functionality', () => {
         it('a 4x4 scramble produces a legal, non-solved state', () => {
             const four = new CubeController(4);
             const moves = four.scramble();
-            expect(moves).toHaveLength(32);
+            expect(moves).toHaveLength(40);
             expect(four.isSolved()).toBe(false);
             expect(four.getMoveHistory().getCurrentMoves()).toHaveLength(0);
+        });
+
+        it('produces a deterministic sequence from a seeded random source', () => {
+            // mulberry32: a small deterministic PRNG with 32-bit state. The
+            // same seed always yields the same [0,1) sequence, so the scramble
+            // is exactly reproducible without stubbing Math.random.
+            const seedable = (seed: number) => {
+                let state = seed >>> 0;
+                return () => {
+                    state |= 0;
+                    state = (state + 0x6d2b79f5) | 0;
+                    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+                    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+                };
+            };
+            const a = new CubeController(4).scramble(20, seedable(42));
+            const b = new CubeController(4).scramble(20, seedable(42));
+            expect(a).toEqual(b);
+        });
+
+        it('displaces at least one center cubie for sizes 4+', () => {
+            for (const size of [4, 5, 7]) {
+                const cube = new CubeController(size);
+                const before = centerIdToPosition(cube);
+                cube.scramble();
+                const after = centerIdToPosition(cube);
+                expect(after).not.toEqual(before);
+            }
+        });
+
+        it('clears move history after scrambling', () => {
+            model.applyMove('U');
+            expect(model.getMoveHistory().getCurrentMoves()).toHaveLength(1);
+            model.scramble(5);
+            expect(model.getMoveHistory().getCurrentMoves()).toHaveLength(0);
         });
     });
 
