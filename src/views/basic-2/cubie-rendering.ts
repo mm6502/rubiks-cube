@@ -57,16 +57,7 @@ function renderCubieFaces(
 
     const stickerFaces = new Set<Face>();
 
-    // DEBUG: Log for corner cubies to trace rendering
-    const isCorner = cubie.stickers.size === 3;
-
-    if (isCorner && (cubie.id === 'pos_00_00_00' || cubie.id === 'pos_00_00_03')) {
-        console.log(
-            `[renderCubieFaces] ${cubie.id} pos=(${cubie.position.x},${cubie.position.y},${cubie.position.z}) orientation=${cubie.orientation}`
-        );
-    }
-
-    cubie.stickers.forEach((sticker, idx) => {
+    cubie.stickers.forEach(sticker => {
         const faceEl = document.createElement('div');
         faceEl.className = styles['sticker'] ?? 'sticker';
         faceEl.setAttribute('data-sticker-id', sticker.id);
@@ -74,12 +65,6 @@ function renderCubieFaces(
         faceEl.style.backgroundColor = resolveCubeColor(sticker.color);
         faceEl.style.transform = getFaceTransform(sticker.currentFace, cubieHalf);
         faceEl.addEventListener('click', () => onStickerSelected(sticker.id));
-
-        if (isCorner && (cubie.id === 'pos_00_00_00' || cubie.id === 'pos_00_00_03')) {
-            console.log(
-                `  [${idx}] id=${sticker.id} localIdx=${sticker.localIndex} color=${sticker.color} currentFace=${sticker.currentFace}`
-            );
-        }
 
         cubieEl.appendChild(faceEl);
         stickerFaces.add(sticker.currentFace);
@@ -226,13 +211,6 @@ export function updateCubiePositions(
 ): void {
     const cubeSize = getCubeSizeFromElement(cubeElement);
 
-    // DEBUG: Log for non-3 cubes
-    if (cubeSize !== 3) {
-        console.log(
-            `[updateCubiePositions] cubeSize=${cubeSize}, movedCubies count=${movedCubies.after.length}`
-        );
-    }
-
     movedCubies.after.forEach(cubie => {
         // Find the cubie DOM element
         const cubieEl = cubeElement.querySelector(`[data-cubie-id="${cubie.id}"]`) as HTMLElement;
@@ -263,12 +241,6 @@ function getCubeSizeFromElement(cubeElement: HTMLElement): number {
     const cubieSize = (cubeElement as HTMLElement & { cubieSize?: number }).cubieSize;
     if (cubieSize && cubeElement.style.width) {
         const calculated = Math.round(parseFloat(cubeElement.style.width) / cubieSize);
-        // DEBUG: Log for non-3 cubes to verify calculation
-        if (calculated !== 3) {
-            console.log(
-                `[getCubeSizeFromElement] width=${cubeElement.style.width}, cubieSize=${cubieSize}, calculated=${calculated}`
-            );
-        }
         return calculated;
     }
     return 3; // default fallback

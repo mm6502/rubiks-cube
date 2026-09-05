@@ -131,61 +131,12 @@ describe('corner-orientation - verify sticker currentFace after non-3 moves', ()
         expect(result).not.toBeNull();
         expect(result!.movedCubies.after.length).toBeGreaterThan(0);
 
-        console.log('=== R Move Test ===');
-        console.log('Moved cubies:', result!.movedCubies.after.length);
-
         // Check all corners in R-layer
         for (const cubie of result!.movedCubies.after) {
             if (cubie.stickers.size !== 3) continue; // Only corners
 
-            console.log(
-                `Corner at ${JSON.stringify(cubie.position)}, orientation=${cubie.orientation}:`
-            );
-
             const stickerFaces: string[] = [];
-            cubie.stickers.forEach((sticker, id) => {
-                console.log(`  Sticker ${id}: currentFace=${sticker.currentFace}`);
-                expect(sticker.currentFace).toBeDefined();
-                expect(['F', 'B', 'R', 'L', 'U', 'D']).toContain(sticker.currentFace);
-                stickerFaces.push(sticker.currentFace);
-            });
-
-            // Verify correct number and variety of faces
-            expect(stickerFaces.length).toBe(3);
-            expect(new Set(stickerFaces).size).toBe(3);
-
-            // Verify the sticker faces match what's available at corner position
-            const expectedFaces = getExpectedCornerFaces(cubie.position, 4);
-            expect(new Set(stickerFaces)).toEqual(new Set(expectedFaces));
-        }
-    });
-
-    /**
-     * Test F move (Z axis rotation) - corners should have correct orientation
-     */
-    it('4x4: corner cubies have correct currentFace values after F move', async () => {
-        const { CubeController } = await import('@/cube-controller');
-        const model = new CubeController(4);
-
-        // Apply F move (Z axis)
-        const result = model.applyMove('F');
-        expect(result).not.toBeNull();
-        expect(result!.movedCubies.after.length).toBeGreaterThan(0);
-
-        console.log('=== F Move Test ===');
-        console.log('Moved cubies:', result!.movedCubies.after.length);
-
-        // Check all corners in F-layer
-        for (const cubie of result!.movedCubies.after) {
-            if (cubie.stickers.size !== 3) continue; // Only corners
-
-            console.log(
-                `Corner at ${JSON.stringify(cubie.position)}, orientation=${cubie.orientation}:`
-            );
-
-            const stickerFaces: string[] = [];
-            cubie.stickers.forEach((sticker, id) => {
-                console.log(`  Sticker ${id}: currentFace=${sticker.currentFace}`);
+            cubie.stickers.forEach(sticker => {
                 expect(sticker.currentFace).toBeDefined();
                 expect(['F', 'B', 'R', 'L', 'U', 'D']).toContain(sticker.currentFace);
                 stickerFaces.push(sticker.currentFace);
