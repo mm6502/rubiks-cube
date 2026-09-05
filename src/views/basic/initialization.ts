@@ -28,10 +28,16 @@ export function initialize(
 
     const cubeElement = buildCubeElement(model, styles, viewType);
 
-    let cubeContainer = container.querySelector('.cube-container') as HTMLElement;
+    // Query using the same CSS-module-resolved class that the created element
+    // carries. CSS modules scope/hash class names, so the literal
+    // '.cube-container' would never match the wrapper we create here, and
+    // repeated create/destroy cycles on the same panel would leak duplicate
+    // wrappers.
+    const cubeContainerClass = styles['cube-container'] ?? 'cube-container';
+    let cubeContainer = container.querySelector<HTMLElement>(`.${cubeContainerClass}`);
     if (!cubeContainer) {
         cubeContainer = document.createElement('div');
-        cubeContainer.className = styles['cube-container'] ?? '';
+        cubeContainer.className = cubeContainerClass;
         container.appendChild(cubeContainer);
     }
 
@@ -76,10 +82,16 @@ export function initialize(
 }
 
 /**
- * Removes the cube DOM element from the document.
+ * Removes the per-view DOM structure (cube container, wrappers, cubies, and
+ * face labels) from the document.
+ *
+ * The cube container is the view's root inside the panel content — created by
+ * `initialize` if absent. Removing the whole structure (rather than just the
+ * cube element) keeps repeated create/destroy cycles on the same panel content
+ * from leaking duplicate wrappers.
  */
 export function destroy(state: BasicViewInternalData): void {
-    state.cubeElement?.remove();
+    state.cubeContainer?.remove();
 }
 
 /**

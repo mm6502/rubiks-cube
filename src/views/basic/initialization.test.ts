@@ -135,3 +135,53 @@ describe('initialization - ghost-anchor wiring', () => {
         ).not.toThrow();
     });
 });
+
+describe('initialization - container reuse across create/destroy cycles', () => {
+    // CSS-module classes are scoped/hashed in the production build (e.g.
+    // 'cube-container_HASHED'), so the module resolves them via styles[...]
+    // rather than literal class names. Regression: initialize must query for an
+    // existing cube container with the same resolved class it creates, and
+    // destroy must remove the whole container so repeated cycles don't leak
+    // duplicate wrappers into the same panel content element.
+    const hashedStyles: Record<string, string> = {
+        cube: 'cube_HASHED',
+        'cube-container': 'cube-container_HASHED',
+        'cube-wrapper': 'cube-wrapper_HASHED',
+        cubie: 'cubie_HASHED',
+        sticker: 'sticker_HASHED',
+        front: 'front_HASHED',
+        back: 'back_HASHED',
+        right: 'right_HASHED',
+        left: 'left_HASHED',
+        top: 'top_HASHED',
+        bottom: 'bottom_HASHED',
+        'ghost-anchor-container': 'ghost-anchor-container_HASHED',
+        'ghost-anchor': 'ghost-anchor_HASHED',
+    };
+
+    const containerClass = () => `.${hashedStyles['cube-container']}`;
+
+    it('does not leak duplicate cube containers across repeated create/destroy cycles', () => {
+        const stateManager = new StateManager(3);
+        const model = {
+            getCurrentState: () => stateManager.getCurrentState(),
+        } as ReadOnlyCubeModel;
+        const host = document.createElement('div');
+
+        let state = initialize(host, model, hashedStyles, 'front', 'basic-front', () => {});
+        expect(host.querySelectorAll(containerClass()).length).toBe(1);
+        destroy(state);
+
+        // After destroy the per-view container is gone — a fresh initialize
+        // on the same host must build exactly one container.
+        expect(host.querySelectorAll(containerClass()).length).toBe(0);
+
+        state = initialize(host, model, hashedStyles, 'front', 'basic-front', () => {});
+        expect(host.querySelectorAll(containerClass()).length).toBe(1);
+        destroy(state);
+
+        state = initialize(host, model, hashedStyles, 'front', 'basic-front', () => {});
+        expect(host.querySelectorAll(containerClass()).length).toBe(1);
+        destroy(state);
+    });
+});
