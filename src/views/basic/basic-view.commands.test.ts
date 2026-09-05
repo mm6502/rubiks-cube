@@ -349,7 +349,7 @@ describe('BasicView – linked rotation listener', () => {
 
         Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
             rotation: 'left',
-            sourceViewType: 'basic-2-front',
+            sourceViewType: 'flat-front',
         });
 
         expect((view as any).state.viewForward).toEqual(initialForward);

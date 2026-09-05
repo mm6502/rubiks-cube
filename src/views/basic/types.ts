@@ -31,9 +31,11 @@ export interface BasicViewState {
  */
 export type BasicViewInternalData = {
     model?: ReadOnlyCubeModel;
+    onStickerSelected?: (id: StickerId) => void;
     container: HTMLElement | null;
     cubeElement: HTMLElement | null;
     cubeContainer: HTMLElement | null;
+    ghostAnchorContainer?: HTMLElement | null;
     styles: Record<string, string>;
     stickerClass: string;
     highlightedClass: string;
@@ -49,4 +51,5 @@ export type BasicViewInternalData = {
     currentSelected?: StickerId;
     selectedFace?: string;
     selectedCubiePosition?: Vector3;
+    cubieSize?: number;
 };

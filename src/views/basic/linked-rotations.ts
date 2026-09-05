@@ -1,4 +1,4 @@
-// Family-scoped linked-rotation state for Basic and Basic 2 view families.
+// Family-scoped linked-rotation state for the Basic view family.
 // When linked is true for a family, rotate-view-left/right/up/down applied in
 // one view is also applied in the sibling view for that same family.
 // State is persisted via BasicView.getState()/setState() — the ViewManager
@@ -6,7 +6,10 @@
 const linkedStates = new Map<string, boolean>();
 
 function getFamilyKey(viewType: string): string {
-    return viewType.startsWith('basic-2-') ? 'basic-2' : 'basic';
+    // Basic 2 was absorbed into the Basic family — every Basic viewType
+    // (basic-front/basic-back) shares the single 'basic' family, while any
+    // other viewType keeps its own key so cross-family events stay distinct.
+    return viewType.startsWith('basic-') ? 'basic' : viewType;
 }
 
 export function getFamilyKeyFromViewType(viewType?: string): string {
