@@ -150,6 +150,10 @@ export class ViewLifecycleManager {
         // Load saved visibility preferences.
         this.restoreVisibleViews();
 
+        // Reconcile the legacy basic-2 visibility family onto the surviving
+        // basic-* variants before any view is shown (R7).
+        this.reconcileLegacyBasic2Visibility();
+
         // Show initially checked views (only those supported at this size).
         const checkedViews = document.querySelectorAll(
             '.view-checkbox input[type="checkbox"]:checked:not(:disabled)'
@@ -159,6 +163,10 @@ export class ViewLifecycleManager {
             // Don't update focus for each view
             this.showView(viewType, false);
         });
+
+        // Clean up stale basic-2-* storage after reconciliation has read the
+        // legacy visibility entries (R11 ordering) — never before it.
+        this.cleanupLegacyBasic2Storage();
 
         // Set focus to first non-moves view by default.
         let firstViewType: string | null = null;
@@ -401,6 +409,89 @@ export class ViewLifecycleManager {
             if (checkbox) {
                 checkbox.checked = checked as boolean;
             }
+        }
+    }
+
+    /**
+     * Legacy-view reconciliation (Basic 2 absorb, R7).
+     *
+     * Before the cutover, `basic-2-front`/`basic-2-back` were a separate,
+     * default-unchecked view family. A returning user who had opted into that
+     * family (saved as enabled in `rubiksCubeVisibleViews`) would otherwise
+     * boot with no visible 3D Basic view after the cutover — including users
+     * who deliberately unchecked the static `basic-front`/`basic-back` to
+     * declutter. So when a saved `basic-2-*` entry is enabled, ensure the
+     * corresponding surviving sibling (`basic-front`/`basic-back`) is checked.
+     *
+     * An explicit hide of both `basic-front` and `basic-back` (both false)
+     * with no `basic-2-*` preference is honored as-is.
+     */
+    private reconcileLegacyBasic2Visibility(): void {
+        const saved = localStorage.getItem('rubiksCubeVisibleViews');
+        if (!saved) return;
+
+        const viewStates = JSON.parse(saved) as Record<string, boolean>;
+        // Legacy sibling → surviving sibling.
+        const legacyToSurviving: Record<string, string> = {
+            'basic-2-front': 'basic-front',
+            'basic-2-back': 'basic-back',
+        };
+
+        for (const [legacy, surviving] of Object.entries(legacyToSurviving)) {
+            if (viewStates[legacy] !== true) continue;
+            const checkbox = document.getElementById(
+                `show-${surviving}`
+            ) as HTMLInputElement | null;
+            if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+            }
+        }
+    }
+
+    /**
+     * One-time, prefix-scoped cleanup of stale Basic-2 storage (R11).
+     *
+     * Removes the retired family's panel keys (`view-panel-basic-2-front` /
+     * `view-panel-basic-2-back`) and its `basic-2-*` entries in
+     * `rubiksCubeVisibleViews`. This deliberately does NOT reuse the full
+     * storage-clear command, which would also wipe live `basic-*` keys.
+     *
+     * Must run only after `reconcileLegacyBasic2Visibility()` has read the
+     * legacy `basic-2-*` visibility entries (it does — this is invoked after
+     * view creation in `createViewControls`). Gated by a marker key so it
+     * runs exactly once.
+     */
+    private cleanupLegacyBasic2Storage(): void {
+        const marker = 'basic-view-absorbed-v1';
+        if (localStorage.getItem(marker)) return;
+
+        try {
+            // Remove legacy panel-position keys.
+            const panelKeys: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('view-panel-basic-2-')) {
+                    panelKeys.push(key);
+                }
+            }
+            panelKeys.forEach(key => localStorage.removeItem(key));
+
+            // Remove legacy basic-2-* entries from the visibility map.
+            const saved = localStorage.getItem('rubiksCubeVisibleViews');
+            if (saved) {
+                const viewStates = JSON.parse(saved) as Record<string, boolean>;
+                const hasLegacyEntry =
+                    'basic-2-front' in viewStates || 'basic-2-back' in viewStates;
+                if (hasLegacyEntry) {
+                    delete viewStates['basic-2-front'];
+                    delete viewStates['basic-2-back'];
+                    localStorage.setItem('rubiksCubeVisibleViews', JSON.stringify(viewStates));
+                }
+            }
+
+            localStorage.setItem(marker, '1');
+        } catch (err) {
+            logger.warn('Failed to clean legacy basic-2 storage', err);
         }
     }
 }
