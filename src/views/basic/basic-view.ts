@@ -431,6 +431,20 @@ export class BasicView implements CubeView {
     // Move handling with animation
     // -------------------------------------------------------------------------
 
+    /**
+     * Whole-cube rotations (x/y/z) change which original face sits at each
+     * visible CSS position — refresh the corner/hidden face labels so they
+     * reflect the new face mapping after the move lands. No-op for face and
+     * slice moves. The label DOM is built from model virtual centers that are
+     * already in post-move state, so any post-move call point is correct.
+     */
+    private refreshFaceLabelsAfterWholeCubeMove(event: MoveExecutedEvent): void {
+        const notation = event.moveDetails?.notation ?? '';
+        if (!/^[xyz]['2]?$/.test(notation)) return;
+        const direction = notation.charAt(0) === 'x' ? 'vertical' : 'horizontal';
+        updateFaceLabels(this.state, direction);
+    }
+
     handleMoveExecuted(event: MoveExecutedEvent): void {
         if (!this.state.model) return;
 
@@ -439,6 +453,9 @@ export class BasicView implements CubeView {
 
         if (!event.moveDetails?.movedCubies) {
             this.update(this.state.model);
+            // No-cubie path (e.g. whole-cube rotation with no tracked cubies)
+            // still needs the label refresh.
+            this.refreshFaceLabelsAfterWholeCubeMove(event);
             return;
         }
 
@@ -453,6 +470,8 @@ export class BasicView implements CubeView {
                 this.state.styles,
                 this.state.onStickerSelected
             );
+            // Reduced-motion / non-animated whole-cube path.
+            this.refreshFaceLabelsAfterWholeCubeMove(event);
             return;
         }
 
@@ -473,6 +492,8 @@ export class BasicView implements CubeView {
                     result.animation.cancel(); // remove fill effect after DOM is updated
                     this.ghostStickers?.updateColors();
                     this.restoreSelection();
+                    // Animated whole-cube path — refresh labels post-move.
+                    this.refreshFaceLabelsAfterWholeCubeMove(event);
                 }
             })
             .catch(() => {
