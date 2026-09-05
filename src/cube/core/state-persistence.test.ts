@@ -367,6 +367,115 @@ describe('StatePersistence (String Format)', () => {
         });
     });
 
+    describe('per-size storage slots', () => {
+        it('stores each size in its own slot (4x4 round-trips)', () => {
+            const sm4 = new StateManager(4);
+            const state4 = sm4.getCurrentState();
+            expect(StatePersistence.saveState(state4)).toBe(true);
+            const loaded = StatePersistence.loadState(4);
+            expect(loaded).not.toBeNull();
+            const roundTripped = StatePersistence.stringToState(loaded!);
+            expect(roundTripped).not.toBeNull();
+            expect(roundTripped!.state.cubeSize).toBe(4);
+            expect(StatePersistence.stateToString(roundTripped!.state)).toBe(
+                StatePersistence.stateToString(state4)
+            );
+        });
+
+        it('sizes 2 and 5 keep distinct saved states', () => {
+            const sm2 = new StateManager(2);
+            const sm5 = new StateManager(5);
+            StatePersistence.saveState(sm2.getCurrentState());
+            StatePersistence.saveState(sm5.getCurrentState());
+
+            const loaded2 = StatePersistence.loadState(2);
+            const loaded5 = StatePersistence.loadState(5);
+            expect(loaded2).not.toBeNull();
+            expect(loaded5).not.toBeNull();
+            // Each slot holds its own size.
+            expect(StatePersistence.stringToState(loaded2!)!.state.cubeSize).toBe(2);
+            expect(StatePersistence.stringToState(loaded5!)!.state.cubeSize).toBe(5);
+            // Loading a size with no saved state returns null.
+            expect(StatePersistence.loadState(6)).toBeNull();
+        });
+
+        it('size 3 reuses the legacy single key', () => {
+            // Saving the default (size 3) state lands on the legacy key so a
+            // prior single-slot autosave loads without migration.
+            StatePersistence.saveState(testState);
+            expect(localStorage.getItem('rubikCube_autoSave')).not.toBeNull();
+            expect(StatePersistence.loadState()).not.toBeNull();
+            expect(StatePersistence.loadState(3)).not.toBeNull();
+        });
+
+        it('hasSavedState and clearState are size-scoped', () => {
+            const sm4 = new StateManager(4);
+            StatePersistence.saveState(sm4.getCurrentState());
+            expect(StatePersistence.hasSavedState(4)).toBe(true);
+            expect(StatePersistence.hasSavedState(5)).toBe(false);
+            StatePersistence.clearState(4);
+            expect(StatePersistence.hasSavedState(4)).toBe(false);
+        });
+    });
+
+    describe('last size accessors', () => {
+        it('round-trips the last selected size', () => {
+            expect(StatePersistence.saveLastSize(6)).toBe(true);
+            expect(StatePersistence.loadLastSize()).toBe(6);
+        });
+
+        it('returns null when no last size is saved', () => {
+            expect(StatePersistence.loadLastSize()).toBeNull();
+        });
+
+        it('rejects out-of-range or malformed stored values', () => {
+            localStorage.setItem('rubikCube_lastSize', '99');
+            expect(StatePersistence.loadLastSize()).toBeNull();
+            localStorage.setItem('rubikCube_lastSize', 'abc');
+            expect(StatePersistence.loadLastSize()).toBeNull();
+        });
+    });
+
+    describe('even-size import', () => {
+        it('importing a 2x2 state emits no spurious logs and round-trips', () => {
+            const errorSpy = vi.spyOn(logger, 'error');
+            const sm2 = new StateManager(2);
+            const state2 = sm2.getCurrentState();
+            const str2 = StatePersistence.stateToString(state2);
+
+            const result = StatePersistence.stringToState(str2);
+            expect(result).not.toBeNull();
+            expect(result!.state.cubeSize).toBe(2);
+
+            // No "Unknown color letter" or "Invalid position" errors from
+            // non-integer virtual-center positions.
+            const messages = errorSpy.mock.calls.map(c => String(c[0] ?? ''));
+            expect(messages.some(m => m.includes('Unknown color letter'))).toBe(false);
+            expect(messages.some(m => m.includes('Invalid position'))).toBe(false);
+
+            // Round-trip equality.
+            expect(StatePersistence.stateToString(result!.state)).toBe(str2);
+            errorSpy.mockRestore();
+        });
+
+        it('importing a 4x4 scrambled state round-trips with no errors', () => {
+            const errorSpy = vi.spyOn(logger, 'error');
+            const sm4 = new StateManager(4);
+            sm4.applyMove(sm4.getMoveDefinition('R'));
+            const state4 = sm4.getCurrentState();
+            const str4 = StatePersistence.stateToString(state4);
+
+            const result = StatePersistence.stringToState(str4);
+            expect(result).not.toBeNull();
+            expect(result!.state.cubeSize).toBe(4);
+            expect(StatePersistence.stateToString(result!.state)).toBe(str4);
+
+            const messages = errorSpy.mock.calls.map(c => String(c[0] ?? ''));
+            expect(messages.some(m => m.includes('Unknown color letter'))).toBe(false);
+            errorSpy.mockRestore();
+        });
+    });
+
     describe('downloadState', () => {
         let createElementSpy: ReturnType<typeof vi.spyOn>;
         let appendChildSpy: ReturnType<typeof vi.spyOn>;

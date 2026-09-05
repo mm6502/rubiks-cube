@@ -31,6 +31,7 @@ import {
     PositionKey,
     Sticker,
     StickerId,
+    isSupportedSize,
 } from '@/cube/types';
 import { getPositionKey } from '@/cube/utils/coordinates';
 import { createFlatView } from '@/cube/utils/state-conversion';
@@ -39,6 +40,10 @@ import { logger } from '@/diagnostics/logger';
 import { MoveHistory } from './move-history';
 
 const STORAGE_KEY = 'rubikCube_autoSave';
+/** Per-size storage key prefix for sizes other than 3 (e.g. "rubikCube_state_size_4"). */
+const PER_SIZE_STORAGE_KEY_PREFIX = 'rubikCube_state_size_';
+/** Storage key for the last selected cube size. */
+const LAST_SIZE_KEY = 'rubikCube_lastSize';
 const DEFAULT_FACE_ORDER = 'UDFBLR';
 const DELIMITER = ':';
 
@@ -71,6 +76,15 @@ const LETTER_TO_FACE: Record<string, Face> = {
     L: Face.L,
     R: Face.R,
 };
+
+/**
+ * Resolve the storage key for a given cube size.
+ * Size 3 keeps the legacy single key so existing saved 3×3 state loads
+ * without migration; other sizes use a per-size key.
+ */
+function storageKeyForSize(cubeSize: number): string {
+    return cubeSize === 3 ? STORAGE_KEY : `${PER_SIZE_STORAGE_KEY_PREFIX}${cubeSize}`;
+}
 
 /**
  * State Persistence Manager
@@ -255,6 +269,15 @@ export class StatePersistence {
             const updatedCubies = new Map<CubieId, Cubie>();
 
             for (const [cubieId, cubie] of cubies) {
+                // Virtual-center cubies carry face-identity stickers whose color
+                // never changes. Skipping them avoids even-size (2/4/6)
+                // non-integer facePosition values indexing the grid to
+                // undefined and logging spurious "Unknown color letter".
+                if (cubie.type === CubieType.VIRTUAL_CENTER) {
+                    updatedCubies.set(cubieId, cubie);
+                    continue;
+                }
+
                 // For each cubie, update its sticker colors.
                 let updatedStickers = IMap<StickerId, Sticker>();
 
@@ -337,6 +360,8 @@ export class StatePersistence {
 
     /**
      * Save the current cube state to localStorage.
+     * The storage slot is chosen from the state's cube size (size 3 uses the
+     * legacy single key; other sizes use a per-size key).
      * @param state The cube state to save.
      * @param moveHistory Optional move history to save with the state.
      * @returns True if save was successful.
@@ -345,16 +370,17 @@ export class StatePersistence {
         try {
             // Serialize state to string.
             const stateString = this.stateToString(state, moveHistory);
+            const key = storageKeyForSize(state.cubeSize);
 
             // Check if state has changed since last export.
-            const stored = localStorage.getItem(STORAGE_KEY);
+            const stored = localStorage.getItem(key);
             if (stored && stored === stateString) {
                 logger.trace('Exported state is identical to last export; no changes detected.');
                 return true;
             }
 
             // Save to localStorage.
-            localStorage.setItem(STORAGE_KEY, stateString);
+            localStorage.setItem(key, stateString);
             logger.info('Cube state saved');
             logger.debug('Saved state string:', stateString);
             return true;
@@ -367,11 +393,12 @@ export class StatePersistence {
     /**
      * Load a previously saved cube state from localStorage.
      * Returns the string representation which can be used for reconstruction.
+     * @param cubeSize The cube size whose slot to load (default 3).
      * @returns The state string, or null if none exists.
      */
-    static loadState(): string | null {
+    static loadState(cubeSize: number = 3): string | null {
         try {
-            const stored = localStorage.getItem(STORAGE_KEY);
+            const stored = localStorage.getItem(storageKeyForSize(cubeSize));
             if (!stored) {
                 logger.info('No saved cube state found');
                 return null;
@@ -387,11 +414,12 @@ export class StatePersistence {
 
     /**
      * Clear the saved cube state from localStorage.
+     * @param cubeSize The cube size whose slot to clear (default 3).
      * @returns True if clear was successful.
      */
-    static clearState(): boolean {
+    static clearState(cubeSize: number = 3): boolean {
         try {
-            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(storageKeyForSize(cubeSize));
             logger.info('Saved cube state cleared');
             return true;
         } catch (error) {
@@ -402,10 +430,42 @@ export class StatePersistence {
 
     /**
      * Check if a saved state exists.
+     * @param cubeSize The cube size whose slot to check (default 3).
      * @returns True if a saved state exists.
      */
-    static hasSavedState(): boolean {
-        return localStorage.getItem(STORAGE_KEY) !== null;
+    static hasSavedState(cubeSize: number = 3): boolean {
+        return localStorage.getItem(storageKeyForSize(cubeSize)) !== null;
+    }
+
+    /**
+     * Persist the last selected cube size.
+     * @param cubeSize The cube size to remember.
+     * @returns True if save was successful.
+     */
+    static saveLastSize(cubeSize: number): boolean {
+        try {
+            localStorage.setItem(LAST_SIZE_KEY, String(cubeSize));
+            return true;
+        } catch (error) {
+            logger.error('Failed to save last size:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Load the last selected cube size.
+     * @returns The last selected size, or null if none was saved.
+     */
+    static loadLastSize(): number | null {
+        try {
+            const stored = localStorage.getItem(LAST_SIZE_KEY);
+            if (!stored) return null;
+            const size = parseInt(stored, 10);
+            return isSupportedSize(size) ? size : null;
+        } catch (error) {
+            logger.error('Failed to load last size:', error);
+            return null;
+        }
     }
 
     /**

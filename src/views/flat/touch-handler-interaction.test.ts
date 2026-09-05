@@ -68,7 +68,6 @@ function createMockState(overrides?: Partial<FlatTouchHandlerState>): FlatTouchH
         faceDirectMode: false,
         directModeTempFace: undefined,
         previousSelectedFace: undefined,
-        haloEl: document.createElement('div'),
         haloHitTargetEl: document.createElement('div'),
         haloCancelZoneEl: document.createElement('div'),
         dragLabelEl: document.createElement('div'),

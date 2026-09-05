@@ -4,20 +4,53 @@ import { Face, FaceEdge } from '@/cube/types';
 import ghostStyles from './ghost-strips.module.css';
 
 /**
- * Describes one ghost strip: a row/column of 3 semi-transparent stickers
+ * Describes one ghost strip: a row/column of semi-transparent stickers
  * placed just outside a face edge to hint at the cube-adjacent face that
  * is not visually adjacent in the T-shaped layout.
+ * Note: sourcePositions are calculated dynamically based on cube size.
  */
-type GhostEdge = {
+type GhostEdgeDefinition = {
     /** Face that owns this ghost strip (the strip is rendered outside this face). */
     face: Face;
     /** Which edge of the owning face the strip sits on. */
     edge: FaceEdge;
     /** Source face whose stickers provide the ghost colours. */
     sourceFace: Face;
-    /** Ordered source sticker positions (length 3 for a 3×3 cube). */
+    /** Which edge of the source face to use for colors. */
+    sourceEdge: FaceEdge;
+    /** Whether to reverse the source positions for chirality. */
+    reverseSource: boolean;
+};
+
+type GhostEdge = Omit<GhostEdgeDefinition, 'sourceEdge' | 'reverseSource'> & {
+    /** Ordered source sticker positions (calculated based on cube size). */
     sourcePositions: number[];
 };
+
+/**
+ * Get the sticker positions along a face's edge in strip display order.
+ * Positions vary based on cube size: n positions for an n×n×n cube.
+ * @param edgeDir The direction of the edge (TOP, BOTTOM, LEFT, RIGHT)
+ * @param cubeSize The size of the cube
+ * @returns Array of sticker position indices for this edge
+ */
+function getEdgePositions(edgeDir: FaceEdge, cubeSize: number): number[] {
+    const maxIdx = cubeSize - 1;
+    switch (edgeDir) {
+        case FaceEdge.TOP:
+            // Top row: positions 0 to cubeSize-1
+            return Array.from({ length: cubeSize }, (_, i) => i);
+        case FaceEdge.BOTTOM:
+            // Bottom row: positions (cubeSize-1)*cubeSize to cubeSize*cubeSize-1
+            return Array.from({ length: cubeSize }, (_, i) => maxIdx * cubeSize + i);
+        case FaceEdge.LEFT:
+            // Left column: positions 0, cubeSize, 2*cubeSize, ... (maxIdx)*cubeSize
+            return Array.from({ length: cubeSize }, (_, i) => i * cubeSize);
+        case FaceEdge.RIGHT:
+            // Right column: positions cubeSize-1, 2*cubeSize-1, 3*cubeSize-1, ...
+            return Array.from({ length: cubeSize }, (_, i) => (i + 1) * cubeSize - 1);
+    }
+}
 
 /**
  * All 14 ghost strips (7 non-adjacent cube-edge pairs × 2 directions).
@@ -27,30 +60,140 @@ type GhostEdge = {
  *
  * Non-adjacent cube-edge pairs that need ghosts:
  *   U↔L, U↔R, U↔B, D↔L, D↔R, D↔B, L↔B
+ *
+ * Edge definitions map host face/edge to source face/edge with chirality correction.
  */
-const GHOST_EDGES: GhostEdge[] = [
+const GHOST_EDGE_DEFINITIONS: GhostEdgeDefinition[] = [
     // U-L: U left col ↔ L top row
-    { face: Face.U, edge: FaceEdge.LEFT, sourceFace: Face.L, sourcePositions: [0, 1, 2] },
-    { face: Face.L, edge: FaceEdge.TOP, sourceFace: Face.U, sourcePositions: [0, 3, 6] },
+    {
+        face: Face.U,
+        edge: FaceEdge.LEFT,
+        sourceFace: Face.L,
+        sourceEdge: FaceEdge.TOP,
+        reverseSource: false,
+    },
+    {
+        face: Face.L,
+        edge: FaceEdge.TOP,
+        sourceFace: Face.U,
+        sourceEdge: FaceEdge.LEFT,
+        reverseSource: false,
+    },
     // U-R: U right col ↔ R top row
-    { face: Face.U, edge: FaceEdge.RIGHT, sourceFace: Face.R, sourcePositions: [2, 1, 0] },
-    { face: Face.R, edge: FaceEdge.TOP, sourceFace: Face.U, sourcePositions: [8, 5, 2] },
+    {
+        face: Face.U,
+        edge: FaceEdge.RIGHT,
+        sourceFace: Face.R,
+        sourceEdge: FaceEdge.TOP,
+        reverseSource: true,
+    },
+    {
+        face: Face.R,
+        edge: FaceEdge.TOP,
+        sourceFace: Face.U,
+        sourceEdge: FaceEdge.RIGHT,
+        reverseSource: true,
+    },
     // U-B: U top row ↔ B top row (reversed)
-    { face: Face.U, edge: FaceEdge.TOP, sourceFace: Face.B, sourcePositions: [2, 1, 0] },
-    { face: Face.B, edge: FaceEdge.TOP, sourceFace: Face.U, sourcePositions: [2, 1, 0] },
+    {
+        face: Face.U,
+        edge: FaceEdge.TOP,
+        sourceFace: Face.B,
+        sourceEdge: FaceEdge.TOP,
+        reverseSource: true,
+    },
+    {
+        face: Face.B,
+        edge: FaceEdge.TOP,
+        sourceFace: Face.U,
+        sourceEdge: FaceEdge.TOP,
+        reverseSource: true,
+    },
     // D-L: D left col ↔ L bottom row
-    { face: Face.D, edge: FaceEdge.LEFT, sourceFace: Face.L, sourcePositions: [8, 7, 6] },
-    { face: Face.L, edge: FaceEdge.BOTTOM, sourceFace: Face.D, sourcePositions: [6, 3, 0] },
+    {
+        face: Face.D,
+        edge: FaceEdge.LEFT,
+        sourceFace: Face.L,
+        sourceEdge: FaceEdge.BOTTOM,
+        reverseSource: true,
+    },
+    {
+        face: Face.L,
+        edge: FaceEdge.BOTTOM,
+        sourceFace: Face.D,
+        sourceEdge: FaceEdge.LEFT,
+        reverseSource: true,
+    },
     // D-R: D right col ↔ R bottom row
-    { face: Face.D, edge: FaceEdge.RIGHT, sourceFace: Face.R, sourcePositions: [6, 7, 8] },
-    { face: Face.R, edge: FaceEdge.BOTTOM, sourceFace: Face.D, sourcePositions: [2, 5, 8] },
+    {
+        face: Face.D,
+        edge: FaceEdge.RIGHT,
+        sourceFace: Face.R,
+        sourceEdge: FaceEdge.BOTTOM,
+        reverseSource: false,
+    },
+    {
+        face: Face.R,
+        edge: FaceEdge.BOTTOM,
+        sourceFace: Face.D,
+        sourceEdge: FaceEdge.RIGHT,
+        reverseSource: false,
+    },
     // D-B: D bottom row ↔ B bottom row (reversed)
-    { face: Face.D, edge: FaceEdge.BOTTOM, sourceFace: Face.B, sourcePositions: [8, 7, 6] },
-    { face: Face.B, edge: FaceEdge.BOTTOM, sourceFace: Face.D, sourcePositions: [8, 7, 6] },
+    {
+        face: Face.D,
+        edge: FaceEdge.BOTTOM,
+        sourceFace: Face.B,
+        sourceEdge: FaceEdge.BOTTOM,
+        reverseSource: true,
+    },
+    {
+        face: Face.B,
+        edge: FaceEdge.BOTTOM,
+        sourceFace: Face.D,
+        sourceEdge: FaceEdge.BOTTOM,
+        reverseSource: true,
+    },
     // L-B: L left col ↔ B right col
-    { face: Face.L, edge: FaceEdge.LEFT, sourceFace: Face.B, sourcePositions: [2, 5, 8] },
-    { face: Face.B, edge: FaceEdge.RIGHT, sourceFace: Face.L, sourcePositions: [0, 3, 6] },
+    {
+        face: Face.L,
+        edge: FaceEdge.LEFT,
+        sourceFace: Face.B,
+        sourceEdge: FaceEdge.RIGHT,
+        reverseSource: false,
+    },
+    {
+        face: Face.B,
+        edge: FaceEdge.RIGHT,
+        sourceFace: Face.L,
+        sourceEdge: FaceEdge.LEFT,
+        reverseSource: false,
+    },
 ];
+
+/**
+ * Compute all 14 ghost edges with source positions for the given cube size.
+ */
+function getGhostEdgesForSize(cubeSize: number): GhostEdge[] {
+    const edges: GhostEdge[] = [];
+
+    for (const def of GHOST_EDGE_DEFINITIONS) {
+        let sourcePositions = getEdgePositions(def.sourceEdge, cubeSize);
+
+        if (def.reverseSource) {
+            sourcePositions = sourcePositions.reverse();
+        }
+
+        edges.push({
+            face: def.face,
+            edge: def.edge,
+            sourceFace: def.sourceFace,
+            sourcePositions,
+        });
+    }
+
+    return edges;
+}
 
 /**
  * Self-contained module for ghost hint stickers in the Flat view.
@@ -67,6 +210,7 @@ export class GhostStrips {
     private ghostElements: HTMLElement[] = [];
     private container: HTMLElement;
     private stickerStyles: Record<string, string>;
+    private currentCubeSize: number = 3; // default size
 
     constructor(container: HTMLElement, stickerStyles: Record<string, string>) {
         this.container = container;
@@ -77,11 +221,30 @@ export class GhostStrips {
      * Build all ghost strips and attach them to the appropriate face elements.
      * Each strip is a small row/column of `<div>`s positioned just outside the
      * face boundary using absolute positioning + `top/bottom/left/right: 100%`.
+     * @param cubeSize The size of the cube (default 3)
      */
-    create(): void {
-        this.ghostElements = [];
+    create(cubeSize: number = 3): void {
+        this.currentCubeSize = cubeSize;
+        this._recreateStrips();
+    }
 
-        for (const ge of GHOST_EDGES) {
+    /**
+     * Recreate ghost strips for the current cube size.
+     * Called when cube size changes or on initial creation.
+     */
+    private _recreateStrips(): void {
+        // Remove existing strips from DOM
+        const existingStrips = this.container.querySelectorAll<HTMLElement>(
+            `.${ghostStyles['flat-ghost-strip']}`
+        );
+        for (const strip of existingStrips) {
+            strip.remove();
+        }
+
+        this.ghostElements = [];
+        const ghostEdges = getGhostEdgesForSize(this.currentCubeSize);
+
+        for (const ge of ghostEdges) {
             // Find the face element that owns this ghost strip
             const faceEl = this.container.querySelector(
                 `.${this.stickerStyles['flat-face']}:has(.${this.stickerStyles['flat-sticker']}[data-face="${ge.face}"])`
@@ -109,6 +272,17 @@ export class GhostStrips {
         // Initial colour sync and visibility
         this.updateColors();
         this.setVisible(this.opacityIndex > 0);
+    }
+
+    /**
+     * Update ghost strips if cube size has changed.
+     * Call this when the model updates to detect size changes.
+     * @param cubeSize The new cube size
+     */
+    updateSizeIfNeeded(cubeSize: number): void {
+        if (cubeSize !== this.currentCubeSize) {
+            this.create(cubeSize);
+        }
     }
 
     /** Copy the background colour of each source sticker to its ghost. */

@@ -939,7 +939,8 @@ function buildMoveTableForMove(
                 const localSource = descriptor.canonicalIndex - cornerOffset;
                 const localTarget = targetIndex - cornerOffset;
                 cornerPerm[localSource] = localTarget;
-                cornerOriDelta[localSource] = rotatedState.orientationDelta;
+                const delta = computeCornerOrientationDelta(rotatedNormals, targetNormals);
+                cornerOriDelta[localSource] = delta;
                 break;
             }
             case CubieType.EDGE: {
@@ -1060,8 +1061,6 @@ function rotateCubie(
     const rotatedCentered = rotatePosition3D(descriptor.centeredPosition, move.axis, move.angle);
     const rotatedPosition = toActual(rotatedCentered, cubeSize);
 
-    // For corners: compute orientation delta analytically based on how faces map
-    let orientationDelta = 0;
     const rotatedNormals = descriptor.stickers.map(sticker =>
         rotatePosition3D(sticker.normal, move.axis, move.angle)
     );
@@ -1069,7 +1068,7 @@ function rotateCubie(
     return {
         position: rotatedPosition,
         normals: rotatedNormals,
-        orientationDelta,
+        orientationDelta: 0, // Will be computed later with target normals
     } satisfies RotatedState;
 }
 
@@ -1157,6 +1156,34 @@ export function computeEdgeOrientationDelta(rotated: Vector3[], target: Vector3[
         return 1;
     }
     throw new Error('Unable to determine edge orientation delta');
+}
+
+/**
+ * Compute the corner orientation delta (0, 1, or 2) needed to match rotated
+ * sticker normals to the target orientation. This finds the cyclic shift of corners.
+ * @internal
+ */
+function computeCornerOrientationDelta(rotated: Vector3[], target: Vector3[]): number {
+    if (rotated.length !== 3 || target.length !== 3) {
+        throw new Error('Corner must have exactly 3 stickers');
+    }
+
+    // Try all cyclic shifts: 0 (no shift), 1 (one rotation), 2 (two rotations)
+    for (let shift = 0; shift < 3; shift++) {
+        let allMatch = true;
+        for (let i = 0; i < 3; i++) {
+            const targetIndex = (i + shift) % 3;
+            if (!vectorsEqual3(rotated[i], target[targetIndex])) {
+                allMatch = false;
+                break;
+            }
+        }
+        if (allMatch) {
+            return shift;
+        }
+    }
+
+    throw new Error('Unable to determine corner orientation delta');
 }
 
 /**

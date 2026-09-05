@@ -14,7 +14,12 @@ import {
     isHaloHitTargetAtPoint,
     wasTapWithoutDrag,
 } from './touch-handler-hit-testing';
-import { finalizeGesture, handleTap, updateFromGesture } from './touch-handler-interaction';
+import {
+    finalizeGesture,
+    handleTap,
+    inferMoveNotationForGesture,
+    updateFromGesture,
+} from './touch-handler-interaction';
 import {
     applyFaceSelectionStyling,
     cancelZoneRadiusPx,
@@ -35,7 +40,7 @@ import {
 
 /**
  * Flat-view pointer interaction handler.
- * Supports tap-to-select face, drag-to-infer move, halo rendering, and drag label feedback.
+ * Supports tap-to-select face, drag-to-infer move, and drag label feedback.
  */
 export class FlatTouchHandler {
     /** Mutable runtime state shared across all handler methods. */
@@ -55,7 +60,6 @@ export class FlatTouchHandler {
     constructor(options: FlatTouchHandlerOptions) {
         const adapter = options.adapter ?? createFlatInteractionAdapter(options.getIsRotated);
 
-        const haloEl = createOverlayElement(options.styles, 'flat-halo');
         const haloHitTargetEl = createOverlayElement(options.styles, 'flat-halo-hit-target');
         const haloCancelZoneEl = createOverlayElement(options.styles, 'flat-halo-cancel-zone');
         const dragLabelEl = createOverlayElement(options.styles, 'flat-drag-label');
@@ -95,7 +99,6 @@ export class FlatTouchHandler {
             faceDirectMode: false,
             directModeTempFace: undefined,
             previousSelectedFace: undefined,
-            haloEl,
             haloHitTargetEl,
             haloCancelZoneEl,
             dragLabelEl,
@@ -114,7 +117,6 @@ export class FlatTouchHandler {
     attach(): void {
         this.s.host.style.touchAction = 'none';
 
-        this.s.host.appendChild(this.s.haloEl);
         this.s.host.appendChild(this.s.haloHitTargetEl);
         this.s.host.appendChild(this.s.haloCancelZoneEl);
         this.s.host.appendChild(this.s.dragLabelEl);
@@ -126,7 +128,7 @@ export class FlatTouchHandler {
         this.s.host.addEventListener('click', this.onClickCaptureBound, { capture: true });
     }
 
-    /** Recalculates and repositions the halo after the host element is resized. */
+    /** Recalculates and repositions the halo hit-target after the host element is resized. */
     resize(): void {
         this.updateHaloPosition();
     }
@@ -186,7 +188,6 @@ export class FlatTouchHandler {
 
         this.s.host.style.touchAction = this.s.previousTouchAction;
 
-        this.s.haloEl.remove();
         this.s.haloHitTargetEl.remove();
         this.s.haloCancelZoneEl.remove();
         this.s.dragLabelEl.remove();
@@ -384,7 +385,15 @@ export class FlatTouchHandler {
 
     /** Commits or discards the inferred move when the drag completes. */
     private finalizeGesture(gesture: DragGesture): void {
-        finalizeGesture(this.s, gesture);
+        // Check if a move will be emitted before clearing the selection
+        const moveNotation = inferMoveNotationForGesture(this.s, gesture);
+
+        finalizeGesture(this.s, gesture, moveNotation);
+
+        // Clear face selection after move is emitted
+        if (moveNotation) {
+            this.selectFace(undefined);
+        }
     }
 
     /** Shows the drag-direction label overlay near the given client coordinates. */
@@ -402,7 +411,7 @@ export class FlatTouchHandler {
         applyFaceSelectionStyling(this.s);
     }
 
-    /** Repositions the halo overlay to track the currently selected face. */
+    /** Repositions the halo hit-target overlay to track the currently selected face. */
     private updateHaloPosition(): void {
         updateHaloPosition(this.s);
     }

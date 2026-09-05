@@ -3,17 +3,27 @@ import { CubeStateUtils } from '@/cube/utils/state-conversion';
 
 import ghostStyles from './ghost-stickers.module.css';
 
-/** Get the 3 sticker positions on a face's edge in strip display order. */
-function getEdgePositions(edgeDir: FaceEdge): number[] {
+/**
+ * Get the sticker positions along a face's edge in strip display order.
+ * Positions vary based on cube size: n positions for an n×n×n cube.
+ * @param edgeDir The direction of the edge (TOP, BOTTOM, LEFT, RIGHT)
+ * @param cubeSize The size of the cube (default 3 for backward compatibility)
+ */
+function getEdgePositions(edgeDir: FaceEdge, cubeSize: number = 3): number[] {
+    const maxIdx = cubeSize - 1;
     switch (edgeDir) {
         case FaceEdge.TOP:
-            return [0, 1, 2];
+            // Top row: positions 0 to cubeSize-1
+            return Array.from({ length: cubeSize }, (_, i) => i);
         case FaceEdge.BOTTOM:
-            return [6, 7, 8];
+            // Bottom row: positions (cubeSize-1)*cubeSize to cubeSize*cubeSize-1
+            return Array.from({ length: cubeSize }, (_, i) => maxIdx * cubeSize + i);
         case FaceEdge.LEFT:
-            return [0, 3, 6];
+            // Left column: positions 0, cubeSize, 2*cubeSize, ... (maxIdx)*cubeSize
+            return Array.from({ length: cubeSize }, (_, i) => i * cubeSize);
         case FaceEdge.RIGHT:
-            return [2, 5, 8];
+            // Right column: positions cubeSize-1, 2*cubeSize-1, 3*cubeSize-1, ...
+            return Array.from({ length: cubeSize }, (_, i) => (i + 1) * cubeSize - 1);
     }
 }
 
@@ -117,8 +127,8 @@ export class GhostStickers {
 
     /**
      * Create a single ghost strip for one side of a cube edge.
-     * Builds the DOM element with 3 ghost sticker placeholders and
-     * attaches it to the appropriate face element.
+     * Builds the DOM element with sticker placeholders (one per edge position,
+     * which equals the cube size) and attaches it to the appropriate face element.
      */
     private createStripForEdge(edge: CubeEdge, side: 'A' | 'B'): void {
         const hostFace = side === 'A' ? edge.faceA : edge.faceB;
@@ -132,6 +142,10 @@ export class GhostStickers {
         /* c8 ignore if */
         if (!faceEl) return;
 
+        // Get cube size from the model to determine how many stickers to create
+        const model = this.getModel();
+        const cubeSize = model?.getCurrentState().cubeSize ?? 3;
+
         const strip = document.createElement('div');
         strip.className = ghostStyles['ghost-strip'];
         strip.setAttribute('data-edge', edgeDir);
@@ -140,8 +154,8 @@ export class GhostStickers {
         strip.setAttribute('aria-hidden', 'true');
         strip.style.display = 'none';
 
-        // Create 3 ghost sticker placeholders (colours set by updateColors)
-        for (let i = 0; i < 3; i++) {
+        // Create ghost sticker placeholders — one per edge position (cubeSize total)
+        for (let i = 0; i < cubeSize; i++) {
             const ghost = document.createElement('div');
             ghost.className = ghostStyles['ghost-sticker'];
             strip.appendChild(ghost);
@@ -285,6 +299,7 @@ export class GhostStickers {
         if (!model) return;
 
         const state = model.getCurrentState();
+        const cubeSize = state.cubeSize;
 
         for (const stripState of this.strips) {
             if (!stripState.isShowing) continue;
@@ -293,8 +308,8 @@ export class GhostStickers {
             const sourceFace = stripState.element.getAttribute('data-source-face') as Face;
             const edgeDir = stripState.element.getAttribute('data-edge') as FaceEdge;
 
-            // Get the 3 positions along this edge on the host face
-            const hostPositions = getEdgePositions(edgeDir);
+            // Get the positions along this edge on the host face (size-aware)
+            const hostPositions = getEdgePositions(edgeDir, cubeSize);
 
             const children = stripState.element.children;
             for (let i = 0; i < children.length && i < hostPositions.length; i++) {

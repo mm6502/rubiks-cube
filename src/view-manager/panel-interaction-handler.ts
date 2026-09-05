@@ -21,6 +21,10 @@ export class PanelInteractionHandler {
     private getActiveViewId: () => string | undefined;
     private onPanelClick: (viewType: string) => void;
     private layoutMode: LayoutMode = 'floating';
+    private readonly boundPointerDown: (e: PointerEvent) => void;
+    private readonly boundPointerMove: (e: PointerEvent) => void;
+    private readonly boundPointerUp: () => void;
+    private disposed: boolean = false;
     private dragState: {
         isDragging: boolean;
         isResizing: boolean;
@@ -74,6 +78,9 @@ export class PanelInteractionHandler {
         this.zIndexCounter = zIndexCounter;
         this.getActiveViewId = getActiveViewId;
         this.onPanelClick = onPanelClick;
+        this.boundPointerDown = this.handlePointerDown.bind(this);
+        this.boundPointerMove = this.handlePointerMove.bind(this);
+        this.boundPointerUp = this.handlePointerUp.bind(this);
     }
 
     /**
@@ -87,49 +94,72 @@ export class PanelInteractionHandler {
      * Sets up event listeners for drag and resize interactions on panels
      */
     setupDragAndResizeHandlers(): void {
-        // Pointer down handler
-        this.visualizationsContainer.addEventListener('pointerdown', e => {
-            const target = e.target as HTMLElement;
-            const panel = target.closest(`.${this.styles['view-panel']}`) as HTMLElement;
+        this.visualizationsContainer.addEventListener('pointerdown', this.boundPointerDown);
+        document.addEventListener('pointermove', this.boundPointerMove);
+        document.addEventListener('pointerup', this.boundPointerUp);
+    }
 
-            if (!panel) return;
+    /**
+     * Remove the listeners registered by setupDragAndResizeHandlers so repeated
+     * size switches (which recreate the handler) do not accumulate document-level
+     * listeners that would fire against a disposed ViewManager.
+     */
+    dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        this.visualizationsContainer.removeEventListener('pointerdown', this.boundPointerDown);
+        document.removeEventListener('pointermove', this.boundPointerMove);
+        document.removeEventListener('pointerup', this.boundPointerUp);
+    }
 
-            // Update focus whenever a panel is clicked
-            const viewType = panel.id.replace('-panel', '');
-            // Bring clicked panel to front so it visually stacks above others
-            this.bringToFront(panel);
+    /**
+     * Pointer down handler: focus the clicked panel, then start a drag or resize.
+     */
+    private handlePointerDown(e: PointerEvent): void {
+        const target = e.target as HTMLElement;
+        const panel = target.closest(`.${this.styles['view-panel']}`) as HTMLElement;
 
-            this.onPanelClick(viewType);
+        if (!panel) return;
 
-            // Skip dragging if clicking on a command button
-            const isCommandButton = target.closest('[data-view-commands-container]');
+        // Update focus whenever a panel is clicked
+        const viewType = panel.id.replace('-panel', '');
+        // Bring clicked panel to front so it visually stacks above others
+        this.bringToFront(panel);
 
-            // Check if clicking on header (drag) or resize handle
-            if (target.closest(`.${this.styles['view-header']}`) && !isCommandButton) {
-                if (this.layoutMode !== LayoutMode.Tabbed) this.startDrag(e, panel);
-            } else if (target.classList.contains(this.styles['resize-handle'])) {
-                if (this.layoutMode !== LayoutMode.Tabbed) {
-                    const direction = target.getAttribute('data-resize-direction') || '';
-                    this.startResize(e, panel, direction as ResizeDirection);
-                }
+        this.onPanelClick(viewType);
+
+        // Skip dragging if clicking on a command button
+        const isCommandButton = target.closest('[data-view-commands-container]');
+
+        // Check if clicking on header (drag) or resize handle
+        if (target.closest(`.${this.styles['view-header']}`) && !isCommandButton) {
+            if (this.layoutMode !== LayoutMode.Tabbed) this.startDrag(e, panel);
+        } else if (target.classList.contains(this.styles['resize-handle'])) {
+            if (this.layoutMode !== LayoutMode.Tabbed) {
+                const direction = target.getAttribute('data-resize-direction') || '';
+                this.startResize(e, panel, direction as ResizeDirection);
             }
-        });
+        }
+    }
 
-        // Mouse move handler
-        document.addEventListener('pointermove', e => {
-            if (this.dragState.isDragging) {
-                this.handleDrag(e);
-            } else if (this.dragState.isResizing) {
-                this.handleResize(e);
-            }
-        });
+    /**
+     * Mouse move handler: continue an in-progress drag or resize.
+     */
+    private handlePointerMove(e: PointerEvent): void {
+        if (this.dragState.isDragging) {
+            this.handleDrag(e);
+        } else if (this.dragState.isResizing) {
+            this.handleResize(e);
+        }
+    }
 
-        // Mouse up handler
-        document.addEventListener('pointerup', () => {
-            if (this.dragState.isDragging || this.dragState.isResizing) {
-                this.endDragOrResize();
-            }
-        });
+    /**
+     * Mouse up handler: end an in-progress drag or resize.
+     */
+    private handlePointerUp(): void {
+        if (this.dragState.isDragging || this.dragState.isResizing) {
+            this.endDragOrResize();
+        }
     }
 
     /**

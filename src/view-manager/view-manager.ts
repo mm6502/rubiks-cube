@@ -88,6 +88,17 @@ export class ViewManager implements CommandManager {
      */
     private resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+    /**
+     * Bound event-handler references so they can be removed on dispose().
+     */
+    private readonly boundMoveExecuted: (event: MoveExecutedEvent) => void;
+    private readonly boundCommandStatesRefresh: () => void;
+    private readonly boundHighlightChanged: (event: HighlightChangedEvent) => void;
+    private readonly boundWindowResize: () => void;
+    private mediaQueryList: MediaQueryList | null = null;
+    private boundMediaQueryChange: ((e: MediaQueryListEvent) => void) | null = null;
+    private disposed: boolean = false;
+
     //#endregion Private Fields
 
     /**
@@ -98,6 +109,63 @@ export class ViewManager implements CommandManager {
         this.cubeModel = cubeModel;
         this.styles = styles;
         this.commandRenderer = new CommandRenderer(styles, buttonStyles);
+        this.boundMoveExecuted = this.handleMoveExecuted.bind(this);
+        this.boundCommandStatesRefresh = this.handleCommandStatesRefresh.bind(this);
+        this.boundHighlightChanged = this.handleHighlightChanged.bind(this);
+        this.boundWindowResize = () => {
+            if (this.resizeDebounceTimer !== null) {
+                clearTimeout(this.resizeDebounceTimer);
+            }
+            this.resizeDebounceTimer = setTimeout(() => {
+                this.resizeAllViews();
+            }, 100);
+        };
+    }
+
+    /**
+     * Tear down this ViewManager: unregister event-bus and window listeners,
+     * destroy every open view panel, and clear the visualizations container.
+     * Used when the cube size changes and the view manager is recreated.
+     */
+    dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+
+        getEventBus().off(EventName.MOVE_EXECUTED, this.boundMoveExecuted);
+        getEventBus().off(EventName.MOVE_EXECUTED, this.boundCommandStatesRefresh);
+        getEventBus().off(EventName.HIGHLIGHT_CHANGED, this.boundHighlightChanged);
+
+        // The lifecycle manager registers its own VIEW_STATE_CHANGED listener.
+        this.viewLifecycleManager?.dispose();
+        this.viewLifecycleManager = null;
+
+        // The interaction handler registers its own pointer listeners.
+        this.panelInteractionHandler?.dispose();
+        this.panelInteractionHandler = null;
+
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('resize', this.boundWindowResize);
+        }
+        if (this.mediaQueryList && this.boundMediaQueryChange) {
+            this.mediaQueryList.removeEventListener('change', this.boundMediaQueryChange);
+            this.mediaQueryList = null;
+            this.boundMediaQueryChange = null;
+        }
+
+        // Destroy each open view and clear the container so a fresh view
+        // manager starts from a clean DOM (avoids stale-panel regressions).
+        for (const { view } of this.activeViews.values()) {
+            try {
+                view.destroy?.();
+            } catch (error) {
+                logger.warn('Error destroying view during dispose', error);
+            }
+        }
+        this.activeViews.clear();
+        this.focusStack = [];
+        if (this.visualizationsContainer) {
+            this.visualizationsContainer.innerHTML = '';
+        }
     }
 
     /**
@@ -126,11 +194,13 @@ export class ViewManager implements CommandManager {
         // Determine initial layout mode and listen for breakpoint changes
         if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
             const mq = window.matchMedia('(min-width: 1025px)');
-            this.layoutMode = mq.matches ? 'floating' : LayoutMode.Tabbed;
-            mq.addEventListener('change', (e: MediaQueryListEvent) => {
+            this.mediaQueryList = mq;
+            this.boundMediaQueryChange = (e: MediaQueryListEvent) => {
                 this.layoutMode = e.matches ? 'floating' : LayoutMode.Tabbed;
                 this.applyLayoutMode();
-            });
+            };
+            this.layoutMode = mq.matches ? 'floating' : LayoutMode.Tabbed;
+            mq.addEventListener('change', this.boundMediaQueryChange);
         }
 
         // Create panel interaction handler
@@ -182,26 +252,19 @@ export class ViewManager implements CommandManager {
         this.renderGlobalCommands();
 
         // Subscribe to MOVE_EXECUTED events to update all views
-        getEventBus().on(EventName.MOVE_EXECUTED, this.handleMoveExecuted.bind(this));
+        getEventBus().on(EventName.MOVE_EXECUTED, this.boundMoveExecuted);
 
         // Also subscribe to MOVE_EXECUTED to refresh command button enabled/disabled states.
         // This runs independently of view updates so command states stay in sync after every
         // move, undo, and redo operation.
-        getEventBus().on(EventName.MOVE_EXECUTED, this.handleCommandStatesRefresh.bind(this));
+        getEventBus().on(EventName.MOVE_EXECUTED, this.boundCommandStatesRefresh);
 
         // Also subscribe to highlight change events so external emitters can update views
-        getEventBus().on(EventName.HIGHLIGHT_CHANGED, this.handleHighlightChanged.bind(this));
+        getEventBus().on(EventName.HIGHLIGHT_CHANGED, this.boundHighlightChanged);
 
         // Re-scale view content whenever the viewport size changes (debounced).
         if (typeof window !== 'undefined') {
-            window.addEventListener('resize', () => {
-                if (this.resizeDebounceTimer !== null) {
-                    clearTimeout(this.resizeDebounceTimer);
-                }
-                this.resizeDebounceTimer = setTimeout(() => {
-                    this.resizeAllViews();
-                }, 100);
-            });
+            window.addEventListener('resize', this.boundWindowResize);
         }
     }
 

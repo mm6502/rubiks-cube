@@ -196,11 +196,15 @@ export function updateFromGesture(s: FlatTouchHandlerState, gesture: DragGesture
 }
 
 /**
- * Called when a drag ends. Infers the final move notation, hides the drag
- * label, and emits a `MOVE_REQUESTED` event if a valid move was produced.
+ * Called when a drag ends. Uses the provided final move notation (or infers
+ * one), hides the drag label, and emits a `MOVE_REQUESTED` event if a valid
+ * move was produced.
  */
-export function finalizeGesture(s: FlatTouchHandlerState, gesture: DragGesture): void {
-    const moveNotation = inferMoveNotationForGesture(s, gesture);
+export function finalizeGesture(
+    s: FlatTouchHandlerState,
+    gesture: DragGesture,
+    moveNotation = inferMoveNotationForGesture(s, gesture)
+): void {
     hideDragLabel(s);
 
     if (!moveNotation) {

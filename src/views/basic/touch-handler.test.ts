@@ -920,6 +920,38 @@ describe('BasicTouchHandler', () => {
         handler.destroy();
     });
 
+    it('drag on halo clears face selection after move', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // Pre-select face F so halo hit target is active
+        handler.selectFace(Face.F);
+        expect(handler.getSelectedFace()).toBe(Face.F);
+
+        // The halo hit target element is inside the host
+        const haloTarget = fixture.host.querySelector('.basic-halo-hit-target') as HTMLElement;
+        expect(haloTarget).not.toBeNull();
+
+        // Mock getBoundingClientRect so isHaloHitTargetAtPoint returns true for our coords
+        haloTarget.getBoundingClientRect = () =>
+            ({ left: 90, right: 110, top: 90, bottom: 110, width: 20, height: 20 }) as DOMRect;
+
+        // Dispatch halo drag
+        fixture.host.dispatchEvent(pointer('pointerdown', 31, 100, 100));
+        document.dispatchEvent(pointer('pointermove', 31, 100, 140));
+        document.dispatchEvent(pointer('pointerup', 31, 100, 140));
+
+        // After the move is emitted, face selection should be cleared
+        expect(emitSpy).toHaveBeenCalledWith(
+            EventName.MOVE_REQUESTED,
+            expect.objectContaining({ viewId: 'basic-front' })
+        );
+        expect(handler.getSelectedFace()).toBeUndefined();
+
+        handler.destroy();
+    });
+
     // -----------------------------------------------------------------------
     // onPointerCancel during active drag → gesture cancelled cleanly
     // -----------------------------------------------------------------------

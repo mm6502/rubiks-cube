@@ -9,8 +9,8 @@
     position: relative;
     background: radial-gradient(
         circle at 50% 50%,
-        var(--color-domain-cube-glow) 45%,
-        var(--color-domain-cube-interior) 66%
+        var(--color-basic2-cube-glow) 45%,
+        var(--color-canvas-bg) 66%
     );
 }
 

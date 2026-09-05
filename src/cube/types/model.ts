@@ -46,10 +46,13 @@ export interface CubeModel {
 
     /**
      * Scramble the cube with random moves
-     * @param moveCount - Number of random moves to apply (default: 20)
+     * @param moveCount - Number of random moves to apply (default:
+     * size-scaled)
+     * @param randomSource - Optional uniform `[0, 1)` generator (default:
+     * Math.random)
      * @returns Array of move strings that were applied
      */
-    scramble(moveCount?: number): string[];
+    scramble(moveCount?: number, randomSource?: () => number): string[];
 
     /** Reset the cube to its solved state */
     reset(): void;

@@ -109,3 +109,20 @@ export const FaceEdge = {
 
 // fallow-ignore-next-line unused-type
 export type FaceEdge = (typeof FaceEdge)[keyof typeof FaceEdge];
+
+/**
+ * Cube sizes the application supports (2×2 through 7×7).
+ * This is the single source of truth for the supported-size range; the size
+ * selector, view capability declarations, and persistence bounds all derive
+ * from it so adding a size is a one-line change.
+ */
+export const SUPPORTED_SIZES = [2, 3, 4, 5, 6, 7] as const;
+
+export type CubeSize = (typeof SUPPORTED_SIZES)[number];
+
+/**
+ * True when the given number is one of the supported cube sizes.
+ */
+export function isSupportedSize(value: number | null | undefined): value is CubeSize {
+    return value != null && (SUPPORTED_SIZES as readonly number[]).includes(value);
+}

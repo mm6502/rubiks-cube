@@ -158,7 +158,8 @@ export class FlatView implements CubeView {
                 if (face) {
                     const faceGrid = displayGrid.get(face);
                     if (faceGrid) {
-                        const faceDiv = this.createFaceElement(face, faceGrid);
+                        const cubeSize = _model.getCurrentState().cubeSize;
+                        const faceDiv = this.createFaceElement(face, faceGrid, cubeSize);
                         cell.appendChild(faceDiv);
                     }
                 }
@@ -179,7 +180,8 @@ export class FlatView implements CubeView {
 
         // Create ghost strips on all non-layout-adjacent edges
         this.ghostStrips = new GhostStrips(flatContainer, this.state.styles);
-        this.ghostStrips.create();
+        const cubeSize = _model.getCurrentState().cubeSize;
+        this.ghostStrips.create(cubeSize);
 
         this.touchHandler = new FlatTouchHandler({
             host: flatContainer,
@@ -226,8 +228,8 @@ export class FlatView implements CubeView {
      * Creates the DOM element for a single cube face and attaches hover/click
      * listeners for highlight and selection feedback.
      */
-    private createFaceElement(face: Face, faceGrid: FaceGrid): HTMLElement {
-        const faceDiv = rendering.createFaceElement(face, faceGrid, this.state.styles);
+    private createFaceElement(face: Face, faceGrid: FaceGrid, cubeSize: number): HTMLElement {
+        const faceDiv = rendering.createFaceElement(face, faceGrid, this.state.styles, cubeSize);
 
         // Attach interaction listeners (rendering module produces DOM only).
         faceDiv.querySelectorAll(`.${this.state.styles['flat-sticker']}`).forEach(sticker => {
@@ -262,6 +264,9 @@ export class FlatView implements CubeView {
     update(model: ReadOnlyCubeModel): void {
         rendering.update(this.state, model);
         this.restoreSelection();
+        // Recreate ghost strips if cube size changed
+        const cubeSize = model.getCurrentState().cubeSize;
+        this.ghostStrips?.updateSizeIfNeeded(cubeSize);
         this.ghostStrips?.updateColors();
     }
 
@@ -269,6 +274,9 @@ export class FlatView implements CubeView {
     public updateSelective(event?: MoveExecutedEvent): void {
         rendering.updateSelective(this.state, event);
         this.restoreSelection();
+        // Recreate ghost strips if cube size changed
+        const cubeSize = this.state.model?.getCurrentState().cubeSize ?? 3;
+        this.ghostStrips?.updateSizeIfNeeded(cubeSize);
         this.ghostStrips?.updateColors();
     }
 
@@ -292,7 +300,7 @@ export class FlatView implements CubeView {
         return commands.handleKeyUp(this.commandContext(), event);
     }
 
-    /** Recalculates scale and legend content, and repositions the halo overlay. */
+    /** Recalculates scale and legend content, and repositions the halo hit-target overlay. */
     resize(): void {
         this.handleResize();
         this.touchHandler?.resize();

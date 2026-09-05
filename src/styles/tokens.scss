@@ -218,6 +218,9 @@
 
     // § Ghost sticker glow
     --color-ghost-sticker-glow: color-mix(in srgb, var(--palette-gray-0) 30%, transparent);
+
+    // § Basic 2 view — glow behind the 3D cube container
+    --color-basic2-cube-glow: var(--color-canvas-bg);
 }
 // #endregion Layer 2: Semantic tokens
 
@@ -266,6 +269,9 @@
     --color-view-selection-tab-active-text: var(--palette-indigo-600);
     --color-view-selection-tab-active-border: var(--palette-gray-0);
     --color-view-selection-tab-scrollbar-thumb: var(--color-overlay-negative-40);
+
+    // § Basic 2 view — glow behind the 3D cube container (light: none)
+    --color-basic2-cube-glow: transparent;
 }
 // #endregion Layer 3: Light theme
 
@@ -319,5 +325,8 @@
     --color-domain-face-label-border: var(--palette-gray-500);
     --color-domain-face-label-hidden-bg: var(--palette-gray-950);
     --color-domain-face-label-hidden: var(--palette-gray-400);
+
+    // § Basic 2 view — glow behind the 3D cube container (dark: slate-800)
+    --color-basic2-cube-glow: var(--palette-slate-800);
 }
 // #endregion Layer 3: Dark theme

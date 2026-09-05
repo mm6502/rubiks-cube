@@ -6,6 +6,7 @@ import {
     getAvailableViews,
     getViewDefaultConfig,
     getViewTitle,
+    viewSupportsSize,
 } from '@/view-manager/view-registry';
 
 beforeAll(() => {
@@ -74,5 +75,32 @@ describe('ViewRegistry', () => {
 
         // Assert
         expect(view).toBeUndefined();
+    });
+
+    it('circular view supports only size 3 (SVG-per-N)', () => {
+        expect(viewSupportsSize('circular', 3)).toBe(true);
+        for (const size of [2, 4, 5, 6, 7]) {
+            expect(viewSupportsSize('circular', size)).toBe(false);
+        }
+    });
+
+    it('basic, basic-2, flat, and moves support all sizes 2-7', () => {
+        for (const viewType of [
+            'basic-front',
+            'basic-back',
+            'basic-2-front',
+            'basic-2-back',
+            'flat',
+            'moves',
+        ]) {
+            for (const size of [2, 3, 4, 5, 6, 7]) {
+                expect(viewSupportsSize(viewType, size)).toBe(true);
+            }
+        }
+    });
+
+    it('unknown view types are treated as supporting all sizes', () => {
+        expect(viewSupportsSize('unknown-view', 2)).toBe(true);
+        expect(viewSupportsSize('unknown-view', 7)).toBe(true);
     });
 });
