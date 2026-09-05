@@ -527,6 +527,11 @@ export class BasicView implements CubeView {
         // Remove fill effect after DOM is updated
         animation.cancel();
 
+        // If the interrupted move was a whole-cube rotation, its result is now
+        // visible (cubies snapped to post-move positions) — refresh labels so
+        // the corner-face mapping matches before the next move proceeds.
+        this.refreshFaceLabelsAfterWholeCubeMove(event);
+
         // Update ghost stickers and selection
         this.ghostStickers?.updateColors();
         this.restoreSelection();

@@ -241,4 +241,30 @@ describe('BasicView - whole-cube x/y/z face-label refresh (R1b)', () => {
 
         expect(updateFaceLabelsMock).not.toHaveBeenCalled();
     });
+
+    it('refreshes labels when an animated whole-cube move is interrupted by a second move', async () => {
+        // Start an x-move animation that never resolves on its own…
+        const deferred: { resolve: () => void; promise: Promise<void> } = (() => {
+            let resolve!: () => void;
+            const promise = new Promise<void>(r => (resolve = r));
+            return { resolve, promise };
+        })();
+        const pivot = document.createElement('div');
+        view.getCubeElement()!.appendChild(pivot);
+        animateMoveMock.mockReturnValue({
+            animation: { finished: deferred.promise, cancel: vi.fn() },
+            pivot,
+            cubieElements: [],
+        });
+        view.handleMoveExecuted(wholeCubeEvent(model, 'x'));
+        expect(lastLabelRefreshDirection()).toBeUndefined();
+
+        // …then a second move arrives and interrupts it via finalizeAnimation.
+        view.handleMoveExecuted(faceMoveEvent(model, 'R'));
+
+        // The interrupted x-move's cubies snapped to post-move positions, so
+        // its labels must refresh even though the interrupting move is a face
+        // move (which alone would not trigger a refresh).
+        expect(lastLabelRefreshDirection()).toBe('vertical');
+    });
 });
