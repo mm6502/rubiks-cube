@@ -431,11 +431,16 @@ export class ViewLifecycleManager {
      * An explicit hide of both `basic-front` and `basic-back` (both false)
      * with no `basic-2-*` preference is honored as-is.
      */
-    private reconcileLegacyBasic2Visibility(): void {
+private reconcileLegacyBasic2Visibility(): void {
         const saved = localStorage.getItem('rubiksCubeVisibleViews');
         if (!saved) return;
 
-        const viewStates = JSON.parse(saved) as Record<string, boolean>;
+        let viewStates: Record<string, boolean>;
+        try {
+            viewStates = JSON.parse(saved) as Record<string, boolean>;
+        } catch {
+            return;
+        }
         // Legacy sibling → surviving sibling.
         const legacyToSurviving: Record<string, string> = {
             'basic-2-front': 'basic-front',
