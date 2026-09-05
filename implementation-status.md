@@ -41,14 +41,15 @@ Last quality snapshot: 2026-08-15 (92 test files passing; 2071 tests passing).
   - [x] Add Flat view support for custom cube sizes
   - [x] Add Basic view support for custom cube sizes
   - [x] Add Basic 2 view support for custom cube sizes
-    - [ ] Debug Basic 2 view support for custom cube sizes
-  - [ ] Add Circular view support for custom cube sizes
-    - [ ] Add 2x2 support
-    - [ ] Add 4x4 support
-    - [ ] Add 5x5 support
-    - [ ] Add 6x6 support
-    - [ ] Add 7x7 support
-  - [ ] Obsolete Basic view in favor of Basic 2 view
+    - [x] Debug Basic 2 view support for custom cube sizes
+  - [ ] Circular view: add 2x2 support (independent follow-up)
+  - [ ] Circular view: add 4x4 support (independent follow-up)
+  - [ ] Circular view: add 5x5 support (independent follow-up)
+  - [ ] Circular view: add 6x6 support (independent follow-up)
+  - [ ] Circular view: add 7x7 support (independent follow-up)
+  - [x] Cut over Basic 2 to replace the Basic view (the animated per-cubie
+        engine is now the single Basic view — see
+        [docs/brainstorms/2026-09-05-basic2-cutover-requirements.md](docs/brainstorms/2026-09-05-basic2-cutover-requirements.md))
 
 ## Future Enhancements
 
@@ -67,8 +68,8 @@ Last quality snapshot: 2026-08-15 (92 test files passing; 2071 tests passing).
 
 ### Known Issues (acknowledged, not planned to fix)
 
-- [!] Basic view: rotations in Firefox rotations over 180° unwinded rapidly in
-  the opposite direction
+- [!] Basic view (the sole 3D cube view since the Basic 2 cutover): rotations in
+  Firefox over 180° unwind rapidly in the opposite direction (matrix3d scheme)
 
 ### Long Term (almost certainly not, aka NOT planned)
 
