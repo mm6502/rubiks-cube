@@ -416,6 +416,11 @@
 }
 
 /* Front view (pitched) - hidden labels */
+.hidden-face-label-front-pitched-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
 .hidden-face-label-front-pitched-bottom-left {
     bottom: 10px;
     left: 10px;
@@ -431,6 +436,11 @@
 }
 
 /* Front view (tilted + pitched) - hidden labels */
+.hidden-face-label-front-tilted-pitched-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
 .hidden-face-label-front-tilted-pitched-bottom-left {
     bottom: 10px;
     left: 10px;
@@ -476,6 +486,11 @@
 }
 
 /* Back view (pitched) - hidden labels */
+.hidden-face-label-back-pitched-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
 .hidden-face-label-back-pitched-bottom-left {
     bottom: 10px;
     left: 10px;
@@ -491,6 +506,11 @@
 }
 
 /* Back view (tilted + pitched) - hidden labels */
+.hidden-face-label-back-tilted-pitched-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
 .hidden-face-label-back-tilted-pitched-bottom-left {
     bottom: 10px;
     left: 10px;
