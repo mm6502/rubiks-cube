@@ -388,7 +388,7 @@ export class FlatTouchHandler {
         // Check if a move will be emitted before clearing the selection
         const moveNotation = inferMoveNotationForGesture(this.s, gesture);
 
-        finalizeGesture(this.s, gesture);
+        finalizeGesture(this.s, gesture, moveNotation);
 
         // Clear face selection after move is emitted
         if (moveNotation) {

@@ -548,6 +548,34 @@ describe('FlatTouchHandler', () => {
 
         handler.destroy();
     });
+
+    it('faceDirectMode drag infers face rotation notation once', () => {
+        const inferFaceRotationNotation = vi.fn(() => 'F');
+
+        const handler = new FlatTouchHandler({
+            host: fixture.host,
+            styles,
+            getCubeSize: () => 3,
+            getIsRotated: () => false,
+            onStickerSelected: () => undefined,
+            adapter: {
+                inferFaceRotationNotation,
+            },
+        });
+        handler.attach();
+        handler.setFaceDirectMode(true);
+
+        elementFromPointMock.mockReturnValue(fixture.stickers[2]);
+
+        firePointer(fixture.host, 'pointerdown', 14, 100, 100);
+        firePointer(document, 'pointermove', 14, 100, 70);
+        inferFaceRotationNotation.mockClear();
+        firePointer(document, 'pointerup', 14, 100, 70);
+
+        expect(inferFaceRotationNotation).toHaveBeenCalledTimes(1);
+
+        handler.destroy();
+    });
 });
 
 function createFixture(): Fixture {
