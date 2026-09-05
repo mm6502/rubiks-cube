@@ -96,8 +96,6 @@ export type FlatTouchHandlerState = {
 
     // ── Overlay DOM elements ────────────────────────────────────────────
 
-    /** Visual halo ring element displayed around the selected face. */
-    haloEl: HTMLDivElement;
     /** Invisible rectangular hit-target covering the selected face for drag detection. */
     haloHitTargetEl: HTMLDivElement;
     /** Visual cancel-zone circle shown at the drag origin. */

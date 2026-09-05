@@ -114,24 +114,6 @@
     box-shadow: inset 0 0 0 2px var(--color-domain-face-selected-glow);
 }
 
-.flat-halo {
-    position: absolute;
-    box-sizing: border-box;
-    border-radius: 50%;
-    border: none;
-    background: radial-gradient(
-        circle closest-side,
-        transparent calc(100% - var(--flat-halo-ring-width, 0px)),
-        var(--color-drag-halo-fill) calc(100% - var(--flat-halo-ring-width, 0px)),
-        var(--color-drag-halo-fill) calc(100% - 1px),
-        var(--color-drag-halo-stroke) calc(100% - 1px),
-        var(--color-drag-halo-stroke) 100%,
-        transparent 100%
-    );
-    pointer-events: none;
-    z-index: 15;
-}
-
 .flat-halo-hit-target {
     position: absolute;
     background: transparent;

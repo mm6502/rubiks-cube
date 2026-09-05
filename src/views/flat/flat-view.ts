@@ -300,7 +300,7 @@ export class FlatView implements CubeView {
         return commands.handleKeyUp(this.commandContext(), event);
     }
 
-    /** Recalculates scale and legend content, and repositions the halo overlay. */
+    /** Recalculates scale and legend content, and repositions the halo hit-target overlay. */
     resize(): void {
         this.handleResize();
         this.touchHandler?.resize();

@@ -1,7 +1,7 @@
 /**
  * Visual overlay management for the flat touch handler.
  *
- * Exports functions that manage the DOM overlay elements: halo ring,
+ * Exports functions that manage the DOM overlay elements: the invisible
  * halo hit-target, cancel zone, drag label, and face-selection styling.
  */
 import { Face } from '@/cube/types';
@@ -29,16 +29,15 @@ export function createOverlayElement(
     return el;
 }
 
-// ── Halo position ───────────────────────────────────────────────────
+// ── Halo drag-target position ───────────────────────────────────────
 
 /**
- * Reposition the visual halo ring and invisible hit-target to match the
- * currently selected face. Hides both elements when no face is selected.
- * Also caches `s.haloFaceCenter` for use by rotation-direction inference.
+ * Reposition the invisible halo hit-target to match the currently
+ * selected face. Hides it when no face is selected. Also caches
+ * `s.haloFaceCenter` for use by rotation-direction inference.
  */
 export function updateHaloPosition(s: FlatTouchHandlerState): void {
     if (!s.selectedFace) {
-        s.haloEl.style.display = 'none';
         s.haloHitTargetEl.style.display = 'none';
         return;
     }
@@ -49,7 +48,6 @@ export function updateHaloPosition(s: FlatTouchHandlerState): void {
     const owningFaceEl = faceEl ? findFaceElement(s, faceEl) : null;
 
     if (!owningFaceEl) {
-        s.haloEl.style.display = 'none';
         s.haloHitTargetEl.style.display = 'none';
         return;
     }
@@ -58,23 +56,10 @@ export function updateHaloPosition(s: FlatTouchHandlerState): void {
     const faceRect = owningFaceEl.getBoundingClientRect();
     const faceSize = Math.min(faceRect.width, faceRect.height);
 
-    const visualDiameter = Math.max(0, faceSize - 2);
-    const visualRadius = visualDiameter / 2;
-
-    const innerRadius = Math.max(0, faceSize / 6);
-    const ringWidth = Math.max(0, visualRadius - innerRadius);
-
     const centerX = faceRect.left + faceRect.width / 2;
     const centerY = faceRect.top + faceRect.height / 2;
 
     s.haloFaceCenter = { x: centerX, y: centerY, size: faceSize };
-
-    s.haloEl.style.left = `${centerX - hostRect.left - visualRadius}px`;
-    s.haloEl.style.top = `${centerY - hostRect.top - visualRadius}px`;
-    s.haloEl.style.width = `${visualDiameter}px`;
-    s.haloEl.style.height = `${visualDiameter}px`;
-    s.haloEl.style.setProperty('--flat-halo-ring-width', `${ringWidth}px`);
-    s.haloEl.style.display = 'block';
 
     s.haloHitTargetEl.style.left = `${faceRect.left - hostRect.left}px`;
     s.haloHitTargetEl.style.top = `${faceRect.top - hostRect.top}px`;

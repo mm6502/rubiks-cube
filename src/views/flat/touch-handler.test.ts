@@ -17,7 +17,6 @@ const styles = {
     'flat-container': 'flat-container',
     'flat-face': 'flat-face',
     'flat-sticker': 'flat-sticker',
-    'flat-halo': 'flat-halo',
     'flat-halo-hit-target': 'flat-halo-hit-target',
     'flat-halo-cancel-zone': 'flat-halo-cancel-zone',
     'flat-drag-label': 'flat-drag-label',
