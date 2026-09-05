@@ -584,6 +584,52 @@ describe('ViewLifecycleManager', () => {
             ) as HTMLInputElement;
             expect(basicFrontCheckbox.checked).toBe(false);
         });
+
+        it('persists the adopted sibling as visible so a second launch keeps the Basic view (cross-launch R7)', () => {
+            // First launch: user opted into basic-2-front but had hidden
+            // basic-front to declutter.
+            localStorage.setItem(
+                'rubiksCubeVisibleViews',
+                JSON.stringify({ 'basic-2-front': true, 'basic-front': false, flat: true })
+            );
+            viewLifecycleManager['createViewControls']();
+
+            // After the first launch's reconcile + cleanup, the visibility map
+            // must have the surviving sibling enabled and the legacy key gone.
+            const afterFirst = JSON.parse(localStorage.getItem('rubiksCubeVisibleViews')!);
+            expect(afterFirst['basic-front']).toBe(true);
+            expect(afterFirst).not.toHaveProperty('basic-2-front');
+
+            // Second launch (fresh lifecycle manager over the same storage): the
+            // surviving sibling is enabled, so the user still sees a Basic view.
+            document.body.innerHTML = '';
+            const secondContainer = document.createElement('div');
+            secondContainer.className = 'view-controls';
+            document.body.appendChild(secondContainer);
+            const secondManager = new ViewLifecycleManager(
+                mockCubeModel,
+                {
+                    'view-panel': 'view-panel',
+                    'view-header': 'view-header',
+                    'view-title': 'view-title',
+                    'view-content': 'view-content',
+                },
+                mockVisualizationsContainer,
+                mockPanelInteractionHandler,
+                mockActiveViews,
+                mockCommandManager,
+                {
+                    onUpdateFocus: mockOnUpdateFocus,
+                    getLayoutMode: () => 'floating' as const,
+                }
+            );
+            secondManager['createViewControls']();
+
+            const basicFrontCheckbox = document.getElementById(
+                'show-basic-front'
+            ) as HTMLInputElement;
+            expect(basicFrontCheckbox.checked).toBe(true);
+        });
     });
 
     describe('legacy basic-2 stale-data cleanup (R11)', () => {

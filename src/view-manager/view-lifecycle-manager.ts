@@ -420,8 +420,13 @@ export class ViewLifecycleManager {
      * family (saved as enabled in `rubiksCubeVisibleViews`) would otherwise
      * boot with no visible 3D Basic view after the cutover — including users
      * who deliberately unchecked the static `basic-front`/`basic-back` to
-     * declutter. So when a saved `basic-2-*` entry is enabled, ensure the
-     * corresponding surviving sibling (`basic-front`/`basic-back`) is checked.
+     * declutter.
+     *
+     * So when a saved `basic-2-*` entry is enabled, mark the corresponding
+     * surviving sibling (`basic-front`/`basic-back`) as visible BOTH in the
+     * DOM checkbox and in the persisted visibility map, so the adoption
+     * survives the one-time cleanup that follows on this same launch (and
+     * subsequent launches see the surviving sibling already enabled).
      *
      * An explicit hide of both `basic-front` and `basic-back` (both false)
      * with no `basic-2-*` preference is honored as-is.
@@ -437,6 +442,7 @@ export class ViewLifecycleManager {
             'basic-2-back': 'basic-back',
         };
 
+        let changed = false;
         for (const [legacy, surviving] of Object.entries(legacyToSurviving)) {
             if (viewStates[legacy] !== true) continue;
             const checkbox = document.getElementById(
@@ -445,6 +451,13 @@ export class ViewLifecycleManager {
             if (checkbox && !checkbox.checked) {
                 checkbox.checked = true;
             }
+            if (viewStates[surviving] !== true) {
+                viewStates[surviving] = true;
+                changed = true;
+            }
+        }
+        if (changed) {
+            localStorage.setItem('rubiksCubeVisibleViews', JSON.stringify(viewStates));
         }
     }
 
@@ -476,7 +489,9 @@ export class ViewLifecycleManager {
             }
             panelKeys.forEach(key => localStorage.removeItem(key));
 
-            // Remove legacy basic-2-* entries from the visibility map.
+            // Remove legacy basic-2-* entries from the visibility map. The
+            // reconcile step has already persisted any adopted surviving
+            // sibling as true, so dropping the legacy keys here is safe.
             const saved = localStorage.getItem('rubiksCubeVisibleViews');
             if (saved) {
                 const viewStates = JSON.parse(saved) as Record<string, boolean>;
