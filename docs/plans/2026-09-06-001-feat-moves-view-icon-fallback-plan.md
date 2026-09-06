@@ -8,6 +8,17 @@ origin: docs/brainstorms/2026-09-05-moves-view-icon-fallback-requirements.md
 
 # feat: Moves view icon fallback for size-specific moves
 
+> **Post-completion amendment (2026-09-06):** KTD3 and R3/R4 originally stated
+> fallback items "always use the family's base symbol (never the suffix-variant
+> glyph)". A follow-up bug report showed this made `5E` vs `5E'` (and `2M`/`2M'`,
+> `3S`/`3S'`) render identical arrows, losing the turn direction the 3×3 exact
+> icons encode. The shipped implementation composes the family base letter with
+> the notation's modifier suffix to select the direction-accurate glyph
+> (`5E`→`e`, `5E'`→`ep`, `5E2`→`e2`, `5E2'`→`e2p`; same for M/S, face, and wide
+> families), keeping the layer number in the label. R3/R4/KTD3 below are the
+> historical decision record; the code and tests reflect the amended behavior
+> (commit `932505c`).
+
 ## Summary
 
 Make the Moves view's icon mode readable on cubes larger than 3×3 by resolving
