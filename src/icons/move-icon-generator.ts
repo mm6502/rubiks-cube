@@ -3,6 +3,10 @@
  * Loads the sprite once, exposes move metadata, and emits wrapper SVG markup
  * so UI callers never deal with raw icon strings directly.
  */
+import { getCubeInvariants } from '@/cube/core/cube-invariants';
+import { Axis } from '@/cube/types';
+import type { MoveDefinition } from '@/cube/types';
+
 import moveIconSprite from './move-icon-sprite.svg?raw';
 
 export type MoveNotation =
@@ -144,12 +148,212 @@ export function isMoveNotation(value: string): value is MoveNotation {
 }
 
 /**
- * Creates the small wrapper SVG (the bit that views insert into the DOM).
- * The wrapper references the sprite symbol so it stays tiny and deterministic.
+ * Creates the small wrapper SVG (the bit that views insert into the DOM) for a
+ * sprite symbol id. The wrapper references the sprite symbol so it stays tiny
+ * and deterministic.
+ */
+export function generateSvgForSymbol(symbolId: string): string {
+    ensureMoveIconSpriteLoaded();
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180" width="200" height="180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><use href="#${symbolId}" /></svg>`;
+}
+
+/**
+ * Creates the small wrapper SVG for an exact-preset move notation.
  */
 export function generateMoveIconSvg(move: MoveNotation): string {
-    ensureMoveIconSpriteLoaded();
-    const preset = MOVE_ICON_PRESETS[move];
+    return generateSvgForSymbol(MOVE_ICON_PRESETS[move].symbolId);
+}
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180" width="200" height="180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><use href="#${preset.symbolId}" /></svg>`;
+/* ---------------------------------------------------------------------------
+ * Icon fallback resolution for size-specific moves
+ *
+ * R1/R3/R4: a valid notation with no exact preset (numbered slices like "3E",
+ * wide moves like "Rw"/"2Rw", and their ' / 2 / 2' forms) still renders as the
+ * base glyph of its canonical family, labeled with the full notation. Validity
+ * and family come from the cube-invariants move table (R6), never from
+ * duplicated pattern rules in the icon layer.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Base-family letter for a slice move, per rotation axis. A slice's axis fully
+ * determines its family glyph: X → M, Y → E, Z → S.
+ */
+const SLICE_BASE_BY_AXIS: Readonly<Record<Axis, MoveNotation>> = {
+    [Axis.X]: 'M',
+    [Axis.Y]: 'E',
+    [Axis.Z]: 'S',
+};
+
+/**
+ * Base-family letter for a whole-cube rotation, per rotation axis:
+ * X → x, Y → y, Z → z.
+ */
+const ROTATION_BASE_BY_AXIS: Readonly<Record<Axis, MoveNotation>> = {
+    [Axis.X]: 'x',
+    [Axis.Y]: 'y',
+    [Axis.Z]: 'z',
+};
+
+/**
+ * Base-family letter for a face or wide move, keyed by axis and by which end
+ * its outer layer sits on. R/L and U/D and F/B share an axis, so the layer side
+ * (last vs 0) disambiguates them — the same `baseOnLast` distinction the move
+ * builder centralizes in FACE_TURNS.
+ */
+const FACE_BASE_BY_AXIS_AND_SIDE: Readonly<
+    Record<Axis, { readonly last: MoveNotation; readonly zero: MoveNotation }>
+> = {
+    [Axis.X]: { last: 'R', zero: 'L' },
+    [Axis.Y]: { last: 'U', zero: 'D' },
+    [Axis.Z]: { last: 'B', zero: 'F' },
+};
+
+/**
+ * Resolve the family *base letter* for a validated move definition. The letter
+ * (e.g. `E` for a slice on the Y axis, `R` for a wide/face on the X-last side)
+ * names the family; the caller composes it with the move's modifier suffix to
+ * pick the direction-accurate glyph (`E'` → prime arrow, `E2` → half-turn, ...).
+ */
+function familyBaseLetterFor(
+    definition: MoveDefinition,
+    cubeSize: number
+): MoveNotation | undefined {
+    const last = cubeSize - 1;
+    const onLastLayer = definition.layerIndices[0] === last;
+
+    switch (definition.canonicalFamily) {
+        case 'slice':
+            return SLICE_BASE_BY_AXIS[definition.axis];
+        case 'rotation':
+            return ROTATION_BASE_BY_AXIS[definition.axis];
+        case 'face':
+        case 'wide':
+            return FACE_BASE_BY_AXIS_AND_SIDE[definition.axis][onLastLayer ? 'last' : 'zero'];
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * The modifier suffix of a size-specific notation: `''`, `'`, `2`, or `2'`.
+ * The layer number prefix and the wide `w` marker are stripped before this is
+ * read (e.g. "5E'" → `'`, "Rw2" → `2`, "2Rw2'" → `2'`).
+ */
+function modifierSuffixOf(move: string): "'" | '2' | "2'" | '' {
+    if (move.endsWith("2'")) return "2'";
+    if (move.endsWith("'")) return "'";
+    if (move.endsWith('2')) return '2';
+    return '';
+}
+
+/**
+ * Compose the family base letter with a modifier into the exact preset that
+ * carries the direction-accurate arrow. `E` + `''` → `MOVE_ICON_PRESETS['E']`,
+ * `E` + `'` → `MOVE_ICON_PRESETS["E'"]` (prime arrow), etc. Returns undefined
+ * if the combination is not a known preset (defensive; all family letters and
+ * the four modifiers are valid preset keys).
+ */
+function familyPresetFor(
+    baseLetter: MoveNotation | undefined,
+    modifier: "'" | '2' | "2'" | '' | undefined
+): MoveIconPreset | undefined {
+    if (!baseLetter) return undefined;
+    const notation = modifier ? `${baseLetter}${modifier}` : baseLetter;
+    return MOVE_ICON_PRESETS[notation as MoveNotation];
+}
+
+/**
+ * The move table stores base/`'`/`2` forms only; a trailing `2'` spelling is
+ * executable but absent from it (the parser resolves `2'` by looking up the `2`
+ * form and negating the angle). Mirror that here so valid `2'` notations
+ * ("3E2'", "Rw2'", "R2'") still resolve instead of hitting the text fallback.
+ */
+function lookupName(move: string): string {
+    return move.endsWith("2'") ? `${move.slice(0, -2)}2` : move;
+}
+
+/**
+ * Narrow defensive fallback (origin R6 exception, KTD6 step 4): a wide-shaped
+ * notation absent from the active size's move table — reachable only on sizes
+ * the numbered-wide gate excludes, e.g. a "2Rw" imported into a 3×3 history —
+ * still resolves to its face glyph. Only the wide family is granted by shape;
+ * every other notation must be table-valid to resolve.
+ */
+const WIDE_SHAPED_NOTATION = /^(\d*)([UDLRFB])w(?:2'|['2])?$/i;
+
+/**
+ * Result of resolving a history notation to an icon. `undefined` means no icon
+ * could be determined and the caller keeps the text fallback (R7).
+ */
+export type MoveIconResolution =
+    | {
+          /** The notation has an exact preset; its glyph is used unchanged. */
+          readonly kind: 'exact';
+          readonly symbolId: string;
+          readonly labelPosition: LabelPosition;
+      }
+    | {
+          /** The notation resolved to a canonical family glyph + notation label. */
+          readonly kind: 'family';
+          readonly symbolId: string;
+          readonly labelPosition: LabelPosition;
+          /** The full original notation, shown as the label overlay. */
+          readonly label: string;
+      };
+
+/**
+ * Resolve a move notation (given the active cube size) to the icon that should
+ * represent it. Pure — never renders or touches the DOM.
+ *
+ * Resolution order: (1) an exact preset always wins (KTD2/R2/R8); (2) otherwise
+ * the move is looked up in the active size's move table (a trailing `2'` is
+ * normalized to `2` for the lookup) and its canonical family + modifier select
+ * the direction-accurate family glyph (R6/R3/R4) — `5E'` gets the prime arrow,
+ * `5E2` the half-turn arrow, mirroring the 3×3 exact icons; (3) a wide-shaped
+ * notation still absent from the table falls back to its face glyph; (4)
+ * anything else returns `undefined` (R7 text fallback).
+ */
+export function resolveMoveIcon(move: string, cubeSize: number): MoveIconResolution | undefined {
+    // 1. Exact preset match always wins.
+    if (isMoveNotation(move)) {
+        const preset = MOVE_ICON_PRESETS[move];
+        return { kind: 'exact', symbolId: preset.symbolId, labelPosition: preset.labelPosition };
+    }
+
+    // 2. Table-valid: family base letter + modifier -> direction-accurate glyph.
+    const definition = getCubeInvariants(cubeSize).moveDefinitions.get(lookupName(move));
+    if (definition) {
+        const preset = familyPresetFor(
+            familyBaseLetterFor(definition, cubeSize),
+            modifierSuffixOf(move)
+        );
+        if (preset) {
+            return {
+                kind: 'family',
+                symbolId: preset.symbolId,
+                labelPosition: preset.labelPosition,
+                label: move,
+            };
+        }
+    }
+
+    // 3. Wide-shaped exception for spellings the table gate excludes.
+    const wideMatch = move.match(WIDE_SHAPED_NOTATION);
+    if (wideMatch) {
+        const preset = familyPresetFor(
+            wideMatch[2].toUpperCase() as MoveNotation,
+            modifierSuffixOf(move)
+        );
+        if (preset) {
+            return {
+                kind: 'family',
+                symbolId: preset.symbolId,
+                labelPosition: preset.labelPosition,
+                label: move,
+            };
+        }
+    }
+
+    // 4. No family/icon determinable → text fallback.
+    return undefined;
 }

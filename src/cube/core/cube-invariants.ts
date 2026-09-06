@@ -736,6 +736,46 @@ function generateMoveTables(
 }
 
 /**
+ * The single-layer turn described by one cube face.
+ *
+ * This is the source of truth shared by the face, bare-wide, and numbered-wide
+ * move families: each family derives the face letter (the `Face` key itself),
+ * the rotation axis, the natural angle, and the outer-layer side from one entry
+ * instead of restating them per family.
+ */
+type FaceTurnSpec = {
+    /** The cube axis the face's layer turn rotates around: U/D → Y, R/L → X, F/B → Z. */
+    readonly axis: Axis;
+    /**
+     * The face's natural quarter-turn angle. CW-positive for U/R/B (the turn of
+     * its clockwise face), CW-negative for D/L/F — the same direction the
+     * bare-wide and numbered-wide spellings of the face inherit.
+     */
+    readonly angle: QuarterTurn;
+    /**
+     * Whether the face's outer layer is the highest index (`cubeSize - 1`)
+     * rather than `0`. True for U/R/B (which sit on the "last" layer), false
+     * for D/L/F (which sit on layer 0). Determines which end a wide/numbered
+     * move counts its `n` layers outward from.
+     */
+    readonly baseOnLast: boolean;
+};
+
+/**
+ * Canonical per-face turn data for every cube face, keyed by the real `Face`
+ * type so the icon/engine layers never restate per-face strings. U/R/B sit on
+ * the `last` index, D/L/F on `0`.
+ */
+const FACE_TURNS: Readonly<Record<Face, FaceTurnSpec>> = {
+    [Face.U]: { axis: Axis.Y, angle: QuarterTurn.QUARTER, baseOnLast: true },
+    [Face.D]: { axis: Axis.Y, angle: QuarterTurn.QUARTER_NEG, baseOnLast: false },
+    [Face.R]: { axis: Axis.X, angle: QuarterTurn.QUARTER, baseOnLast: true },
+    [Face.L]: { axis: Axis.X, angle: QuarterTurn.QUARTER_NEG, baseOnLast: false },
+    [Face.F]: { axis: Axis.Z, angle: QuarterTurn.QUARTER_NEG, baseOnLast: false },
+    [Face.B]: { axis: Axis.Z, angle: QuarterTurn.QUARTER, baseOnLast: true },
+};
+
+/**
  * Generate the MoveDefinition set for a cube of the specified size, including
  * face moves, wide moves, slice moves, and cube rotations. This also pushes
  * prime (') and double (2) variants for each base definition.
@@ -762,58 +802,70 @@ function buildMoveDefinitions(cubeSize: number): MoveDefinition[] {
         });
     };
 
-    const faceMoves: MoveDefinition[] = [
-        { name: 'U', axis: Axis.Y, layerIndices: [last], angle: QuarterTurn.QUARTER },
-        { name: 'D', axis: Axis.Y, layerIndices: [0], angle: QuarterTurn.QUARTER_NEG },
-        { name: 'R', axis: Axis.X, layerIndices: [last], angle: QuarterTurn.QUARTER },
-        { name: 'L', axis: Axis.X, layerIndices: [0], angle: QuarterTurn.QUARTER_NEG },
-        { name: 'F', axis: Axis.Z, layerIndices: [0], angle: QuarterTurn.QUARTER_NEG },
-        { name: 'B', axis: Axis.Z, layerIndices: [last], angle: QuarterTurn.QUARTER },
-    ];
+    // Iterate FACE_TURNS once for all three face-turn families so the face
+    // letters (Face.U → "U"), axes, angles, and outer-layer sides live in one
+    // place instead of being restated per family.
+    const faceNames = Object.keys(FACE_TURNS) as Face[];
+
+    const outerLayerFor = (baseOnLast: boolean): number => (baseOnLast ? last : 0);
+    const innerLayerFor = (baseOnLast: boolean): number =>
+        baseOnLast ? Math.max(last - 1, 0) : Math.min(1, last);
+    /** n layers from the face's outer layer inward ([last, last-1, ...] or [0, 1, ...]). */
+    const layersOutwardFor = (baseOnLast: boolean, count: number): number[] =>
+        baseOnLast
+            ? Array.from({ length: count }, (_, index) => last - index)
+            : Array.from({ length: count }, (_, index) => index);
+
+    const faceMoves: MoveDefinition[] = faceNames.map(face => {
+        const { axis, angle, baseOnLast } = FACE_TURNS[face];
+        return {
+            name: face,
+            axis,
+            layerIndices: [outerLayerFor(baseOnLast)],
+            angle,
+            canonicalFamily: 'face' as const,
+        };
+    });
     faceMoves.forEach(pushVariants);
 
     if (cubeSize >= 2) {
-        const secondLayerLow = Math.min(1, last);
-        const secondLayerHigh = Math.max(last - 1, 0);
-        const wideMoves: MoveDefinition[] = [
-            {
-                name: 'Uw',
-                axis: Axis.Y,
-                layerIndices: [last, secondLayerHigh],
-                angle: QuarterTurn.QUARTER,
-            },
-            {
-                name: 'Dw',
-                axis: Axis.Y,
-                layerIndices: [0, secondLayerLow],
-                angle: QuarterTurn.QUARTER_NEG,
-            },
-            {
-                name: 'Rw',
-                axis: Axis.X,
-                layerIndices: [last, secondLayerHigh],
-                angle: QuarterTurn.QUARTER,
-            },
-            {
-                name: 'Lw',
-                axis: Axis.X,
-                layerIndices: [0, secondLayerLow],
-                angle: QuarterTurn.QUARTER_NEG,
-            },
-            {
-                name: 'Fw',
-                axis: Axis.Z,
-                layerIndices: [0, secondLayerLow],
-                angle: QuarterTurn.QUARTER_NEG,
-            },
-            {
-                name: 'Bw',
-                axis: Axis.Z,
-                layerIndices: [last, secondLayerHigh],
-                angle: QuarterTurn.QUARTER,
-            },
-        ];
+        // Bare-wide spellings ("Rw", "Uw", ...) turn the face's two outer layers.
+        const wideMoves: MoveDefinition[] = faceNames.map(face => {
+            const { axis, angle, baseOnLast } = FACE_TURNS[face];
+            return {
+                name: `${face}w`,
+                axis,
+                layerIndices: [outerLayerFor(baseOnLast), innerLayerFor(baseOnLast)],
+                angle,
+                canonicalFamily: 'wide' as const,
+            };
+        });
         wideMoves.forEach(pushVariants);
+
+        // Numbered-wide spellings ("2Rw", "3Uw", "4Rw", ...) turn n outer
+        // layers from the face side. On sizes > 3 they are distinct physical
+        // turns — the bare wide ("Rw") is the n=2 case, mirroring how the bare
+        // slice ("M") equals the numbered "2M" — added here so the move table
+        // (the R6 validity authority) recognizes them without pattern rules in
+        // the icon layer. 3×3 vocabulary is unchanged because this gate runs
+        // only for cubeSize > 3. Wide spellings of any n carry multiple layers,
+        // so `isEligibleScrambleMove` (layerIndices.length !== 1) keeps them
+        // out of the scramble pool exactly as before.
+        if (cubeSize > 3) {
+            for (let turnCount = 2; turnCount <= last; turnCount++) {
+                const numberedWide: MoveDefinition[] = faceNames.map(face => {
+                    const { axis, angle, baseOnLast } = FACE_TURNS[face];
+                    return {
+                        name: `${turnCount}${face}w`,
+                        axis,
+                        layerIndices: layersOutwardFor(baseOnLast, turnCount),
+                        angle,
+                        canonicalFamily: 'wide' as const,
+                    };
+                });
+                numberedWide.forEach(pushVariants);
+            }
+        }
     }
 
     if (cubeSize >= 3) {
@@ -839,7 +891,7 @@ function buildMoveDefinitions(cubeSize: number): MoveDefinition[] {
                     layerIndices: [defaultLayer],
                     angle: QuarterTurn.QUARTER_NEG,
                 },
-            ];
+            ].map(move => ({ ...move, canonicalFamily: 'slice' as const }));
             sliceMoves.forEach(pushVariants);
         }
 
@@ -865,7 +917,7 @@ function buildMoveDefinitions(cubeSize: number): MoveDefinition[] {
                         layerIndices: [layerIndex],
                         angle: QuarterTurn.QUARTER_NEG,
                     },
-                ];
+                ].map(move => ({ ...move, canonicalFamily: 'slice' as const }));
                 numericSlices.forEach(pushVariants);
             }
         }
@@ -875,7 +927,7 @@ function buildMoveDefinitions(cubeSize: number): MoveDefinition[] {
         { name: 'x', axis: Axis.X, layerIndices: allLayers, angle: QuarterTurn.QUARTER },
         { name: 'y', axis: Axis.Y, layerIndices: allLayers, angle: QuarterTurn.QUARTER },
         { name: 'z', axis: Axis.Z, layerIndices: allLayers, angle: QuarterTurn.QUARTER_NEG },
-    ];
+    ].map(move => ({ ...move, canonicalFamily: 'rotation' as const }));
     cubeRotations.forEach(pushVariants);
 
     return moves;

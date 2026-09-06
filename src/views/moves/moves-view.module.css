@@ -94,6 +94,20 @@
     display: block;
 }
 
+/* Fallback label overlay on family-base icons for size-specific moves
+   (numbered slices / wide moves). The shared .btn-icon-label styles uppercase
+   its text — unsuitable for a wide notation like "3Rw2" where the lowercase 'w'
+   is meaningful. Preserve the original case and keep the label inside the fixed
+   48px tile so multi-character notations ("3Rw2", "4Uw'", "3E2'") render fully
+   without clipping or overlapping adjacent tiles (R5b/AE6). */
+.fallbackLabel {
+    text-transform: none;
+    max-width: 44px;
+    white-space: nowrap;
+    overflow: hidden;
+    line-height: 1.1;
+}
+
 .emptyState {
     display: flex;
     align-items: center;

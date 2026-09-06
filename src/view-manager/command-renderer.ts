@@ -185,7 +185,7 @@ export class CommandRenderer {
     }
 
     /** Creates a command-group-buttons row div populated with the given commands. */
-    private createButtonsRow(cmds: Command[]): HTMLElement {
+    private createButtonsRow(cmds: Command[], owner?: string): HTMLElement {
         const layout = this.resolveLayout(cmds);
         const row = document.createElement('div');
         const layoutClass = `command-group-buttons--${layout}`;
@@ -193,15 +193,23 @@ export class CommandRenderer {
         const classes = ['command-group-buttons', layoutClass];
         if (!allIcons) classes.push('command-group-buttons--has-text');
         row.className = this.buildClassNames(classes);
-        this.renderCommandButtons(row, cmds);
+        this.renderCommandButtons(row, cmds, owner);
         return row;
     }
 
     /** Clears a container and renders the given commands into it as grouped global commands. */
-    private renderCommandGroup(container: HTMLElement, commands: Command[]): void {
+    private renderCommandGroup(container: HTMLElement, commands: Command[], owner?: string): void {
         container.innerHTML = '';
         const { parentMap, ungrouped } = this.groupCommands(commands);
-        this.renderGroupedCommands(container, parentMap, ungrouped, true, commands, container);
+        this.renderGroupedCommands(
+            container,
+            parentMap,
+            ungrouped,
+            true,
+            commands,
+            container,
+            owner
+        );
     }
 
     /**
@@ -250,16 +258,35 @@ export class CommandRenderer {
      * Stamps data-cmd-id, disabled, aria-pressed, and the click sync handler onto a button.
      * All rendering paths call this after constructing button content and CSS classes.
      * When tooltipText is provided, also attaches long-press touch tooltip handlers.
+     *
+     * @param owner Optional owning view id (e.g. 'basic-front'). View command ids are
+     * only unique within their owning view — sibling variants (basic-front/basic-back)
+     * both register `tilt-view`/`pitch-view` with independent state. Stamping the owner
+     * lets click/refresh sync scope to the correct view instead of leaking one view's
+     * toggle state onto the other's button. Global/controller buttons have no owner.
      */
-    private wireButton(button: HTMLButtonElement, cmd: Command, tooltipText?: string): void {
+    private wireButton(
+        button: HTMLButtonElement,
+        cmd: Command,
+        owner: string | undefined,
+        tooltipText?: string
+    ): void {
         button.setAttribute('data-cmd-id', cmd.id);
+        if (owner !== undefined) {
+            button.setAttribute('data-cmd-owner', owner);
+        }
         if (cmd.isEnabled) button.disabled = !cmd.isEnabled();
         if (cmd.isActive) button.setAttribute('aria-pressed', String(cmd.isActive()));
         button.addEventListener('click', () => {
             cmd.action();
-            // Sync all rendered instances of this command (controls panel, titlebar, etc.)
+            // Sync all rendered instances of this command within the same owning
+            // scope (controls panel, titlebar, etc.). Two sibling view variants
+            // that share a command id are different scopes, so only the clicked
+            // view's buttons are updated.
+            const sameOwner =
+                owner !== undefined ? `[data-cmd-owner="${owner}"]` : ':not([data-cmd-owner])';
             document
-                .querySelectorAll<HTMLButtonElement>(`[data-cmd-id="${cmd.id}"]`)
+                .querySelectorAll<HTMLButtonElement>(`[data-cmd-id="${cmd.id}"]${sameOwner}`)
                 .forEach(btn => {
                     if (cmd.isActive) btn.setAttribute('aria-pressed', String(cmd.isActive()));
                     if (cmd.isEnabled) btn.disabled = !cmd.isEnabled();
@@ -269,7 +296,7 @@ export class CommandRenderer {
     }
 
     /** Creates a single command button element without appending it anywhere. */
-    private createCommandButton(cmd: Command): HTMLButtonElement {
+    private createCommandButton(cmd: Command, owner?: string): HTMLButtonElement {
         const button = document.createElement('button');
         // Base classes (preserve ordering)
         button.className = `${this.buttonStyles['btn']} ${this.buttonStyles['btn-primary']}`;
@@ -304,7 +331,7 @@ export class CommandRenderer {
         const tooltip = this.buildTooltip(cmd);
         if (tooltip) button.title = tooltip;
 
-        this.wireButton(button, cmd, tooltip);
+        this.wireButton(button, cmd, owner, tooltip);
         return button;
     }
 
@@ -319,9 +346,9 @@ export class CommandRenderer {
      * @param container - Container to append buttons to
      * @param commands - Commands to render
      */
-    renderCommandButtons(container: HTMLElement, commands: Command[]): void {
+    renderCommandButtons(container: HTMLElement, commands: Command[], owner?: string): void {
         const sorted = this.sortByDisplayOrder(commands);
-        sorted.forEach(cmd => container.appendChild(this.createCommandButton(cmd)));
+        sorted.forEach(cmd => container.appendChild(this.createCommandButton(cmd, owner)));
     }
 
     /**
@@ -339,11 +366,12 @@ export class CommandRenderer {
         ungrouped: Command[],
         isGlobal: boolean,
         commands: Command[],
-        debugContainer?: HTMLElement
+        debugContainer?: HTMLElement,
+        owner?: string
     ): void {
         // Render ungrouped buttons first
         if (ungrouped.length > 0) {
-            this.renderCommandButtons(container, ungrouped);
+            this.renderCommandButtons(container, ungrouped, owner);
         }
 
         // If no groups but commands exist, render fallback group
@@ -359,7 +387,7 @@ export class CommandRenderer {
             header.textContent = 'Misc';
             fallback.appendChild(header);
 
-            fallback.appendChild(this.createButtonsRow(commands));
+            fallback.appendChild(this.createButtonsRow(commands, owner));
             container.appendChild(fallback);
         }
 
@@ -405,10 +433,10 @@ export class CommandRenderer {
                     const sub = document.createElement('div');
                     sub.className = this.buildClassNames(['command-subgroup']);
                     sub.setAttribute('data-subgroup', subLabel);
-                    sub.appendChild(this.createButtonsRow(cmds));
+                    sub.appendChild(this.createButtonsRow(cmds, owner));
                     parentContainer.appendChild(sub);
                 } else {
-                    parentContainer.appendChild(this.createButtonsRow(cmds));
+                    parentContainer.appendChild(this.createButtonsRow(cmds, owner));
                 }
             });
 
@@ -483,7 +511,15 @@ export class CommandRenderer {
 
         const sortedCommands = this.sortByDisplayOrder(allCommands);
         const { parentMap, ungrouped } = this.groupCommands(sortedCommands);
-        this.renderGroupedCommands(viewActionsEl, parentMap, ungrouped, false, sortedCommands);
+        this.renderGroupedCommands(
+            viewActionsEl,
+            parentMap,
+            ungrouped,
+            false,
+            sortedCommands,
+            undefined,
+            activeViewId
+        );
 
         // Mark view actions as rendered so tests can validate the render pass
         viewActionsEl.setAttribute('data-rendered', '1');
@@ -552,7 +588,10 @@ export class CommandRenderer {
             );
             const tooltip = this.buildTooltip(cmd);
             if (tooltip) button.title = tooltip;
-            this.wireButton(button, cmd, tooltip);
+            // View header buttons are owned by the specific view variant (viewId),
+            // so click/refresh sync stays within this view and never leaks onto a
+            // sibling variant that shares the same command id.
+            this.wireButton(button, cmd, viewId, tooltip);
             inlineRail.appendChild(button);
         });
 
@@ -728,22 +767,33 @@ export class CommandRenderer {
     /**
      * Updates disabled/aria-pressed state on all rendered command buttons in-place.
      * Call after any state change to keep buttons in sync without a full re-render.
-     * @param commandRegistry - Map of registered commands
+     * @param commandRegistry - Map of registered commands keyed by owning view id
+     * ('controller' for global commands, otherwise the view type).
      */
     refreshCommandStates(commandRegistry: Map<string, Command[]>): void {
-        // Build a flat id → Command lookup from all registered commands
-        const byId = new Map<string, Command>();
-        for (const commands of commandRegistry.values()) {
-            for (const cmd of commands) {
-                byId.set(cmd.id, cmd);
-            }
-        }
-
         const buttons = document.querySelectorAll<HTMLButtonElement>('[data-cmd-id]');
         buttons.forEach(button => {
             const id = button.getAttribute('data-cmd-id');
             if (!id) return;
-            const cmd = byId.get(id);
+
+            // Resolve the command from the button's OWNER scope. View-command ids
+            // are only unique within a view — sibling variants (basic-front /
+            // basic-back) both register `tilt-view` with independent state, so a
+            // flat id → command map would stamp the wrong view's state onto its
+            // sibling's button.
+            const owner = button.getAttribute('data-cmd-owner');
+            let cmd: Command | undefined;
+            if (owner !== null) {
+                cmd = commandRegistry.get(owner)?.find(candidate => candidate.id === id);
+            } else {
+                // Ownerless buttons (global/controls panel, and the single-active-view
+                // #view-actions header) never render two views' same-id commands at
+                // once, so scanning all buckets is collision-free.
+                for (const commands of commandRegistry.values()) {
+                    cmd = commands.find(candidate => candidate.id === id);
+                    if (cmd) break;
+                }
+            }
             if (!cmd) return;
 
             if (cmd.isEnabled) button.disabled = !cmd.isEnabled();

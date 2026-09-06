@@ -7,6 +7,14 @@ import {
 } from './move-icon-generator';
 
 /**
+ * Re-exported icon resolution for size-specific move fallback (R1/R3/R4).
+ * `resolveMoveIcon` maps a notation + active cube size to an exact or
+ * family-base icon; the renderer consumes it when `MOVE_ICONS` has no entry.
+ */
+export { generateSvgForSymbol, resolveMoveIcon } from './move-icon-generator';
+export type { MoveIconResolution } from './move-icon-generator';
+
+/**
  * Metadata for move icons including SVG content and label positioning
  */
 export interface MoveIconMetadata {

@@ -46,6 +46,7 @@ export class MovesView implements CubeView {
             buttonStyles,
             MOVE_ICONS
         );
+        this.renderer.setCubeSize(model.getCurrentState().cubeSize);
 
         // Set up the DOM structure.
         this.renderer.initializeDOM();
@@ -63,6 +64,9 @@ export class MovesView implements CubeView {
         this.moveHistory = model.getMoveHistory();
         if (this.renderer) {
             this.renderer.setMoveHistory(this.moveHistory);
+            // Cube size may have changed (size switch / state import) — refresh
+            // it so fallback icons resolve against the correct invariants table.
+            this.renderer.setCubeSize(model.getCurrentState().cubeSize);
             this.renderer.render();
         }
     }

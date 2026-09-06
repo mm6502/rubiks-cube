@@ -300,6 +300,49 @@ describe('MovesView', () => {
             const emptyState = container.querySelector(`.${styles.emptyState}`);
             expect(emptyState).toBeTruthy();
         });
+
+        it('renders size-specific moves as icons at the model cube size (U4)', () => {
+            // Arrange — a 5x5 controller history containing a numbered slice.
+            const fiveByFive = new CubeController(5);
+            fiveByFive.applyMove('3E');
+            const fiveView = new MovesView();
+            fiveView.create(container, fiveByFive.getReadOnlyModel());
+
+            // Toggle icons on and re-render.
+            const commands = fiveView.getCommands();
+            commands.find(c => c.id === 'toggle-move-icons')!.action();
+
+            // Assert — 3E resolves against cube size 5 to an E-family icon.
+            const use = container.querySelector('use');
+            expect(use?.getAttribute('href')).toBe('#move-icon-e');
+            fiveView.destroy();
+        });
+
+        it('re-renders icons when the cube size changes on update (U4)', () => {
+            // Arrange — 5x5 with a numbered-slice history entry.
+            const fiveByFive = new CubeController(5);
+            fiveByFive.applyMove('3E');
+            const fiveView = new MovesView();
+            fiveView.create(container, fiveByFive.getReadOnlyModel());
+            fiveView
+                .getCommands()
+                .find(c => c.id === 'toggle-move-icons')!
+                .action();
+            expect(container.querySelector('use')?.getAttribute('href')).toBe('#move-icon-e');
+
+            // Act — a 3x3 controller is wired in via update().
+            const threeByThree = new CubeController(3);
+            threeByThree.applyMove('R');
+            fiveView.update(threeByThree.getReadOnlyModel());
+
+            // Assert — history replaced with 3x3 moves; no numbered-slice icon.
+            const moves = Array.from(
+                container.querySelectorAll<HTMLElement>(`.${styles.moveItem}`)
+            );
+            expect(moves).toHaveLength(1);
+            expect(moves[0].dataset.move).toBe('R');
+            fiveView.destroy();
+        });
     });
 
     describe('edge cases before create()', () => {
