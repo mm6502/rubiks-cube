@@ -64,6 +64,13 @@ the exact notation.
   generation time (slice `M`/`E`/`S`, face, wide, or rotation is known in the
   builder) — keeping validity and family under one authority with no
   notation-string parsing in the icon layer.
+- **Exact icon match wins before the family fallback.** Resolution checks the
+  exact icon-preset match first and it always wins; the canonical-family
+  fallback applies only when no exact preset exists for the notation. This
+  ordering makes R2/R8/AE3 ("no notation that has an exact icon today changes
+  appearance") hold by construction: a table-valid notation that also has an
+  exact preset (`M`, `E`, `S`, `R`, `U`, ... and their `'`/`2`/`2'` variants)
+  never renders through the family fallback.
 - **3×3 behavior is unchanged.** On a 3×3 cube every valid notation already has
   an exact icon, so the fallback path is never taken and existing rendering is
   byte-for-byte identical. R7 from the prior plan holds.
@@ -253,3 +260,97 @@ the exact notation.
   <!-- dedup-key: section="deferred open questions / scramble pool" title="scramble pool a rozlozenie pravdepodobnosti po rozsireni o ciselne wide" evidence="Wide moves are compositions of face+slice (no new scrambling entropy) and over-represent outer layers." -->
 
   <!-- dedup-key: section="ae2 / r6 / r4 (acceptance examples / validation authority)" title="numbered-wide notations absent from validated move table" evidence="AE2. A 7×7 history containing `3Rw2 4Uw'` renders `3Rw2` with the R-family icon labeled `3Rw2` and `4Uw'` with the U-family icon labeled `4Uw'`." -->
+
+### From 2026-09-06 review
+
+- **Key Decision claims the 3×3 fallback path is "never taken" but R4 grants
+  wide icons unconditionally, with no size gate** — Key Decisions — '3×3
+  behavior is unchanged' (vs R4, R7, R8, Dependencies/Assumptions) (P2,
+  coherence, confidence 75)
+
+  Key Decision 4 states categorically that on a 3×3 cube "the fallback path is
+  never taken and existing rendering is byte-for-byte identical." That can only
+  be guaranteed if no recognizable wide token can appear in a 3×3 history. But
+  R4 grants a face-family icon to any recognizable wide form "even if the
+  notation is not (yet) present in the engine's move table", and R7 routes
+  recognizable wide forms to R4 "not by this text fallback" — neither
+  requirement carries a cube-size qualifier. The Dependencies note that wide
+  moves "only enter history via state import" without limiting that path to
+  sizes ≥ 4. Two careful implementers will diverge: one implements the wide
+  fallback at every size (changing a state-imported `Rw` on a 3×3 from today's
+  text rendering to a face icon, breaking Key Decision 4's byte-for-byte
+  promise); another honors Key Decision 4 and size-gates the fallback to n>3,
+  under-delivering R4's unconditional guarantee. The requirements must make the
+  3×3 boundary explicit: either (a) state that the wide fallback applies only to
+  cubes of size ≥ 4 and that no state-import path can place a wide token in a
+  3×3 history, or (b) soften Key Decision 4 to carve out the R4 case. AE3's
+  "standard set" enumeration should be reconciled with whichever boundary is
+  chosen.
+
+  <!-- dedup-key: section="key decisions 33 behavior is unchanged vs r4 r7 r8 dependenciesassumptions" title="key decision claims the 33 fallback path is never taken but r4 grants wide icons unconditionally with no size gate" evidence="On a 3×3 cube every valid notation already has an exact icon, so the fallback path is never taken and existing rendering is byte-for-byte identical" -->
+
+- **Scale-to-fit has no legibility floor; AE6 verifies absence of clipping, not
+  readability** — R5b / Acceptance Example AE6 (Icon resolution) — label-overlay
+  legibility (P2, design-lens, confidence 75)
+
+  R5b operationalizes "legible" as mechanical fit — the overlay "scales to fit
+  the glyph's existing label area without clipping or overlapping adjacent
+  tiles" — and AE6 passes when each label "renders fully (no clipping or overlap
+  with adjacent tiles) at the smallest icon-mode row size." But scale-to-fit
+  inside a fixed label area shrinks the font with no stated minimum, so a
+  4–5-character label can satisfy AE6 at the smallest row size while rendering
+  below a legible size — silently failing the feature's own headline outcome
+  ("make the Moves view's icon mode readable on cubes larger than 3×3"). Because
+  the overlay is the single carrier of the layer number and modifier (R3), an
+  illegible overlay defeats the feature. Fix: add a legibility floor — the
+  overlay must scale to fit yet never fall below a legible minimum font size at
+  the smallest icon-mode row size, and the label area at that minimum row size
+  must accommodate a 5-character overlay at that legible size — and fold the
+  criterion into AE6 so "readable" means legible text, not merely non-clipped
+  text.
+
+  <!-- dedup-key: section="r5b acceptance example ae6 icon resolution labeloverlay legibility" title="scale to fit has no legibility floor ae6 verifies absence of clipping not readability" evidence="The full-notation overlay scales to fit the glyphs existing label area without clipping or overlapping adjacent tiles at the smallest icon-mode row size, including labels up to 4–5 characters (e.g. `3Rw2`, `4Uw'`, `3E2'`)" -->
+
+- **R10's "does not grow measurably" has no measurable criterion and no
+  acceptance example, so the doc's core no-bloat constraint is unverifiable** —
+  Requirements > Non-regression (R10); Acceptance Examples (P2, scope-guardian,
+  confidence 75)
+
+  The entire approach of this requirements doc is justified by the hard non-goal
+  of not bloating the single-file build — the Summary, Problem Frame, Key
+  Decisions, and Scope Boundaries all lean on "zero new SVGs / no measurable
+  single-file growth" as the reason reuse beats authoring. R10 is the only
+  requirement that enforces that non-goal, yet its second clause ("does not grow
+  measurably") is undefined: no threshold, no comparison baseline, and no
+  acceptance example binds it. Every other R-ID maps to at least one AE; R10 is
+  the only requirement with no acceptance coverage. Two implementers would set
+  different "measurable" thresholds, so the acceptance gate that protects the
+  doc's central justification will be argued rather than checked. Fix: give
+  R10's build-size clause an objective pass condition (e.g., bundle-size delta
+  within a stated tolerance versus the pre-change build, or "no new entries
+  added to the SVG sprite and a mapping module under a stated byte budget"), and
+  add an acceptance example that runs the single-file build before/after and
+  asserts the bound — or, if only the asset count is enforceable, drop the
+  unmeasurable clause.
+
+  <!-- dedup-key: section="requirements nonregression r10 acceptance examples" title="r10s does not grow measurably has no measurable criterion and no acceptance example, so the docs core no-bloat constraint is unverifiable" evidence="R10. No new SVG assets are added to `src/icons/move-icon-sprite.svg`, and the single-file build does not grow measurably from this change" -->
+
+- **R9's after-a-move current-item/scroll state has no acceptance scenario — AE5
+  tests mode switching, not the behavior R9 names** — Requirements >
+  Non-regression (R9); Acceptance Examples (AE5) (P3, scope-guardian,
+  confidence 75)
+
+  R9 commits to a specific observable: after a move, a long history keeps the
+  correct current-item state and scroll position. The closest acceptance
+  example, AE5, exercises switching between icon and text mode — a different
+  event — and asserts only order and the current-item marker, not scroll
+  position after a move. No AE or test directive reproduces the "append a move
+  to a long history and check current-item + scroll" scenario R9 demands, so the
+  requirement is either satisfied vacuously ("existing renderer behavior is
+  preserved") or verified by unstated existing tests. Fix: add an acceptance
+  example that appends a move to a long history on a non-3 cube and asserts the
+  current-item marker lands on the new entry and the scroll position is
+  preserved/consistent with today's behavior — or, if existing renderer tests
+  already pin this, reference them so R9's pass condition is explicit.
+
+  <!-- dedup-key: section="requirements nonregression r9 acceptance examples ae5" title="r9s after-a-move current-item/scroll state has no acceptance scenario — ae5 tests mode switching, not the behavior r9 names" evidence="R9. Long move histories continue to render in the correct current-item state and scroll position after a move (existing renderer behavior is preserved)" -->
