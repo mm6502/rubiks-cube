@@ -185,7 +185,7 @@ export class CommandRenderer {
     }
 
     /** Creates a command-group-buttons row div populated with the given commands. */
-    private createButtonsRow(cmds: Command[]): HTMLElement {
+    private createButtonsRow(cmds: Command[], owner?: string): HTMLElement {
         const layout = this.resolveLayout(cmds);
         const row = document.createElement('div');
         const layoutClass = `command-group-buttons--${layout}`;
@@ -193,15 +193,23 @@ export class CommandRenderer {
         const classes = ['command-group-buttons', layoutClass];
         if (!allIcons) classes.push('command-group-buttons--has-text');
         row.className = this.buildClassNames(classes);
-        this.renderCommandButtons(row, cmds);
+        this.renderCommandButtons(row, cmds, owner);
         return row;
     }
 
     /** Clears a container and renders the given commands into it as grouped global commands. */
-    private renderCommandGroup(container: HTMLElement, commands: Command[]): void {
+    private renderCommandGroup(container: HTMLElement, commands: Command[], owner?: string): void {
         container.innerHTML = '';
         const { parentMap, ungrouped } = this.groupCommands(commands);
-        this.renderGroupedCommands(container, parentMap, ungrouped, true, commands, container);
+        this.renderGroupedCommands(
+            container,
+            parentMap,
+            ungrouped,
+            true,
+            commands,
+            container,
+            owner
+        );
     }
 
     /**
@@ -288,7 +296,7 @@ export class CommandRenderer {
     }
 
     /** Creates a single command button element without appending it anywhere. */
-    private createCommandButton(cmd: Command): HTMLButtonElement {
+    private createCommandButton(cmd: Command, owner?: string): HTMLButtonElement {
         const button = document.createElement('button');
         // Base classes (preserve ordering)
         button.className = `${this.buttonStyles['btn']} ${this.buttonStyles['btn-primary']}`;
@@ -323,8 +331,7 @@ export class CommandRenderer {
         const tooltip = this.buildTooltip(cmd);
         if (tooltip) button.title = tooltip;
 
-        // Global/controls buttons are not owned by a specific view instance.
-        this.wireButton(button, cmd, undefined, tooltip);
+        this.wireButton(button, cmd, owner, tooltip);
         return button;
     }
 
@@ -339,9 +346,9 @@ export class CommandRenderer {
      * @param container - Container to append buttons to
      * @param commands - Commands to render
      */
-    renderCommandButtons(container: HTMLElement, commands: Command[]): void {
+    renderCommandButtons(container: HTMLElement, commands: Command[], owner?: string): void {
         const sorted = this.sortByDisplayOrder(commands);
-        sorted.forEach(cmd => container.appendChild(this.createCommandButton(cmd)));
+        sorted.forEach(cmd => container.appendChild(this.createCommandButton(cmd, owner)));
     }
 
     /**
@@ -359,11 +366,12 @@ export class CommandRenderer {
         ungrouped: Command[],
         isGlobal: boolean,
         commands: Command[],
-        debugContainer?: HTMLElement
+        debugContainer?: HTMLElement,
+        owner?: string
     ): void {
         // Render ungrouped buttons first
         if (ungrouped.length > 0) {
-            this.renderCommandButtons(container, ungrouped);
+            this.renderCommandButtons(container, ungrouped, owner);
         }
 
         // If no groups but commands exist, render fallback group
@@ -379,7 +387,7 @@ export class CommandRenderer {
             header.textContent = 'Misc';
             fallback.appendChild(header);
 
-            fallback.appendChild(this.createButtonsRow(commands));
+            fallback.appendChild(this.createButtonsRow(commands, owner));
             container.appendChild(fallback);
         }
 
@@ -425,10 +433,10 @@ export class CommandRenderer {
                     const sub = document.createElement('div');
                     sub.className = this.buildClassNames(['command-subgroup']);
                     sub.setAttribute('data-subgroup', subLabel);
-                    sub.appendChild(this.createButtonsRow(cmds));
+                    sub.appendChild(this.createButtonsRow(cmds, owner));
                     parentContainer.appendChild(sub);
                 } else {
-                    parentContainer.appendChild(this.createButtonsRow(cmds));
+                    parentContainer.appendChild(this.createButtonsRow(cmds, owner));
                 }
             });
 
@@ -503,7 +511,15 @@ export class CommandRenderer {
 
         const sortedCommands = this.sortByDisplayOrder(allCommands);
         const { parentMap, ungrouped } = this.groupCommands(sortedCommands);
-        this.renderGroupedCommands(viewActionsEl, parentMap, ungrouped, false, sortedCommands);
+        this.renderGroupedCommands(
+            viewActionsEl,
+            parentMap,
+            ungrouped,
+            false,
+            sortedCommands,
+            undefined,
+            activeViewId
+        );
 
         // Mark view actions as rendered so tests can validate the render pass
         viewActionsEl.setAttribute('data-rendered', '1');

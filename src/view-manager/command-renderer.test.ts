@@ -782,7 +782,9 @@ describe('CommandRenderer', () => {
             renderer.renderGlobalCommands(commandRegistry, 'view1');
 
             const container = document.getElementById('view-actions');
-            expect(container?.querySelector('button')).toBeTruthy();
+            const button = container?.querySelector('button');
+            expect(button).toBeTruthy();
+            expect(button?.getAttribute('data-cmd-owner')).toBe('view1');
             expect(container?.getAttribute('data-rendered')).toBe('1');
         });
 
@@ -1538,6 +1540,7 @@ describe('CommandRenderer', () => {
             // Also add a second instance button
             const secondBtn = document.createElement('button');
             secondBtn.setAttribute('data-cmd-id', 'sync-cmd');
+            secondBtn.setAttribute('data-cmd-owner', 'v1');
             document.body.appendChild(secondBtn);
 
             // Act — click the rendered button
