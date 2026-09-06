@@ -12,7 +12,6 @@ import {
  * family-base icon; the renderer consumes it when `MOVE_ICONS` has no entry.
  */
 export { generateSvgForSymbol, resolveMoveIcon } from './move-icon-generator';
-export type { MoveIconResolution } from './move-icon-generator';
 
 /**
  * Metadata for move icons including SVG content and label positioning
