@@ -176,33 +176,23 @@ export class MovesViewRenderer {
             // Exact preset icon first (unchanged from today); otherwise resolve a
             // family-base glyph fallback for size-specific moves (U5/R3/R4).
             const iconMeta = this.moveIcons[move];
-            const resolution = iconMeta ? undefined : resolveMoveIcon(move, this.cubeSize);
+            const resolution =
+                iconMeta === undefined ? resolveMoveIcon(move, this.cubeSize) : undefined;
 
             if (iconMeta || resolution) {
                 moveDisplay.className = `${this.viewStyles.moveIcon} ${this.btnStyles['btn']} ${this.btnStyles['btn-primary']} ${this.btnStyles['btn-icon']} ${this.btnStyles['btn-has-svg']}`;
 
-                if (iconMeta) {
-                    // Exact icon: its own cached SVG wrapper.
-                    moveDisplay.innerHTML = isolateSvgIds(iconMeta.svg);
-                } else if (resolution) {
-                    // Fallback: family base glyph referenced by symbol id.
+                // Fallback labels keep original case and fit the tile (R5b). A
+                // resolution can only be a family fallback (exact presets are
+                // served by `iconMeta`), so its presence marks a fallback label.
+                if (resolution) {
                     moveDisplay.innerHTML = isolateSvgIds(
                         generateSvgForSymbol(resolution.symbolId)
                     );
-                }
-
-                // Add label overlay with position from metadata/resolution.
-                const labelPosition =
-                    (iconMeta ? iconMeta.labelPosition : resolution?.labelPosition) ||
-                    'bottom-right';
-                if (labelPosition !== 'none') {
-                    const labelSpan = document.createElement('span');
-                    const isFallbackLabel = !iconMeta;
-                    labelSpan.className = isFallbackLabel
-                        ? `${this.btnStyles['btn-icon-label']} ${this.viewStyles.fallbackLabel} ${this.btnStyles[`btn-icon-label-${labelPosition}`]}`
-                        : `${this.btnStyles['btn-icon-label']} ${this.btnStyles[`btn-icon-label-${labelPosition}`]}`;
-                    labelSpan.textContent = move;
-                    moveDisplay.appendChild(labelSpan);
+                    this.appendIconLabel(moveDisplay, move, resolution.labelPosition, true);
+                } else if (iconMeta) {
+                    moveDisplay.innerHTML = isolateSvgIds(iconMeta.svg);
+                    this.appendIconLabel(moveDisplay, move, iconMeta.labelPosition, false);
                 }
             } else {
                 // Fallback to text notation (malformed/unresolvable, R7).
@@ -218,6 +208,30 @@ export class MovesViewRenderer {
         moveItem.appendChild(moveDisplay);
 
         return moveItem;
+    }
+
+    /**
+     * Append the notation label overlay to an icon tile.
+     * @param labelPosition Position variant from metadata/resolution ('none' skips it).
+     * @param isFallbackLabel When true, the label is a fallback notation ("3Rw2")
+     * that keeps its original case and fits the tile (R5b); exact-icon labels
+     * render as today.
+     */
+    private appendIconLabel(
+        moveDisplay: HTMLElement,
+        move: string,
+        labelPosition: string | undefined,
+        isFallbackLabel: boolean
+    ): void {
+        const position = labelPosition || 'bottom-right';
+        if (position === 'none') return;
+
+        const labelSpan = document.createElement('span');
+        labelSpan.className = isFallbackLabel
+            ? `${this.btnStyles['btn-icon-label']} ${this.viewStyles.fallbackLabel} ${this.btnStyles[`btn-icon-label-${position}`]}`
+            : `${this.btnStyles['btn-icon-label']} ${this.btnStyles[`btn-icon-label-${position}`]}`;
+        labelSpan.textContent = move;
+        moveDisplay.appendChild(labelSpan);
     }
 
     /**
