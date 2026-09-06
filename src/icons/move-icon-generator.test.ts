@@ -1,5 +1,6 @@
 import { COMMANDS_ICONS, MOVE_ICONS } from './index';
 import {
+    MOVE_ICON_PRESETS,
     ensureMoveIconSpriteLoaded,
     generateMoveIconSvg,
     isMoveNotation,
@@ -360,5 +361,43 @@ describe('resolveMoveIcon (size-specific icon fallback)', () => {
     it('does not treat a malformed token with a w as a wide move (R7)', () => {
         // ZZ9w has a 'w' but the face-identifying letters are not a valid face.
         expect(resolveMoveIcon('ZZ9w', 5)).toBeUndefined();
+    });
+
+    it('resolves bare-wide variants on 3x3 to the face glyph (R4)', () => {
+        // Rw/Rw'/Rw2 are table-valid on 3x3 (bare wide, cubeSize >= 2) and are
+        // not part of the exact 3x3 icon preset set, so they resolve via family.
+        expect(resolveMoveIcon('Rw', 3)).toMatchObject({ symbolId: 'move-icon-r', label: 'Rw' });
+        expect(resolveMoveIcon("Rw'", 3)).toMatchObject({
+            symbolId: 'move-icon-r',
+            label: "Rw'",
+        });
+        expect(resolveMoveIcon('Rw2', 3)).toMatchObject({ symbolId: 'move-icon-r', label: 'Rw2' });
+    });
+
+    it('resolves numbered slices on even sizes 4 and 6 (edge case)', () => {
+        // Size 4 inner layers are 1..2 -> 2M/3E; size 6 inner layers 1..4.
+        expect(resolveMoveIcon('2M', 4)).toMatchObject({ symbolId: 'move-icon-m', label: '2M' });
+        expect(resolveMoveIcon('3E', 4)).toMatchObject({ symbolId: 'move-icon-e', label: '3E' });
+        expect(resolveMoveIcon('4S', 6)).toMatchObject({ symbolId: 'move-icon-s', label: '4S' });
+        expect(resolveMoveIcon('5M', 6)).toMatchObject({ symbolId: 'move-icon-m', label: '5M' });
+    });
+
+    it('normalizes lowercase w in a wide-shaped fallback (R4)', () => {
+        // History entries are engine-canonical (uppercase), but a lowercase-w
+        // spelling is still recognizable and should resolve to the face glyph.
+        expect(resolveMoveIcon('2rw', 3)).toMatchObject({ symbolId: 'move-icon-r', label: '2rw' });
+        expect(resolveMoveIcon("uw'", 3)).toMatchObject({ symbolId: 'move-icon-u', label: "uw'" });
+    });
+
+    it('never sends an exact-preset notation through the family fallback (AE3 exhaustive)', () => {
+        // Every notation in MOVE_ICON_PRESETS must resolve as 'exact' on every
+        // supported size — a full 3x3-standard regression sentinel.
+        const allPresets = Object.keys(MOVE_ICON_PRESETS);
+        for (const cubeSize of [2, 3, 4, 5, 6, 7]) {
+            for (const move of allPresets) {
+                const result = resolveMoveIcon(move, cubeSize);
+                expect(result?.kind, `${cubeSize}:${move}`).toBe('exact');
+            }
+        }
     });
 });
