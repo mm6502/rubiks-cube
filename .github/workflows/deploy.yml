@@ -105,8 +105,10 @@ jobs:
           for attempt in 1 2 3 4 5; do
             git fetch origin gh-pages 2>/dev/null || true
             if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
-              # Create gh-pages from origin on first attempt, or force-reset it to the
-              # just-fetched remote state on retries (-C discards any local uncommitted changes).
+              # Recreate gh-pages from the just-fetched remote state on the first
+              # attempt, or force-reset the branch to it on retries (-C recreates
+              # the branch from origin/gh-pages). Local changes are committed
+              # before the push below, so the tree is clean when this runs.
               git switch -C gh-pages origin/gh-pages
             fi
 
@@ -115,7 +117,7 @@ jobs:
               # main → root deployment: clear root-level files (keep subdirectories)
               find . -maxdepth 1 -type f -delete
             else
-              # Feature branch → subdirectory deployment
+              # Non-main branch → subdirectory deployment
               rm -rf "$DEPLOY_DIR"
             fi
             mkdir -p "$DEPLOY_DIR"

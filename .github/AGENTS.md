@@ -36,8 +36,11 @@ to a single portable HTML file.
 
 - **Single-file build**: `vite-plugin-singlefile` inlines all JS/CSS into
   `dist/index.html`; code splitting is disabled.
-- `Application.eventBus` is a class-level static property — effectively a
-  singleton. Components import `Application` to access it.
+- `Application.eventBus` is a class-level static getter backed by the shared
+  `EventBus` singleton (see `src/event-bus-accessor.ts`). Prefer importing
+  `getEventBus()` from `@/event-bus-accessor` for access from modules that
+  should not depend on `Application`. Never create new `EventBus` instances.
+  Full detail: `src/docs/commanding-and-eventing-system.md`.
 
 ---
 

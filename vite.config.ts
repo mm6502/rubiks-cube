@@ -6,10 +6,13 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 // but its own type definitions haven't been updated yet.
 type BuildOptionsV8 = BuildOptions & { codeSplitting?: boolean };
 
-// Dynamic base path for GitHub Pages subdirectory deployment.
-// VITE_BASE_PATH is set by CI/CD workflows per branch.
-// Default is '/rubiks-cube/' for main branch root deployment.
-const BASE_PATH = process.env.VITE_BASE_PATH || '/rubiks-cube/';
+// Base path for GitHub Pages subdirectory deployment.
+// VITE_BASE_PATH is set by CI/CD workflows when deploying under a sub-path.
+// Default is '/'; the single-file build is fully self-contained, so `base`
+// only prefixes the dev-server URLs. Root keeps `npm run dev` working at
+// http://localhost:5173/ as documented in CONTRIBUTING and the contributor
+// quickstart (plus the .vscode launch configs).
+const BASE_PATH = process.env.VITE_BASE_PATH || '/';
 
 export default defineConfig({
     base: BASE_PATH,

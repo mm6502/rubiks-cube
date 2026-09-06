@@ -124,3 +124,25 @@ Views implement different update strategies:
    Controller responds synchronously with allow/forbid. If allowed, proceed with
    animation; if not, revert cursor/feedback. On drag end, emit
    `tentative: false` to commit.
+
+## Event Bus Access (Singleton)
+
+The application uses a **single shared `EventBus`** instance for all
+inter-component communication. There is exactly one bus — never create new
+`EventBus` instances for inter-component messaging.
+
+Access it through the accessor module rather than reaching into `Application`:
+
+```typescript
+import { getEventBus } from '@/event-bus-accessor';
+
+getEventBus().emit(EventName.MOVE_REQUESTED, payload);
+getEventBus().on(EventName.MOVE_EXECUTED, handler);
+```
+
+- `getEventBus()` returns the shared singleton and is the preferred access path
+  from modules that should not depend on the `Application` class.
+- `Application.eventBus` is a static getter that delegates to the same instance,
+  so `Application.eventBus.on(...)` and `getEventBus().on(...)` are
+  interchangeable.
+- The singleton lives in `src/event-bus-accessor.ts`.

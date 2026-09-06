@@ -3,6 +3,7 @@
 ![CI](https://github.com/mm6502/rubiks-cube/actions/workflows/ci.yml/badge.svg)
 ![Deploy](https://github.com/mm6502/rubiks-cube/actions/workflows/deploy.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-EUPL_1.2-blue.svg)
+[![Compound Engineering](https://img.shields.io/badge/Built_with-Compound_Engineering-6366f1)](https://github.com/EveryInc/compound-engineering-plugin)
 
 An implementation of a Rubik's Cube with multiple visualization modes. Written
 in TypeScript and compiled with Vite to a single HTML file for portability /

@@ -157,7 +157,7 @@
     right: 0;
     padding: 6px 12px;
     background: color-mix(in srgb, var(--color-domain-cube-interior) 90%, transparent);
-    color: var(--color-tetxt-primary);
+    color: var(--color-text-primary);
     font-size: 1em;
     text-align: center;
     pointer-events: none;

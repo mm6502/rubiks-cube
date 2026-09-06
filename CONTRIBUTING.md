@@ -62,7 +62,9 @@ Before touching domain logic, read the relevant doc in [src/docs/](src/docs/):
 
 - Cube state is stored with **Immutable.js** — never mutate it directly.
 - All state changes go through `StateManager`.
-- `Application.eventBus` is the single event bus — don't create new instances.
+- `getEventBus()` (from `@/event-bus-accessor`) returns the single shared event
+  bus — never create new `EventBus` instances. `Application.eventBus` delegates
+  to the same instance.
 - The build output is a **single self-contained HTML file** (`dist/index.html`).
 
 ## Submitting Changes
