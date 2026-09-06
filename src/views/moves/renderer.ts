@@ -24,7 +24,7 @@ export class MovesViewRenderer {
         private viewStyles: typeof styles,
         private btnStyles: typeof buttonStyles,
         private moveIcons: typeof MOVE_ICONS
-    ) { }
+    ) {}
 
     /**
      * Initialize the DOM structure for the moves view.
