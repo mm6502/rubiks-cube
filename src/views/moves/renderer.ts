@@ -1,5 +1,5 @@
 import { MoveHistory } from '@/cube/core/move-history';
-import { MOVE_ICONS, isolateSvgIds } from '@/icons';
+import { MOVE_ICONS, generateSvgForSymbol, isolateSvgIds, resolveMoveIcon } from '@/icons';
 import buttonStyles from '@/styles/buttons.module.css';
 
 import styles from './moves-view.module.css';
@@ -13,6 +13,10 @@ export class MovesViewRenderer {
     private lastRenderShowAsIcons: boolean = false;
     /** Index of the item that currently carries the `current` CSS class, or -1 if unknown. */
     private lastCurrentIndex: number = -1;
+    /** Active cube size, used to resolve size-specific fallback icons (U4). */
+    private cubeSize: number = 3;
+    /** Cube size used for the last render, so a size change forces a re-render. */
+    private lastRenderCubeSize: number = 3;
 
     constructor(
         private container: HTMLElement,
@@ -51,6 +55,11 @@ export class MovesViewRenderer {
         this.showAsIcons = showAsIcons;
     }
 
+    /** Update the active cube size (used to resolve fallback icons). */
+    setCubeSize(cubeSize: number): void {
+        this.cubeSize = cubeSize;
+    }
+
     /** Update the move history reference (used after state import). */
     setMoveHistory(moveHistory: MoveHistory): void {
         this.moveHistory = moveHistory;
@@ -70,6 +79,7 @@ export class MovesViewRenderer {
             this.lastCurrentIndex = -1;
             this.renderEmptyState();
             this.lastRenderShowAsIcons = this.showAsIcons;
+            this.lastRenderCubeSize = this.cubeSize;
             return;
         }
 
@@ -83,12 +93,17 @@ export class MovesViewRenderer {
             children.length = 0;
         }
 
-        // Force full re-render if display mode changed.
-        if (this.showAsIcons !== this.lastRenderShowAsIcons) {
+        // Force full re-render if display mode or cube size changed (cube size
+        // determines which icons fallback moves resolve to).
+        if (
+            this.showAsIcons !== this.lastRenderShowAsIcons ||
+            this.cubeSize !== this.lastRenderCubeSize
+        ) {
             this.moveListContainer.innerHTML = '';
             this.lastCurrentIndex = -1;
             children.length = 0;
             this.lastRenderShowAsIcons = this.showAsIcons;
+            this.lastRenderCubeSize = this.cubeSize;
         }
 
         // Adjust DOM to match history length.
@@ -157,25 +172,45 @@ export class MovesViewRenderer {
         // Create move display (icon or notation).
         const moveDisplay = document.createElement('span');
 
-        if (this.showAsIcons && this.moveIcons[move]) {
-            // Render as SVG icon.
+        if (this.showAsIcons) {
+            // Exact preset icon first (unchanged from today); otherwise resolve a
+            // family-base glyph fallback for size-specific moves (U5/R3/R4).
             const iconMeta = this.moveIcons[move];
-            moveDisplay.className = `${this.viewStyles.moveIcon} ${this.btnStyles['btn']} ${this.btnStyles['btn-primary']} ${this.btnStyles['btn-icon']} ${this.btnStyles['btn-has-svg']}`;
-            moveDisplay.innerHTML = isolateSvgIds(iconMeta.svg);
+            const resolution = iconMeta ? undefined : resolveMoveIcon(move, this.cubeSize);
 
-            // Add label overlay with position from metadata.
-            const labelPosition = iconMeta.labelPosition || 'bottom-right';
-            if (labelPosition !== 'none') {
-                const labelSpan = document.createElement('span');
-                labelSpan.className = `${this.btnStyles['btn-icon-label']} ${this.btnStyles[`btn-icon-label-${labelPosition}`]}`;
-                labelSpan.textContent = move;
-                moveDisplay.appendChild(labelSpan);
+            if (iconMeta || resolution) {
+                moveDisplay.className = `${this.viewStyles.moveIcon} ${this.btnStyles['btn']} ${this.btnStyles['btn-primary']} ${this.btnStyles['btn-icon']} ${this.btnStyles['btn-has-svg']}`;
+
+                if (iconMeta) {
+                    // Exact icon: its own cached SVG wrapper.
+                    moveDisplay.innerHTML = isolateSvgIds(iconMeta.svg);
+                } else if (resolution) {
+                    // Fallback: family base glyph referenced by symbol id.
+                    moveDisplay.innerHTML = isolateSvgIds(
+                        generateSvgForSymbol(resolution.symbolId)
+                    );
+                }
+
+                // Add label overlay with position from metadata/resolution.
+                const labelPosition =
+                    (iconMeta ? iconMeta.labelPosition : resolution?.labelPosition) ||
+                    'bottom-right';
+                if (labelPosition !== 'none') {
+                    const labelSpan = document.createElement('span');
+                    const isFallbackLabel = !iconMeta;
+                    labelSpan.className = isFallbackLabel
+                        ? `${this.btnStyles['btn-icon-label']} ${this.viewStyles.fallbackLabel} ${this.btnStyles[`btn-icon-label-${labelPosition}`]}`
+                        : `${this.btnStyles['btn-icon-label']} ${this.btnStyles[`btn-icon-label-${labelPosition}`]}`;
+                    labelSpan.textContent = move;
+                    moveDisplay.appendChild(labelSpan);
+                }
+            } else {
+                // Fallback to text notation (malformed/unresolvable, R7).
+                moveDisplay.className = this.viewStyles.moveIcon;
+                moveDisplay.textContent = move;
             }
         } else {
-            // Fallback to text notation.
-            moveDisplay.className = this.showAsIcons
-                ? this.viewStyles.moveIcon
-                : this.viewStyles.moveNotation;
+            moveDisplay.className = this.viewStyles.moveNotation;
             moveDisplay.textContent = move;
         }
 

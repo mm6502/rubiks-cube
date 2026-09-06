@@ -11,7 +11,7 @@ import {
  * `resolveMoveIcon` maps a notation + active cube size to an exact or
  * family-base icon; the renderer consumes it when `MOVE_ICONS` has no entry.
  */
-export { resolveMoveIcon } from './move-icon-generator';
+export { generateSvgForSymbol, resolveMoveIcon } from './move-icon-generator';
 export type { MoveIconResolution } from './move-icon-generator';
 
 /**

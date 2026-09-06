@@ -237,4 +237,169 @@ describe('MovesViewRenderer', () => {
             vi.useRealTimers();
         });
     });
+
+    describe('size-specific icon fallback (U4/U5)', () => {
+        beforeEach(() => {
+            renderer.initializeDOM();
+            renderer.setShowAsIcons(true);
+        });
+
+        it('renders numbered slices as family-base icons with a notation label (AE1)', () => {
+            // Arrange
+            renderer.setCubeSize(5);
+            const history = ['4E', "3M'", '2E', "2S'", "B'", '3E', '4S', "4E'", '2E'];
+            for (const move of history) {
+                moveHistory.addMove(move);
+            }
+
+            // Act
+            renderer.render();
+
+            // Assert
+            const moveItems = Array.from(container.querySelectorAll(`.${styles.moveItem}`));
+            expect(moveItems).toHaveLength(history.length);
+
+            // B' keeps its exact icon.
+            const bPrimeItem = moveItems[4];
+            const bPrimeSvg = bPrimeItem.querySelector('use');
+            expect(bPrimeSvg?.getAttribute('href')).toBe('#move-icon-bp');
+
+            // Every numbered slice resolves to an icon (a use element) and its
+            // notation appears in the label overlay — no bare-text token remains.
+            for (let i = 0; i < history.length; i++) {
+                const item = moveItems[i];
+                const use = item.querySelector('use');
+                expect(use, `${history[i]} should render an icon`).toBeTruthy();
+                if (history[i] !== "B'") {
+                    const label = item.querySelector(`.${styles.fallbackLabel}`);
+                    expect(label?.textContent, history[i]).toBe(history[i]);
+                }
+            }
+        });
+
+        it('renders numbered wide moves as face-base icons with a notation label (AE2)', () => {
+            // Arrange
+            renderer.setCubeSize(7);
+            moveHistory.addMove('3Rw2');
+            moveHistory.addMove("4Uw'");
+
+            // Act
+            renderer.render();
+
+            // Assert
+            const moveItems = Array.from(container.querySelectorAll(`.${styles.moveItem}`));
+            const firstUse = moveItems[0].querySelector('use');
+            expect(firstUse?.getAttribute('href')).toBe('#move-icon-r');
+            expect(moveItems[0].querySelector(`.${styles.fallbackLabel}`)?.textContent).toBe(
+                '3Rw2'
+            );
+
+            const secondUse = moveItems[1].querySelector('use');
+            expect(secondUse?.getAttribute('href')).toBe('#move-icon-u');
+            expect(moveItems[1].querySelector(`.${styles.fallbackLabel}`)?.textContent).toBe(
+                "4Uw'"
+            );
+        });
+
+        it('keeps malformed tokens as text without disturbing adjacent icons (AE4)', () => {
+            // Arrange
+            renderer.setCubeSize(5);
+            moveHistory.addMove('R');
+            moveHistory.addMove('ZZ9');
+            moveHistory.addMove("3E'");
+
+            // Act
+            renderer.render();
+
+            // Assert
+            const moveItems = Array.from(container.querySelectorAll(`.${styles.moveItem}`));
+
+            // R renders an exact icon.
+            expect(moveItems[0].querySelector('use')?.getAttribute('href')).toBe('#move-icon-r');
+
+            // ZZ9 renders as text (moveIcon without an svg/use), and doesn't throw.
+            const zz9 = moveItems[1];
+            expect(zz9.textContent).toContain('ZZ9');
+            expect(zz9.querySelector('use')).toBeNull();
+
+            // 3E' still resolves to an E-family icon next to the malformed token.
+            const ePrime = moveItems[2];
+            expect(ePrime.querySelector('use')?.getAttribute('href')).toBe('#move-icon-e');
+        });
+
+        it('re-resolves when the cube size changes between renders (U4)', () => {
+            // Arrange — size 5: 3E is a numbered slice -> E-family icon.
+            renderer.setCubeSize(5);
+            moveHistory.addMove('3E');
+            renderer.render();
+            let use = container.querySelector('use');
+            expect(use?.getAttribute('href')).toBe('#move-icon-e');
+
+            // Size 3: 3E is not table-valid and not wide-shaped -> text fallback.
+            renderer.setCubeSize(3);
+            renderer.render();
+            use = container.querySelector('use');
+            expect(use).toBeNull();
+            expect(container.textContent).toContain('3E');
+        });
+
+        it('renders long fallback labels fully at the icon tile size (AE6/R5b)', () => {
+            // Arrange
+            renderer.setCubeSize(7);
+            for (const move of ['3Rw2', "4Uw'", "3E2'"]) {
+                moveHistory.addMove(move);
+            }
+
+            // Act
+            renderer.render();
+
+            // Assert — each label keeps its full original notation.
+            const labels = Array.from(container.querySelectorAll(`.${styles.fallbackLabel}`));
+            expect(labels.map(label => label.textContent)).toEqual(['3Rw2', "4Uw'", "3E2'"]);
+        });
+
+        it('renders a 3x3 history identically for the standard notation set (AE3)', () => {
+            // Arrange
+            renderer.setCubeSize(3);
+            const history = ['R', "R'", 'R2', "R2'", 'L', 'M', 'x', "z2'"];
+            for (const move of history) {
+                moveHistory.addMove(move);
+            }
+
+            // Act
+            renderer.render();
+
+            // Assert — every standard move keeps its exact icon; none fall back.
+            const moveItems = Array.from(container.querySelectorAll(`.${styles.moveItem}`));
+            expect(moveItems).toHaveLength(history.length);
+            for (let i = 0; i < history.length; i++) {
+                expect(moveItems[i].querySelector('use'), history[i]).toBeTruthy();
+                expect(
+                    moveItems[i].querySelector(`.${styles.fallbackLabel}`),
+                    history[i]
+                ).toBeNull();
+            }
+        });
+
+        it('preserves current-item marker and history order after size changes (AE5/R9)', () => {
+            // Arrange
+            renderer.setCubeSize(5);
+            moveHistory.addMove('R');
+            moveHistory.addMove('3E');
+            renderer.render();
+
+            // Act — toggle to text and back, same size, then render.
+            renderer.setShowAsIcons(false);
+            renderer.render();
+            renderer.setShowAsIcons(true);
+            renderer.render();
+
+            // Assert — same order and current marker on the last move.
+            const moveItems = Array.from(
+                container.querySelectorAll<HTMLElement>(`.${styles.moveItem}`)
+            );
+            expect(moveItems.map(item => item.dataset.move)).toEqual(['R', '3E']);
+            expect(moveItems[1].classList.contains(styles.current)).toBe(true);
+        });
+    });
 });

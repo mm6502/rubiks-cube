@@ -148,14 +148,20 @@ export function isMoveNotation(value: string): value is MoveNotation {
 }
 
 /**
- * Creates the small wrapper SVG (the bit that views insert into the DOM).
- * The wrapper references the sprite symbol so it stays tiny and deterministic.
+ * Creates the small wrapper SVG (the bit that views insert into the DOM) for a
+ * sprite symbol id. The wrapper references the sprite symbol so it stays tiny
+ * and deterministic.
+ */
+export function generateSvgForSymbol(symbolId: string): string {
+    ensureMoveIconSpriteLoaded();
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180" width="200" height="180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><use href="#${symbolId}" /></svg>`;
+}
+
+/**
+ * Creates the small wrapper SVG for an exact-preset move notation.
  */
 export function generateMoveIconSvg(move: MoveNotation): string {
-    ensureMoveIconSpriteLoaded();
-    const preset = MOVE_ICON_PRESETS[move];
-
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180" width="200" height="180" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><use href="#${preset.symbolId}" /></svg>`;
+    return generateSvgForSymbol(MOVE_ICON_PRESETS[move].symbolId);
 }
 
 /* ---------------------------------------------------------------------------
