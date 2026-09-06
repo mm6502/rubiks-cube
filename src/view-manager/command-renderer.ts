@@ -250,16 +250,35 @@ export class CommandRenderer {
      * Stamps data-cmd-id, disabled, aria-pressed, and the click sync handler onto a button.
      * All rendering paths call this after constructing button content and CSS classes.
      * When tooltipText is provided, also attaches long-press touch tooltip handlers.
+     *
+     * @param owner Optional owning view id (e.g. 'basic-front'). View command ids are
+     * only unique within their owning view — sibling variants (basic-front/basic-back)
+     * both register `tilt-view`/`pitch-view` with independent state. Stamping the owner
+     * lets click/refresh sync scope to the correct view instead of leaking one view's
+     * toggle state onto the other's button. Global/controller buttons have no owner.
      */
-    private wireButton(button: HTMLButtonElement, cmd: Command, tooltipText?: string): void {
+    private wireButton(
+        button: HTMLButtonElement,
+        cmd: Command,
+        owner: string | undefined,
+        tooltipText?: string
+    ): void {
         button.setAttribute('data-cmd-id', cmd.id);
+        if (owner !== undefined) {
+            button.setAttribute('data-cmd-owner', owner);
+        }
         if (cmd.isEnabled) button.disabled = !cmd.isEnabled();
         if (cmd.isActive) button.setAttribute('aria-pressed', String(cmd.isActive()));
         button.addEventListener('click', () => {
             cmd.action();
-            // Sync all rendered instances of this command (controls panel, titlebar, etc.)
+            // Sync all rendered instances of this command within the same owning
+            // scope (controls panel, titlebar, etc.). Two sibling view variants
+            // that share a command id are different scopes, so only the clicked
+            // view's buttons are updated.
+            const sameOwner =
+                owner !== undefined ? `[data-cmd-owner="${owner}"]` : ':not([data-cmd-owner])';
             document
-                .querySelectorAll<HTMLButtonElement>(`[data-cmd-id="${cmd.id}"]`)
+                .querySelectorAll<HTMLButtonElement>(`[data-cmd-id="${cmd.id}"]${sameOwner}`)
                 .forEach(btn => {
                     if (cmd.isActive) btn.setAttribute('aria-pressed', String(cmd.isActive()));
                     if (cmd.isEnabled) btn.disabled = !cmd.isEnabled();
@@ -304,7 +323,8 @@ export class CommandRenderer {
         const tooltip = this.buildTooltip(cmd);
         if (tooltip) button.title = tooltip;
 
-        this.wireButton(button, cmd, tooltip);
+        // Global/controls buttons are not owned by a specific view instance.
+        this.wireButton(button, cmd, undefined, tooltip);
         return button;
     }
 
@@ -552,7 +572,10 @@ export class CommandRenderer {
             );
             const tooltip = this.buildTooltip(cmd);
             if (tooltip) button.title = tooltip;
-            this.wireButton(button, cmd, tooltip);
+            // View header buttons are owned by the specific view variant (viewId),
+            // so click/refresh sync stays within this view and never leaks onto a
+            // sibling variant that shares the same command id.
+            this.wireButton(button, cmd, viewId, tooltip);
             inlineRail.appendChild(button);
         });
 
@@ -728,22 +751,33 @@ export class CommandRenderer {
     /**
      * Updates disabled/aria-pressed state on all rendered command buttons in-place.
      * Call after any state change to keep buttons in sync without a full re-render.
-     * @param commandRegistry - Map of registered commands
+     * @param commandRegistry - Map of registered commands keyed by owning view id
+     * ('controller' for global commands, otherwise the view type).
      */
     refreshCommandStates(commandRegistry: Map<string, Command[]>): void {
-        // Build a flat id → Command lookup from all registered commands
-        const byId = new Map<string, Command>();
-        for (const commands of commandRegistry.values()) {
-            for (const cmd of commands) {
-                byId.set(cmd.id, cmd);
-            }
-        }
-
         const buttons = document.querySelectorAll<HTMLButtonElement>('[data-cmd-id]');
         buttons.forEach(button => {
             const id = button.getAttribute('data-cmd-id');
             if (!id) return;
-            const cmd = byId.get(id);
+
+            // Resolve the command from the button's OWNER scope. View-command ids
+            // are only unique within a view — sibling variants (basic-front /
+            // basic-back) both register `tilt-view` with independent state, so a
+            // flat id → command map would stamp the wrong view's state onto its
+            // sibling's button.
+            const owner = button.getAttribute('data-cmd-owner');
+            let cmd: Command | undefined;
+            if (owner !== null) {
+                cmd = commandRegistry.get(owner)?.find(candidate => candidate.id === id);
+            } else {
+                // Ownerless buttons (global/controls panel, and the single-active-view
+                // #view-actions header) never render two views' same-id commands at
+                // once, so scanning all buckets is collision-free.
+                for (const commands of commandRegistry.values()) {
+                    cmd = commands.find(candidate => candidate.id === id);
+                    if (cmd) break;
+                }
+            }
             if (!cmd) return;
 
             if (cmd.isEnabled) button.disabled = !cmd.isEnabled();

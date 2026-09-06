@@ -918,6 +918,75 @@ describe('CommandRenderer', () => {
                 renderer.updateViewHeaderCommands('view1', container, commandRegistry);
             }).not.toThrow();
         });
+
+        it('does not leak a toggle command state across two view variants that share a command id', () => {
+            // Two sibling view variants (e.g. basic-front / basic-back) each own a
+            // `tilt-view` command with the SAME id but INDEPENDENT state. Clicking
+            // one variant's button must only flip that variant's aria-pressed —
+            // not its sibling's.
+            const container2 = document.createElement('div');
+            container2.innerHTML = '<div data-view-header></div>';
+            document.body.appendChild(container);
+            document.body.appendChild(container2);
+
+            const frontState = { tilted: false };
+            const backState = { tilted: false };
+
+            const frontTilt: Command = {
+                id: 'tilt-view',
+                label: 'Tilt',
+                action: () => {
+                    frontState.tilted = !frontState.tilted;
+                },
+                category: CommandCategory.VIEW,
+                showInHeader: true,
+                isActive: () => frontState.tilted,
+            };
+            const backTilt: Command = {
+                id: 'tilt-view',
+                label: 'Tilt',
+                action: () => {
+                    backState.tilted = !backState.tilted;
+                },
+                category: CommandCategory.VIEW,
+                showInHeader: true,
+                isActive: () => backState.tilted,
+            };
+
+            commandRegistry.set('basic-front', [frontTilt]);
+            commandRegistry.set('basic-back', [backTilt]);
+
+            renderer.updateViewHeaderCommands('basic-front', container, commandRegistry);
+            renderer.updateViewHeaderCommands('basic-back', container2, commandRegistry);
+
+            const frontBtn = container.querySelector<HTMLButtonElement>(
+                '[data-cmd-id="tilt-view"]'
+            )!;
+            const backBtn = container2.querySelector<HTMLButtonElement>(
+                '[data-cmd-id="tilt-view"]'
+            )!;
+
+            expect(frontBtn.getAttribute('aria-pressed')).toBe('false');
+            expect(backBtn.getAttribute('aria-pressed')).toBe('false');
+
+            // Click the FRONT variant's tilt button.
+            frontBtn.click();
+
+            // Front's own button reflects the toggled state…
+            expect(frontBtn.getAttribute('aria-pressed')).toBe('true');
+            // …but the BACK variant's button must remain untouched (its cube did not tilt).
+            expect(backState.tilted).toBe(false);
+            expect(backBtn.getAttribute('aria-pressed')).toBe('false');
+
+            // The refresh path (runs on every MOVE_EXECUTED) must also resolve each
+            // button from its own view's command — not leak the front state onto back.
+            renderer.refreshCommandStates(commandRegistry);
+            expect(frontBtn.getAttribute('aria-pressed')).toBe('true');
+            expect(backBtn.getAttribute('aria-pressed')).toBe('false');
+
+            document.body.removeChild(container);
+            document.body.removeChild(container2);
+        });
     });
 
     describe('configureHeaderCommandLayout (toggle button)', () => {
