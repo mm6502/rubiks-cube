@@ -244,7 +244,7 @@ describe('MovesViewRenderer', () => {
             renderer.setShowAsIcons(true);
         });
 
-        it('renders numbered slices as family-base icons with a notation label (AE1)', () => {
+        it('renders numbered slices as family icons with a notation label and direction-aware arrows (AE1)', () => {
             // Arrange
             renderer.setCubeSize(5);
             const history = ['4E', "3M'", '2E', "2S'", "B'", '3E', '4S', "4E'", '2E'];
@@ -264,12 +264,25 @@ describe('MovesViewRenderer', () => {
             const bPrimeSvg = bPrimeItem.querySelector('use');
             expect(bPrimeSvg?.getAttribute('href')).toBe('#move-icon-bp');
 
-            // Every numbered slice resolves to an icon (a use element) and its
-            // notation appears in the label overlay — no bare-text token remains.
+            // Every numbered slice resolves to an icon whose glyph encodes its
+            // suffix direction (4E base arrow, 3M' prime arrow, 4E' prime arrow,
+            // ...) and whose notation appears in the label overlay.
+            const expectedGlyphs = [
+                'move-icon-e',
+                'move-icon-mp',
+                'move-icon-e',
+                'move-icon-sp',
+                'move-icon-bp', // B' exact icon
+                'move-icon-e',
+                'move-icon-s',
+                'move-icon-ep',
+                'move-icon-e',
+            ];
             for (let i = 0; i < history.length; i++) {
                 const item = moveItems[i];
                 const use = item.querySelector('use');
                 expect(use, `${history[i]} should render an icon`).toBeTruthy();
+                expect(use?.getAttribute('href'), history[i]).toBe(`#${expectedGlyphs[i]}`);
                 if (history[i] !== "B'") {
                     const label = item.querySelector(`.${styles.fallbackLabel}`);
                     expect(label?.textContent, history[i]).toBe(history[i]);
@@ -277,7 +290,7 @@ describe('MovesViewRenderer', () => {
             }
         });
 
-        it('renders numbered wide moves as face-base icons with a notation label (AE2)', () => {
+        it('renders numbered wide moves as face icons with notation label and direction-aware arrows (AE2)', () => {
             // Arrange
             renderer.setCubeSize(7);
             moveHistory.addMove('3Rw2');
@@ -289,13 +302,15 @@ describe('MovesViewRenderer', () => {
             // Assert
             const moveItems = Array.from(container.querySelectorAll(`.${styles.moveItem}`));
             const firstUse = moveItems[0].querySelector('use');
-            expect(firstUse?.getAttribute('href')).toBe('#move-icon-r');
+            // 3Rw2 is a double turn -> R2 glyph (half-turn arrow).
+            expect(firstUse?.getAttribute('href')).toBe('#move-icon-r2');
             expect(moveItems[0].querySelector(`.${styles.fallbackLabel}`)?.textContent).toBe(
                 '3Rw2'
             );
 
             const secondUse = moveItems[1].querySelector('use');
-            expect(secondUse?.getAttribute('href')).toBe('#move-icon-u');
+            // 4Uw' is a prime turn -> U' glyph (prime arrow).
+            expect(secondUse?.getAttribute('href')).toBe('#move-icon-up');
             expect(moveItems[1].querySelector(`.${styles.fallbackLabel}`)?.textContent).toBe(
                 "4Uw'"
             );
@@ -322,9 +337,9 @@ describe('MovesViewRenderer', () => {
             expect(zz9.textContent).toContain('ZZ9');
             expect(zz9.querySelector('use')).toBeNull();
 
-            // 3E' still resolves to an E-family icon next to the malformed token.
+            // 3E' still resolves to an E-prime family icon next to the malformed token.
             const ePrime = moveItems[2];
-            expect(ePrime.querySelector('use')?.getAttribute('href')).toBe('#move-icon-e');
+            expect(ePrime.querySelector('use')?.getAttribute('href')).toBe('#move-icon-ep');
         });
 
         it('re-resolves when the cube size changes between renders (U4)', () => {

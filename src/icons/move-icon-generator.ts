@@ -209,34 +209,58 @@ const FACE_BASE_BY_AXIS_AND_SIDE: Readonly<
 };
 
 /**
- * Map a validated move definition to the *base* preset (base symbol id + label
- * position) of its canonical family. Only the base glyph is ever returned —
- * never a `'`/`2`/`2'` suffix-variant glyph — matching R3/R4.
+ * Resolve the family *base letter* for a validated move definition. The letter
+ * (e.g. `E` for a slice on the Y axis, `R` for a wide/face on the X-last side)
+ * names the family; the caller composes it with the move's modifier suffix to
+ * pick the direction-accurate glyph (`E'` → prime arrow, `E2` → half-turn, ...).
  */
-function familyBasePresetFor(
+function familyBaseLetterFor(
     definition: MoveDefinition,
     cubeSize: number
-): MoveIconPreset | undefined {
+): MoveNotation | undefined {
     const last = cubeSize - 1;
     const onLastLayer = definition.layerIndices[0] === last;
-    let baseLetter: MoveNotation | undefined;
 
     switch (definition.canonicalFamily) {
         case 'slice':
-            baseLetter = SLICE_BASE_BY_AXIS[definition.axis];
-            break;
+            return SLICE_BASE_BY_AXIS[definition.axis];
         case 'rotation':
-            baseLetter = ROTATION_BASE_BY_AXIS[definition.axis];
-            break;
+            return ROTATION_BASE_BY_AXIS[definition.axis];
         case 'face':
         case 'wide':
-            baseLetter = FACE_BASE_BY_AXIS_AND_SIDE[definition.axis][onLastLayer ? 'last' : 'zero'];
-            break;
+            return FACE_BASE_BY_AXIS_AND_SIDE[definition.axis][onLastLayer ? 'last' : 'zero'];
         default:
             return undefined;
     }
+}
 
-    return MOVE_ICON_PRESETS[baseLetter];
+/**
+ * The modifier suffix of a size-specific notation: `''`, `'`, `2`, or `2'`.
+ * The layer number prefix and the wide `w` marker are stripped before this is
+ * read (e.g. "5E'" → `'`, "Rw2" → `2`, "2Rw2'" → `2'`). Returns undefined when
+ * no recognizable modifier is present.
+ */
+function modifierSuffixOf(move: string): "'" | '2' | "2'" | '' | undefined {
+    if (move.endsWith("2'")) return "2'";
+    if (move.endsWith("'")) return "'";
+    if (move.endsWith('2')) return '2';
+    return '';
+}
+
+/**
+ * Compose the family base letter with a modifier into the exact preset that
+ * carries the direction-accurate arrow. `E` + `''` → `MOVE_ICON_PRESETS['E']`,
+ * `E` + `'` → `MOVE_ICON_PRESETS["E'"]` (prime arrow), etc. Returns undefined
+ * if the combination is not a known preset (defensive; all family letters and
+ * the four modifiers are valid preset keys).
+ */
+function familyPresetFor(
+    baseLetter: MoveNotation | undefined,
+    modifier: "'" | '2' | "2'" | '' | undefined
+): MoveIconPreset | undefined {
+    if (!baseLetter) return undefined;
+    const notation = modifier ? `${baseLetter}${modifier}` : baseLetter;
+    return MOVE_ICON_PRESETS[notation as MoveNotation];
 }
 
 /**
@@ -253,8 +277,8 @@ function lookupName(move: string): string {
  * Narrow defensive fallback (origin R6 exception, KTD6 step 4): a wide-shaped
  * notation absent from the active size's move table — reachable only on sizes
  * the numbered-wide gate excludes, e.g. a "2Rw" imported into a 3×3 history —
- * still resolves to its face base glyph. Only the wide family is granted by
- * shape; every other notation must be table-valid to resolve.
+ * still resolves to its face glyph. Only the wide family is granted by shape;
+ * every other notation must be table-valid to resolve.
  */
 const WIDE_SHAPED_NOTATION = /^(\d*)([UDLRFB])w(?:2'|['2])?$/i;
 
@@ -270,7 +294,7 @@ export type MoveIconResolution =
           readonly labelPosition: LabelPosition;
       }
     | {
-          /** The notation resolved to a canonical family base glyph + notation label. */
+          /** The notation resolved to a canonical family glyph + notation label. */
           readonly kind: 'family';
           readonly symbolId: string;
           readonly labelPosition: LabelPosition;
@@ -284,10 +308,11 @@ export type MoveIconResolution =
  *
  * Resolution order: (1) an exact preset always wins (KTD2/R2/R8); (2) otherwise
  * the move is looked up in the active size's move table (a trailing `2'` is
- * normalized to `2` for the lookup) and its canonical family determines the
- * base glyph (R6/R3/R4); (3) a wide-shaped notation still absent from the table
- * falls back to its face base glyph; (4) anything else returns `undefined` (R7
- * text fallback).
+ * normalized to `2` for the lookup) and its canonical family + modifier select
+ * the direction-accurate family glyph (R6/R3/R4) — `5E'` gets the prime arrow,
+ * `5E2` the half-turn arrow, mirroring the 3×3 exact icons; (3) a wide-shaped
+ * notation still absent from the table falls back to its face glyph; (4)
+ * anything else returns `undefined` (R7 text fallback).
  */
 export function resolveMoveIcon(move: string, cubeSize: number): MoveIconResolution | undefined {
     // 1. Exact preset match always wins.
@@ -296,10 +321,13 @@ export function resolveMoveIcon(move: string, cubeSize: number): MoveIconResolut
         return { kind: 'exact', symbolId: preset.symbolId, labelPosition: preset.labelPosition };
     }
 
-    // 2. Table-valid: derive the family base glyph from the definition.
+    // 2. Table-valid: family base letter + modifier -> direction-accurate glyph.
     const definition = getCubeInvariants(cubeSize).moveDefinitions.get(lookupName(move));
     if (definition) {
-        const preset = familyBasePresetFor(definition, cubeSize);
+        const preset = familyPresetFor(
+            familyBaseLetterFor(definition, cubeSize),
+            modifierSuffixOf(move)
+        );
         if (preset) {
             return {
                 kind: 'family',
@@ -311,9 +339,12 @@ export function resolveMoveIcon(move: string, cubeSize: number): MoveIconResolut
     }
 
     // 3. Wide-shaped exception for spellings the table gate excludes.
-    const wideLetter = move.match(WIDE_SHAPED_NOTATION)?.[2];
-    if (wideLetter) {
-        const preset = MOVE_ICON_PRESETS[wideLetter.toUpperCase() as MoveNotation];
+    const wideMatch = move.match(WIDE_SHAPED_NOTATION);
+    if (wideMatch) {
+        const preset = familyPresetFor(
+            wideMatch[2].toUpperCase() as MoveNotation,
+            modifierSuffixOf(move)
+        );
         if (preset) {
             return {
                 kind: 'family',

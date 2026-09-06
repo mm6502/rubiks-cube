@@ -301,7 +301,8 @@ describe('resolveMoveIcon (size-specific icon fallback)', () => {
         expect(five!.kind).toBe('exact');
     });
 
-    it('resolves a numbered slice to its family base glyph with the notation label (AE1/R3)', () => {
+    it('resolves a numbered slice to a suffix-aware family glyph with the notation label (AE1)', () => {
+        // Unmodified numbered slice keeps the family base glyph.
         const result = resolveMoveIcon('3E', 5);
         expect(result).toEqual({
             kind: 'family',
@@ -310,39 +311,50 @@ describe('resolveMoveIcon (size-specific icon fallback)', () => {
             label: '3E',
         });
 
-        // Prime variant keeps the E base glyph, never a prime-variant symbol.
+        // Prime variant renders the prime family glyph so the arrow encodes the
+        // reverse direction (mirroring how the 3x3 exact E' icon behaves).
         const prime = resolveMoveIcon("2M'", 5);
-        expect(prime).toMatchObject({ kind: 'family', symbolId: 'move-icon-m', label: "2M'" });
+        expect(prime).toMatchObject({ kind: 'family', symbolId: 'move-icon-mp', label: "2M'" });
     });
 
-    it('resolves numbered slices by axis to M/E/S families (AE1)', () => {
-        // 4E -> E (Y axis), 3M' -> M (X axis), 4S -> S (Z axis).
+    it('resolves numbered slices by axis to suffix-aware M/E/S families (AE1)', () => {
+        // 4E -> E (Y axis, base), 3M' -> M' (X axis prime), 4S -> S (Z axis base).
         expect(resolveMoveIcon('4E', 5)!.symbolId).toBe('move-icon-e');
-        expect(resolveMoveIcon("3M'", 5)!.symbolId).toBe('move-icon-m');
+        expect(resolveMoveIcon("3M'", 5)!.symbolId).toBe('move-icon-mp');
         expect(resolveMoveIcon('4S', 5)!.symbolId).toBe('move-icon-s');
     });
 
-    it('resolves a numbered wide to its face base glyph with the notation label (AE2/R4)', () => {
-        const rw2 = resolveMoveIcon('3Rw2', 7);
-        expect(rw2).toMatchObject({ kind: 'family', symbolId: 'move-icon-r', label: '3Rw2' });
-
-        const uw = resolveMoveIcon("4Uw'", 7);
-        expect(uw).toMatchObject({ kind: 'family', symbolId: 'move-icon-u', label: "4Uw'" });
+    it('resolves double and 2-prime numbered slices to their variant glyphs (AE1)', () => {
+        expect(resolveMoveIcon('4E2', 5)!.symbolId).toBe('move-icon-e2');
+        expect(resolveMoveIcon("4E2'", 5)!.symbolId).toBe('move-icon-e2p');
+        expect(resolveMoveIcon("3M'", 5)!.symbolId).toBe('move-icon-mp');
+        expect(resolveMoveIcon('3M2', 5)!.symbolId).toBe('move-icon-m2');
+        expect(resolveMoveIcon('3S2', 5)!.symbolId).toBe('move-icon-s2');
+        expect(resolveMoveIcon("3S2'", 5)!.symbolId).toBe('move-icon-s2p');
     });
 
-    it('resolves a bare wide to its face base glyph (R4/Rw on 3x3)', () => {
+    it('resolves a numbered wide to a suffix-aware face glyph with the notation label (AE2)', () => {
+        const rw2 = resolveMoveIcon('3Rw2', 7);
+        expect(rw2).toMatchObject({ kind: 'family', symbolId: 'move-icon-r2', label: '3Rw2' });
+
+        const uw = resolveMoveIcon("4Uw'", 7);
+        expect(uw).toMatchObject({ kind: 'family', symbolId: 'move-icon-up', label: "4Uw'" });
+    });
+
+    it('resolves a bare wide to a suffix-aware face glyph (R4/Rw on 3x3)', () => {
         // Bare Rw is table-valid on 3x3 (cubeSize >= 2), canonicalFamily 'wide'.
         const rw = resolveMoveIcon('Rw', 3);
         expect(rw).toMatchObject({ kind: 'family', symbolId: 'move-icon-r', label: 'Rw' });
     });
 
-    it('resolves a trailing 2-prime via the 2 table entry (R12/KTD7)', () => {
-        // "3E2'" looks up the "3E2" table entry and keeps the 2' spelling as label.
+    it('resolves a trailing 2-prime via the 2 table entry to the 2-prime glyph (R12/KTD7)', () => {
+        // "3E2'" looks up the "3E2" table entry; the rendered glyph is the
+        // family's 2-prime variant (arrow = reversed 180), label keeps 2'.
         const e2p = resolveMoveIcon("3E2'", 7);
-        expect(e2p).toMatchObject({ kind: 'family', symbolId: 'move-icon-e', label: "3E2'" });
+        expect(e2p).toMatchObject({ kind: 'family', symbolId: 'move-icon-e2p', label: "3E2'" });
 
         const rw2p = resolveMoveIcon("Rw2'", 5);
-        expect(rw2p).toMatchObject({ kind: 'family', symbolId: 'move-icon-r', label: "Rw2'" });
+        expect(rw2p).toMatchObject({ kind: 'family', symbolId: 'move-icon-r2p', label: "Rw2'" });
     });
 
     it('falls back by wide shape when the numbered-wide gate excludes a size (origin R6 exception)', () => {
@@ -363,30 +375,38 @@ describe('resolveMoveIcon (size-specific icon fallback)', () => {
         expect(resolveMoveIcon('ZZ9w', 5)).toBeUndefined();
     });
 
-    it('resolves bare-wide variants on 3x3 to the face glyph (R4)', () => {
-        // Rw/Rw'/Rw2 are table-valid on 3x3 (bare wide, cubeSize >= 2) and are
+    it('resolves bare-wide variants on 3x3 to suffix-aware face glyphs (R4)', () => {
+        // Rw/Rw'/Rw2/Rw2' are table-valid on 3x3 (bare wide, cubeSize >= 2) and are
         // not part of the exact 3x3 icon preset set, so they resolve via family.
         expect(resolveMoveIcon('Rw', 3)).toMatchObject({ symbolId: 'move-icon-r', label: 'Rw' });
         expect(resolveMoveIcon("Rw'", 3)).toMatchObject({
-            symbolId: 'move-icon-r',
+            symbolId: 'move-icon-rp',
             label: "Rw'",
         });
-        expect(resolveMoveIcon('Rw2', 3)).toMatchObject({ symbolId: 'move-icon-r', label: 'Rw2' });
+        expect(resolveMoveIcon('Rw2', 3)).toMatchObject({
+            symbolId: 'move-icon-r2',
+            label: 'Rw2',
+        });
     });
 
-    it('resolves numbered slices on even sizes 4 and 6 (edge case)', () => {
+    it('resolves numbered slices on even sizes 4 and 6 to suffix-aware glyphs (edge case)', () => {
         // Size 4 inner layers are 1..2 -> 2M/3E; size 6 inner layers 1..4.
         expect(resolveMoveIcon('2M', 4)).toMatchObject({ symbolId: 'move-icon-m', label: '2M' });
         expect(resolveMoveIcon('3E', 4)).toMatchObject({ symbolId: 'move-icon-e', label: '3E' });
         expect(resolveMoveIcon('4S', 6)).toMatchObject({ symbolId: 'move-icon-s', label: '4S' });
         expect(resolveMoveIcon('5M', 6)).toMatchObject({ symbolId: 'move-icon-m', label: '5M' });
+        expect(resolveMoveIcon("2M'", 4)).toMatchObject({ symbolId: 'move-icon-mp' });
+        expect(resolveMoveIcon('3E2', 4)).toMatchObject({ symbolId: 'move-icon-e2' });
     });
 
-    it('normalizes lowercase w in a wide-shaped fallback (R4)', () => {
+    it('normalizes lowercase w in a wide-shaped fallback to a suffix-aware glyph (R4)', () => {
         // History entries are engine-canonical (uppercase), but a lowercase-w
         // spelling is still recognizable and should resolve to the face glyph.
         expect(resolveMoveIcon('2rw', 3)).toMatchObject({ symbolId: 'move-icon-r', label: '2rw' });
-        expect(resolveMoveIcon("uw'", 3)).toMatchObject({ symbolId: 'move-icon-u', label: "uw'" });
+        expect(resolveMoveIcon("uw'", 3)).toMatchObject({
+            symbolId: 'move-icon-up',
+            label: "uw'",
+        });
     });
 
     it('never sends an exact-preset notation through the family fallback (AE3 exhaustive)', () => {
@@ -399,5 +419,35 @@ describe('resolveMoveIcon (size-specific icon fallback)', () => {
                 expect(result?.kind, `${cubeSize}:${move}`).toBe('exact');
             }
         }
+    });
+
+    it('renders distinct direction arrows for a numbered slice and its prime/double forms (regression)', () => {
+        // Reported bug: 5E and 5E' (also 2M/2M', 3S/3S') showed the same arrow.
+        // Base keeps the family base glyph; prime/double/2-prime forms must use
+        // the suffix-variant glyph so the arrow encodes the turn direction.
+        const base = resolveMoveIcon('5E', 6)!;
+        const prime = resolveMoveIcon("5E'", 6)!;
+        const half = resolveMoveIcon('5E2', 6)!;
+        const halfPrime = resolveMoveIcon("5E2'", 6)!;
+
+        expect(base.symbolId).toBe('move-icon-e');
+        expect(prime.symbolId).toBe('move-icon-ep');
+        expect(half.symbolId).toBe('move-icon-e2');
+        expect(halfPrime.symbolId).toBe('move-icon-e2p');
+
+        // Base and prime must never share a glyph (the reported symptom).
+        const distinct = new Set([
+            base.symbolId,
+            prime.symbolId,
+            half.symbolId,
+            halfPrime.symbolId,
+        ]);
+        expect(distinct.size).toBe(4);
+
+        // Same guarantee for the M and S families the report named.
+        expect(resolveMoveIcon('2M', 5)!.symbolId).toBe('move-icon-m');
+        expect(resolveMoveIcon("2M'", 5)!.symbolId).toBe('move-icon-mp');
+        expect(resolveMoveIcon('3S', 5)!.symbolId).toBe('move-icon-s');
+        expect(resolveMoveIcon("3S'", 5)!.symbolId).toBe('move-icon-sp');
     });
 });
