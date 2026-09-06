@@ -237,10 +237,9 @@ function familyBaseLetterFor(
 /**
  * The modifier suffix of a size-specific notation: `''`, `'`, `2`, or `2'`.
  * The layer number prefix and the wide `w` marker are stripped before this is
- * read (e.g. "5E'" → `'`, "Rw2" → `2`, "2Rw2'" → `2'`). Returns undefined when
- * no recognizable modifier is present.
+ * read (e.g. "5E'" → `'`, "Rw2" → `2`, "2Rw2'" → `2'`).
  */
-function modifierSuffixOf(move: string): "'" | '2' | "2'" | '' | undefined {
+function modifierSuffixOf(move: string): "'" | '2' | "2'" | '' {
     if (move.endsWith("2'")) return "2'";
     if (move.endsWith("'")) return "'";
     if (move.endsWith('2')) return '2';
