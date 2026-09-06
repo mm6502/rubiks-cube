@@ -69,11 +69,11 @@ direction.
 - **Treating 180° as directionless.** True for cube state, wrong for user
   experience. Direction must travel through the full pipeline even when the end
   state is identical.
-- **Adding `-180` to the union type only.** The existing `QuarterTurn` union
-  (`90 | -90 | 180 | 270`) would accept `-180`, but all consumers used bare
-  numeric literals (`90`, `180`) that would silently bypass the new value. A
-  const-object with named constants was needed to make direction explicit at
-  every call site.
+- **Adding `-180` to the union type only.** Simply extending the original
+  `QuarterTurn` union (`90 | -90 | 180 | 270`) to include `-180` was not enough:
+  even once the type accepted `-180`, all consumers used bare numeric literals
+  (`90`, `180`) that would silently bypass the new value. A const-object with
+  named constants was needed to make direction explicit at every call site.
 - **Keeping `getInverseMove("U2") === "U2"`.** The old self-inverse behavior was
   algebraically correct but broke the auto-undo detection at
   `cube-controller.ts:74`. Flipping to `"U2'"` makes the string comparison fail,

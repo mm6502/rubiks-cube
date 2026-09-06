@@ -36,6 +36,12 @@ jobs:
           if [[ "$BRANCH" == feat/* ]]; then
             SUFFIX="${BRANCH#feat/}"
             SHORT=$(echo "$SUFFIX" | sed 's/\([A-Z]\)/-\1/g' | tr '[:upper:]' '[:lower:]' | tr -- '-_' '\n' | awk 'NF{print}' | cut -c1 | tr -d '\n' | head -c 20)
+            # Guard against degenerate suffixes (e.g. feat/_ or feat/-) that yield
+            # an empty SHORT. Falling back to the slug keeps DEPLOY_DIR non-empty
+            # and safe to rm -rf, never the whole feat/ tree. Mirrors deploy.yml.
+            if [ -z "$SHORT" ]; then
+              SHORT="$SLUG"
+            fi
             echo "deploy_dir=feat/$SHORT" >> "$GITHUB_OUTPUT"
           else
             echo "deploy_dir=$SLUG" >> "$GITHUB_OUTPUT"
