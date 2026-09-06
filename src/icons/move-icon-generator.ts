@@ -264,19 +264,19 @@ const WIDE_SHAPED_NOTATION = /^(\d*)([UDLRFB])w(?:2'|['2])?$/i;
  */
 export type MoveIconResolution =
     | {
-          /** The notation has an exact preset; its glyph is used unchanged. */
-          readonly kind: 'exact';
-          readonly symbolId: string;
-          readonly labelPosition: LabelPosition;
-      }
+        /** The notation has an exact preset; its glyph is used unchanged. */
+        readonly kind: 'exact';
+        readonly symbolId: string;
+        readonly labelPosition: LabelPosition;
+    }
     | {
-          /** The notation resolved to a canonical family base glyph + notation label. */
-          readonly kind: 'family';
-          readonly symbolId: string;
-          readonly labelPosition: LabelPosition;
-          /** The full original notation, shown as the label overlay. */
-          readonly label: string;
-      };
+        /** The notation resolved to a canonical family base glyph + notation label. */
+        readonly kind: 'family';
+        readonly symbolId: string;
+        readonly labelPosition: LabelPosition;
+        /** The full original notation, shown as the label overlay. */
+        readonly label: string;
+    };
 
 /**
  * Resolve a move notation (given the active cube size) to the icon that should
