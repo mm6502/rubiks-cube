@@ -49,6 +49,124 @@ describe('cube invariants move coverage', () => {
             expect(state.centerOrientations.every(value => value === 0)).toBe(true);
         });
     });
+
+    describe('canonical family labels', () => {
+        it('tags every base and variant definition for a 3x3 cube', () => {
+            const definitions = createCubeInvariants(3).moveDefinitions;
+            const familyOf = (name: string): string | undefined =>
+                definitions.get(name)?.canonicalFamily;
+
+            // Face moves.
+            for (const face of ['U', 'D', 'R', 'L', 'F', 'B'] as const) {
+                expect(familyOf(face)).toBe('face');
+                expect(familyOf(`${face}'`)).toBe('face');
+                expect(familyOf(`${face}2`)).toBe('face');
+            }
+            // Slices.
+            for (const slice of ['M', 'E', 'S'] as const) {
+                expect(familyOf(slice)).toBe('slice');
+                expect(familyOf(`${slice}'`)).toBe('slice');
+                expect(familyOf(`${slice}2`)).toBe('slice');
+            }
+            // Wide moves.
+            for (const wide of ['Uw', 'Dw', 'Rw', 'Lw', 'Fw', 'Bw'] as const) {
+                expect(familyOf(wide)).toBe('wide');
+                expect(familyOf(`${wide}'`)).toBe('wide');
+                expect(familyOf(`${wide}2`)).toBe('wide');
+            }
+            // Cube rotations.
+            for (const rotation of ['x', 'y', 'z'] as const) {
+                expect(familyOf(rotation)).toBe('rotation');
+                expect(familyOf(`${rotation}'`)).toBe('rotation');
+                expect(familyOf(`${rotation}2`)).toBe('rotation');
+            }
+        });
+
+        it('tags numbered slices and their variants as slice on sizes 4+', () => {
+            // Numbered slices cover the inner layers 1..last-1, so the largest
+            // slice number on size n is n-1 (e.g. 3M on a 4x4, 4S on a 5x5).
+            const expectedBySize: Readonly<Record<number, readonly string[]>> = {
+                4: ['2M', "2M'", '2M2', '3E', '3E2', "3S'"],
+                5: ['2M', "2M'", '2M2', '3E', '3E2', "4S'"],
+                7: ['2M', "2M'", '2M2', '3E', '3E2', "4S'", '6M2'],
+            };
+            for (const [cubeSize, names] of Object.entries(expectedBySize)) {
+                const definitions = createCubeInvariants(Number(cubeSize)).moveDefinitions;
+                for (const name of names) {
+                    expect(definitions.get(name)?.canonicalFamily, `${cubeSize}:${name}`).toBe(
+                        'slice'
+                    );
+                }
+            }
+        });
+
+        it('tags numbered-wide spellings and their variants as wide on sizes 4+', () => {
+            for (const cubeSize of [4, 5, 7]) {
+                const definitions = createCubeInvariants(cubeSize).moveDefinitions;
+                // 2Rw/3Uw exist for every size > 3 (turnCount 2..last).
+                for (const name of ['2Rw', "2Rw'", '2Rw2', '3Uw', '3Uw2', "3Uw'"]) {
+                    expect(definitions.get(name)?.canonicalFamily, `${cubeSize}:${name}`).toBe(
+                        'wide'
+                    );
+                }
+            }
+        });
+    });
+
+    describe('numbered-wide move table coverage', () => {
+        it('adds numbered-wide spellings for every face on sizes > 3', () => {
+            const definitions = createCubeInvariants(5).moveDefinitions;
+            // 5x5: turnCount 2..4 -> 2Rw..4Rw per face, each with base/'/2 forms.
+            for (const face of ['U', 'D', 'R', 'L', 'F', 'B'] as const) {
+                for (const turnCount of [2, 3, 4]) {
+                    const name = `${turnCount}${face}w`;
+                    expect(definitions.get(name), name).toBeDefined();
+                    expect(definitions.get(`${name}'`), `${name}'`).toBeDefined();
+                    expect(definitions.get(`${name}2`), `${name}2`).toBeDefined();
+                }
+            }
+        });
+
+        it('keeps 3x3 vocabulary unchanged (no numbered-wide spellings)', () => {
+            const definitions = createCubeInvariants(3).moveDefinitions;
+            for (const name of ['2Rw', '2Uw', '3Fw']) {
+                expect(definitions.get(name)).toBeUndefined();
+            }
+        });
+
+        it('describes numbered-wide layers as the outer n layers of the face', () => {
+            const definitions = createCubeInvariants(7).moveDefinitions;
+
+            // R sits on the `last` layer (6): 2Rw = [6,5], 3Rw = [6,5,4].
+            const twoRw = definitions.get('2Rw');
+            expect(twoRw?.layerIndices).toEqual([6, 5]);
+            const threeRw = definitions.get('3Rw');
+            expect(threeRw?.layerIndices).toEqual([6, 5, 4]);
+
+            // L sits on layer 0: 2Lw = [0,1], 3Lw = [0,1,2].
+            const twoLw = definitions.get('2Lw');
+            expect(twoLw?.layerIndices).toEqual([0, 1]);
+            const threeLw = definitions.get('3Lw');
+            expect(threeLw?.layerIndices).toEqual([0, 1, 2]);
+        });
+
+        it('never emits a bare numbered-wide spelling without a table entry', () => {
+            // The wide exception in the icon resolver is only a defensive
+            // fallback; the table itself must cover the spellings it grants.
+            for (const cubeSize of [4, 5, 6, 7]) {
+                const definitions = createCubeInvariants(cubeSize).moveDefinitions;
+                const last = cubeSize - 1;
+                for (let turnCount = 2; turnCount <= last; turnCount++) {
+                    for (const face of ['U', 'D', 'R', 'L', 'F', 'B'] as const) {
+                        expect(
+                            definitions.get(`${turnCount}${face}w`),
+                            `${cubeSize}:${turnCount}${face}w`
+                        ).toBeDefined();
+                    }
+                }
+            }
+        });
+    });
 });
 
 /**
