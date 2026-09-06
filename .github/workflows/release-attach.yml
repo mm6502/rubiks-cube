@@ -1,0 +1,45 @@
+name: Release Attach
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# Attaches the compiled single-file HTML build to a release when it is
+# published (from draft or directly). The app compiles to one self-contained
+# dist/index.html — this job builds it, renames it with the release tag, and
+# uploads it as a release asset so the release carries a ready-to-open build.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Build the commit the release points at (usually main), not the
+          # workflow file's own ref, so the artifact matches the released code.
+          ref: ${{ github.event.release.target_commitish }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build single-file HTML
+        run: npm run build
+
+      - name: Attach HTML to the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          asset="rubiks-cube-${TAG}.html"
+          cp dist/index.html "$asset"
+          gh release upload "$TAG" "$asset" --clobber
