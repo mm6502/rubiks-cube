@@ -7,6 +7,7 @@ import {
     axisCentres,
     axisCircleId,
     circleIntersections,
+    equilateralApexHeight,
     faceEllipseGeometry,
     labelGeometry,
     labelOrdinal,
@@ -49,6 +50,9 @@ const REFERENCE_PARAMS: CircularSvgParameters = {
     viewBox: '20 0 360 350',
     centreX: 200,
     centreY: 219,
+    // The reference asset hand-rounds the apex to 87 above the baseline, where
+    // the exact equilateral height is 86.6025.
+    apexHeight: 87,
     ellipseOffsetNear: 0.4225,
     ellipseOffsetFar: 0.2871,
     ellipseRadiusX: 46 / 7,
@@ -88,11 +92,13 @@ describe('circular svg generator — geometry fidelity against the 3x3 reference
             const centres = axisCentres(REFERENCE_PARAMS);
             expect(centres[Axis.X]).toEqual({ x: 250, y: 219 });
             expect(centres[Axis.Z]).toEqual({ x: 150, y: 219 });
-            // The reference asset's apex is hand-rounded to 132 where the exact
-            // equilateral height is 132.3975. Geometry stays mathematically
-            // exact; the tolerance absorbs the reference's own rounding.
-            expect(Math.abs(centres[Axis.Y].x - 200)).toBeLessThanOrEqual(COORD_TOLERANCE);
-            expect(Math.abs(centres[Axis.Y].y - 132)).toBeLessThanOrEqual(COORD_TOLERANCE);
+            expect(centres[Axis.Y]).toEqual({ x: 200, y: 132 });
+        });
+
+        it('carries the exact equilateral height as a derivable value', () => {
+            // The parameter enables reproducing the hand-rounded reference; the
+            // equilateral height stays available for a size that wants it.
+            expect(equilateralApexHeight(REFERENCE_PARAMS)).toBeCloseTo(86.6025, 4);
         });
     });
 

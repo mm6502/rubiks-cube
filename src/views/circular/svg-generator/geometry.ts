@@ -27,6 +27,16 @@ export interface CircularSvgParameters {
     /** Y coordinate of the base line on which the Z and X centres sit. */
     centreY: number;
     /**
+     * Height of the triangle apex above the baseline.
+     *
+     * The equilateral value is `triangleSide * sqrt(3) / 2`, but the reference
+     * asset hand-rounds it (87 rather than 86.6025 for a side of 100). Carrying
+     * it as a parameter lets a generated asset reproduce the committed one
+     * exactly, and leaves the apex available for the same kind of visual tuning
+     * as the other geometry values.
+     */
+    apexHeight: number;
+    /**
      * Outward offset of the face-ellipse centre from the sticker-grid centroid,
      * as a fraction of the sticker-grid span. Two values because the layout is
      * not symmetric: the three faces nearest their third axis centre carry a
@@ -92,12 +102,17 @@ export interface Point2D {
  * Z and X on a horizontal baseline and Y at the apex.
  */
 export function axisCentres(params: CircularSvgParameters): Record<Axis, Point2D> {
-    const { triangleSide: d, centreX: cx, centreY: cy } = params;
+    const { triangleSide: d, centreX: cx, centreY: cy, apexHeight } = params;
     return {
         [Axis.Z]: { x: cx - d / 2, y: cy },
         [Axis.X]: { x: cx + d / 2, y: cy },
-        [Axis.Y]: { x: cx, y: cy - (d * Math.sqrt(3)) / 2 },
+        [Axis.Y]: { x: cx, y: cy - apexHeight },
     };
+}
+
+/** The apex height that makes the triangle exactly equilateral. */
+export function equilateralApexHeight(params: CircularSvgParameters): number {
+    return (params.triangleSide * Math.sqrt(3)) / 2;
 }
 
 /** The centroid of the three axis centres. */
