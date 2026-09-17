@@ -16,8 +16,9 @@ import { availableSizes, buildSvg, loadParameters } from './svg-generator/genera
  *    first request and caches the string, so a size is never "unsupported" merely
  *    because nobody committed its file. This is what lets the assets be dropped
  *    from the bundle: with none committed the build inlines no SVG at all
- *    (measured 147.4 -> 104.1 KB gzip), at the cost of one ~11 ms build the first
- *    time a size is opened.
+ *    (measured 153.9 -> 110.9 KB gzip, a 43 KB saving), at the cost of one build
+ *    the first time a size is opened — 13 ms cold at the largest size, under a
+ *    frame.
  * 3. **A size with no parameter set is `undefined`, never a fallback.** Falling
  *    back to another size's markup would render a cube at the wrong size rather
  *    than reporting the view as unsupported, which is the harder failure to
@@ -67,9 +68,9 @@ const registry = buildRegistry();
  * Markup built on demand, keyed by size.
  *
  * A cache rather than a prebuild: generating all six sizes up front would cost
- * ~37 ms before the first paint and would defeat the point of not shipping the
- * markup. Populated lazily so a session that only ever shows 3x3 only ever
- * builds 3x3.
+ * 41 ms of first-call time (29 ms if each size had already been built once) and
+ * would defeat the point of not shipping the markup. Populated lazily so a
+ * session that only ever shows 3x3 only ever builds 3x3.
  */
 const generated = new Map<number, string>();
 

@@ -53,8 +53,9 @@ the real canvas. Adding a size therefore never needs a canvas value, and a value
 you add would be ignored.
 
 Then run `npm run svg:circular -- 6 --check`. If the parameter set is invalid
-the validation gate says which constraint failed and why. A new size also needs
-its asset path added to whatever resolves the SVG at runtime.
+the validation gate says which constraint failed and why. Nothing else needs
+registering: the loader reads the size list from `parameters.json`, serves
+`view-6.svg` if it is committed, and otherwise builds it on first view.
 
 ## Parameters
 
@@ -167,15 +168,19 @@ optimisation, not a requirement — a size is never "unsupported" merely because
 nobody committed its file.
 
 That is what lets the assets be optional. With all six committed the build
-inlines them (measured 153.7 KB gzip); with none committed it inlines no SVG at
-all (110.7 KB gzip) and every size is still served, at the cost of one build per
-size on first view — `generate(7)` cold measures ~11 ms, under a frame.
+inlines them (measured 153.9 KB gzip); with none committed it inlines no SVG at
+all (110.9 KB gzip, a 43 KB saving) and every size is still served, at the cost
+of one build per size on first view — `generate(7)` is 13 ms cold, 10 ms warm,
+under a frame.
 
-Committing an asset is worth it when a size is on the default path and its ~7 KB
-gzip is cheaper than the first-view build; drop it when bundle size matters
-more. Either way the markup is the same: the loader's built output is
-content-identical to the committed file, and `svg-loader.test.ts` asserts that
-so the two paths cannot drift.
+Committing an asset is worth it when a size is on the default path and its gzip
+is cheaper than the first-view build. That cost is not flat — measured against
+the no-asset baseline it runs 3.1 KB at 2×2, 7.1 KB at 4×4, 12.6 KB at 7×7, an
+average of 7.2 KB — while the build it saves is 13 ms at worst. Drop the asset
+when bundle size matters more, and prefer it for the one or two sizes a user
+actually lands on. Either way the markup is the same: the loader's built output
+is content-identical to the committed file, and `svg-loader.test.ts` asserts
+that so the two paths cannot drift.
 
 3×3 used to be special-cased behind a hand-written static import; it now
 resolves like every other size, so no size can drift into being "the special
@@ -187,18 +192,27 @@ and it sits there so that neither glob can reach it — which is what keeps the
 generator's fidelity tests comparing against an independent reference instead of
 against the generator's own output.
 
-An N=5 asset is a validation target only. Generate it to a path outside `src/`
-(for example `scripts/circular-svg/tmp/`) so it can never be globbed into the
-app or committed as a shipped size.
+An N=5 asset was originally written outside `src/` as a validation target only —
+the size existed to falsify the ghost rule, not to ship. That is no longer how
+it is used: sizes 2 through 7 are all served, so N=5 is an ordinary size now.
+The preamble in `parameters.json` keeps the record of how it started.
 
 ## Verification
 
-| Test                             | What it proves                                                                                         |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `svg-generator.test.ts`          | Geometry reproduces the reference: 54 sticker positions, 9 ring radii, 6 ellipse rotations, 9 labels   |
-| `svg-generator.ghost.test.ts`    | The ghost rule reproduces all 72 reference ghosts structurally, with positional outliers accounted for |
-| `svg-generator.validate.test.ts` | Each validation group rejects what it is meant to reject, and every configured size passes             |
-| `generated-svg.test.ts`          | End-to-end generation of 3×3 matches the committed asset                                               |
+All of these live under `src/views/circular/` — the generator's own tests beside
+its modules, and the loader/asset tests one level up — because `vitest` collects
+`src/**` only.
+
+| Test                                  | What it proves                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `svg-generator.test.ts`               | Geometry reproduces the reference: 54 sticker positions, 9 ring radii, 6 ellipse rotations, 9 labels   |
+| `svg-generator.ghost.test.ts`         | The ghost rule reproduces all 72 reference ghosts structurally, with positional outliers accounted for |
+| `svg-generator.falsification.test.ts` | N=5 exercises the edge class the 3×3 reference cannot, so a rule wrong only for that class fails here  |
+| `svg-generator.validate.test.ts`      | Each validation group rejects what it is meant to reject, and every configured size passes             |
+| `svg-generator.layout.test.ts`        | Every configured size fits the canvas the generator actually emits                                     |
+| `asset-canvas.test.ts`                | Each served size's real markup stays inside its own `viewBox`                                          |
+| `svg-loader.test.ts`                  | A size resolves identically whether its asset is committed or built on demand                          |
+| `generated-svg.test.ts`               | End-to-end generation of 3×3 matches the hand-authored reference in `fixtures/`                        |
 
 The 3×3 comparison uses one exported tolerance constant, set tighter than the
 runtime's own `isPointOnCircle` tolerance of 2 units. Otherwise the generator
