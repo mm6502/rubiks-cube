@@ -1,10 +1,121 @@
 import { createUndoRedoCommands } from '@/cube/commands/undo-redo';
 import { ReadOnlyCubeModel } from '@/cube/types';
+import { Axis } from '@/cube/types/common';
 import { getEventBus } from '@/event-bus-accessor';
-import { Command, CommandCategory, EventName, GroupLayout } from '@/types';
+import { SliceBase, resolveSliceTarget } from '@/interaction/slice-target';
+import {
+    Command,
+    CommandCategory,
+    CommandGenerationOptions,
+    EventName,
+    GroupLayout,
+    LabelPosition,
+} from '@/types';
 
-export function getCommands(model: ReadOnlyCubeModel): Command[] {
+/**
+ * A slice variant: the prime (counter-clockwise), base (clockwise) and double
+ * (180°) spellings of one M/E/S family.
+ *
+ * The two suffixes differ because display and notation are not the same string:
+ * label text uses the typographic prime (`M′`) to match every other move button,
+ * while move notation must use the ASCII apostrophe the parser accepts (`M'`).
+ */
+const SLICE_VARIANTS = [
+    {
+        idSuffix: '-prime',
+        labelSuffix: '′',
+        notationSuffix: "'",
+        iconSuffix: 'p',
+        direction: 'counter-clockwise',
+        keyModifier: { shiftKey: true },
+    },
+    {
+        idSuffix: '',
+        labelSuffix: '',
+        notationSuffix: '',
+        iconSuffix: '',
+        direction: 'clockwise',
+        keyModifier: {},
+    },
+    {
+        idSuffix: '2',
+        labelSuffix: '2',
+        notationSuffix: '2',
+        iconSuffix: '2',
+        direction: '180°',
+        keyModifier: undefined,
+    },
+] as const;
+
+/**
+ * Description of one slice family, used for its group, tooltip and key binding.
+ */
+type SliceFamilyDescription = {
+    /** Group path the family's buttons render under. */
+    group: string;
+    /** Human-readable slice name including the faces it sits between. */
+    description: string;
+    /** Face whose direction the slice follows (L for M, D for E, F for S). */
+    reference: string;
+    /** Label overlay position for the family's base variant (S collides otherwise). */
+    baseLabelPosition?: LabelPosition;
+};
+
+/**
+ * Build the three commands (prime, base, double) for one slice family.
+ *
+ * All three follow the active view's selection on cubes larger than 3×3 — see
+ * {@link resolveSliceTarget} for the size-dependent rule — so their label,
+ * tooltip and enabled state are derived from the same resolved target. That
+ * resolution happens when commands are generated, which is why the host
+ * regenerates them when the selection changes.
+ */
+function createSliceCommands(
+    base: SliceBase,
+    axis: Axis,
+    family: SliceFamilyDescription,
+    getCubeSize: () => number,
+    options?: CommandGenerationOptions
+): Command[] {
+    const resolve = () => resolveSliceTarget(base, axis, getCubeSize(), options);
+
+    return SLICE_VARIANTS.map(variant => {
+        const isBaseVariant = variant.idSuffix === '';
+        return {
+            id: `move-${base.toLowerCase()}${variant.idSuffix}`,
+            // Falls back to the bare letter while nothing is selected, which is
+            // also the point at which the button is disabled.
+            label: `${resolve()?.notation ?? base}${variant.labelSuffix}`,
+            icon: `move-${base.toLowerCase()}${variant.iconSuffix}`,
+            ...(variant.keyModifier === undefined
+                ? {}
+                : { keyBindings: [{ key: base.toLowerCase(), ...variant.keyModifier }] }),
+            category: CommandCategory.CUBE,
+            group: family.group,
+            ...(isBaseVariant && family.baseLabelPosition
+                ? { labelPosition: family.baseLabelPosition }
+                : {}),
+            tooltip: `Rotate ${family.description} ${variant.direction} (follows ${family.reference} direction).`,
+            isEnabled: () => resolve() !== undefined,
+            action: () =>
+                getEventBus().emit(EventName.MOVE_REQUESTED, {
+                    // Re-resolved at click time so the move matches the layer the
+                    // button currently advertises; the bare letter is the last
+                    // resort if the selection changed in between.
+                    moveNotation: `${resolve()?.notation ?? base}${variant.notationSuffix}`,
+                    viewId: 'controller',
+                    tentative: false,
+                }),
+        } satisfies Command;
+    });
+}
+
+export function getCommands(
+    model: ReadOnlyCubeModel,
+    options?: CommandGenerationOptions
+): Command[] {
     const undoRedo = createUndoRedoCommands(model.getMoveHistory(), 'cube');
+    const getCubeSize = () => model.getCurrentState().cubeSize;
     return [
         ...undoRedo,
         {
@@ -316,143 +427,43 @@ export function getCommands(model: ReadOnlyCubeModel): Command[] {
                     tentative: false,
                 }),
         },
-        // Slice moves: M (middle between L and R), E (middle between U and D), S (middle between F and B)
-        {
-            id: 'move-m-prime',
-            label: 'M′',
-            icon: 'move-mp',
-            keyBindings: [{ key: 'm', shiftKey: true }],
-            category: CommandCategory.CUBE,
-            group: 'Extended/.Middle',
-            tooltip:
-                'Rotate middle slice (between L and R) counter-clockwise (follows L direction).',
-            action: () =>
-                getEventBus().emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: "M'",
-                    viewId: 'controller',
-                    tentative: false,
-                }),
-        },
-        {
-            id: 'move-m',
-            label: 'M',
-            icon: 'move-m',
-            keyBindings: [{ key: 'm' }],
-            category: CommandCategory.CUBE,
-            group: 'Extended/.Middle',
-            tooltip: 'Rotate middle slice (between L and R) clockwise (follows L direction).',
-            action: () =>
-                getEventBus().emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: 'M',
-                    viewId: 'controller',
-                    tentative: false,
-                }),
-        },
-        {
-            id: 'move-m2',
-            label: 'M2',
-            icon: 'move-m2',
-            category: CommandCategory.CUBE,
-            group: 'Extended/.Middle',
-            tooltip: 'Rotate middle slice 180° (follows L direction).',
-            action: () =>
-                getEventBus().emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: 'M2',
-                    viewId: 'controller',
-                    tentative: false,
-                }),
-        },
-        {
-            id: 'move-e-prime',
-            label: 'E′',
-            icon: 'move-ep',
-            keyBindings: [{ key: 'e', shiftKey: true }],
-            category: CommandCategory.CUBE,
-            group: 'Extended/.Equatorial',
-            tooltip:
-                'Rotate equatorial slice (between U and D) counter-clockwise (follows D direction).',
-            action: () =>
-                getEventBus().emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: "E'",
-                    viewId: 'controller',
-                    tentative: false,
-                }),
-        },
-        {
-            id: 'move-e',
-            label: 'E',
-            icon: 'move-e',
-            keyBindings: [{ key: 'e' }],
-            category: CommandCategory.CUBE,
-            group: 'Extended/.Equatorial',
-            tooltip: 'Rotate equatorial slice (between U and D) clockwise (follows D direction).',
-            action: () =>
-                getEventBus().emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: 'E',
-                    viewId: 'controller',
-                    tentative: false,
-                }),
-        },
-        {
-            id: 'move-e2',
-            label: 'E2',
-            icon: 'move-e2',
-            category: CommandCategory.CUBE,
-            group: 'Extended/.Equatorial',
-            tooltip: 'Rotate equatorial slice 180° (follows D direction).',
-            action: () =>
-                getEventBus().emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: 'E2',
-                    viewId: 'controller',
-                    tentative: false,
-                }),
-        },
-        {
-            id: 'move-s-prime',
-            label: 'S′',
-            icon: 'move-sp',
-            keyBindings: [{ key: 's', shiftKey: true }],
-            category: CommandCategory.CUBE,
-            group: 'Extended/.Standing',
-            tooltip:
-                'Rotate standing slice (between F and B) counter-clockwise (follows F direction).',
-            action: () =>
-                getEventBus().emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: "S'",
-                    viewId: 'controller',
-                    tentative: false,
-                }),
-        },
-        {
-            id: 'move-s',
-            label: 'S',
-            icon: 'move-s',
-            labelPosition: 'top-right',
-            keyBindings: [{ key: 's' }],
-            category: CommandCategory.CUBE,
-            group: 'Extended/.Standing',
-            tooltip: 'Rotate standing slice (between F and B) clockwise (follows F direction).',
-            action: () =>
-                getEventBus().emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: 'S',
-                    viewId: 'controller',
-                    tentative: false,
-                }),
-        },
-        {
-            id: 'move-s2',
-            label: 'S2',
-            icon: 'move-s2',
-            category: CommandCategory.CUBE,
-            group: 'Extended/.Standing',
-            tooltip: 'Rotate standing slice 180° (follows F direction).',
-            action: () =>
-                getEventBus().emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: 'S2',
-                    viewId: 'controller',
-                    tentative: false,
-                }),
-        },
+        // Slice moves: M (middle between L and R), E (middle between U and D), S (middle between F and B).
+        // Generated rather than hand-written because their target layer, notation and
+        // enabled state all depend on the active view's selection at sizes above 3×3.
+        ...createSliceCommands(
+            'M',
+            Axis.X,
+            {
+                group: 'Extended/.Middle',
+                description: 'middle slice (between L and R)',
+                reference: 'L',
+            },
+            getCubeSize,
+            options
+        ),
+        ...createSliceCommands(
+            'E',
+            Axis.Y,
+            {
+                group: 'Extended/.Equatorial',
+                description: 'equatorial slice (between U and D)',
+                reference: 'D',
+            },
+            getCubeSize,
+            options
+        ),
+        ...createSliceCommands(
+            'S',
+            Axis.Z,
+            {
+                group: 'Extended/.Standing',
+                description: 'standing slice (between F and B)',
+                reference: 'F',
+                baseLabelPosition: 'top-right',
+            },
+            getCubeSize,
+            options
+        ),
         // Whole-cube rotations: x (R), y (U), z (F)
         {
             id: 'move-x-prime',
