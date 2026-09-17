@@ -19,6 +19,7 @@
         "build": "vite build",
         "preview": "vite preview",
         "svg:circular": "npx tsx scripts/circular-svg/generate.ts",
+        "svg:layout-preview": "npx tsx scripts/circular-layout/render-previews.ts",
         "type-check": "tsc --noEmit -p tsconfig.test.json",
         "test": "vitest --run --config vitest.config.ts",
         "test:ui": "vitest --ui",

@@ -29,6 +29,9 @@ Thumbs.db
 # Demo video output
 scripts/demo-video/output/
 
+# Circular layout preview output
+scripts/circular-layout/out/
+
 # .github agent/skills files
 .github/agents/
 .github/skills/
