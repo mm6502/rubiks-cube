@@ -33,7 +33,7 @@ import { GhostSpec } from './ghosts';
 
 export interface ValidationIssue {
     /** Which group the failure belongs to. */
-    group: 'invariants' | 'conformance' | 'ellipse' | 'ghost';
+    group: 'invariants' | 'conformance' | 'ellipse' | 'ghost' | 'canvas';
     message: string;
 }
 
@@ -58,6 +58,7 @@ export function validate(input: ValidationInput): ValidationIssue[] {
         ...validateInvariants(input.cubeSize, input.params),
         ...validateConformance(input),
         ...validateEllipses(input.cubeSize, input.params),
+        ...validateCanvas(input.cubeSize, input.params, input.svg),
         ...validateGhosts(input),
     ];
 }
@@ -247,6 +248,101 @@ export function validateConformance(input: ValidationInput): ValidationIssue[] {
     const maskHoles = svg.match(/<rect id="mask-[xyz]-\d+"[^>]*\/>/g) ?? [];
     if (maskHoles.length !== cubeSize * 3) {
         fail(`expected ${cubeSize * 3} label-mask holes, found ${maskHoles.length}`);
+    }
+
+    // Mask backing: must span the viewBox, not a fixed rectangle. A fixed rect
+    // acts as a hidden clip for any canvas larger than it or offset from the
+    // origin, hiding rings and labels silently.
+    const [vbX, vbY, vbW, vbH] = input.params.viewBox.split(/\s+/).map(Number);
+    const backing =
+        /<mask id="label-mask">\s*<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)"/.exec(
+            svg
+        );
+    if (!backing) {
+        fail('label-mask has no backing rect');
+    } else {
+        const [bx, by, bw, bh] = backing.slice(1).map(Number);
+        if (bx !== vbX || by !== vbY || bw !== vbW || bh !== vbH) {
+            fail(
+                `label-mask backing rect (${bx} ${by} ${bw} ${bh}) does not span the viewBox (${vbX} ${vbY} ${vbW} ${vbH}) — rings outside it would be clipped away`
+            );
+        }
+    }
+
+    return issues;
+}
+
+/**
+ * Every visible element must lie inside the viewBox.
+ *
+ * The mask makes anything outside the drawn area transparent, so an element
+ * beyond the viewBox is not merely off-screen — it is erased, with no error. The
+ * face ellipses already have their own check; this covers the layers that had
+ * none: stickers, ghosts, and both label groups. A canvas sized from stickers and
+ * ellipses alone clipped the ring notation labels at every size, which is how
+ * this gap was found.
+ */
+export function validateCanvas(
+    cubeSize: number,
+    params: CircularSvgParameters,
+    svg: string
+): ValidationIssue[] {
+    const issues: ValidationIssue[] = [];
+    const [vx, vy, vw, vh] = params.viewBox.split(/\s+/).map(Number);
+    const tol = 0.5;
+
+    const check = (kind: string, tag: string, x0: number, y0: number, x1: number, y1: number) => {
+        if (x0 < vx - tol || y0 < vy - tol || x1 > vx + vw + tol || y1 > vy + vh + tol) {
+            issues.push({
+                group: 'canvas',
+                message: `${kind} "${tag}" extends outside viewBox "${params.viewBox}": x ${x0.toFixed(1)}..${x1.toFixed(1)}, y ${y0.toFixed(1)}..${y1.toFixed(1)}`,
+            });
+        }
+    };
+
+    for (const face of ALL_FACES) {
+        for (let position = 0; position < cubeSize * cubeSize; position++) {
+            const p = stickerPosition(face, position, cubeSize, params);
+            const r = params.stickerRadius;
+            check('sticker', stickerId(face, position), p.x - r, p.y - r, p.x + r, p.y + r);
+        }
+    }
+
+    // Ghosts, read from the markup so the check covers what was actually emitted.
+    for (const m of svg.matchAll(/<circle\b[^>]*class="ghost-sticker"[^>]*\/>/g)) {
+        const tag = m[0];
+        const x = Number(/cx="([-\d.]+)"/.exec(tag)?.[1]);
+        const y = Number(/cy="([-\d.]+)"/.exec(tag)?.[1]);
+        const r = Number(/r="([-\d.]+)"/.exec(tag)?.[1]);
+        const id = /data-ghost-target="([^"]*)"/.exec(tag)?.[1] ?? '?';
+        check('ghost', id, x - r, y - r, x + r, y + r);
+    }
+
+    // Ring notation labels: a <g> keyed by data-label-id, with the box at origin.
+    for (const m of svg.matchAll(
+        /<g data-label-id="([^"]*)"[^>]*transform="translate\(([-\d.]+),\s*([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
+    )) {
+        const w = Number(/width="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
+        const h = Number(/height="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
+        if (!Number.isFinite(w) || !Number.isFinite(h)) continue;
+        const x = Number(m[2]);
+        const y = Number(m[3]);
+        check('ring label', m[1], x, y, x + w, y + h);
+    }
+
+    // Face labels: a <g> keyed by face-label id, with a rect centred on the anchor.
+    for (const m of svg.matchAll(
+        /<g data-face="[A-Z]" id="face-label-([A-Z])"[^>]*transform="translate\(([-\d.]+),([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
+    )) {
+        const body = m[4];
+        const rx = Number(/<rect x="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
+        const ry = Number(/<rect x="[-\d.]+" y="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
+        const w = Number(/width="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
+        const h = Number(/height="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
+        if (!Number.isFinite(rx) || !Number.isFinite(w)) continue;
+        const x = Number(m[2]);
+        const y = Number(m[3]);
+        check('face label', m[1], x + rx, y + ry, x + rx + w, y + ry + h);
     }
 
     return issues;

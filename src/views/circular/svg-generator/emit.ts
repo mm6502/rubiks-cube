@@ -122,6 +122,13 @@ function styles(): string {
  *
  * Hole positions track each label's box, so a size with more rings simply gets
  * more holes — the count is derived, never hardcoded.
+ *
+ * The white backing rect spans the viewBox rather than a fixed rectangle. A fixed
+ * 400x340 rect was correct for the reference but acts as a hidden clip for any
+ * canvas larger than it or offset from the origin: the mask makes everything
+ * outside the white area transparent, so rings and labels beyond it simply vanish,
+ * silently and regardless of what the viewBox allows. Sizing it from the viewBox
+ * keeps the drawn extent and the masked extent identical at every size.
  */
 function labelMask(cubeSize: number, params: CircularSvgParameters): string {
     const holes: string[] = [];
@@ -135,9 +142,10 @@ function labelMask(cubeSize: number, params: CircularSvgParameters): string {
         }
     }
 
+    const [vx, vy, vw, vh] = params.viewBox.split(/\s+/).map(Number);
     const total = cubeSize * 3;
     return `    <mask id="label-mask">
-      <rect x="0" y="0" width="400" height="340" fill="white" />
+      <rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="white" />
 ${holes.join('\n')}
       <!-- ${total} label holes: ${cubeSize} per axis -->
     </mask>`;

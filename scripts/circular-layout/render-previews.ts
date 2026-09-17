@@ -31,32 +31,27 @@ import type { CircularSvgParameters } from '@/views/circular/svg-generator/geome
 import { validateInvariants } from '@/views/circular/svg-generator/validate';
 
 // ---------------------------------------------------------------------------
-// The current layout proposals — configuration C.
+// The current layout proposals — configuration D.
 //
-// Ownership note: C grew the face ellipses so the INNER trio (U, R, F) touches,
-// and gave the outer trio (D, L, B) the same offset parameter so both trios sit
-// the same way relative to their own faces. Only N>2 changed; N=2 and N=3 are
-// still configuration B.
-//   C  : ellipses grown to inner-trio tangency (this change)
-//   B  : superseded for N>2; the layouts before the ellipses were grown
-//   A  : superseded; the first per-size tuning, N=4+ left at densest-feasible
+// Ownership note: D supersedes C by growing the face ellipses far enough to
+// enclose the GHOST circles as well as the stickers. Ghosts are drawn with
+// r = stickerRadius inside their target's group and sit one sticker radius
+// further along the arc, so an ellipse sized for stickers alone leaves them
+// protruding. C's solver only ever checked stickers, which is why they did.
+//   D  : ellipses sized to enclose stickers AND ghosts (this change)
+//   C  : ellipses grown to inner-trio tangency, ghosts not considered
+//   B  : pre-tangency layouts
+//   A  : the first per-size tuning, N=4+ left at densest-feasible
 //
 // Sticker radius is 7 everywhere: stickers are never resized between sizes.
 // Ring step is 15 everywhere except N=2, which takes a larger step so its two
 // rings spread far enough to stop reading as sparse — the one documented
-// exception to consistent local grain.
+// exception to consistent local grain. N=4 raises r_min from 79.5 to 87.5,
+// because no offset pair can both enclose its ghosts and keep the ellipses apart
+// at the base scale; r_min is the lever that opens inter-cluster room.
 //
-// N=3's ring geometry is pinned to the committed reference asset. N=4 and above
-// are a progression seeded by the feasibility law and land in the same balance
-// band that N=2 and N=3 occupy, so no size reads as a special case.
-//
-// Why the offsets are all zero: with oN = oF the two trios move together, so the
-// offset only slides ellipses along their arms. Sliding outward cannot separate
-// the inner trio, because its ellipses are pushed in the same direction as the
-// neighbours they would need to move away from. Zero is therefore optimal for the
-// inner trio, and it also leaves the largest gap to the outer trio. That is a
-// measured result, not an assumption — the solve sweeps the offset and zero wins
-// at every size.
+// N=3's ring geometry is pinned to the committed reference asset, and its
+// stickers are untouched by this change.
 //
 // Per size, the three ring scalars and the four ellipse values:
 //   triangleSide d, innerRadius r_min, ringStep Δr,
@@ -64,7 +59,7 @@ import { validateInvariants } from '@/views/circular/svg-generator/validate';
 // ---------------------------------------------------------------------------
 
 /** Identifies the frozen configuration below; referenced by the brainstorm doc. */
-const CONFIG_ID = 'C';
+const CONFIG_ID = 'D';
 
 interface Proposal {
     d: number;
@@ -104,49 +99,49 @@ const PROPOSALS: Record<number, Proposal> = {
         d: 100,
         rMin: 70,
         step: 15,
-        margin: 1.739,
-        oN: 0,
-        oF: 0,
+        margin: 2.05,
+        oN: 0.12,
+        oF: -0.05,
         aspect: 1.0177,
-        note: 'Ring geometry is pinned to the committed reference asset; the ellipses are grown until the inner trio touches.',
+        note: 'Ring geometry is pinned to the committed reference asset; ellipses sized to enclose stickers and ghosts.',
     },
     4: {
         d: 113.619,
-        rMin: 79.533,
+        rMin: 87.5,
         step: 15,
-        margin: 1.474,
+        margin: 2.2,
         oN: 0,
-        oF: 0,
+        oF: 0.1,
         aspect: 1.05,
-        note: 'Ellipses grown until the inner trio touches; channels to the outer trio stay wide.',
+        note: 'r_min raised from 79.5: no offset pair both encloses the ghosts and keeps the ellipses apart at the base scale.',
     },
     5: {
         d: 141.163,
         rMin: 98.814,
         step: 15,
-        margin: 1.929,
-        oN: 0,
-        oF: 0,
+        margin: 2.3,
+        oN: 0.1,
+        oF: 0.1,
         aspect: 1,
-        note: 'Ellipses grown until the inner trio touches.',
+        note: 'Ellipses sized to enclose stickers and ghosts.',
     },
     6: {
         d: 169.396,
         rMin: 118.577,
         step: 15,
-        margin: 2.215,
-        oN: 0,
-        oF: 0,
+        margin: 2.35,
+        oN: 0.07,
+        oF: 0.07,
         aspect: 1,
-        note: 'Beyond the sizes the app ships; the gap to the outer trio narrows here.',
+        note: 'Beyond the sizes the app ships; included to show the progression still holds.',
     },
     7: {
         d: 198.229,
         rMin: 138.76,
         step: 15,
-        margin: 2.879,
-        oN: 0,
-        oF: 0,
+        margin: 2.35,
+        oN: 0.02,
+        oF: 0.02,
         aspect: 0.95,
         note: 'Beyond the sizes the app ships; included to show the progression still holds.',
     },
@@ -224,6 +219,7 @@ function boundaryDistance(rx: number, ry: number, lx: number, ly: number): numbe
 interface Emitted {
     ellipses: { face: string; e: Ellipse }[];
     stickers: { face: string; x: number; y: number; r: number }[];
+    ghosts: { face: string; target: string; x: number; y: number; r: number }[];
 }
 
 function parseEmitted(svg: string): Emitted {
@@ -244,6 +240,20 @@ function parseEmitted(svg: string): Emitted {
         });
     }
 
+    const ghosts: Emitted['ghosts'] = [];
+    for (const m of svg.matchAll(/<circle\b[^>]*class="ghost-sticker"[^>]*\/>/g)) {
+        const tag = m[0];
+        // A ghost is drawn inside its TARGET's face group, so data-ghost-face is
+        // the face whose ellipse must contain it.
+        ghosts.push({
+            face: /data-ghost-face="([A-Z])"/.exec(tag)?.[1] ?? '',
+            target: /data-ghost-target="([^"]*)"/.exec(tag)?.[1] ?? '',
+            x: Number(/cx="([-\d.]+)"/.exec(tag)?.[1]),
+            y: Number(/cy="([-\d.]+)"/.exec(tag)?.[1]),
+            r: Number(/r="([-\d.]+)"/.exec(tag)?.[1]),
+        });
+    }
+
     const stickers: Emitted['stickers'] = [];
     for (const m of svg.matchAll(/<circle\b[^>]*class="sticker"[^>]*\/>/g)) {
         const tag = m[0];
@@ -254,16 +264,75 @@ function parseEmitted(svg: string): Emitted {
             r: Number(/r="([-\d.]+)"/.exec(tag)?.[1]),
         });
     }
-    return { ellipses, stickers };
+    return { ellipses, stickers, ghosts };
 }
 
 interface Metrics {
     ellipseGap: number;
     halo: number;
+    /** Worst halo over the ghost circles alone, reported separately. */
+    ghostHalo: number;
     intrusions: number;
     clusterGap: number;
     uneven: number;
     extent: number;
+}
+
+interface LabelBox {
+    kind: string;
+    tag: string;
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+}
+
+/**
+ * Bounding boxes of the label elements in an emitted asset.
+ *
+ * Needed when sizing the canvas: labels sit outside the rings and outside the
+ * face ellipses, so a canvas built from stickers and ellipses alone clips them.
+ */
+function elementsOf(svg: string): LabelBox[] {
+    const out: LabelBox[] = [];
+
+    // Ring notation labels: a <g> keyed by data-label-id with a translate, and a
+    // labelWidth x labelHeight rect at that origin.
+    for (const m of svg.matchAll(
+        /<g data-label-id="([^"]*)"[^>]*transform="translate\(([-\d.]+),\s*([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
+    )) {
+        const x = Number(m[2]);
+        const y = Number(m[3]);
+        const w = Number(/width="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
+        const h = Number(/height="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
+        if (!Number.isFinite(w) || !Number.isFinite(h)) continue;
+        out.push({ kind: 'ring label', tag: m[1], x0: x, y0: y, x1: x + w, y1: y + h });
+    }
+
+    // Face labels: a <g> keyed by face-label id with a translate, and a rect
+    // centred on that anchor (x=-10, y=-10, w x h).
+    for (const m of svg.matchAll(
+        /<g data-face="[A-Z]" id="face-label-([A-Z])"[^>]*transform="translate\(([-\d.]+),([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
+    )) {
+        const x = Number(m[2]);
+        const y = Number(m[3]);
+        const body = m[4];
+        const rx = Number(/<rect x="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
+        const ry = Number(/<rect x="[-\d.]+" y="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
+        const w = Number(/width="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
+        const h = Number(/height="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
+        if (!Number.isFinite(rx) || !Number.isFinite(w)) continue;
+        out.push({
+            kind: 'face label',
+            tag: m[1],
+            x0: x + rx,
+            y0: y + ry,
+            x1: x + rx + w,
+            y1: y + ry + h,
+        });
+    }
+
+    return out;
 }
 
 /**
@@ -285,18 +354,37 @@ function measure(size: number, p: CircularSvgParameters, emitted: Emitted): Metr
         }
     }
 
+    // Enclosure covers BOTH layers. Ghosts are drawn with r = stickerRadius
+    // inside their target's group and sit one sticker radius further along the
+    // arc, so they reach past the stickers and are what actually sizes the
+    // ellipse. Checking only stickers is the mistake that let ghosts protrude.
     let halo = Infinity;
+    let ghostHalo = Infinity;
     let intrusions = 0;
     for (const { face, e } of emitted.ellipses) {
-        for (const s of emitted.stickers) {
+        const check = (s: { x: number; y: number; r: number }) => {
             const { x: lx, y: ly } = toLocal(e, s.x, s.y);
             const r = Math.hypot(lx, ly);
-            const boundary = boundaryDistance(e.rx, e.ry, lx, ly);
+            return {
+                halo: boundaryDistance(e.rx, e.ry, lx, ly) - r - s.r,
+                inside: r - s.r < boundaryDistance(e.rx, e.ry, lx, ly),
+            };
+        };
+
+        for (const s of emitted.stickers) {
+            const { halo: h, inside } = check(s);
             if (s.face === face) {
-                halo = Math.min(halo, boundary - r - s.r);
-            } else if (r - s.r < boundary) {
+                halo = Math.min(halo, h);
+            } else if (inside) {
                 // The sticker's nearest point reaches inside this foreign ellipse.
                 intrusions++;
+            }
+        }
+        for (const g of emitted.ghosts) {
+            const { halo: h } = check(g);
+            if (g.face === face) {
+                halo = Math.min(halo, h);
+                ghostHalo = Math.min(ghostHalo, h);
             }
         }
     }
@@ -351,6 +439,7 @@ function measure(size: number, p: CircularSvgParameters, emitted: Emitted): Metr
     return {
         ellipseGap: ellipseGapMin,
         halo,
+        ghostHalo,
         intrusions,
         clusterGap,
         uneven: far / near,
@@ -506,10 +595,25 @@ for (const size of SIZES) {
         add(s.x - s.r, s.y - s.r);
         add(s.x + s.r, s.y + s.r);
     }
+    // Ghosts too: they sit further along the arc than their stickers, so they can
+    // be the outermost circles.
+    for (const g of probed.ghosts) {
+        add(g.x - g.r, g.y - g.r);
+        add(g.x + g.r, g.y + g.r);
+    }
     for (const { e } of probed.ellipses) {
         const reach = Math.max(e.rx, e.ry);
         add(e.cx - reach, e.cy - reach);
         add(e.cx + reach, e.cy + reach);
+    }
+    // Ring notation labels and face labels. Omitting these was a real defect: the
+    // canvas was sized from stickers and ellipses alone, so labels near the
+    // periphery fell outside it and were clipped by the mask. The count grew with
+    // size - 11 elements at 3x3, more above - and 3x3 was the size the earlier
+    // review happened to look at.
+    for (const l of elementsOf(probe.svg)) {
+        add(l.x0, l.y0);
+        add(l.x1, l.y1);
     }
     const pad = 6;
     const viewBox = `${Math.floor(x0 - pad)} ${Math.floor(y0 - pad)} ${Math.ceil(x1 - x0 + 2 * pad)} ${Math.ceil(y1 - y0 + 2 * pad)}`;
@@ -531,6 +635,48 @@ for (const size of SIZES) {
     const emitted = parseEmitted(patched);
     const metrics = measure(size, params, emitted);
     const cell = cellShape(size, params);
+
+    // Nothing may fall outside the canvas. The mask is patched to the viewBox, so
+    // an element beyond it is clipped away rather than drawn - which is how the
+    // clipped ring labels went unnoticed.
+    const canvas = {
+        x0: vx,
+        y0: vy,
+        x1: vx + vw,
+        y1: vy + vh,
+    };
+    const outside: string[] = [];
+    const checkInside = (
+        kind: string,
+        tag: string,
+        bx0: number,
+        by0: number,
+        bx1: number,
+        by1: number
+    ) => {
+        const tol = 0.5;
+        if (
+            bx0 < canvas.x0 - tol ||
+            by0 < canvas.y0 - tol ||
+            bx1 > canvas.x1 + tol ||
+            by1 > canvas.y1 + tol
+        ) {
+            outside.push(`${kind} ${tag}`);
+        }
+    };
+    for (const s of emitted.stickers) {
+        checkInside('sticker', s.face, s.x - s.r, s.y - s.r, s.x + s.r, s.y + s.r);
+    }
+    for (const g of emitted.ghosts) {
+        checkInside('ghost', g.target, g.x - g.r, g.y - g.r, g.x + g.r, g.y + g.r);
+    }
+    for (const { face, e } of emitted.ellipses) {
+        const reach = Math.max(e.rx, e.ry);
+        checkInside('ellipse', face, e.cx - reach, e.cy - reach, e.cx + reach, e.cy + reach);
+    }
+    for (const l of elementsOf(patched)) {
+        checkInside(l.kind, l.tag, l.x0, l.y0, l.x1, l.y1);
+    }
 
     writeFileSync(`${OUT_DIR}/view-${size}.svg`, patched);
 
@@ -563,17 +709,26 @@ for (const size of SIZES) {
     // Tangency is the intended result for the inner trio at N>2, so the ellipse
     // criterion is "does not interpenetrate" rather than "strictly separated".
     // A real overlap fails; contact within the tolerance passes.
+    //
+    // The halo must be positive for BOTH layers: stickers and ghosts alike. The
+    // ghost term is the one that was missing when ghosts were visibly protruding.
+    //
+    // Nothing may fall outside the canvas, since the mask clips anything beyond it.
     const ok =
         metrics.ellipseGap >= -CONTACT_TOLERANCE &&
         metrics.halo > 0 &&
+        metrics.ghostHalo > 0 &&
         metrics.intrusions === 0 &&
+        outside.length === 0 &&
         issues.length === 0;
     console.log(
         `N=${size}  d=${prop.d.toFixed(1)} r_min=${prop.rMin.toFixed(1)} Δr=${prop.step}  |  ` +
             `uneven ${metrics.uneven.toFixed(2)}x  extent ${metrics.extent.toFixed(0)}  ` +
-            `|  gap ${metrics.ellipseGap.toFixed(1)}  halo ${metrics.halo.toFixed(2)}  ` +
-            `cluster ${metrics.clusterGap.toFixed(1)}  |  cell ${cell.min.toFixed(2)}-${cell.max.toFixed(2)}  ${ok ? 'OK' : 'FAIL'}`
+            `|  gap ${metrics.ellipseGap.toFixed(1)}  halo ${metrics.halo.toFixed(2)} (ghost ${metrics.ghostHalo.toFixed(2)})  ` +
+            `cluster ${metrics.clusterGap.toFixed(1)}  |  cell ${cell.min.toFixed(2)}-${cell.max.toFixed(2)}  ` +
+            `|  canvas ${outside.length === 0 ? 'all inside' : outside.length + ' OUTSIDE'}  ${ok ? 'OK' : 'FAIL'}`
     );
+    if (outside.length) console.log(`      outside: ${outside.slice(0, 6).join(', ')}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -602,6 +757,7 @@ const cards = rendered
         const flags = [
             m.ellipseGap >= -CONTACT_TOLERANCE ? '' : 'ellipse overlap',
             m.halo > 0 ? '' : 'sticker clipped',
+            m.ghostHalo > 0 ? '' : 'ghost outside its ellipse',
             m.intrusions === 0 ? '' : `${m.intrusions} intrusions`,
             r.issues === 0 ? '' : `${r.issues} validation issues`,
         ]
@@ -610,7 +766,7 @@ const cards = rendered
         return `  <figure>
     <figcaption>
       <strong>N=${r.size}</strong> &mdash; d=${r.proposal.d.toFixed(1)}, r<sub>min</sub>=${r.proposal.rMin.toFixed(1)}, &Delta;r=${r.proposal.step}, grain ${(R_STICKER / r.proposal.step).toFixed(3)}
-      <br>unevenness ${m.uneven.toFixed(2)}&times; &middot; cluster extent ${m.extent.toFixed(0)} &middot; ellipse gap ${m.ellipseGap.toFixed(1)} &middot; halo ${m.halo.toFixed(2)}
+      <br>unevenness ${m.uneven.toFixed(2)}&times; &middot; cluster extent ${m.extent.toFixed(0)} &middot; ellipse gap ${m.ellipseGap.toFixed(1)} &middot; halo ${m.halo.toFixed(2)} (ghost ${m.ghostHalo.toFixed(2)})
       <br><span class="note">${r.proposal.note}</span>
       ${flags ? `<br><span class="bad">${flags}</span>` : ''}
     </figcaption>
