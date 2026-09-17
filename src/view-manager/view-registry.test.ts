@@ -78,15 +78,14 @@ describe('ViewRegistry', () => {
         expect(view).toBeUndefined();
     });
 
-    it('circular view supports exactly the sizes with a committed asset', () => {
-        // Size capability is SVG-per-N: a size becomes available when its asset
-        // is generated and committed. The expectation is derived from the loader
-        // rather than restated, so enabling a size means committing its asset and
-        // nothing else.
+    it('circular view supports exactly the sizes the loader can serve', () => {
+        // The Circular view is SVG-per-N, but assets are optional: the loader serves a
+        // committed `view-<n>.svg` when present and otherwise generates markup on demand from
+        // parameters.json. So support is defined by loader capability, not by whether a file
+        // was committed.
         for (const size of loadedSizes()) {
             expect(viewSupportsSize('circular', size)).toBe(true);
         }
-        // A size with no asset must stay unavailable, or selecting it would throw.
         expect(viewSupportsSize('circular', 99)).toBe(false);
     });
 

@@ -108,7 +108,9 @@ export class CircularCubeView implements CubeView {
         // 3×3 (position 4) — at 2×2 that lookup silently matched nothing and the
         // view opened with no sticker selected.
         const cubeSize = model.getCurrentState().cubeSize;
-        const centrePosition = Math.floor((cubeSize * cubeSize) / 2);
+        const centreRow = Math.floor((cubeSize - 1) / 2);
+        const centreCol = Math.floor((cubeSize - 1) / 2);
+        const centrePosition = centreRow * cubeSize + centreCol;
         const centre = CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, centrePosition);
         if (centre) this.updateSelected(centre.id);
     }

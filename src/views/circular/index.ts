@@ -17,10 +17,9 @@ export const circularViewFactory: ViewFactory = {
     },
 
     getSupportedSizes(): number[] {
-        // Circular view is SVG-per-N. Sizes are listed here once their asset is
-        // generated and validated, and the list is derived from the assets the
-        // loader can actually resolve rather than restated — a size named here
-        // without an asset would present a checkbox that fails on selection.
+        // Circular view is SVG-per-N. Supported sizes are derived from what the loader can
+        // serve: committed `view-<n>.svg` assets when present, otherwise on-demand generation
+        // from `parameters.json`. A size is unsupported only when it has no parameter set.
         return loadedSizes();
     },
 

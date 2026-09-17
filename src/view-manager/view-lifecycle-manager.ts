@@ -298,8 +298,20 @@ export class ViewLifecycleManager {
         }
 
         note.textContent = 'Failed to load — see console for details';
-        if (checkbox) checkbox.setAttribute('aria-describedby', noteId);
-    }
+        checkbox?.setAttribute('aria-describedby', noteId);
+
+        // Clear the failure note on the next attempt to enable the view.
+        checkbox?.addEventListener(
+            'change',
+            () => {
+                if (!checkbox || !checkbox.checked) return;
+                note?.remove();
+                if (checkbox.getAttribute('aria-describedby') === noteId) {
+                    checkbox.removeAttribute('aria-describedby');
+                }
+            },
+            { once: true }
+        );
 
     /**
      * Hides a view by destroying its panel and removing it from active views.

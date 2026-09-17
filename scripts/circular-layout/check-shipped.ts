@@ -13,7 +13,7 @@
  *
  * Usage: npx tsx scripts/circular-layout/check-shipped.ts
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 import { availableSizes, buildSvg, loadParameters } from '@/views/circular/svg-generator/generate';
 

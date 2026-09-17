@@ -266,10 +266,10 @@ export function initialize(
     // Make container focusable for keyboard navigation
     container.tabIndex = 0;
 
-    // Resolve the asset for the active cube size. 3x3 comes from its original
-    // static import; other sizes resolve through the loader's glob. An
-    // unsupported size throws rather than falling back to another size's markup,
-    // which would render a cube at the wrong size.
+    // Resolve the asset for the active cube size. If a committed `view-<n>.svg` is
+    // present the loader serves it; otherwise it generates the markup on demand from
+    // parameters.json. An unsupported size throws rather than falling back to another
+    // size's markup, which would render a cube at the wrong size.
     const cubeSize = model.getCurrentState().cubeSize;
     const rawSvg = assertLoadable(cubeSize);
 
