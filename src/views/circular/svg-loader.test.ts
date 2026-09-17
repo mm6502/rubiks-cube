@@ -9,7 +9,11 @@ import { loadedSizes, supportsSize, svgMarkupForSize } from './svg-loader';
  * nothing.
  */
 describe('circular view — size-aware SVG loading', () => {
-    it('always serves the 3x3 asset from the static import', () => {
+    it('serves every supported size through one resolution path', () => {
+        // 3x3 was once special-cased behind a static import; it now resolves like
+        // the rest, so all six sizes arrive the same way and none is privileged.
+        expect(loadedSizes()).toEqual([2, 3, 4, 5, 6, 7]);
+
         const markup = svgMarkupForSize(3);
         expect(markup).toBeDefined();
         expect(markup).toContain('data-cube-size="3"');
@@ -27,13 +31,18 @@ describe('circular view — size-aware SVG loading', () => {
         }
     });
 
-    it('never returns the retired view.old.svg for any size', () => {
-        // A dead asset sits beside the real ones. The glob pattern excludes it
-        // by separator, and this pins that so a rename cannot revive it.
+    it('never serves the hand-authored fixture as a size asset', () => {
+        // The fixture lives one directory below the assets, which is what keeps
+        // it out of the glob. If a move ever flattened that layout the loader
+        // would start serving the reference as a shipping size, and the fidelity
+        // tests would silently begin comparing the generator against itself.
         for (const size of [2, 3, 4, 5, 6, 7]) {
             const markup = svgMarkupForSize(size);
             if (markup === undefined) continue;
-            expect(markup).not.toContain('view.old');
+            expect(markup).not.toContain('fixtures/');
+            // The hand-authored original is fixed at 46x40 ellipses; no
+            // generated asset uses that size.
+            expect(markup).not.toContain('rx="46"');
         }
     });
 

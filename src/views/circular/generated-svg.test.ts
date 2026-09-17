@@ -1,7 +1,7 @@
 import { Axis } from '@/cube/types';
 
+import REFERENCE_SVG_TEXT from './fixtures/reference-3x3.svg?raw';
 import { generate, loadParameters } from './svg-generator/generate';
-import REFERENCE_SVG_TEXT from './view.svg?raw';
 
 /**
  * Regeneration fidelity: the generator must reproduce the committed 3x3 asset
@@ -212,11 +212,14 @@ describe('circular svg generator — 3x3 regeneration fidelity', () => {
         expect(Math.abs(displaced - reference.cx)).toBeGreaterThan(COORD_TOLERANCE);
     });
 
-    it('never writes over the committed reference asset', () => {
-        // Regenerating 3x3 is a validation step, not a path to landing a new
-        // 3x3 file — the reference is untouched by generation.
-        const referenceAfter = REFERENCE_SVG_TEXT;
-        expect(referenceAfter).toContain('id="sticker-U-0"');
-        expect(referenceAfter).toBe(REFERENCE_SVG_TEXT);
+    it('leaves the hand-authored reference untouched', () => {
+        // The fixture is a reference, not a build product: generation writes
+        // view-<n>.svg and must never overwrite it. If it did, these tests would
+        // compare the generator against its own output and stop proving anything.
+        expect(REFERENCE_SVG_TEXT).toContain('id="sticker-U-0"');
+        expect(REFERENCE_SVG_TEXT).toContain('viewBox="20 0 360 350"');
+        // The hand-authored original's fixed ellipse size is the marker that
+        // distinguishes it from generator output.
+        expect(REFERENCE_SVG_TEXT).toContain('rx="46"');
     });
 });

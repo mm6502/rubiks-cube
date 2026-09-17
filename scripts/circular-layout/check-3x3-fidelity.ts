@@ -1,13 +1,17 @@
 /**
  * Does configuration D leave 3x3's STICKERS and RING RADII untouched?
  *
- * This is the contract that lets the 3x3 asset be regenerated at all. view.svg
- * does double duty: it is both the shipping asset for size 3 and the fixture the
- * generator's fidelity test compares against. Regenerating it is only safe if the
- * things that test pins - sticker coordinates and axis circle radii - come out
- * identical, so that the test keeps testing what it was written to test.
+ * This is the contract that lets the 3x3 asset be regenerated at all. The
+ * hand-authored original now lives in `fixtures/reference-3x3.svg`, outside the
+ * directory the loader globs, so it stays an INDEPENDENT reference: the fidelity
+ * tests in the generator suite compare generated output against it rather than
+ * against the generator's own product.
  *
- * The face-ellipse values are free to differ (the fidelity test does not assert
+ * Regenerating 3x3 is only safe if the things those tests pin — sticker
+ * coordinates and axis circle radii — come out identical, so the tests keep
+ * testing what they were written to test.
+ *
+ * The face-ellipse values are free to differ (the fidelity tests do not assert
  * them), which is what lets D's larger ellipses reach size 3.
  *
  * Usage: npx tsx scripts/circular-layout/check-3x3-fidelity.ts
@@ -17,7 +21,7 @@ import { readFileSync } from 'node:fs';
 import { generate, loadParameters } from '@/views/circular/svg-generator/generate';
 import { ALL_FACES } from '@/views/circular/svg-generator/geometry';
 
-const REFERENCE = readFileSync('src/views/circular/view.svg', 'utf8');
+const REFERENCE = readFileSync('src/views/circular/fixtures/reference-3x3.svg', 'utf8');
 
 interface Circle {
     cx: number;
@@ -123,13 +127,12 @@ for (const face of ALL_FACES) {
 
 const safe = stickerWorst <= COORD_TOLERANCE && stickerMissing === 0 && axisWorst < 1e-5;
 console.log(
-    `\n  verdict: regenerating view.svg is ${safe ? 'SAFE - stickers and rings are unchanged' : 'UNSAFE - it would break the fidelity contract'}`
+    `\n  verdict: regenerating 3x3 is ${safe ? 'SAFE - stickers and rings are unchanged' : 'UNSAFE - it would break the fidelity contract'}`
 );
 if (safe) {
     console.log(
-        '  note: the fidelity test compares against view.svg itself, so once it is\n' +
-            '        regenerated the sticker and ring assertions become self-referential.\n' +
-            '        They still catch a parameter change made without regenerating, but no\n' +
-            '        longer prove the generator reproduces an independent reference.'
+        '  note: the fidelity tests compare generated output against the fixture in\n' +
+            '        fixtures/, which the loader glob cannot reach, so they still prove the\n' +
+            '        generator reproduces an independent reference.'
     );
 }

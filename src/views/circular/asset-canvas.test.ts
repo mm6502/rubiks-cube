@@ -25,10 +25,17 @@ const assets = import.meta.glob<string>('./view*.svg', {
     import: 'default',
 });
 
-/** Excludes the retired asset, which is deliberately never loaded. */
+/**
+ * The generated per-size assets.
+ *
+ * Every shipped size now comes from the generator, so the set under test is the
+ * same set the loader serves. The hand-authored 3x3 original lives in
+ * `fixtures/`, one level down: it is a fidelity reference, not a shipping asset,
+ * and this glob must not reach it.
+ */
 function committedAssets(): { name: string; svg: string }[] {
     return Object.entries(assets)
-        .filter(([path]) => /\/view(-\d+)?\.svg$/.test(path))
+        .filter(([path]) => /\/view-\d+\.svg$/.test(path))
         .map(([path, svg]) => ({ name: path.replace(/^.*\//, ''), svg }))
         .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -41,10 +48,19 @@ function parseViewBox(svg: string): { vx: number; vy: number; vw: number; vh: nu
 }
 
 describe('circular view — committed assets fit inside their canvas', () => {
-    it('finds the committed assets', () => {
+    it('finds every generated asset and no fixture', () => {
         const list = committedAssets();
-        expect(list.length).toBeGreaterThanOrEqual(4);
-        expect(list.some(a => a.name === 'view.svg')).toBe(true);
+        expect(list.map(a => a.name)).toEqual([
+            'view-2.svg',
+            'view-3.svg',
+            'view-4.svg',
+            'view-5.svg',
+            'view-6.svg',
+            'view-7.svg',
+        ]);
+        // The glob must not reach the fixtures directory: a fixture inside this
+        // set would be checked against a canvas it was never generated for.
+        expect(list.some(a => a.name.includes('reference'))).toBe(false);
     });
 
     it.each(committedAssets().map(a => a.name))('%s draws nothing outside its viewBox', name => {

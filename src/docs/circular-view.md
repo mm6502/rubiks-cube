@@ -279,7 +279,10 @@ paths so the inference logic can be tested and overridden independently.
 - `src/views/circular/animations.ts` - Move animation support
 - `src/views/circular/highlights.ts` - Sticker highlight management
 - `src/views/circular/keyboard-cube-walking.ts` - Keyboard navigation
-- `src/views/circular/view.svg` - SVG asset with axis circles and stickers
+- `src/views/circular/view-<n>.svg` - Generated SVG asset per cube size (2-7),
+  with axis circles, stickers and ghost hints
+- `src/views/circular/fixtures/reference-3x3.svg` - The hand-authored 3x3
+  original, kept as the fidelity reference for the generator's tests
 - `src/interaction/move-inference.ts` - Face/row/col → WCA notation inference
 - `src/interaction/drag-state-machine.ts` - Generic gesture recogniser
 - `src/cube/types/` - Cube state and cubie type definitions

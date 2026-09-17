@@ -2,9 +2,9 @@
  * Which SHIPPED assets have ghost circles protruding from their face ellipses?
  *
  * The app does not consume the preview parameters — it loads the committed assets
- * in src/views/circular/. 3x3 comes from the static import of view.svg; the other
- * sizes come from view-<n>.svg via the loader's glob. So the question "does D need
- * applying?" has to be asked of those files, not of the preview table.
+ * in src/views/circular/. Every size, 3x3 included, is generated as view-<n>.svg,
+ * so the question "does D need applying?" has to be asked of those files, not of
+ * the preview table.
  *
  * This reads each committed asset, pairs every ghost with its target face's
  * ellipse, and reports the clearance. Negative means the ghost pokes outside its
@@ -96,7 +96,7 @@ console.log(
 
 const dir = 'src/views/circular';
 const files = readdirSync(dir)
-    .filter(f => /^view(-\d+)?\.svg$/.test(f))
+    .filter(f => /^view-\d+\.svg$/.test(f))
     .sort();
 
 for (const file of files) {

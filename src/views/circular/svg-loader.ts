@@ -1,30 +1,30 @@
 import { availableSizes, loadParameters } from './svg-generator/generate';
-import defaultSvg from './view.svg?raw';
 
 /**
  * Size-aware SVG resolution for the Circular view.
  *
- * Three deliberate choices, each guarding a specific regression:
+ * Two deliberate choices, each guarding a specific regression:
  *
- * 1. **3x3 keeps its original static import.** The committed asset serves the
- *    default size, and routing it through the same dynamic path as the others
- *    would mean the one size with an authored reference also depends on
- *    whatever resolves size. Keeping it separate means a loader change cannot
- *    regress the shipping view.
- * 2. **The glob pattern excludes `view.old.svg`.** A dead file sits beside the
- *    real assets; `view-*` matches per-size names and not that one, because the
- *    separator differs. A test pins this so a rename cannot silently make the
- *    resolver pick up a retired asset.
- * 3. **An unknown size resolves to `undefined`, never a fallback.** Falling back
+ * 1. **Every size resolves through one path.** 3x3 used to be served from a
+ *    hand-written static import while larger sizes came from a glob, which meant
+ *    the default size depended on a file that generation did not produce and the
+ *    other sizes did not. Now that 3x3 is generated like the rest, one glob
+ *    serves all six, and no size can drift into being "special".
+ * 2. **An unknown size resolves to `undefined`, never a fallback.** Falling back
  *    to another size's markup would render a cube at the wrong size rather than
  *    reporting the view as unsupported, which is the harder failure to notice.
+ *
+ * The fixtures directory holds the hand-authored 3x3 original. It sits one level
+ * below the assets, so neither this glob nor the asset-canvas one reaches it —
+ * which is what keeps the fidelity tests comparing against an independent
+ * reference rather than against the generator's own output.
  */
 
 /**
  * Per-size assets, discovered at build time.
  *
  * Vite resolves this to a static record at build time; the raw query yields the
- * file's text rather than a URL. The pattern excludes `view.old.svg` by design.
+ * file's text rather than a URL.
  */
 const sizeAssets = import.meta.glob<string>('./view-*.svg', {
     eager: true,
@@ -53,9 +53,9 @@ function buildRegistry(): Map<number, string> {
 
 const registry = buildRegistry();
 
-/** Sizes the loader can serve, ascending. 3x3 comes from the static import. */
+/** Sizes the loader can serve, ascending. */
 export function loadedSizes(): number[] {
-    return [3, ...registry.keys()].sort((a, b) => a - b);
+    return [...registry.keys()].sort((a, b) => a - b);
 }
 
 /**
@@ -63,9 +63,6 @@ export function loadedSizes(): number[] {
  * that size.
  */
 export function svgMarkupForSize(cubeSize: number): string | undefined {
-    // 3x3 is served from the static import, so it works even if the glob finds
-    // nothing (which is what happens when no other size has been generated yet).
-    if (cubeSize === 3) return defaultSvg;
     return registry.get(cubeSize);
 }
 

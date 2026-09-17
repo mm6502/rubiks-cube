@@ -153,10 +153,16 @@ target: if the rule were wrong for that class, 2×2 and 4×4 could both pass.
 
 ## Size-aware loading
 
-The 3×3 asset keeps its original static import. Other sizes resolve through a
-glob over `view-*.svg`. The pattern deliberately does **not** match the stray
-`view.old.svg` in the same directory — the separator differs, and a test pins
-that.
+Every size, 3×3 included, resolves through one glob over `view-*.svg`. 3×3 used
+to be special-cased behind a hand-written static import; now that generation
+produces `view-3.svg` like every other size, the loader has no per-size branch
+and no size can drift into being "the special one".
+
+The hand-authored 3×3 original lives in `fixtures/reference-3x3.svg`, one
+directory below the assets. It is a fidelity reference, not a shipping asset,
+and it sits there so that neither the loader's glob nor the asset-canvas glob
+can reach it — which is what keeps the generator's fidelity tests comparing
+against an independent reference instead of against the generator's own output.
 
 An N=5 asset is a validation target only. Generate it to a path outside `src/`
 (for example `scripts/circular-svg/tmp/`) so it can never be globbed into the

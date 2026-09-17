@@ -170,7 +170,7 @@ for (const size of [2, 3, 4, 5, 6, 7]) {
     console.log(`       average gap after the fix: ${avg.toFixed(2)}\n`);
 }
 
-console.log('Reference asset (view.svg), for comparison:');
+console.log('Hand-authored reference (fixtures/reference-3x3.svg), for comparison:');
 {
     const p = resolveParameters(3, loadParameters());
     // The reference's own hardcoded label anchors, read from the committed file.

@@ -1,5 +1,6 @@
 import { Axis } from '@/cube/types';
 
+import REFERENCE_SVG_TEXT from './fixtures/reference-3x3.svg?raw';
 import {
     CircularSvgParameters,
     FACE_FILLS,
@@ -8,7 +9,6 @@ import {
     stickerPosition,
 } from './svg-generator/geometry';
 import { allGhosts, emitGhosts, radiusRank } from './svg-generator/ghosts';
-import REFERENCE_SVG_TEXT from './view.svg?raw';
 
 /**
  * Ghost layer verification against the committed 3x3 reference.

@@ -19,7 +19,7 @@
     },
     "sizes": {
         "3": {
-            "$comment": "Ring geometry extracted from the committed reference asset src/views/circular/view.svg, and regenerating from these values still reproduces its sticker coordinates and ring radii exactly. The ellipse values differ from the reference: they are sized to enclose the ghost circles as well as the stickers, which the reference's fixed 46x40 does not.",
+            "$comment": "Ring geometry extracted from the hand-authored reference asset now kept at src/views/circular/fixtures/reference-3x3.svg, and regenerating from these values still reproduces its sticker coordinates and ring radii exactly. The ellipse values differ from the reference: they are sized to enclose the ghost circles as well as the stickers, which the reference's fixed 46x40 does not.",
             "viewBox": "47 18 305 329",
             "ellipseMargin": 2.05,
             "ellipseOffsetNear": 0.12,

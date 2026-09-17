@@ -1,5 +1,6 @@
 import { Axis } from '@/cube/types';
 
+import REFERENCE_SVG_TEXT from './fixtures/reference-3x3.svg?raw';
 import {
     ALL_FACES,
     CircularSvgParameters,
@@ -17,7 +18,6 @@ import {
     stickerPosition,
 } from './svg-generator/geometry';
 import { labelContent } from './svg-generator/labels';
-import REFERENCE_SVG_TEXT from './view.svg?raw';
 
 /**
  * Verification that the generator's geometry reproduces the committed 3x3
