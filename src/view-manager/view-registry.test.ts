@@ -77,9 +77,15 @@ describe('ViewRegistry', () => {
         expect(view).toBeUndefined();
     });
 
-    it('circular view supports only size 3 (SVG-per-N)', () => {
-        expect(viewSupportsSize('circular', 3)).toBe(true);
-        for (const size of [2, 4, 5, 6, 7]) {
+    it('circular view supports only the sizes with a generated asset', () => {
+        // Size capability is SVG-per-N: a size becomes available when its asset
+        // is generated and committed. 2, 3 and 4 have assets today; 5 has a
+        // parameter set but is a ghost-rule validation target, and 6-7 have
+        // neither, so all three must stay unavailable.
+        for (const size of [2, 3, 4]) {
+            expect(viewSupportsSize('circular', size)).toBe(true);
+        }
+        for (const size of [5, 6, 7]) {
             expect(viewSupportsSize('circular', size)).toBe(false);
         }
     });
