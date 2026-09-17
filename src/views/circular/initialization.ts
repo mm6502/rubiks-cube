@@ -4,9 +4,9 @@ import { getPositionKey } from '@/cube/utils';
 import { logger } from '@/diagnostics/logger';
 import { EventName } from '@/types';
 
+import { assertLoadable } from './svg-loader';
 import { AxisCircle, SVGAxisCoords, getCenterOfElement, isPointOnCircle } from './svg-tools';
 import { CircularCubeViewInternalData, StickerLookupMap } from './types';
-import rawSvg from './view.svg?raw';
 
 /**
  * Parse axis circles from SVG element by querying for all <circle>
@@ -262,6 +262,13 @@ export function initialize(
 
     // Make container focusable for keyboard navigation
     container.tabIndex = 0;
+
+    // Resolve the asset for the active cube size. 3x3 comes from its original
+    // static import; other sizes resolve through the loader's glob. An
+    // unsupported size throws rather than falling back to another size's markup,
+    // which would render a cube at the wrong size.
+    const cubeSize = model.getCurrentState().cubeSize;
+    const rawSvg = assertLoadable(cubeSize);
 
     // Inline the SVG so we can address elements directly and ensure it scales to the lesser of width/height.
     // data-role="clip-container"  — clips overflowing content when zoomed/panned; receives wheel/pointer events.

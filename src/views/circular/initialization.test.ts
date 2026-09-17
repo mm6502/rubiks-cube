@@ -14,7 +14,9 @@ describe('initialization', () => {
 
     beforeEach(() => {
         container = document.createElement('div');
-        model = { getCurrentState: vi.fn(() => ({})) };
+        // The view resolves its SVG asset from the active cube size, so the
+        // model must report one — a bare {} would leave the size undefined.
+        model = { getCurrentState: vi.fn(() => ({ cubeSize: 3 })) };
     });
 
     afterEach(() => {
