@@ -65,6 +65,14 @@ export interface CircularSvgParameters {
     /** Label box dimensions. */
     labelWidth: number;
     labelHeight: number;
+    /**
+     * Clearance between a face label's box and its face ellipse.
+     *
+     * The reference asset's labels touch their ellipse (measured gap 0.00 at
+     * 3x3), so this is a hairline clearance covering the ellipse's own 1.5-wide
+     * stroke rather than a visual gap.
+     */
+    faceLabelGap: number;
 }
 
 /** Ring axes for each face: the two axes whose rings intersect at its stickers. */

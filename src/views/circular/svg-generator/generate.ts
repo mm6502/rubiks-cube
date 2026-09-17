@@ -89,6 +89,7 @@ export function resolveParameters(
         ellipseAspect: numeric('ellipseAspect'),
         labelWidth: numeric('labelWidth'),
         labelHeight: numeric('labelHeight'),
+        faceLabelGap: numeric('faceLabelGap'),
         ghostRadiusOffset: numeric('ghostRadiusOffset'),
     };
 }

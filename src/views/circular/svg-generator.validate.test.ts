@@ -37,6 +37,7 @@ const BASE: CircularSvgParameters = {
     ellipseAspect: 1.0177,
     labelWidth: 20,
     labelHeight: 16,
+    faceLabelGap: 1,
 };
 
 const parametersFile = loadParameters();

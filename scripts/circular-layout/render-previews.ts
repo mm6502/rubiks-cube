@@ -456,6 +456,7 @@ for (const size of SIZES) {
         ellipseAspect: prop.aspect,
         labelWidth: 20,
         labelHeight: 16,
+        faceLabelGap: 1,
     };
 
     // Fail loudly rather than emitting a layout that violates the invariants.
@@ -494,6 +495,7 @@ for (const size of SIZES) {
             ellipseAspect: prop.aspect,
             labelWidth: 20,
             labelHeight: 16,
+            faceLabelGap: 1,
             ghostRadiusOffset: 1,
         },
         sizes: { [String(size)]: { viewBox: '-10000 -10000 20000 20000' } },

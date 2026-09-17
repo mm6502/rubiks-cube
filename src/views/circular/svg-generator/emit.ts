@@ -46,15 +46,29 @@ interface Point2D {
 /**
  * Face-label anchor coordinates, expressed relative to the triangle.
  *
- * These are visual placements outside the face ellipses rather than derivable
- * geometry, so they are computed from the triangle's extent and then clamped to
- * the viewBox — matching how the reference asset places them.
+ * The label sits against its face ellipse's outer edge, matching the committed
+ * reference asset, whose labels touch their ellipse (3x3 measured gap 0.00).
+ *
+ * The reach is built from three measured pieces rather than one guessed number:
+ *
+ *   * `ry` carries the ellipse's extent along the outward direction. The
+ *     ellipse's rotation is `angle(outward) + 90°`, which puts its LOCAL X axis
+ *     perpendicular to outward and its LOCAL Y axis along it — and `rx` is the
+ *     local-X semi-axis while `ry` is the local-Y one. So the relevant semi-axis
+ *     is `ry`, not `max(rx, ry)`.
+ *   * The label is a square of half-size `labelWidth/2` centred on the anchor,
+ *     so its own extent along outward is `half * (|ux| + |uy|)`.
+ *   * A `labelGap` clears the ellipse's 1.5-wide stroke, which straddles the
+ *     geometric edge.
+ *
+ * Using `max(rx, ry)` instead put the label up to `rx - ry` too far out — about
+ * 7 units at 3x3 and 33 at 7x7 — which is the gap this corrects.
  */
 function faceLabelPosition(face: Face, cubeSize: number, params: CircularSvgParameters): Point2D {
     const centres = axisCentres(params);
 
-    // Each label sits just beyond its face's ellipse, along the direction from
-    // the triangle centroid through the face's own sticker centroid.
+    // The label sits just beyond its face's ellipse, along the direction from the
+    // triangle centroid through the face's own sticker centroid.
     const ellipse = faceEllipseGeometry(face, cubeSize, params);
 
     const triangleCentroid = {
@@ -69,8 +83,9 @@ function faceLabelPosition(face: Face, cubeSize: number, params: CircularSvgPara
     const length = Math.hypot(outward.x, outward.y) || 1;
     const unit = { x: outward.x / length, y: outward.y / length };
 
-    // Push out past the ellipse semi-axes plus a small gap.
-    const reach = Math.max(ellipse.rx, ellipse.ry) + params.stickerRadius * 2;
+    const half = Math.max(params.labelWidth, params.labelHeight) / 2;
+    const reach = ellipse.ry + half * (Math.abs(unit.x) + Math.abs(unit.y)) + params.faceLabelGap;
+
     return {
         x: round(ellipse.cx + unit.x * reach),
         y: round(ellipse.cy + unit.y * reach),
