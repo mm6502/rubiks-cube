@@ -1,5 +1,5 @@
 import { emitSvg } from './emit';
-import { ALL_FACES, CircularSvgParameters } from './geometry';
+import { ALL_FACES, CircularSvgParameters, FittedParameters } from './geometry';
 import { GhostSpec, allGhosts, emitGhosts } from './ghosts';
 import { PROBE_VIEWBOX, boundsToViewBox, markupBounds } from './measure';
 import parametersFile from './parameters.json';
@@ -70,17 +70,11 @@ export function resolveParameters(
         return value;
     };
 
-    const viewBox = merged['viewBox'];
-    if (typeof viewBox !== 'string') {
-        throw new Error(`Parameter "viewBox" must be a string for size ${cubeSize}`);
-    }
-
     return {
         triangleSide: numeric('triangleSide'),
         innerRadius: numeric('innerRadius'),
         ringStep: numeric('ringStep'),
         stickerRadius: numeric('stickerRadius'),
-        viewBox,
         centreX: numeric('centreX'),
         centreY: numeric('centreY'),
         apexHeight: numeric('apexHeight'),
@@ -100,6 +94,16 @@ export interface GenerationResult {
     svg: string;
     ghosts: GhostSpec[];
     issues: ValidationIssue[];
+    /**
+     * The geometry AND the canvas the markup was fitted to.
+     *
+     * Returned because the canvas is derived, not configured: a caller that
+     * wants to reason about layout (does this sticker fit? is this ellipse
+     * inside the frame?) needs the viewBox that was actually emitted, and
+     * re-deriving it from configuration is what let a stale hand-maintained
+     * value drift out of sync with the markup in the first place.
+     */
+    params: FittedParameters;
 }
 
 /**
@@ -126,7 +130,7 @@ export function buildSvg(cubeSize: number, file: ParametersFile = PARAMETERS): s
 function build(
     cubeSize: number,
     file: ParametersFile
-): { svg: string; ghosts: GhostSpec[]; params: CircularSvgParameters; viewBox: string } {
+): { svg: string; ghosts: GhostSpec[]; params: FittedParameters } {
     const resolved = resolveParameters(cubeSize, file);
     const { ghostRadiusOffset, ...params } = resolved;
 
@@ -142,7 +146,7 @@ function build(
     // The probe canvas is large enough that nothing is clipped, and the mask
     // backing rect tracks the viewBox, so the probe is a faithful measurement of
     // the real drawing rather than of a clipped one.
-    const probeParams: CircularSvgParameters = { ...params, viewBox: PROBE_VIEWBOX };
+    const probeParams: FittedParameters = { ...params, viewBox: PROBE_VIEWBOX };
     const probeSvg = emitSvg({
         cubeSize,
         params: probeParams,
@@ -150,14 +154,14 @@ function build(
     });
     const viewBox = boundsToViewBox(markupBounds(probeSvg));
 
-    const fitted: CircularSvgParameters = { ...params, viewBox };
+    const fitted: FittedParameters = { ...params, viewBox };
     const svg = emitSvg({
         cubeSize,
         params: fitted,
         ghosts: emitGhosts(ghosts, params.stickerRadius),
     });
 
-    return { svg, ghosts, params: fitted, viewBox };
+    return { svg, ghosts, params: fitted };
 }
 
 /**
@@ -169,7 +173,7 @@ function build(
  */
 export function generate(cubeSize: number, file: ParametersFile = PARAMETERS): GenerationResult {
     const { svg, ghosts, params } = build(cubeSize, file);
-    return { cubeSize, svg, ghosts, issues: validate({ cubeSize, params, svg, ghosts }) };
+    return { cubeSize, svg, ghosts, params, issues: validate({ cubeSize, params, svg, ghosts }) };
 }
 
 /** Sizes with a parameter set, ascending. */

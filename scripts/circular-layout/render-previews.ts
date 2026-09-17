@@ -538,7 +538,6 @@ for (const size of SIZES) {
         innerRadius: prop.rMin,
         ringStep: prop.step,
         stickerRadius: R_STICKER,
-        viewBox: '0 0 1 1',
         centreX: 200,
         centreY: 219,
         apexHeight: prop.d * APEX_RATIO,
@@ -583,9 +582,13 @@ for (const size of SIZES) {
             faceLabelGap: 1,
             ghostRadiusOffset: 1,
         },
-        sizes: { [String(size)]: { viewBox: '0 0 1 1' } },
+        // No per-size overrides: the canvas is derived by emission, and this
+        // block reads it back from the markup below.
+        sizes: { [String(size)]: {} },
     };
     const { svg, issues } = generate(size, file);
+    // The canvas the emitter actually wrote, which is the only value worth
+    // reporting or checking against.
     const viewBox = /viewBox="([^"]*)"/.exec(svg)![1];
     const [vx, vy, vw, vh] = viewBox.split(/\s+/).map(Number);
 

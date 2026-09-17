@@ -69,7 +69,9 @@ function paramsFor(
             faceLabelGap: 1,
             ghostRadiusOffset: GHOST_OFFSET,
         },
-        sizes: { [String(size)]: { viewBox: '0 0 1 1' } },
+        // No per-size overrides: this file exists to sweep the shared geometry,
+        // and the canvas is derived by emission rather than configured.
+        sizes: { [String(size)]: {} },
     };
     return resolveParameters(size, file);
 }

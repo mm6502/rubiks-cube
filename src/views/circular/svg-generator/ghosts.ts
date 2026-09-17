@@ -6,6 +6,7 @@ import {
     CircularSvgParameters,
     FACE_FILLS,
     FACE_RING_AXES,
+    Point2D,
     axisCentres,
     faceCentroid,
     ringRadius,
@@ -147,8 +148,19 @@ export function allGhosts(
 ): GhostSpec[] {
     const result: GhostSpec[] = [];
 
+    // Per-face values, computed once per face rather than once per ghost. At N=7
+    // that is 6 centroids instead of 168, and `faceCentroid` is the expensive
+    // one: it solves for the face's sticker-grid centre. Hoisting it took
+    // allGhosts(7) from ~2.26 ms to ~0.23 ms.
+    //
+    // `axisCentres` is also per-params, not per-face, so it is hoisted out of the
+    // face loop entirely. It measured ~0 cost, but calling it inside the ghost
+    // loop implied otherwise to a reader.
+    const centres = axisCentres(params);
+
     for (const face of ALL_FACES) {
         const faceGhosts: GhostSpec[] = [];
+        const centroid = faceCentroid(face, cubeSize, params);
 
         for (let facePosition = 0; facePosition < cubeSize * cubeSize; facePosition++) {
             const target = { face, facePosition };
@@ -163,7 +175,9 @@ export function allGhosts(
                     cubeSize,
                     params,
                     ghostParams,
-                    faceGhosts.length
+                    faceGhosts.length,
+                    centres,
+                    centroid
                 );
                 if (ghost) faceGhosts.push(ghost);
             }
@@ -175,14 +189,22 @@ export function allGhosts(
     return result;
 }
 
-/** Build one ghost, or `undefined` if the two stickers share no ring axis. */
+/**
+ * Build one ghost, or `undefined` if the two stickers share no ring axis.
+ *
+ * `centres` and `centroid` are passed in rather than recomputed: both are
+ * properties of the face (or of the parameters as a whole), not of the ghost,
+ * and this function runs once per ghost.
+ */
 function buildGhost(
     target: { face: Face; facePosition: number },
     other: { face: Face; facePosition: number; id: string },
     cubeSize: number,
     params: CircularSvgParameters,
     ghostParams: GhostParameters,
-    index: number
+    index: number,
+    centres: Record<Axis, Point2D>,
+    centroid: Point2D
 ): GhostSpec | undefined {
     // The shared ring axis: the target lies at the intersection of its two ring
     // axes, and so does the other sticker; they share exactly one.
@@ -196,7 +218,7 @@ function buildGhost(
     const layerIndex = targetPosition[axis.toLowerCase() as 'x' | 'y' | 'z'];
     const rank = radiusRank(axis, layerIndex, cubeSize);
 
-    const centre = axisCentres(params)[axis];
+    const centre = centres[axis];
     const radius = ringRadius(axis, layerIndex, cubeSize, params);
     const start = stickerPosition(target.face, target.facePosition, cubeSize, params);
 
@@ -206,7 +228,6 @@ function buildGhost(
     // deriving the side from the source sticker instead leaves D, L and B with
     // ghosts mirrored inward, because on those three faces the source sits on
     // the opposite side of the arc.
-    const centroid = faceCentroid(target.face, cubeSize, params);
     const angleStart = Math.atan2(start.y - centre.y, start.x - centre.x);
     const tangent = { x: -Math.sin(angleStart), y: Math.cos(angleStart) };
     const outward = { x: start.x - centroid.x, y: start.y - centroid.y };

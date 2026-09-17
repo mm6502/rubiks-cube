@@ -5,6 +5,7 @@ import {
     CircularSvgParameters,
     FACE_FILLS,
     FACE_RING_AXES,
+    FittedParameters,
     axisCentres,
     axisCircleId,
     faceEllipseGeometry,
@@ -164,7 +165,7 @@ function styles(): string {
  * silently and regardless of what the viewBox allows. Sizing it from the viewBox
  * keeps the drawn extent and the masked extent identical at every size.
  */
-function labelMask(cubeSize: number, params: CircularSvgParameters): string {
+function labelMask(cubeSize: number, params: FittedParameters): string {
     const holes: string[] = [];
     for (const axis of [Axis.Z, Axis.X, Axis.Y]) {
         for (let layerIndex = 0; layerIndex < cubeSize; layerIndex++) {
@@ -291,7 +292,12 @@ function stickerGroups(cubeSize: number, params: CircularSvgParameters): string 
 
 export interface EmitOptions {
     cubeSize: number;
-    params: CircularSvgParameters;
+    /**
+     * Geometry plus the canvas it was fitted to. The caller measures the drawn
+     * bounds first and passes the result, so the emitted `viewBox` and the
+     * emitted drawing always agree.
+     */
+    params: FittedParameters;
     /** Serialised ghost wrapper markup, inserted before the stickers. */
     ghosts?: string;
 }

@@ -20,9 +20,17 @@ export interface CircularSvgParameters {
     ringStep: number;
     /** Visual radius of a sticker circle. */
     stickerRadius: number;
-    /** ViewBox attribute value. */
-    viewBox: string;
-    /** X coordinate of the triangle's base midpoint. */
+    /**
+     * X coordinate of the triangle's base midpoint.
+     *
+     * NOTE: there is deliberately no `viewBox` here. The canvas is DERIVED, not
+     * configured: the generator emits a probe at an oversized viewBox, measures
+     * what was drawn, and re-emits fitted to that measurement. `viewBox` used to
+     * be an input, and every hand-maintained value had drifted out of sync with
+     * what was actually emitted — including one that a test was asserting
+     * against instead of the real canvas. Carrying it on `FittedParameters`
+     * below makes the derived value impossible to confuse with an input.
+     */
     centreX: number;
     /** Y coordinate of the base line on which the Z and X centres sit. */
     centreY: number;
@@ -73,6 +81,20 @@ export interface CircularSvgParameters {
      * stroke rather than a visual gap.
      */
     faceLabelGap: number;
+}
+
+/**
+ * Geometry plus the canvas that was FITTED to it.
+ *
+ * The canvas is an output of emission, not an input to it: `generate()` emits a
+ * probe at `PROBE_VIEWBOX`, measures the drawn bounds, and re-emits with the
+ * viewBox fitted to that measurement. This type marks the result of that step so
+ * the two cannot be confused — a value of this type is only ever produced by
+ * fitting, never read from configuration.
+ */
+export interface FittedParameters extends CircularSvgParameters {
+    /** The `viewBox` the emitted markup actually declares. */
+    viewBox: string;
 }
 
 /** Ring axes for each face: the two axes whose rings intersect at its stickers. */

@@ -81,7 +81,8 @@ function paramsFor(size: number): CircularSvgParameters {
             faceLabelGap: 1,
             ghostRadiusOffset: 1,
         },
-        sizes: { [String(size)]: { viewBox: '0 0 1 1' } },
+        // No per-size overrides; the canvas is derived by emission.
+        sizes: { [String(size)]: {} },
     };
     return resolveParameters(size, file);
 }

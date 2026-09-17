@@ -3,6 +3,7 @@ import { Axis } from '@/cube/types';
 import {
     ALL_FACES,
     CircularSvgParameters,
+    FittedParameters,
     axisCentres,
     axisCircleId,
     faceEllipseGeometry,
@@ -40,11 +41,24 @@ export interface ValidationIssue {
 
 export interface ValidationInput {
     cubeSize: number;
-    params: CircularSvgParameters;
+    /** Geometry plus the canvas it was fitted to — see `FittedParameters`. */
+    params: FittedParameters;
     /** Serialised SVG markup. */
     svg: string;
     /** Ghosts that were generated, if any. */
     ghosts?: GhostSpec[];
+}
+
+/**
+ * The viewBox the markup actually declares.
+ *
+ * Read from the SVG rather than from `params` so a check can never assert
+ * against a canvas that was not emitted. When the declared value is somehow
+ * absent, falling back to `params.viewBox` is the next best thing — and at this
+ * point in the pipeline `params` IS the fitted value, so the two agree.
+ */
+export function declaredViewBox(svg: string, params: FittedParameters): string {
+    return /viewBox="([^"]*)"/.exec(svg)?.[1] ?? params.viewBox;
 }
 
 /** Tolerance matching the runtime's own `isPointOnCircle` default. */
@@ -58,7 +72,7 @@ export function validate(input: ValidationInput): ValidationIssue[] {
     return [
         ...validateInvariants(input.cubeSize, input.params),
         ...validateConformance(input),
-        ...validateEllipses(input.cubeSize, input.params),
+        ...validateEllipses(input.cubeSize, input.params, input.svg),
         ...validateCanvas(input.cubeSize, input.params, input.svg),
         ...validateGhosts(input),
     ];
@@ -301,17 +315,19 @@ export function validateConformance(input: ValidationInput): ValidationIssue[] {
  */
 export function validateCanvas(
     cubeSize: number,
-    params: CircularSvgParameters,
+    params: FittedParameters,
     svg: string
 ): ValidationIssue[] {
     void cubeSize;
     const issues: ValidationIssue[] = [];
 
-    // Against the SVG's own viewBox, not the caller's params: the generator
-    // derives the canvas during emission, so the params are pre-fit and would
-    // compare the drawing against a canvas that was never emitted.
-    const declared = /viewBox="([^"]*)"/.exec(svg)?.[1];
-    const [vx, vy, vw, vh] = (declared ?? params.viewBox).split(/\s+/).map(Number);
+    // Against the SVG's own viewBox: the generator derives the canvas during
+    // emission, and `declaredViewBox` reads back what the emitter actually
+    // wrote. Comparing the drawing to a canvas that was never emitted is the
+    // failure mode this avoids — a hand-maintained viewBox once drifted out of
+    // sync with the emitted one and this check silently validated the wrong box.
+    const declared = declaredViewBox(svg, params);
+    const [vx, vy, vw, vh] = declared.split(/\s+/).map(Number);
 
     const bounds = markupBounds(svg);
     const tol = 0.5;
@@ -329,7 +345,7 @@ export function validateCanvas(
         issues.push({
             group: 'canvas',
             message:
-                `drawn content extends outside viewBox "${params.viewBox}" on the ` +
+                `drawn content extends outside viewBox "${declared}" on the ` +
                 `${outside.map(o => `${o.side} by ${o.overshoot.toFixed(1)}`).join(', ')}; ` +
                 `content spans x ${bounds.x0.toFixed(1)}..${bounds.x1.toFixed(1)}, ` +
                 `y ${bounds.y0.toFixed(1)}..${bounds.y1.toFixed(1)} — ` +
@@ -343,10 +359,12 @@ export function validateCanvas(
 /** Face ellipses must exist, be non-degenerate, and stay inside the viewBox. */
 export function validateEllipses(
     cubeSize: number,
-    params: CircularSvgParameters
+    params: FittedParameters,
+    svg: string
 ): ValidationIssue[] {
     const issues: ValidationIssue[] = [];
-    const [viewX, viewY, viewWidth, viewHeight] = params.viewBox.split(/\s+/).map(Number);
+    const declared = declaredViewBox(svg, params);
+    const [viewX, viewY, viewWidth, viewHeight] = declared.split(/\s+/).map(Number);
 
     for (const face of ALL_FACES) {
         const ellipse = faceEllipseGeometry(face, cubeSize, params);

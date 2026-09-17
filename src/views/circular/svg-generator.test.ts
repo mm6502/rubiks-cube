@@ -47,7 +47,6 @@ const REFERENCE_PARAMS: CircularSvgParameters = {
     innerRadius: 70,
     ringStep: 15,
     stickerRadius: 7,
-    viewBox: '20 0 360 350',
     centreX: 200,
     centreY: 219,
     // The reference asset hand-rounds the apex to 87 above the baseline, where

@@ -31,9 +31,14 @@ describe('circular svg generator — layout sanity', () => {
     const SIZES = sizeEntries;
 
     it.each(SIZES)('keeps every element inside the viewBox at size %i', size => {
-        const { svg } = generate(size, loadParameters());
-        const params = resolveParameters(size, loadParameters());
+        const { svg, params } = generate(size, loadParameters());
+        // The canvas the markup DECLARES, not a configured value. The generator
+        // derives it by measuring the drawing, so asserting against an input
+        // would check containment in a box that was never rendered — which is
+        // exactly what happened while a hand-maintained viewBox sat in
+        // parameters.json and drifted out of sync with the emitted one.
         const view = parseViewBox(params.viewBox);
+        expect(svg).toContain(`viewBox="${params.viewBox}"`);
 
         // Stickers
         for (const face of ALL_FACES) {
@@ -51,7 +56,7 @@ describe('circular svg generator — layout sanity', () => {
     });
 
     it.each(SIZES)('keeps every face ellipse inside the viewBox at size %i', size => {
-        const params = resolveParameters(size, loadParameters());
+        const { params } = generate(size, loadParameters());
         const view = parseViewBox(params.viewBox);
 
         for (const face of ALL_FACES) {
@@ -155,7 +160,7 @@ describe('circular svg generator — layout sanity', () => {
         // Surfaced so a reviewer can sanity-check the shipped asset without
         // rendering it.
         const size = 2;
-        const params = resolveParameters(size, loadParameters());
+        const { params } = generate(size, loadParameters());
         const ellipse = faceEllipseGeometry('U', size, params);
 
         expect(ellipse.rx).toBeGreaterThan(0);

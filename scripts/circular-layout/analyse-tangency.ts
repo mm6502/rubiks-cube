@@ -145,7 +145,6 @@ function build(
         innerRadius: b.rMin,
         ringStep: b.step,
         stickerRadius: R_S,
-        viewBox: '0 0 1 1',
         centreX: 200,
         centreY: 219,
         apexHeight: b.d * 0.87,

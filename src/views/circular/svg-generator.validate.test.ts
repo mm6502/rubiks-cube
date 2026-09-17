@@ -1,9 +1,4 @@
-import {
-    availableSizes,
-    generate,
-    loadParameters,
-    resolveParameters,
-} from './svg-generator/generate';
+import { availableSizes, generate, loadParameters } from './svg-generator/generate';
 import { CircularSvgParameters } from './svg-generator/geometry';
 import {
     countExpectedGhosts,
@@ -21,13 +16,16 @@ import {
  * be geometrically legal and still be unusable, and it can be well-formed and
  * still be geometrically illegal. The groups are asserted separately so a gap in
  * one cannot be masked by coverage in the other.
+ *
+ * `BASE` is the configured GEOMETRY only — no viewBox, because the canvas is
+ * derived by emission rather than configured. Anything the gate checks against a
+ * canvas takes its `params` from `generate()`, which returns the FITTED values.
  */
 const BASE: CircularSvgParameters = {
     triangleSide: 100,
     innerRadius: 70,
     ringStep: 15,
     stickerRadius: 7,
-    viewBox: '20 0 360 350',
     centreX: 200,
     centreY: 219,
     apexHeight: 87,
@@ -89,7 +87,7 @@ describe('circular svg generator — validation gate', () => {
             expect(
                 validateConformance({
                     cubeSize: 3,
-                    params: resolveParameters(3, parametersFile),
+                    params: result.params,
                     svg: result.svg,
                 })
             ).toEqual([]);
@@ -100,7 +98,7 @@ describe('circular svg generator — validation gate', () => {
             const stripped = result.svg.replace('data-cube-size="3"', '');
             const issues = validateConformance({
                 cubeSize: 3,
-                params: resolveParameters(3, parametersFile),
+                params: result.params,
                 svg: stripped,
             });
             expect(issues.some(i => i.message.includes('data-cube-size'))).toBe(true);
@@ -112,7 +110,7 @@ describe('circular svg generator — validation gate', () => {
             const stripped = result.svg.replace(/id="face-label-B"/, 'id="face-label-XX"');
             const issues = validateConformance({
                 cubeSize: 3,
-                params: resolveParameters(3, parametersFile),
+                params: result.params,
                 svg: stripped,
             });
             expect(issues.some(i => i.message.includes('face-label-B'))).toBe(true);
@@ -126,7 +124,7 @@ describe('circular svg generator — validation gate', () => {
             );
             const issues = validateConformance({
                 cubeSize: 3,
-                params: resolveParameters(3, parametersFile),
+                params: result.params,
                 svg: stripped,
             });
             expect(issues.some(i => i.message.includes('ghost-sticker-wrapper'))).toBe(true);
@@ -138,7 +136,7 @@ describe('circular svg generator — validation gate', () => {
             const stripped = result.svg.replace(/<rect id="mask-z-0"[^>]*\/>/, '');
             const issues = validateConformance({
                 cubeSize: 3,
-                params: resolveParameters(3, parametersFile),
+                params: result.params,
                 svg: stripped,
             });
             expect(issues.some(i => i.message.includes('mask holes'))).toBe(true);
@@ -149,11 +147,20 @@ describe('circular svg generator — validation gate', () => {
         it('rejects an ellipse that leaves the viewBox', () => {
             // I1-I5 say nothing about ellipses, so this is the check that stops
             // a legal-but-clipped asset from being written.
+            //
+            // The canvas is shrunk in the MARKUP, not in params: validation
+            // reads the declared viewBox, so the only way to present it with a
+            // canvas too small is to change what the SVG declares. Tampering
+            // with params instead would leave this test asserting against a box
+            // that was never emitted — the failure mode the fix removed.
             const result = generate(3, parametersFile);
+            const shrunk = result.svg.replace(/viewBox="[^"]*"/, 'viewBox="180 200 40 40"');
+            expect(shrunk).not.toBe(result.svg);
+
             const issues = validate({
                 cubeSize: 3,
-                params: { ...BASE, viewBox: '180 200 40 40' },
-                svg: result.svg,
+                params: { ...result.params, viewBox: '180 200 40 40' },
+                svg: shrunk,
             });
             expect(issues.some(i => i.group === 'ellipse')).toBe(true);
         });
@@ -162,7 +169,7 @@ describe('circular svg generator — validation gate', () => {
             const result = generate(3, parametersFile);
             const issues = validate({
                 cubeSize: 3,
-                params: BASE,
+                params: result.params,
                 svg: result.svg,
                 ghosts: result.ghosts.slice(0, 10),
             });
@@ -176,7 +183,7 @@ describe('circular svg generator — validation gate', () => {
             );
             const issues = validate({
                 cubeSize: 3,
-                params: BASE,
+                params: result.params,
                 svg: result.svg,
                 ghosts: displaced,
             });
@@ -198,7 +205,7 @@ describe('circular svg generator — validation gate', () => {
                 expect(
                     isValid({
                         cubeSize: size,
-                        params: resolveParameters(size, parametersFile),
+                        params: generate(size, parametersFile).params,
                         svg: result.svg,
                         ghosts: result.ghosts,
                     })

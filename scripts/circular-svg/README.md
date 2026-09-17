@@ -39,10 +39,18 @@ is the property the generator exists to provide.
 "sizes": {
     "6": {
         "ringStep": 18,
-        "viewBox": "..."
+        "innerRadius": 120
     }
 }
 ```
+
+There is deliberately no `viewBox` here. The canvas is **derived**, not
+configured: the generator emits a probe at an oversized viewBox, measures what
+was drawn, and re-emits fitted to that measurement. Hand-maintained values used
+to live in this file and every one of them had drifted out of sync with what was
+actually emitted — including one that a test was asserting against instead of
+the real canvas. Adding a size therefore never needs a canvas value, and a value
+you add would be ignored.
 
 Then run `npm run svg:circular -- 6 --check`. If the parameter set is invalid
 the validation gate says which constraint failed and why. A new size also needs
@@ -62,11 +70,13 @@ the rest are layout values the spec declines to derive and are tuned by eye.
 | `stickerRadius`                          | `r_s` — visual sticker radius                                                                                                                                                              |
 | `centreX`, `centreY`                     | Base midpoint the triangle is built from                                                                                                                                                   |
 | `apexHeight`                             | Apex height above the baseline. The equilateral value is `triangleSide × √3/2`; the reference asset hand-rounds it (87 for a side of 100)                                                  |
-| `viewBox`                                | SVG `viewBox` attribute                                                                                                                                                                    |
 | `ellipseOffsetNear` / `ellipseOffsetFar` | Face-ellipse centre offset from the sticker centroid, as a fraction of the grid span. Two values because the near-polarity faces (U, R, F) use a larger offset than the far ones (D, L, B) |
-| `ellipseRadiusX` / `ellipseRadiusY`      | Semi-axes as multiples of `stickerRadius`                                                                                                                                                  |
+| `ellipseMargin` / `ellipseAspect`        | Ellipse growth beyond the enclosed sticker grid, and the minor:major semi-axis ratio                                                                                                       |
 | `labelWidth`, `labelHeight`              | Ring-label box size                                                                                                                                                                        |
+| `faceLabelGap`                           | Clearance between a face label's box and its ellipse                                                                                                                                       |
 | `ghostRadiusOffset`                      | Ghost offset from its target, in sticker radii                                                                                                                                             |
+
+`viewBox` is **not** a parameter — see above.
 
 ## Changing size: what actually scales
 
@@ -75,18 +85,15 @@ the initial prediction:
 
 - **Minimum sticker clearance is independent of the ring count.** It tracks
   `ringStep` alone — 15.04 at N=3, 4, and 5 alike — so a larger cube needs no
-  larger step. Only `r_max = r_inner + (N−1)·ringStep` grows, which means a new
-  size typically needs just a wider `viewBox`.
-- **Face-ellipse semi-axes must be derived from the grid, not fixed.** A
-  hardcoded pair that fits 3×3 clips 4×4 and above. They are computed from the
-  grid span measured in the ellipse's own rotated frame, and `ellipseMargin` /
-  `ellipseAspect` are solved so 3×3 still reproduces the reference's 46×40.
+  larger step. Only `r_max = r_inner + (N−1)·ringStep` grows, and the canvas
+  follows automatically because it is measured from the drawing.
+  - **Face-ellipse semi-axes must be derived from the grid, not fixed.** A
+    hardcoded pair that fits 3×3 clips 4×4 and above. They are computed from the
+    grid span measured in the ellipse's own rotated frame, and `ellipseMargin` /
+    `ellipseAspect` are solved so 3×3 still reproduces the reference's 46×40.
 
-The practical consequence: adding a size is usually a `viewBox` and nothing
-else. Run `--check` first and let the validation gate tell you what needs
-adjusting.
-
-## What validation checks
+The practical consequence: adding a size is a parameter set and nothing else.
+Run `--check` first and let the validation gate tell you what needs adjusting.
 
 Four groups, all of which must pass:
 
