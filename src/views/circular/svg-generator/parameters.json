@@ -45,7 +45,7 @@
             "ellipseAspect": 1.05
         },
         "5": {
-            "$comment": "Validation-only size. Not committed as an asset. Needs its own triangle side and inner radius: at the 3x3 values the rings crowd enough that stickers land on a third ring, violating I3.",
+            "$comment": "Served at every cube size like the rest. Needs its own triangle side and inner radius: at the 3x3 values the rings crowd enough that stickers land on a third ring, violating I3. Originally added as the ghost-rule falsification size (the first where edge-derived ghosts are a strict majority) and later enabled for real use.",
             "triangleSide": 141.163,
             "innerRadius": 98.814,
             "apexHeight": 122.812,
@@ -55,7 +55,7 @@
             "ellipseAspect": 1
         },
         "6": {
-            "$comment": "Validation-only size. Not committed as an asset. Same reason as size 5 for carrying its own ring geometry.",
+            "$comment": "Served at every cube size like the rest. Carries its own ring geometry for the same reason as size 5.",
             "triangleSide": 169.396,
             "innerRadius": 118.577,
             "apexHeight": 147.375,
@@ -65,7 +65,7 @@
             "ellipseAspect": 1
         },
         "7": {
-            "$comment": "Validation-only size. Not committed as an asset. Same reason as size 5 for carrying its own ring geometry.",
+            "$comment": "Served at every cube size like the rest. Carries its own ring geometry for the same reason as size 5.",
             "triangleSide": 198.229,
             "innerRadius": 138.76,
             "apexHeight": 172.459,

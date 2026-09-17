@@ -312,6 +312,7 @@ export class ViewLifecycleManager {
             },
             { once: true }
         );
+    }
 
     /**
      * Hides a view by destroying its panel and removing it from active views.
