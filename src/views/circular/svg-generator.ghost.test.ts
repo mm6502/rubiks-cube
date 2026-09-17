@@ -2,11 +2,12 @@ import { Axis } from '@/cube/types';
 
 import {
     CircularSvgParameters,
+    FACE_FILLS,
     axisCentres,
     faceCentroid,
     stickerPosition,
 } from './svg-generator/geometry';
-import { allGhosts, radiusRank } from './svg-generator/ghosts';
+import { allGhosts, emitGhosts, radiusRank } from './svg-generator/ghosts';
 import REFERENCE_SVG_TEXT from './view.svg?raw';
 
 /**
@@ -186,5 +187,50 @@ describe('circular svg generator — ghost layer', () => {
         expect(radiusRank(Axis.X, 0, 3)).toBe(2);
         expect(radiusRank(Axis.X, 2, 3)).toBe(0);
         expect(radiusRank(Axis.Y, 1, 3)).toBe(1);
+    });
+
+    it('inherits each ghost colour from the sticker it mirrors', () => {
+        // A ghost's colour is its source sticker's initial fill. Asserted against
+        // the reference rather than restated, so a change to either palette
+        // cannot satisfy the test by being self-consistent.
+        const referenceFills = new Map<string, string>();
+        for (const match of REFERENCE_SVG_TEXT.matchAll(/<circle class="ghost-sticker"[^>]*\/>/g)) {
+            const tag = match[0];
+            referenceFills.set(
+                `${attr(tag, 'data-ghost-target')}|${attr(tag, 'data-ghost-source')}`,
+                attr(tag, 'fill') ?? ''
+            );
+        }
+
+        // The reference bakes a fill on every ghost; the generator must too.
+        expect(referenceFills.size).toBe(72);
+        expect([...referenceFills.values()].filter(f => f === '')).toEqual([]);
+
+        const svg = emitGhosts(generated, REFERENCE_PARAMS.stickerRadius);
+        let checked = 0;
+        for (const match of svg.matchAll(/<circle class="ghost-sticker"[^>]*\/>/g)) {
+            const tag = match[0];
+            const key = `${attr(tag, 'data-ghost-target')}|${attr(tag, 'data-ghost-source')}`;
+            const expected = referenceFills.get(key);
+            expect(expected).toBeDefined();
+            expect(attr(tag, 'fill')).toBe(expected);
+            checked++;
+        }
+        expect(checked).toBe(72);
+    });
+
+    it('colours each ghost from its own source face, not its target face', () => {
+        // Guards the ordering mistake: a ghost is drawn inside its target's face
+        // group but mirrors a sticker on a *different* face — `buildGhost`
+        // filters out same-face candidates — so indexing the palette by
+        // `ghost.face` would paint every one of the 72 wrong.
+        let differing = 0;
+        for (const ghost of generated) {
+            const expected = FACE_FILLS[ghost.sourceFace];
+            if (ghost.sourceFace !== ghost.face) differing++;
+            expect(emitGhosts([ghost], 7)).toContain(`fill="${expected}"`);
+        }
+        expect(differing).toBe(generated.length);
+        expect(differing).toBe(72);
     });
 });

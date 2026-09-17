@@ -4,6 +4,7 @@ import { facePositionTo3D } from '@/cube/utils/sticker-position';
 import {
     ALL_FACES,
     CircularSvgParameters,
+    FACE_FILLS,
     FACE_RING_AXES,
     axisCentres,
     faceCentroid,
@@ -62,6 +63,12 @@ export interface GhostSpec {
     target: string;
     /** Sticker whose colour this ghost mirrors. */
     source: string;
+    /**
+     * Face of the source sticker, i.e. which colour the ghost mirrors. Carried
+     * explicitly rather than re-parsed from `source` so emission does not depend
+     * on the id format.
+     */
+    sourceFace: Face;
     x: number;
     y: number;
 }
@@ -215,12 +222,19 @@ function buildGhost(
         index,
         target: stickerId(target.face, target.facePosition),
         source: other.id,
+        sourceFace: other.face,
         x: round(centre.x + radius * Math.cos(angle)),
         y: round(centre.y + radius * Math.sin(angle)),
     };
 }
 
-/** Serialise the ghost wrapper group. */
+/** Serialise the ghost wrapper group.
+ *
+ * Each ghost is emitted with the fill of the sticker it mirrors, so the file on
+ * disk is correct standing alone. The runtime overwrites this on every state
+ * update (`updateGhostStickers` in `rendering.ts`), which is why omitting it was
+ * invisible in the app but left every generated asset's ghosts black.
+ */
 export function emitGhosts(ghosts: GhostSpec[], stickerRadius: number): string {
     let lastFace: Face | undefined;
     const lines: string[] = [];
@@ -231,7 +245,7 @@ export function emitGhosts(ghosts: GhostSpec[], stickerRadius: number): string {
             lastFace = ghost.face;
         }
         lines.push(
-            `    <circle class="ghost-sticker" data-ghost-axis="${ghost.axis}" data-ghost-layer="${ghost.rank}" data-ghost-face="${ghost.face}" data-ghost-index="${ghost.index}" data-ghost-target="${ghost.target}" data-ghost-source="${ghost.source}" cx="${ghost.x.toFixed(2)}" cy="${ghost.y.toFixed(2)}" r="${stickerRadius}" />`
+            `    <circle class="ghost-sticker" data-ghost-axis="${ghost.axis}" data-ghost-layer="${ghost.rank}" data-ghost-face="${ghost.face}" data-ghost-index="${ghost.index}" data-ghost-target="${ghost.target}" data-ghost-source="${ghost.source}" cx="${ghost.x.toFixed(2)}" cy="${ghost.y.toFixed(2)}" r="${stickerRadius}" fill="${FACE_FILLS[ghost.sourceFace]}" />`
         );
     }
 

@@ -3,6 +3,7 @@ import { Axis, Face } from '@/cube/types';
 import {
     ALL_FACES,
     CircularSvgParameters,
+    FACE_FILLS,
     FACE_RING_AXES,
     axisCentres,
     axisCircleId,
@@ -24,16 +25,6 @@ import { labelContent } from './labels';
  * resolve. See `validate.ts` for the checks that assert it, and
  * `scripts/circular-svg/README.md` for the parameter table.
  */
-
-/** Initial sticker fills, matching the reference asset's face colours. */
-const FACE_FILLS: Record<Face, string> = {
-    [Face.U]: '#ffffff',
-    [Face.D]: '#ffd500',
-    [Face.L]: '#009b48',
-    [Face.R]: '#0046ad',
-    [Face.B]: '#ff5800',
-    [Face.F]: '#b71234',
-};
 
 /** The three face labels whose positions the interaction dead-zone depends on. */
 export const DEAD_ZONE_FACE_LABELS: Face[] = [Face.L, Face.B, Face.D];

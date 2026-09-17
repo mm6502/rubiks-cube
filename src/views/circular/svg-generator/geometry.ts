@@ -114,6 +114,23 @@ export const FACE_IS_NEAR_THIRD: Record<Face, boolean> = {
 
 export const ALL_FACES: Face[] = [Face.U, Face.D, Face.L, Face.R, Face.F, Face.B];
 
+/**
+ * Initial sticker fill per face, matching the committed reference asset.
+ *
+ * Stickers AND ghosts both read this, so a ghost's baked colour cannot drift
+ * from the sticker it mirrors. The runtime recolours both anyway
+ * (`getFillColor` in `rendering.ts`), so these are starting values, not the
+ * final palette.
+ */
+export const FACE_FILLS: Record<Face, string> = {
+    [Face.U]: '#ffffff',
+    [Face.D]: '#ffd500',
+    [Face.L]: '#009b48',
+    [Face.R]: '#0046ad',
+    [Face.B]: '#ff5800',
+    [Face.F]: '#b71234',
+};
+
 export interface Point2D {
     x: number;
     y: number;
