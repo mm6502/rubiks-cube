@@ -130,7 +130,9 @@ function buildTargetStickerMap(
         const target = findStickerTarget(stickerId, postState);
 
         if (target) {
-            const posKey = getPositionKey(target.targetPosition);
+            // Keyed with the active size: getPositionKey defaults to 3 and throws
+            // on coordinates outside 0..2, so omitting it breaks larger cubes.
+            const posKey = getPositionKey(target.targetPosition, postState.cubeSize);
             const faceMap = stickerLookupMap.get(posKey);
             const targetSvgId = faceMap?.get(target.targetFace);
             if (targetSvgId) {
@@ -478,8 +480,10 @@ function createAdjacentStickerAnimation(
     const target = findStickerTarget(stickerId as StickerId, postState);
     if (!target) return undefined;
 
-    // Look up the SVG element at that target position.
-    const posKey = getPositionKey(target.targetPosition);
+    // Look up the SVG element at that target position. The key must be built for
+    // the active size — getPositionKey defaults to 3 and throws on coordinates
+    // outside 0..2, so omitting it breaks every size above 3.
+    const posKey = getPositionKey(target.targetPosition, postState.cubeSize);
     const faceMap = stickerLookupMap.get(posKey);
     if (!faceMap) return undefined;
 

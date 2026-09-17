@@ -202,7 +202,10 @@ export function buildStickerLookupMap(svgRoot: SVGSVGElement): StickerLookupResu
         }
 
         const { cubePosition, cubeFace } = mapping;
-        const posKey = getPositionKey(cubePosition);
+        // The key must be built for the active size: getPositionKey defaults to
+        // 3 and throws on coordinates outside 0..2, so omitting the size breaks
+        // every size above 3 during initialization.
+        const posKey = getPositionKey(cubePosition, cubeSize);
 
         if (!lookupMap.has(posKey)) {
             lookupMap.set(posKey, new Map());

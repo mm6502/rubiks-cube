@@ -267,7 +267,38 @@ export class ViewLifecycleManager {
             if (checkbox) {
                 checkbox.checked = false;
             }
+
+            // Surface the failure. Without this the panel simply never appears and
+            // the only trace is a console log, which reads as "the view is missing"
+            // rather than "the view failed to start".
+            this.showViewFailureNotice(viewType);
         }
+    }
+
+    /**
+     * Show a visible note next to a view's checkbox when it fails to initialize.
+     *
+     * The view's panel has already been removed at this point, so the checkbox's
+     * own label is the only place the user is looking. Replaces any existing note
+     * so repeated attempts don't stack messages.
+     */
+    private showViewFailureNotice(viewType: string): void {
+        const checkbox = document.getElementById(`show-${viewType}`) as HTMLInputElement | null;
+        const label = checkbox?.closest('label');
+        /* c8 ignore next 3 -- no checkbox means the controls are not mounted */
+        if (!label) return;
+
+        const noteId = `failure-${viewType}`;
+        let note = document.getElementById(noteId) as HTMLSpanElement | null;
+        if (!note) {
+            note = document.createElement('span');
+            note.id = noteId;
+            note.className = 'view-checkbox-note';
+            label.appendChild(note);
+        }
+
+        note.textContent = 'Failed to load — see console for details';
+        if (checkbox) checkbox.setAttribute('aria-describedby', noteId);
     }
 
     /**
