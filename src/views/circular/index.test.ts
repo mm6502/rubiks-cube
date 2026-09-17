@@ -15,14 +15,14 @@ describe('circularViewFactory', () => {
         it('offers the sizes that have a validated asset', () => {
             // Each size listed here must have a committed asset the loader can
             // resolve; svg-loader.test.ts asserts the other direction.
-            expect(circularViewFactory.getSupportedSizes!()).toEqual([2, 3]);
+            expect(circularViewFactory.getSupportedSizes!()).toEqual([2, 3, 4]);
         });
 
         it('does not offer sizes whose assets are validation-only or absent', () => {
             const sizes = circularViewFactory.getSupportedSizes!();
-            // 5x5 is a ghost-rule validation target, never a shipped size.
+            // 5x5 is a ghost-rule validation target with a real parameter set,
+            // so it is the one most likely to be enabled by accident.
             expect(sizes).not.toContain(5);
-            expect(sizes).not.toContain(4);
             expect(sizes).not.toContain(6);
             expect(sizes).not.toContain(7);
         });

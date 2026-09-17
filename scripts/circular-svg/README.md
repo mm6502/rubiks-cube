@@ -68,6 +68,24 @@ the rest are layout values the spec declines to derive and are tuned by eye.
 | `labelWidth`, `labelHeight`              | Ring-label box size                                                                                                                                                                        |
 | `ghostRadiusOffset`                      | Ghost offset from its target, in sticker radii                                                                                                                                             |
 
+## Changing size: what actually scales
+
+Two properties were measured rather than assumed, and one of them contradicted
+the initial prediction:
+
+- **Minimum sticker clearance is independent of the ring count.** It tracks
+  `ringStep` alone — 15.04 at N=3, 4, and 5 alike — so a larger cube needs no
+  larger step. Only `r_max = r_inner + (N−1)·ringStep` grows, which means a new
+  size typically needs just a wider `viewBox`.
+- **Face-ellipse semi-axes must be derived from the grid, not fixed.** A
+  hardcoded pair that fits 3×3 clips 4×4 and above. They are computed from the
+  grid span measured in the ellipse's own rotated frame, and `ellipseMargin` /
+  `ellipseAspect` are solved so 3×3 still reproduces the reference's 46×40.
+
+The practical consequence: adding a size is usually a `viewBox` and nothing
+else. Run `--check` first and let the validation gate tell you what needs
+adjusting.
+
 ## What validation checks
 
 Four groups, all of which must pass:
@@ -117,6 +135,16 @@ reference is hand-authored so its offsets range 6.99–7.94 instead of a constan
 7.00, and one corner cubie's stickers are antipodal in projection (~180° apart),
 making "toward the source" a genuine tie where the author chose a side by eye.
 That cubie accounts for six ghosts; everything else agrees within one unit.
+
+### Why N=5 is the falsification size
+
+Ghosts derived from the 1-edge class number `6 × (4N − 8)` out of a total `24N`,
+so their share of all ghosts is `1 − 2/N`. That share is **0% at N=2** (every
+sticker is a corner, so the edge class does not exist), **33% at N=3**, and
+exactly **50% at N=4** — a tie, not a majority. It first becomes a strict
+majority at **N=5 (60%)**. N=5 is therefore the smallest size that actually
+exercises the edge class in a way 3×3 cannot, which is why it is the validation
+target: if the rule were wrong for that class, 2×2 and 4×4 could both pass.
 
 ## Size-aware loading
 

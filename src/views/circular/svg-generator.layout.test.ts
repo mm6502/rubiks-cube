@@ -3,8 +3,10 @@ import {
     ALL_FACES,
     CircularSvgParameters,
     faceEllipseGeometry,
+    outerRadius,
     stickerPosition,
 } from './svg-generator/geometry';
+import { minimumStickerClearance } from './svg-generator/validate';
 
 /**
  * Layout sanity checks for a generated asset.
@@ -153,12 +155,30 @@ describe('circular svg generator — layout sanity', () => {
             }
         });
 
-        it('gives 4x4 a larger ring step than 3x3, as clearance requires', () => {
-            // Four rings per axis put adjacent intersections closer together, so
-            // the default step no longer clears the I4 bound.
+        it('clears the sticker-overlap bound independently of the ring count', () => {
+            // Measured, not assumed: minimum clearance tracks ringStep and is
+            // the same at every N, so four rings need no larger step than three.
+            // An earlier prediction that denser rings would crowd stickers was
+            // wrong, and this pins the corrected understanding.
+            const clearances = SIZES.map(size => {
+                const params = resolveParameters(size, loadParameters());
+                return minimumStickerClearance(size, params);
+            });
+
+            for (const clearance of clearances) {
+                expect(clearance).toBeGreaterThan(2 * 7.0);
+            }
+            // Same to within rounding across all sizes.
+            const spread = Math.max(...clearances) - Math.min(...clearances);
+            expect(spread).toBeLessThan(0.1);
+        });
+
+        it('grows r_max with the ring count, so only the viewBox changes', () => {
             const three = resolveParameters(3, loadParameters());
             const four = resolveParameters(4, loadParameters());
-            expect(four.ringStep).toBeGreaterThan(three.ringStep);
+
+            expect(three.ringStep).toBe(four.ringStep);
+            expect(outerRadius(4, four)).toBeGreaterThan(outerRadius(3, three));
         });
     });
 });

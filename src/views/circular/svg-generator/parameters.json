@@ -26,14 +26,12 @@
             "viewBox": "45 27 310 314"
         },
         "4": {
-            "$comment": "ringStep grows to 18 so the I4 clearance check passes with four rings per axis; (N-1)*ringStep = 54 still satisfies I2's upper bound of d = 100.",
-            "ringStep": 18,
-            "viewBox": "-12 -12 423 430"
+            "$comment": "Uses the shared ring step. Minimum sticker clearance turns out to be independent of the ring count (it tracks ringStep, not N), so four rings need no larger step than three — an earlier assumption to the contrary was measured and dropped. Only the viewBox grows, to fit r_max = r_min + 3*ringStep = 115.",
+            "viewBox": "12 3 375 390"
         },
         "5": {
             "$comment": "Validation-only size for the ghost rule. Never committed.",
-            "ringStep": 18,
-            "viewBox": "-51 -30 501 489"
+            "viewBox": "-34 -14 468 466"
         }
     }
 }
