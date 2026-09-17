@@ -252,6 +252,20 @@ export interface FaceEllipseGeometry {
 }
 
 /**
+ * Centroid of a face's sticker grid.
+ *
+ * This is the point ghosts are placed *away* from, and the point the face
+ * ellipse is centred on, so both callers share one definition.
+ */
+export function faceCentroid(face: Face, cubeSize: number, params: CircularSvgParameters): Point2D {
+    const positions = faceStickerPositions(face, cubeSize, params);
+    return {
+        x: positions.reduce((sum, p) => sum + p.x, 0) / positions.length,
+        y: positions.reduce((sum, p) => sum + p.y, 0) / positions.length,
+    };
+}
+
+/**
  * Face-ellipse geometry, derived from the sticker grid.
  *
  * Rotation is perpendicular to the face's outward direction (from the triangle
@@ -271,10 +285,7 @@ export function faceEllipseGeometry(
     params: CircularSvgParameters
 ): FaceEllipseGeometry {
     const positions = faceStickerPositions(face, cubeSize, params);
-    const centroid = {
-        x: positions.reduce((sum, p) => sum + p.x, 0) / positions.length,
-        y: positions.reduce((sum, p) => sum + p.y, 0) / positions.length,
-    };
+    const centroid = faceCentroid(face, cubeSize, params);
 
     const triangle = triangleCentroid(params);
     const outward = normalise({ x: centroid.x - triangle.x, y: centroid.y - triangle.y });

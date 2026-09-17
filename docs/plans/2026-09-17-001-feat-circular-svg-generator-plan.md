@@ -411,14 +411,15 @@ only the paths that unit adds or modifies.
 - **Approach** — Ghosts are generated per target sticker: multiplicity from the
   sticker's grid-cell class (2 edges → 2, 1 edge → 1, 0 edges → 0), each ghost
   tagged with an axis circle the target lies on, placed tangentially along that
-  circle at one `r_s`, in the direction opposite the source→target travel, with
-  `data-ghost-source` naming the adjacent sticker across that edge. Per-class
-  offset, direction, and axis exclusions are parameters so tuning flows back.
-  The falsification step is the important part. Ghosts derived from the 1-edge
-  class are `6 x (4N - 8)` of a total `24N`, so their share is `1 - 2/N` —
-  absent at N=2, a third at N=3, and exactly half at N=4. That makes N=5 the
-  first size where the edge class is a strict majority (60%), and therefore the
-  first that exercises the class the rule is most likely to get wrong.
+  circle at one `r_s`, in the direction away from the target's own face
+  centroid, with `data-ghost-source` naming the adjacent sticker across that
+  edge. Per-class offset, direction, and axis exclusions are parameters so
+  tuning flows back. The falsification step is the important part. Ghosts
+  derived from the 1-edge class are `6 x (4N - 8)` of a total `24N`, so their
+  share is `1 - 2/N` — absent at N=2, a third at N=3, and exactly half at N=4.
+  That makes N=5 the first size where the edge class is a strict majority (60%),
+  and therefore the first that exercises the class the rule is most likely to
+  get wrong.
 - **Execution note** — Treat a ghost mismatch at any size as a generator bug to
   fix, not a size to demote to hand-tuning. The fallback would hide exactly the
   failure this unit exists to detect.

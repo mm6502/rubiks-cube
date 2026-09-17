@@ -2,6 +2,7 @@ import { generate, loadParameters, resolveParameters } from './svg-generator/gen
 import {
     ALL_FACES,
     CircularSvgParameters,
+    faceCentroid,
     faceEllipseGeometry,
     outerRadius,
     stickerPosition,
@@ -107,6 +108,25 @@ describe('circular svg generator — layout sanity', () => {
         }
 
         expect(seen.size).toBe(size * size * 6);
+    });
+
+    it.each(SIZES)('places every ghost outward from its own face at size %i', size => {
+        // The direction rule: a ghost protrudes away from its own face centroid.
+        // Asserted at every size because the failure mode is size-dependent — a
+        // rule anchored to the source sticker instead happens to coincide with
+        // this one at N>=4 and diverges only at N=2 and N=3, on D/L/B.
+        const result = generate(size, loadParameters());
+        const params = resolveParameters(size, loadParameters());
+
+        for (const ghost of result.ghosts) {
+            const targetPosition = Number(ghost.target.split('-')[2]);
+            const target = stickerPosition(ghost.face, targetPosition, size, params);
+            const centroid = faceCentroid(ghost.face, size, params);
+
+            const before = Math.hypot(target.x - centroid.x, target.y - centroid.y);
+            const after = Math.hypot(ghost.x - centroid.x, ghost.y - centroid.y);
+            expect(after).toBeGreaterThan(before);
+        }
     });
 
     it.each(SIZES)('keeps ghosts outside their target so they stay visible at size %i', size => {

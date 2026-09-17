@@ -164,12 +164,11 @@ layers, so it is not a trivial scale-down of 3×3.
     is the target displaced tangentially along that circle by exactly one
     sticker radius ($r_s = 7$; measured 6.99–7.94). The tangent relationship is
     exact — cosine similarity against the circle tangent is 0.998–0.999 across
-    all 72 ghosts, against a "toward the source sticker" hypothesis that only
-    reaches 0.03 in the worst case.
-  - **Direction is opposite to the source-to-target travel.** The ghost sits on
-    the side the source sticker left, not the side it arrives from — 70 of 72
-    ghosts have the opposite sign to the source→target arc; the 2 exceptions are
-    near-zero angles where the sign is numerically unstable.
+    all 72 ghosts.
+  - **Direction is away from the target's own face centroid.** The ghost
+    protrudes outward from the face it belongs to. Deriving the side from the
+    source sticker instead reproduces most faces but mirrors the ghosts on D, L
+    and B inward, so the face centroid — not the source — is the correct anchor.
   - **Source is the adjacent sticker across that edge** on the neighbouring
     face, whose colour is copied at render time.
 

@@ -1,6 +1,11 @@
 import { Axis } from '@/cube/types';
 
-import { CircularSvgParameters, axisCentres } from './svg-generator/geometry';
+import {
+    CircularSvgParameters,
+    axisCentres,
+    faceCentroid,
+    stickerPosition,
+} from './svg-generator/geometry';
 import { allGhosts, radiusRank } from './svg-generator/ghosts';
 import REFERENCE_SVG_TEXT from './view.svg?raw';
 
@@ -122,29 +127,15 @@ describe('circular svg generator — ghost layer', () => {
         }
     });
 
-    it('places ghosts within the reference tolerance of the hand-authored asset', () => {
-        // The committed asset is hand-authored, so two effects bound agreement:
-        //
-        // 1. Its offsets range 6.99..7.94 rather than a constant 7.00.
-        // 2. One corner cubie produces genuinely ambiguous ghosts. Its stickers
-        //    sit at the same radial distance from the shared axis centre but
-        //    ~180 degrees apart, so "toward the source" is a tie and the author
-        //    picked a side by eye. That cubie accounts for six ghosts (three
-        //    sticker pairs, two ghosts each).
-        //
-        // Structural agreement is asserted separately and exactly; this test
-        // bounds the positional remainder so a real regression still fails.
-        const ambiguous = new Set([
-            'sticker-D-6|sticker-L-6',
-            'sticker-D-6|sticker-B-8',
-            'sticker-L-6|sticker-D-6',
-            'sticker-L-6|sticker-B-8',
-            'sticker-B-8|sticker-D-6',
-            'sticker-B-8|sticker-L-6',
-        ]);
-
-        let withinOne = 0;
-        const outliers: string[] = [];
+    it('reproduces every reference ghost position within one unit', () => {
+        // The ghost moves tangentially along its ring, away from the target's
+        // own face centroid. Deriving the side from the source sticker instead
+        // — an earlier attempt — leaves six ghosts on D, L and B mirrored
+        // inward, because on those faces the source sits on the opposite side
+        // of the arc. Splitting the two comparisons keeps a structural
+        // regression from hiding behind a loose positional tolerance.
+        let worst = 0;
+        let measured = 0;
 
         for (const reference of referenceGhosts) {
             const mine = generated.find(
@@ -156,16 +147,36 @@ describe('circular svg generator — ghost layer', () => {
             expect(mine).toBeDefined();
 
             const distance = Math.hypot(mine!.x - reference.x, mine!.y - reference.y);
-            if (distance <= 1) {
-                withinOne++;
-            } else {
-                outliers.push(`${reference.target}|${reference.source}`);
-            }
+            worst = Math.max(worst, distance);
+            measured++;
         }
 
-        expect(withinOne).toBe(66);
-        // Every outlier is one of the known antipodal pairs, not a stray error.
-        expect(outliers.sort()).toEqual([...ambiguous].sort());
+        // All 72 agree, with no degenerate cases left over.
+        expect(measured).toBe(72);
+        expect(worst).toBeLessThanOrEqual(1);
+    });
+
+    it('places every ghost on the outward side of its own face', () => {
+        // The invariant the reference encodes on all six faces, asserted
+        // directly so a future direction change cannot invert a face silently.
+        const centroids = Object.fromEntries(
+            ['U', 'D', 'L', 'R', 'F', 'B'].map(face => [
+                face,
+                faceCentroid(face as never, 3, REFERENCE_PARAMS),
+            ])
+        );
+
+        for (const ghost of generated) {
+            const targetPosition = Number(ghost.target.split('-')[2]);
+            const target = stickerPosition(ghost.face, targetPosition, 3, REFERENCE_PARAMS);
+            const centroid = centroids[ghost.face as string];
+
+            // Distance from the face centroid must increase when moving from the
+            // target to its ghost.
+            const before = Math.hypot(target.x - centroid.x, target.y - centroid.y);
+            const after = Math.hypot(ghost.x - centroid.x, ghost.y - centroid.y);
+            expect(after).toBeGreaterThan(before);
+        }
     });
 
     it('derives radius rank as the complement of layer index off the Z axis', () => {

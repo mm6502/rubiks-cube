@@ -6,6 +6,7 @@ import {
     CircularSvgParameters,
     FACE_RING_AXES,
     axisCentres,
+    faceCentroid,
     ringRadius,
     round,
     stickerId,
@@ -18,9 +19,7 @@ import {
  * A ghost is a semi-transparent hint that mirrors the colour of a *different*
  * sticker sitting on the same cubie, placed just outside the target sticker so
  * the user can see what is around the edge. The rule below was derived from the
- * 72 ghosts in the committed 3x3 asset and verified against all of them.
- *
- * The rule has four parts, three of which reproduce the reference exactly:
+ * 72 ghosts in the committed 3x3 asset and reproduces all of them.
  *
  * 1. **Multiplicity** — one ghost per other sticker on the same cubie. A corner
  *    cubie carries three stickers, so each gets two ghosts; an edge carries two,
@@ -32,15 +31,16 @@ import {
  *    rank* (how far out from the innermost ring the circle sits) rather than a
  *    layer index. On Z the two agree; on X and Y the rank is reversed. This
  *    distinction is what the reference's `data-ghost-layer` values encode.
- * 4. **Position** — exactly one sticker radius along the tagged circle, in the
- *    direction of the source sticker.
+ * 4. **Position** — exactly one sticker radius of arc along the tagged circle,
+ *    in the direction pointing AWAY from the target's own face centroid, so the
+ *    ghost protrudes outward from the face it belongs to.
  *
- * Part 4 is the only approximate one: the reference asset is hand-authored and
- * its ghost offsets range from 6.99 to 7.94 rather than a constant 7.00, so a
- * generated asset lands within about one unit of the committed positions. Two
- * of the 72 ghosts are further off because their source sits almost exactly
- * opposite the target (~180°), where "toward the source" is degenerate and the
- * author chose a side by eye.
+ * Part 4's direction is the subtle one. An earlier implementation derived the
+ * side from the source sticker instead ("move toward the source"), which is
+ * right on U, R and F but mirrors six ghosts on D, L and B inward, because on
+ * those faces the source lies on the opposite side of the arc. Anchoring the
+ * direction to the face centroid is what makes all six faces read outward, and
+ * it reproduces every reference ghost.
  */
 
 /** Per-class offset as a multiple of the sticker radius, tunable per size. */
@@ -192,14 +192,20 @@ function buildGhost(
     const centre = axisCentres(params)[axis];
     const radius = ringRadius(axis, layerIndex, cubeSize, params);
     const start = stickerPosition(target.face, target.facePosition, cubeSize, params);
-    const source = stickerPosition(other.face, other.facePosition, cubeSize, params);
 
-    // Angular displacement of one sticker radius of arc, signed toward the source.
+    // The ghost moves tangentially along its ring, in the direction that points
+    // AWAY from the target's own face centroid — it protrudes outward from the
+    // face it belongs to. This is what makes every face read consistently:
+    // deriving the side from the source sticker instead leaves D, L and B with
+    // ghosts mirrored inward, because on those three faces the source sits on
+    // the opposite side of the arc.
+    const centroid = faceCentroid(target.face, cubeSize, params);
     const angleStart = Math.atan2(start.y - centre.y, start.x - centre.x);
-    const angleSource = Math.atan2(source.y - centre.y, source.x - centre.x);
-    const delta = wrapAngle(angleSource - angleStart);
-    const step = Math.sign(delta) * ((params.stickerRadius * ghostParams.radiusOffset) / radius);
+    const tangent = { x: -Math.sin(angleStart), y: Math.cos(angleStart) };
+    const outward = { x: start.x - centroid.x, y: start.y - centroid.y };
+    const direction = tangent.x * outward.x + tangent.y * outward.y >= 0 ? 1 : -1;
 
+    const step = (direction * params.stickerRadius * ghostParams.radiusOffset) / radius;
     const angle = angleStart + step;
 
     return {
@@ -212,10 +218,6 @@ function buildGhost(
         x: round(centre.x + radius * Math.cos(angle)),
         y: round(centre.y + radius * Math.sin(angle)),
     };
-}
-
-function wrapAngle(angle: number): number {
-    return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
 /** Serialise the ghost wrapper group. */

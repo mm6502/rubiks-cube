@@ -127,14 +127,19 @@ asset and reproduces all of them:
    agree; on X and Y the rank is the complement. This is what the reference's
    `data-ghost-layer` values encode.
 4. **Position** — one sticker radius of arc along the tagged circle, in the
-   direction of the source sticker.
+   direction pointing **away from the target's own face centroid**. The ghost
+   protrudes outward from the face it belongs to.
+
+Direction is the subtle part, and the first implementation got it wrong.
+Deriving the side from the source sticker ("move toward the source") reproduces
+most faces but mirrors six ghosts on D, L and B inward, because on those three
+faces the source sits on the opposite side of the arc. Placing the ghost outward
+from its own face centroid fixes all six and reproduces every reference ghost:
+the worst deviation drops from 13.98 to 0.94, with no outliers at all.
 
 Structural agreement with the reference is exact (target, source, axis, ring
-tag). Positional agreement is bounded rather than exact for two reasons: the
-reference is hand-authored so its offsets range 6.99–7.94 instead of a constant
-7.00, and one corner cubie's stickers are antipodal in projection (~180° apart),
-making "toward the source" a genuine tie where the author chose a side by eye.
-That cubie accounts for six ghosts; everything else agrees within one unit.
+tag), and positional agreement is now complete — all 72 ghosts land within one
+unit of the hand-authored asset.
 
 ### Why N=5 is the falsification size
 

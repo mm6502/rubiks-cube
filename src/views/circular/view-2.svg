@@ -150,22 +150,22 @@
     <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="U" data-ghost-index="7" data-ghost-target="sticker-U-3" data-ghost-source="sticker-R-0" cx="204.64" cy="175.25" r="7" />
     <!-- Ghost stickers at face D -->
     <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="0" data-ghost-target="sticker-D-0" data-ghost-source="sticker-F-2" cx="183.77" cy="272.28" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="1" data-ghost-target="sticker-D-0" data-ghost-source="sticker-L-3" cx="194.03" cy="273.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="1" data-ghost-target="sticker-D-0" data-ghost-source="sticker-L-3" cx="182.34" cy="281.08" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="2" data-ghost-target="sticker-D-1" data-ghost-source="sticker-F-3" cx="195.36" cy="262.75" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="3" data-ghost-target="sticker-D-1" data-ghost-source="sticker-R-2" cx="204.64" cy="262.75" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="4" data-ghost-target="sticker-D-2" data-ghost-source="sticker-B-3" cx="194.52" cy="283.39" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="5" data-ghost-target="sticker-D-2" data-ghost-source="sticker-L-2" cx="205.48" cy="283.39" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="6" data-ghost-target="sticker-D-3" data-ghost-source="sticker-B-2" cx="205.97" cy="273.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="4" data-ghost-target="sticker-D-2" data-ghost-source="sticker-B-3" cx="205.82" cy="291.62" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="5" data-ghost-target="sticker-D-2" data-ghost-source="sticker-L-2" cx="194.18" cy="291.62" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="6" data-ghost-target="sticker-D-3" data-ghost-source="sticker-B-2" cx="217.66" cy="281.08" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="7" data-ghost-target="sticker-D-3" data-ghost-source="sticker-R-3" cx="216.23" cy="272.28" r="7" />
     <!-- Ghost stickers at face L -->
-    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="0" data-ghost-target="sticker-L-0" data-ghost-source="sticker-B-1" cx="130.92" cy="143.31" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="0" data-ghost-target="sticker-L-0" data-ghost-source="sticker-B-1" cx="130.05" cy="129.36" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="1" data-ghost-target="sticker-L-0" data-ghost-source="sticker-U-0" cx="137.00" cy="135.00" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="2" data-ghost-target="sticker-L-1" data-ghost-source="sticker-F-0" cx="134.93" cy="157.80" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="3" data-ghost-target="sticker-L-1" data-ghost-source="sticker-U-2" cx="139.54" cy="149.79" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="4" data-ghost-target="sticker-L-2" data-ghost-source="sticker-B-3" cx="116.56" cy="148.23" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="5" data-ghost-target="sticker-L-2" data-ghost-source="sticker-D-2" cx="122.02" cy="138.74" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="4" data-ghost-target="sticker-L-2" data-ghost-source="sticker-B-3" cx="115.03" cy="134.33" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="5" data-ghost-target="sticker-L-2" data-ghost-source="sticker-D-2" cx="109.24" cy="144.41" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="6" data-ghost-target="sticker-L-3" data-ghost-source="sticker-F-2" cx="120.88" cy="163.06" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="7" data-ghost-target="sticker-L-3" data-ghost-source="sticker-D-0" cx="124.99" cy="153.62" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="7" data-ghost-target="sticker-L-3" data-ghost-source="sticker-D-0" cx="112.50" cy="159.89" r="7" />
     <!-- Ghost stickers at face R -->
     <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="R" data-ghost-index="0" data-ghost-target="sticker-R-0" data-ghost-source="sticker-F-1" cx="210.46" cy="201.21" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="R" data-ghost-index="1" data-ghost-target="sticker-R-0" data-ghost-source="sticker-U-3" cx="215.07" cy="193.20" r="7" />
@@ -188,11 +188,11 @@
     <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="0" data-ghost-target="sticker-B-0" data-ghost-source="sticker-U-1" cx="260.46" cy="149.79" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="1" data-ghost-target="sticker-B-0" data-ghost-source="sticker-R-1" cx="265.07" cy="157.80" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="2" data-ghost-target="sticker-B-1" data-ghost-source="sticker-U-0" cx="263.00" cy="135.00" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="3" data-ghost-target="sticker-B-1" data-ghost-source="sticker-L-0" cx="269.08" cy="143.31" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="4" data-ghost-target="sticker-B-2" data-ghost-source="sticker-D-3" cx="275.01" cy="153.62" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="3" data-ghost-target="sticker-B-1" data-ghost-source="sticker-L-0" cx="269.95" cy="129.36" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="4" data-ghost-target="sticker-B-2" data-ghost-source="sticker-D-3" cx="287.50" cy="159.89" r="7" />
     <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="5" data-ghost-target="sticker-B-2" data-ghost-source="sticker-R-3" cx="279.12" cy="163.06" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="6" data-ghost-target="sticker-B-3" data-ghost-source="sticker-D-2" cx="277.98" cy="138.74" r="7" />
-    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="7" data-ghost-target="sticker-B-3" data-ghost-source="sticker-L-2" cx="283.44" cy="148.23" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="6" data-ghost-target="sticker-B-3" data-ghost-source="sticker-D-2" cx="290.76" cy="144.41" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="7" data-ghost-target="sticker-B-3" data-ghost-source="sticker-L-2" cx="284.97" cy="134.33" r="7" />
   </g>
   <!-- Intersection Stickers -->
 <!-- Face U -->
