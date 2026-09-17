@@ -100,7 +100,28 @@ function describe(cubeSize: number): string {
     and circle intersections create slanted-square (diamond-like) regions.`;
 }
 
-/** The stylesheet, unchanged from the reference asset. */
+/**
+ * The stylesheet.
+ *
+ * Mirrors the reference asset's stylesheet so generated assets look like the
+ * hand-authored 3x3. It previously carried a comment claiming to be "unchanged
+ * from the reference asset" while stopping three rules early: `.sticker-wrapper`,
+ * `.sticker` and `.ghost-sticker`. The markup those rules target was already
+ * emitted correctly, so the loss was purely visual — stickers rendered without
+ * their black outline and without the drop-shadow that gives them depth — and the
+ * misplaced comment is what stopped anyone checking.
+ *
+ * The exceptions to a verbatim copy, both deliberate:
+ *
+ *   * `.ghost-sticker` omits `r: 7`. The reference declares a fixed radius in CSS,
+ *     and CSS overrides a presentation attribute, so copying it would silently pin
+ *     every ghost to 7 and make a future per-size `stickerRadius` a no-op for
+ *     ghosts while the stickers still responded. The radius is emitted as an
+ *     attribute from `stickerRadius` instead, which is where it belongs.
+ *   * `drop-shadow` and `stroke` values are unchanged, including the CSS custom
+ *     properties, which resolve from the surrounding theme exactly as they do for
+ *     the reference.
+ */
 function styles(): string {
     return `      /* Theme-friendly: inherits text/stroke color from surrounding CSS */
       .stroke { stroke: currentColor; fill: none; vector-effect: non-scaling-stroke; }
@@ -114,7 +135,29 @@ function styles(): string {
       .faceLabel text { fill: currentColor; font: bold 12px Arial, system-ui, -apple-system, sans-serif; }
       .faceLabel rect { fill: var(--color-domain-face-label-bg); stroke: var(--color-domain-face-label-border); stroke-width: 1.5; }
       .faceLabel > g { transition: transform 0.3s ease; }
-      .faceEllipse { fill: currentColor; stroke: currentColor; stroke-width: 1.5; opacity: 0.2; }`;
+      .faceEllipse { fill: currentColor; stroke: currentColor; stroke-width: 1.5; opacity: 0.2; }
+
+      .sticker-wrapper {
+        filter:
+          drop-shadow(2px 2px 1.25px rgba(0,0,0,0.8))
+          drop-shadow(-0.5px -0.5px 0.66px rgba(0,0,0,0.3));
+      }
+      .sticker {
+        stroke: black;
+        stroke-width: 0.8;
+        cursor: grab;
+        pointer-events: visiblePainted;
+        /* will-change promotes stickers to their own compositing layer for smoother WAAPI animations. */
+        will-change: transform;
+      }
+
+      .ghost-sticker {
+        opacity: 0.75;
+        pointer-events: none;
+        stroke: var(--color-domain-sticker-border);
+        stroke-width: 1;
+        transition: fill 0.3s ease, opacity 0.3s ease;
+      }`;
 }
 
 /**

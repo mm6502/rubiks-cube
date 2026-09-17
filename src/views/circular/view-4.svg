@@ -30,6 +30,28 @@
       .faceLabel rect { fill: var(--color-domain-face-label-bg); stroke: var(--color-domain-face-label-border); stroke-width: 1.5; }
       .faceLabel > g { transition: transform 0.3s ease; }
       .faceEllipse { fill: currentColor; stroke: currentColor; stroke-width: 1.5; opacity: 0.2; }
+
+      .sticker-wrapper {
+        filter:
+          drop-shadow(2px 2px 1.25px rgba(0,0,0,0.8))
+          drop-shadow(-0.5px -0.5px 0.66px rgba(0,0,0,0.3));
+      }
+      .sticker {
+        stroke: black;
+        stroke-width: 0.8;
+        cursor: grab;
+        pointer-events: visiblePainted;
+        /* will-change promotes stickers to their own compositing layer for smoother WAAPI animations. */
+        will-change: transform;
+      }
+
+      .ghost-sticker {
+        opacity: 0.75;
+        pointer-events: none;
+        stroke: var(--color-domain-sticker-border);
+        stroke-width: 1;
+        transition: fill 0.3s ease, opacity 0.3s ease;
+      }
     </style>
     <mask id="label-mask">
       <rect x="4" y="-27" width="391" height="412" fill="white" />

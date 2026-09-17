@@ -59,6 +59,34 @@ const generated = generate(3, loadParameters());
 const generatedStickers = parseIdKeyed(generated.svg, t => t.includes('class="sticker"'));
 const generatedAxisCircles = parseIdKeyed(generated.svg, t => t.includes('data-axis="'));
 
+/**
+ * Class selectors declared in an asset's `<style>` block.
+ *
+ * Used to compare the generated stylesheet against the reference's. The
+ * structural assertions elsewhere in this file compare elements, ids and
+ * coordinates, so a stylesheet rule could be dropped without any of them
+ * noticing — which is exactly what happened: `.sticker-wrapper`, `.sticker` and
+ * `.ghost-sticker` were missing from the generator's stylesheet while its comment
+ * claimed it was unchanged from the reference. The markup those rules target was
+ * emitted correctly, so the loss was purely visual and invisible to every
+ * element-level check.
+ */
+function classSelectors(svg: string): string[] {
+    const style = /<style>([\s\S]*?)<\/style>/.exec(svg)?.[1];
+    if (!style) return [];
+    const withoutComments = style.replace(/\/\*[\s\S]*?\*\//g, '');
+    const found = new Set<string>();
+    // Each rule's selector list, up to the opening brace.
+    for (const m of withoutComments.matchAll(/(^|\})\s*([^{}]+)\{/g)) {
+        for (const sel of m[2].split(',')) {
+            // Class selectors only; element and pseudo selectors are not the
+            // contract this guards.
+            for (const cls of sel.matchAll(/\.([A-Za-z][\w-]*)/g)) found.add(cls[1]);
+        }
+    }
+    return [...found].sort();
+}
+
 describe('circular svg generator — 3x3 regeneration fidelity', () => {
     it('validates cleanly before writing', () => {
         expect(generated.issues).toEqual([]);
@@ -107,6 +135,59 @@ describe('circular svg generator — 3x3 regeneration fidelity', () => {
             expect(mine!.attrs['data-axis']).toBe(reference.attrs['data-axis']);
             expect(mine!.attrs['data-layer-index']).toBe(reference.attrs['data-layer-index']);
         }
+    });
+
+    it('declares every class selector the reference stylesheet declares', () => {
+        // Structural comparison cannot see a missing stylesheet rule, so a dropped
+        // rule is invisible to every other assertion here while being plainly
+        // visible to a user. This is the check whose absence let three rules go
+        // missing - including the sticker outline and the drop-shadow that gives
+        // the stickers their depth.
+        //
+        // Asserted as a set containment over the REFERENCE's selectors, so a rule
+        // added to the reference later fails here rather than being silently
+        // dropped from generated assets.
+        const reference = classSelectors(REFERENCE_SVG_TEXT);
+        const mine = classSelectors(generated.svg);
+
+        expect(reference.length).toBeGreaterThan(0);
+        expect(reference.filter(sel => !mine.includes(sel))).toEqual([]);
+    });
+
+    it('gives stickers their outline and shadow', () => {
+        // Named separately from the parity check so a failure states what the user
+        // would see. These three declarations are the visible difference between a
+        // generated asset and the reference: without them stickers render flat and
+        // borderless.
+        const style = /<style>([\s\S]*?)<\/style>/.exec(generated.svg)![1];
+
+        // A black outline on each sticker.
+        const stickerRule = /\.sticker\s*\{([^}]*)\}/.exec(style)?.[1] ?? '';
+        expect(stickerRule).toMatch(/stroke:\s*black/);
+        expect(stickerRule).toMatch(/stroke-width:\s*[\d.]+/);
+
+        // The drop-shadow lives on the wrapper, not the sticker itself.
+        const wrapperRule = /\.sticker-wrapper\s*\{([^}]*)\}/.exec(style)?.[1] ?? '';
+        expect(wrapperRule).toMatch(/drop-shadow\(/);
+
+        // The ghost rule's behaviour, not just its looks: ghosts must not take
+        // pointer events, and their colour change must transition.
+        const ghostRule = /\.ghost-sticker\s*\{([^}]*)\}/.exec(style)?.[1] ?? '';
+        expect(ghostRule).toMatch(/pointer-events:\s*none/);
+        expect(ghostRule).toMatch(/transition:/);
+    });
+
+    it('does not pin the ghost radius in CSS', () => {
+        // The reference declares `r: 7` in the ghost rule. CSS overrides a
+        // presentation attribute, so copying that would fix every ghost at 7 and
+        // make a per-size stickerRadius a no-op for ghosts while stickers still
+        // responded. The radius belongs on the element, from the parameter.
+        const style = /<style>([\s\S]*?)<\/style>/.exec(generated.svg)![1];
+        const ghostRule = /\.ghost-sticker\s*\{([^}]*)\}/.exec(style)?.[1] ?? '';
+        expect(ghostRule).not.toMatch(/(^|[;{\s])r\s*:/);
+
+        // And the element does carry it.
+        expect(generated.svg).toMatch(/<circle class="ghost-sticker"[^>]*\br="7"/);
     });
 
     it('emits every element the runtime resolves', () => {
