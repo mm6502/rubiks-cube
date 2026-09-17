@@ -11,6 +11,23 @@ vi.mock('./circular.module.css', () => ({
 }));
 
 describe('circularViewFactory', () => {
+    describe('getSupportedSizes', () => {
+        it('offers the sizes that have a validated asset', () => {
+            // Each size listed here must have a committed asset the loader can
+            // resolve; svg-loader.test.ts asserts the other direction.
+            expect(circularViewFactory.getSupportedSizes!()).toEqual([2, 3]);
+        });
+
+        it('does not offer sizes whose assets are validation-only or absent', () => {
+            const sizes = circularViewFactory.getSupportedSizes!();
+            // 5x5 is a ghost-rule validation target, never a shipped size.
+            expect(sizes).not.toContain(5);
+            expect(sizes).not.toContain(4);
+            expect(sizes).not.toContain(6);
+            expect(sizes).not.toContain(7);
+        });
+    });
+
     describe('create', () => {
         it('should create a new CircularCubeView instance', () => {
             // Arrange & Act

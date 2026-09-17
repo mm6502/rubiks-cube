@@ -1,0 +1,164 @@
+import { generate, loadParameters, resolveParameters } from './svg-generator/generate';
+import {
+    ALL_FACES,
+    CircularSvgParameters,
+    faceEllipseGeometry,
+    stickerPosition,
+} from './svg-generator/geometry';
+
+/**
+ * Layout sanity checks for a generated asset.
+ *
+ * These stand in for the visual inspection R10 asks for: a render can look
+ * plausible while individual elements are off-canvas, outside their face, or
+ * overlapping. Each check below is a property that must hold for the layout to
+ * be usable, expressed numerically so it cannot drift.
+ */
+const SPACING = 2;
+
+function parseViewBox(viewBox: string) {
+    const [x, y, width, height] = viewBox.split(/\s+/).map(Number);
+    return { x, y, width, height };
+}
+
+const sizeEntries = Object.entries(loadParameters().sizes).map(([size]) => Number(size));
+
+describe('circular svg generator — layout sanity', () => {
+    // The 2x2 asset is the one this work ships; the others guard generality.
+    const SIZES = sizeEntries;
+
+    it.each(SIZES)('keeps every element inside the viewBox at size %i', size => {
+        const { svg } = generate(size, loadParameters());
+        const params = resolveParameters(size, loadParameters());
+        const view = parseViewBox(params.viewBox);
+
+        // Stickers
+        for (const face of ALL_FACES) {
+            for (let position = 0; position < size * size; position++) {
+                const point = stickerPosition(face, position, size, params);
+                expect(point.x - params.stickerRadius).toBeGreaterThanOrEqual(view.x);
+                expect(point.y - params.stickerRadius).toBeGreaterThanOrEqual(view.y);
+                expect(point.x + params.stickerRadius).toBeLessThanOrEqual(view.x + view.width);
+                expect(point.y + params.stickerRadius).toBeLessThanOrEqual(view.y + view.height);
+            }
+        }
+
+        // The generated markup should agree with the geometry module.
+        expect(svg).toContain(`data-cube-size="${size}"`);
+    });
+
+    it.each(SIZES)('keeps every face ellipse inside the viewBox at size %i', size => {
+        const params = resolveParameters(size, loadParameters());
+        const view = parseViewBox(params.viewBox);
+
+        for (const face of ALL_FACES) {
+            const ellipse = faceEllipseGeometry(face, size, params);
+            const reach = Math.max(ellipse.rx, ellipse.ry);
+            expect(ellipse.cx - reach).toBeGreaterThanOrEqual(view.x - SPACING);
+            expect(ellipse.cy - reach).toBeGreaterThanOrEqual(view.y - SPACING);
+            expect(ellipse.cx + reach).toBeLessThanOrEqual(view.x + view.width + SPACING);
+            expect(ellipse.cy + reach).toBeLessThanOrEqual(view.y + view.height + SPACING);
+        }
+    });
+
+    it.each(SIZES)('contains each face stickers within its own ellipse at size %i', size => {
+        // A sticker falling outside its face's ellipse means the ellipse and the
+        // sticker grid disagree — the user would see a sticker floating off the
+        // face it belongs to.
+        const params = resolveParameters(size, loadParameters());
+
+        for (const face of ALL_FACES) {
+            const ellipse = faceEllipseGeometry(face, size, params);
+            const rotation = ((ellipse.rotation ?? 0) * Math.PI) / 180;
+            const cos = Math.cos(-rotation);
+            const sin = Math.sin(-rotation);
+
+            for (let position = 0; position < size * size; position++) {
+                const point = stickerPosition(face, position, size, params);
+                const dx = point.x - ellipse.cx;
+                const dy = point.y - ellipse.cy;
+                const localX = dx * cos - dy * sin;
+                const localY = dx * sin + dy * cos;
+
+                const normalised = (localX / ellipse.rx) ** 2 + (localY / ellipse.ry) ** 2;
+
+                // Allow the sticker's own radius as slack, since the ellipse is
+                // fitted to sticker centres rather than their extents.
+                const slack = params.stickerRadius / Math.min(ellipse.rx, ellipse.ry);
+                expect(Math.sqrt(normalised)).toBeLessThanOrEqual(1 + slack);
+            }
+        }
+    });
+
+    it.each(SIZES)('gives every sticker a distinct position at size %i', size => {
+        // Duplicated positions would mean two stickers stacked, hiding one.
+        const params = resolveParameters(size, loadParameters());
+        const seen = new Set<string>();
+
+        for (const face of ALL_FACES) {
+            for (let position = 0; position < size * size; position++) {
+                const point = stickerPosition(face, position, size, params);
+                const key = `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
+                expect(seen.has(key)).toBe(false);
+                seen.add(key);
+            }
+        }
+
+        expect(seen.size).toBe(size * size * 6);
+    });
+
+    it.each(SIZES)('keeps ghosts outside their target so they stay visible at size %i', size => {
+        // A ghost under its own target would be invisible, defeating its purpose.
+        const result = generate(size, loadParameters());
+        const params = resolveParameters(size, loadParameters());
+
+        for (const ghost of result.ghosts) {
+            const targetPosition = Number(ghost.target.split('-')[2]);
+            const target = stickerPosition(ghost.face, targetPosition, size, params);
+            const separation = Math.hypot(ghost.x - target.x, ghost.y - target.y);
+            expect(separation).toBeGreaterThan(params.stickerRadius * 0.5);
+        }
+    });
+
+    it.each(SIZES)('emits unique element ids at size %i', size => {
+        // Duplicate ids would make querySelector resolve an arbitrary element,
+        // so the view could update the wrong sticker.
+        const { svg } = generate(size, loadParameters());
+        const ids = [...svg.matchAll(/\sid="([^"]*)"/g)].map(m => m[1]);
+        const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+        expect(duplicates).toEqual([]);
+    });
+
+    it('reports the 2x2 layout numbers the tuning review needs', () => {
+        // Surfaced so a reviewer can sanity-check the shipped asset without
+        // rendering it.
+        const size = 2;
+        const params = resolveParameters(size, loadParameters());
+        const ellipse = faceEllipseGeometry('U', size, params);
+
+        expect(ellipse.rx).toBeGreaterThan(0);
+        expect(ellipse.ry).toBeGreaterThan(0);
+        expect(params.viewBox.split(/\s+/)).toHaveLength(4);
+    });
+
+    describe('parameter set', () => {
+        it('satisfies the algebraic invariants at every size', () => {
+            for (const size of SIZES) {
+                const params: CircularSvgParameters = resolveParameters(size, loadParameters());
+                // I2b / I2a
+                expect((size - 1) * params.ringStep).toBeLessThan(params.triangleSide);
+                expect(params.triangleSide).toBeLessThan(2 * params.innerRadius);
+                // I5
+                expect(2 * params.stickerRadius).toBeLessThan(params.ringStep);
+            }
+        });
+
+        it('gives 4x4 a larger ring step than 3x3, as clearance requires', () => {
+            // Four rings per axis put adjacent intersections closer together, so
+            // the default step no longer clears the I4 bound.
+            const three = resolveParameters(3, loadParameters());
+            const four = resolveParameters(4, loadParameters());
+            expect(four.ringStep).toBeGreaterThan(three.ringStep);
+        });
+    });
+});

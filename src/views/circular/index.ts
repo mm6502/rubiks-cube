@@ -16,9 +16,10 @@ export const circularViewFactory: ViewFactory = {
     },
 
     getSupportedSizes(): number[] {
-        // Circular view is SVG-per-N; only 3×3 has an authored SVG so far.
-        // Other sizes land in a later phase.
-        return [3];
+        // Circular view is SVG-per-N. Sizes are listed here once their asset is
+        // generated and validated — 2×2 and 3×3 today; a new size needs its
+        // asset generated (`npm run svg:circular -- <n>`) before being added.
+        return [2, 3];
     },
 
     getDefaultConfig(): { x: number; y: number; width: number; height: number } {

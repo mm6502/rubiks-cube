@@ -45,9 +45,23 @@ export interface CircularSvgParameters {
      */
     ellipseOffsetNear: number;
     ellipseOffsetFar: number;
-    /** Face-ellipse semi-axes, expressed as multiples of the sticker radius. */
-    ellipseRadiusX: number;
-    ellipseRadiusY: number;
+    /**
+     * Face-ellipse margin, as a multiple of the sticker radius, added to each
+     * semi-axis beyond the sticker grid it encloses.
+     *
+     * The reference asset hardcodes 46x40 for 3x3, which happens to clear its
+     * grid. Larger sizes need the ellipse to grow with the grid, so the
+     * semi-axes are derived from the grid span plus this margin — 3x3 comes out
+     * at the reference's 46x40 without hardcoding it.
+     */
+    ellipseMargin: number;
+    /**
+     * Ratio of the minor to major semi-axis.
+     *
+     * The reference's 40/46 — the ellipse is slightly flattened along the face's
+     * radial direction.
+     */
+    ellipseAspect: number;
     /** Label box dimensions. */
     labelWidth: number;
     labelHeight: number;
@@ -243,9 +257,13 @@ export interface FaceEllipseGeometry {
  * Rotation is perpendicular to the face's outward direction (from the triangle
  * centroid through the sticker-grid centroid); verified to within 0.3 degrees
  * of the reference asset for all six faces. The centre is the sticker-grid
- * centroid pushed outward by a per-polarity offset, and the semi-axes scale
- * with the sticker radius — both are tunable parameters because they carry the
- * visual judgement the geometry spec declines to derive.
+ * centroid pushed outward by a per-polarity offset.
+ *
+ * The semi-axes enclose the grid plus a margin, measured in the ellipse's own
+ * rotated frame. Deriving them from the grid rather than hardcoding a pair is
+ * what keeps the ellipse enclosing the stickers as N grows — the reference's
+ * fixed 46x40 fits 3x3 but clips 4x4 and above. At 3x3 these parameters
+ * reproduce that 46x40 exactly.
  */
 export function faceEllipseGeometry(
     face: Face,
@@ -261,29 +279,54 @@ export function faceEllipseGeometry(
     const triangle = triangleCentroid(params);
     const outward = normalise({ x: centroid.x - triangle.x, y: centroid.y - triangle.y });
 
-    const span = stickerGridSpan(face, cubeSize, params);
-    const offset =
-        (FACE_IS_NEAR_THIRD[face] ? params.ellipseOffsetNear : params.ellipseOffsetFar) * span;
-
     const rotationDegrees = (Math.atan2(outward.y, outward.x) * 180) / Math.PI + 90;
+    const rotation = round(normaliseRotation(rotationDegrees));
+
+    const span = stickerGridSpan(positions, centroid, rotation);
+    const margin = params.stickerRadius * params.ellipseMargin;
+
+    const offset =
+        (FACE_IS_NEAR_THIRD[face] ? params.ellipseOffsetNear : params.ellipseOffsetFar) * span.mean;
 
     return {
         cx: round(centroid.x + outward.x * offset),
         cy: round(centroid.y + outward.y * offset),
-        rx: round(params.ellipseRadiusX * params.stickerRadius),
-        ry: round(params.ellipseRadiusY * params.stickerRadius),
-        rotation: round(normaliseRotation(rotationDegrees)),
+        rx: round(span.major + margin),
+        ry: round((span.minor + margin) * params.ellipseAspect),
+        rotation,
     };
 }
 
-/** Extent of the face's sticker grid, used to scale the ellipse offset. */
-function stickerGridSpan(face: Face, cubeSize: number, params: CircularSvgParameters): number {
-    const positions = faceStickerPositions(face, cubeSize, params);
-    const xs = positions.map(p => p.x);
-    const ys = positions.map(p => p.y);
-    const width = Math.max(...xs) - Math.min(...xs);
-    const height = Math.max(...ys) - Math.min(...ys);
-    return (width + height) / 2;
+/**
+ * Half-extents of the sticker grid, measured in the ellipse's rotated frame.
+ *
+ * Projecting onto the ellipse's own axes matters: the grid is a rotated square,
+ * so its screen-space bounding box is larger than its extent along each of the
+ * face's own directions.
+ */
+function stickerGridSpan(
+    positions: Point2D[],
+    centroid: Point2D,
+    rotationDegrees: number
+): { major: number; minor: number; mean: number } {
+    const theta = (rotationDegrees * Math.PI) / 180;
+    const axisX = { x: Math.cos(theta), y: Math.sin(theta) };
+    const axisY = { x: -Math.sin(theta), y: Math.cos(theta) };
+
+    const project = (p: Point2D, axis: Point2D) =>
+        (p.x - centroid.x) * axis.x + (p.y - centroid.y) * axis.y;
+
+    const xs = positions.map(p => project(p, axisX));
+    const ys = positions.map(p => project(p, axisY));
+
+    const halfX = (Math.max(...xs) - Math.min(...xs)) / 2;
+    const halfY = (Math.max(...ys) - Math.min(...ys)) / 2;
+
+    return {
+        major: Math.max(halfX, halfY),
+        minor: Math.min(halfX, halfY),
+        mean: (halfX + halfY) / 2,
+    };
 }
 
 export interface LabelGeometry {

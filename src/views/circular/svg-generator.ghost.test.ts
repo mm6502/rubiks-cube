@@ -23,8 +23,8 @@ const REFERENCE_PARAMS: CircularSvgParameters = {
     apexHeight: 87,
     ellipseOffsetNear: 0.4225,
     ellipseOffsetFar: 0.2871,
-    ellipseRadiusX: 46 / 7,
-    ellipseRadiusY: 40 / 7,
+    ellipseMargin: 2.9286,
+    ellipseAspect: 1.0177,
     labelWidth: 20,
     labelHeight: 16,
 };
