@@ -92,6 +92,28 @@ describe('FlatView', () => {
             expect(view.getViewType()).toBe('flat');
         });
 
+        it('reports the selection through getSelectedSticker and announces changes', () => {
+            // Arrange
+            view.create(container, controller);
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+            // Act — the view opens with its default selection.
+            const initial = view.getSelectedSticker();
+            expect(view.getSelectedSticker()).toBe(initial);
+
+            emitSpy.mockClear();
+            view.updateSelected(undefined);
+
+            // Assert — clearing the selection is both reported and announced, so
+            // selection-dependent commands can be re-derived.
+            expect(initial).toBeDefined();
+            expect(view.getSelectedSticker()).toBeUndefined();
+            expect(emitSpy).toHaveBeenCalledWith(
+                EventName.STICKER_SELECTED,
+                expect.objectContaining({ stickerId: undefined, viewId: 'flat' })
+            );
+        });
+
         it('should create view with T-shaped layout', () => {
             // Act
             view.create(container, controller);

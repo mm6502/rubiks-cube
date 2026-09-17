@@ -3,7 +3,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
-import { LayoutMode } from '@/cube/types';
+import { LayoutMode, StickerId } from '@/cube/types';
+import { Face } from '@/cube/types/common';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { LogLevel, logger } from '@/diagnostics/logger';
 import { EventName, HighlightChangedEvent } from '@/types';
 import { Command, CommandCategory } from '@/types/commands';
@@ -1031,5 +1033,279 @@ describe('ViewManager', () => {
         expect(removeSpy).toHaveBeenCalledWith('pointermove', expect.any(Function));
         expect(removeSpy).toHaveBeenCalledWith('pointerup', expect.any(Function));
         expect(viewManager['panelInteractionHandler']).toBeNull();
+    });
+
+    // ─── selection-dependent slice commands (M/E/S) ────────────────────────────
+
+    describe('slice commands follow the active view selection', () => {
+        let model: CubeController;
+
+        /** The slice commands currently registered for the controller. */
+        const sliceCommand = (id: string) =>
+            viewManager['commandRegistry'].get('controller')!.find(c => c.id === id)!;
+
+        /** The F-face centre sticker — the view default selection. */
+        const frontCentre = () =>
+            CubeStateUtils.getStickerAt(
+                model.getCurrentState(),
+                Face.F,
+                Math.floor((model.getCubeSize() - 1) / 2) * model.getCubeSize() +
+                    Math.floor((model.getCubeSize() - 1) / 2)
+            )!;
+
+        beforeEach(() => {
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            model = new CubeController(5);
+            viewManager = new ViewManager(model);
+            // initialize() registers the STICKER_SELECTED subscription under test.
+            viewManager.initialize();
+        });
+
+        afterEach(() => {
+            Application.eventBus.removeAllListeners();
+        });
+
+        /** Point the active view at a stub that reports the given selection. */
+        const focusViewWithSelection = (selectedSticker?: StickerId) => {
+            viewManager['activeViews'].set('stub', {
+                view: { getSelectedSticker: () => selectedSticker } as any,
+                container: document.createElement('div'),
+            });
+            viewManager['focusStack'] = ['stub'];
+        };
+
+        it('disables M/E/S above 3×3 while no view has a selection', () => {
+            focusViewWithSelection(undefined);
+
+            expect(sliceCommand('move-m').isEnabled?.()).toBe(false);
+            expect(sliceCommand('move-e').isEnabled?.()).toBe(false);
+            expect(sliceCommand('move-s').isEnabled?.()).toBe(false);
+        });
+
+        it('keeps M/E/S available with bare labels at 3×3', () => {
+            model = new CubeController(3);
+            viewManager = new ViewManager(model);
+            viewManager.initialize();
+            focusViewWithSelection(undefined);
+
+            expect(sliceCommand('move-s').isEnabled?.()).toBe(true);
+            expect(sliceCommand('move-s').label).toBe('S');
+        });
+
+        it('disables M/E/S on a 2×2 regardless of the selection', () => {
+            model = new CubeController(2);
+            viewManager = new ViewManager(model);
+            viewManager.initialize();
+            focusViewWithSelection(frontCentre().id);
+
+            expect(sliceCommand('move-m').isEnabled?.()).toBe(false);
+            expect(sliceCommand('move-m-prime').isEnabled?.()).toBe(false);
+            expect(sliceCommand('move-m2').isEnabled?.()).toBe(false);
+        });
+
+        it('reads the selection from the active view', () => {
+            focusViewWithSelection(frontCentre().id);
+
+            const commands = viewManager['buildControllerCommands']();
+            expect(commands.find(c => c.id === 'move-m')!.label).toBe('3M');
+            expect(commands.find(c => c.id === 'move-m')!.isEnabled?.()).toBe(true);
+            expect(commands.find(c => c.id === 'move-e')!.label).toBe('3E');
+            // The F centre sits on the front plane, so S would turn an outer layer.
+            expect(commands.find(c => c.id === 'move-s')!.isEnabled?.()).toBe(false);
+        });
+
+        it('ignores a view that does not track a selection', () => {
+            viewManager['activeViews'].set('moves', {
+                view: {} as any,
+                container: document.createElement('div'),
+            });
+            viewManager['focusStack'] = ['moves'];
+
+            const commands = viewManager['buildControllerCommands']();
+            expect(commands.find(c => c.id === 'move-m')!.isEnabled?.()).toBe(false);
+        });
+
+        it('rebuilds the slice commands when a view reports a selection', () => {
+            // Nothing focused yet, so no selection is in play.
+            expect(sliceCommand('move-m').isEnabled?.()).toBe(false);
+            expect(sliceCommand('move-m').label).toBe('M');
+
+            focusViewWithSelection(frontCentre().id);
+
+            Application.eventBus.emit(EventName.STICKER_SELECTED, {
+                stickerId: frontCentre().id,
+                viewId: 'stub',
+            });
+
+            expect(sliceCommand('move-m').label).toBe('3M');
+            expect(sliceCommand('move-m').isEnabled?.()).toBe(true);
+        });
+
+        it('rebuilds the slice commands when focus moves to another view', () => {
+            viewManager['activeViews'].set('withSelection', {
+                view: { getSelectedSticker: () => frontCentre().id } as any,
+                container: document.createElement('div'),
+            });
+            viewManager['activeViews'].set('withoutSelection', {
+                view: {} as any,
+                container: document.createElement('div'),
+            });
+
+            viewManager['updateFocus']('withSelection');
+            expect(sliceCommand('move-m').isEnabled?.()).toBe(true);
+
+            // Focusing a view without a selection must clear the slice target.
+            viewManager['updateFocus']('withoutSelection');
+            expect(sliceCommand('move-m').isEnabled?.()).toBe(false);
+        });
+
+        it('stops reacting to selections after dispose', () => {
+            const refreshSpy = vi.spyOn(viewManager as any, 'refreshControllerCommands');
+
+            viewManager.dispose();
+            Application.eventBus.emit(EventName.STICKER_SELECTED, { viewId: 'stub' });
+
+            expect(refreshSpy).not.toHaveBeenCalled();
+        });
+
+        it('skips the rebuild when a view re-reports the same layer', () => {
+            focusViewWithSelection(frontCentre().id);
+            // First report settles the signature (and rebuilds once).
+            Application.eventBus.emit(EventName.STICKER_SELECTED, {
+                stickerId: frontCentre().id,
+                viewId: 'stub',
+            });
+            const renderSpy = vi.spyOn(viewManager['commandRenderer'], 'renderGlobalCommands');
+
+            // A re-report of the same selection must not tear down and rebuild the
+            // command panel — selection is re-reported on every arrow-key step.
+            Application.eventBus.emit(EventName.STICKER_SELECTED, {
+                stickerId: frontCentre().id,
+                viewId: 'stub',
+            });
+
+            expect(renderSpy).not.toHaveBeenCalled();
+        });
+
+        it('rebuilds when the selection moves to a different layer', () => {
+            focusViewWithSelection(frontCentre().id);
+            // Prime the signature with the current selection.
+            Application.eventBus.emit(EventName.STICKER_SELECTED, { viewId: 'stub' });
+            const renderSpy = vi.spyOn(viewManager['commandRenderer'], 'renderGlobalCommands');
+
+            // Move the selection one layer across so the M target changes.
+            const shifted = CubeStateUtils.getStickerAt(
+                model.getCurrentState(),
+                Face.R,
+                Math.floor((5 - 1) / 2) * 5 + Math.floor((5 - 1) / 2)
+            )!;
+            focusViewWithSelection(shifted.id);
+            Application.eventBus.emit(EventName.STICKER_SELECTED, {
+                stickerId: shifted.id,
+                viewId: 'stub',
+            });
+
+            expect(renderSpy).toHaveBeenCalled();
+        });
+
+        it('rebuilds when the selection moves to a different layer', () => {
+            focusViewWithSelection(frontCentre().id);
+            // Prime the signature with the current selection.
+            Application.eventBus.emit(EventName.STICKER_SELECTED, { viewId: 'stub' });
+            const renderSpy = vi.spyOn(viewManager['commandRenderer'], 'renderGlobalCommands');
+
+            // Move the selection one layer along X so the M target changes.
+            const shifted = CubeStateUtils.getStickerAt(
+                model.getCurrentState(),
+                Face.R,
+                Math.floor((5 - 1) / 2) * 5 + Math.floor((5 - 1) / 2)
+            )!;
+            focusViewWithSelection(shifted.id);
+            Application.eventBus.emit(EventName.STICKER_SELECTED, {
+                stickerId: shifted.id,
+                viewId: 'stub',
+            });
+
+            expect(renderSpy).toHaveBeenCalled();
+        });
+    });
+
+    // ─── disabled commands and keyboard routing ────────────────────────────────
+
+    describe('keyboard routing honours command availability', () => {
+        const register = (commands: Command[]) => viewManager['registerCommands']('v', commands);
+
+        it('does not run a disabled command on keyUp', () => {
+            const action = vi.fn();
+            viewManager['focusStack'] = [];
+            viewManager['commandRegistry'].set('controller', [
+                {
+                    id: 'disabled-cmd',
+                    label: 'Disabled',
+                    category: CommandCategory.CUBE,
+                    action,
+                    keyBindings: [{ key: 'm' }],
+                    isEnabled: () => false,
+                } as Command,
+            ]);
+
+            const result = viewManager.handleKeyUp(new KeyboardEvent('keyup', { key: 'm' }));
+
+            expect(result).toBe(false);
+            expect(action).not.toHaveBeenCalled();
+        });
+
+        it('does not suppress the default action for a disabled command', () => {
+            viewManager['focusStack'] = [];
+            viewManager['commandRegistry'].set('controller', [
+                {
+                    id: 'disabled-cmd',
+                    label: 'Disabled',
+                    category: CommandCategory.CUBE,
+                    action: vi.fn(),
+                    keyBindings: [{ key: 'm' }],
+                    isEnabled: () => false,
+                } as Command,
+            ]);
+
+            expect(viewManager.handleKeyDown(new KeyboardEvent('keydown', { key: 'm' }))).toBe(
+                false
+            );
+        });
+
+        it('runs an enabled command on keyUp', () => {
+            const action = vi.fn();
+            viewManager['focusStack'] = [];
+            viewManager['commandRegistry'].set('controller', [
+                {
+                    id: 'enabled-cmd',
+                    label: 'Enabled',
+                    category: CommandCategory.CUBE,
+                    action,
+                    keyBindings: [{ key: 'm' }],
+                    isEnabled: () => true,
+                } as Command,
+            ]);
+
+            expect(viewManager.handleKeyUp(new KeyboardEvent('keyup', { key: 'm' }))).toBe(true);
+            expect(action).toHaveBeenCalled();
+        });
+
+        it('treats a command with no isEnabled as available', () => {
+            const action = vi.fn();
+            register([
+                {
+                    id: 'always-on',
+                    label: 'Always',
+                    category: CommandCategory.VIEW,
+                    action,
+                    keyBindings: [{ key: 'q' }],
+                } as Command,
+            ]);
+            viewManager['focusStack'] = ['v'];
+
+            expect(viewManager.handleKeyUp(new KeyboardEvent('keyup', { key: 'q' }))).toBe(true);
+            expect(action).toHaveBeenCalled();
+        });
     });
 });

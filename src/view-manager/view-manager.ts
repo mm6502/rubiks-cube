@@ -1,9 +1,18 @@
 // View Manager - Handles dynamic view creation and management.
 import { CubeModel, CubeView, LayoutMode, StickerId } from '@/cube/types';
+import { Axis } from '@/cube/types/common';
 import { logger } from '@/diagnostics/logger';
 import { getEventBus } from '@/event-bus-accessor';
+import { createSelectedLayerResolver, selectedLayerOnAxis } from '@/interaction/slice-target';
 import buttonStyles from '@/styles/buttons.module.css';
-import { Command, EventName, HighlightChangedEvent, KeyBinding, MoveExecutedEvent } from '@/types';
+import {
+    Command,
+    EventName,
+    HighlightChangedEvent,
+    KeyBinding,
+    MoveExecutedEvent,
+    StickerSelectedEvent,
+} from '@/types';
 
 import { CommandManager } from './command-manager';
 import { CommandRenderer } from './command-renderer';
@@ -81,6 +90,13 @@ export class ViewManager implements CommandManager {
     /**
      * Track current highlight state.
      */
+
+    /**
+     * Signature of the selection state the controller commands were last built
+     * from. Used to skip redundant command rebuilds when a view re-reports an
+     * unchanged selection (see {@link refreshControllerCommands}).
+     */
+    private lastSliceSelectionSignature?: string;
     private currentHighlightedSticker?: StickerId;
 
     /**
@@ -94,6 +110,7 @@ export class ViewManager implements CommandManager {
     private readonly boundMoveExecuted: (event: MoveExecutedEvent) => void;
     private readonly boundCommandStatesRefresh: () => void;
     private readonly boundHighlightChanged: (event: HighlightChangedEvent) => void;
+    private readonly boundStickerSelected: (event: StickerSelectedEvent) => void;
     private readonly boundWindowResize: () => void;
     private mediaQueryList: MediaQueryList | null = null;
     private boundMediaQueryChange: ((e: MediaQueryListEvent) => void) | null = null;
@@ -112,6 +129,7 @@ export class ViewManager implements CommandManager {
         this.boundMoveExecuted = this.handleMoveExecuted.bind(this);
         this.boundCommandStatesRefresh = this.handleCommandStatesRefresh.bind(this);
         this.boundHighlightChanged = this.handleHighlightChanged.bind(this);
+        this.boundStickerSelected = this.handleStickerSelected.bind(this);
         this.boundWindowResize = () => {
             if (this.resizeDebounceTimer !== null) {
                 clearTimeout(this.resizeDebounceTimer);
@@ -133,6 +151,7 @@ export class ViewManager implements CommandManager {
 
         getEventBus().off(EventName.MOVE_EXECUTED, this.boundMoveExecuted);
         getEventBus().off(EventName.MOVE_EXECUTED, this.boundCommandStatesRefresh);
+        getEventBus().off(EventName.STICKER_SELECTED, this.boundStickerSelected);
         getEventBus().off(EventName.HIGHLIGHT_CHANGED, this.boundHighlightChanged);
 
         // The lifecycle manager registers its own VIEW_STATE_CHANGED listener.
@@ -246,7 +265,7 @@ export class ViewManager implements CommandManager {
         this.applyLayoutMode();
 
         // Register controller commands
-        this.registerCommands('controller', this.cubeModel.getCommands());
+        this.registerCommands('controller', this.buildControllerCommands());
 
         // Render global command buttons
         this.renderGlobalCommands();
@@ -259,6 +278,9 @@ export class ViewManager implements CommandManager {
         // move, undo, and redo operation.
         getEventBus().on(EventName.MOVE_EXECUTED, this.boundCommandStatesRefresh);
 
+        // Selection steers the M/E/S slices above 3×3, so rebuild those commands
+        // whenever a view reports a new selection.
+        getEventBus().on(EventName.STICKER_SELECTED, this.boundStickerSelected);
         // Also subscribe to highlight change events so external emitters can update views
         getEventBus().on(EventName.HIGHLIGHT_CHANGED, this.boundHighlightChanged);
 
@@ -307,6 +329,14 @@ export class ViewManager implements CommandManager {
     }
 
     /**
+     * Handles a view reporting a new selection by re-deriving the commands that
+     * depend on it (M/E/S above 3×3).
+     */
+    private handleStickerSelected(_event: StickerSelectedEvent): void {
+        this.refreshControllerCommands();
+    }
+
+    /**
      * Handles keyboard down events by delegating to active views
      * @param e - The keyboard event
      * @returns True if the event was handled, false otherwise
@@ -328,14 +358,14 @@ export class ViewManager implements CommandManager {
             // browser default (e.g. Ctrl+Arrow moving the text cursor) even though
             // the command action itself fires on keyUp.
             const viewCommands = this.commandRegistry.get(activeViewId);
-            if (viewCommands?.some(cmd => this.matchesKeyBindings(cmd.keyBindings, e))) {
+            if (viewCommands?.some(cmd => this.isCommandActivatable(cmd, e))) {
                 return true;
             }
         }
 
         // Check controller (global) command bindings for the same reason.
         const controllerCommands = this.commandRegistry.get('controller');
-        if (controllerCommands?.some(cmd => this.matchesKeyBindings(cmd.keyBindings, e))) {
+        if (controllerCommands?.some(cmd => this.isCommandActivatable(cmd, e))) {
             return true;
         }
 
@@ -363,9 +393,7 @@ export class ViewManager implements CommandManager {
 
             // If view didn't handle it, check view-specific commands
             const commands = this.commandRegistry.get(activeViewId);
-            const matchingCommand = commands?.find(cmd =>
-                this.matchesKeyBindings(cmd.keyBindings, e)
-            );
+            const matchingCommand = commands?.find(cmd => this.isCommandActivatable(cmd, e));
             if (matchingCommand) {
                 // Handled by view command
                 matchingCommand.action();
@@ -375,9 +403,7 @@ export class ViewManager implements CommandManager {
 
         // Finally check controller commands (global)
         const controllerCommands = this.commandRegistry.get('controller');
-        const matchingCommand = controllerCommands?.find(cmd =>
-            this.matchesKeyBindings(cmd.keyBindings, e)
-        );
+        const matchingCommand = controllerCommands?.find(cmd => this.isCommandActivatable(cmd, e));
         if (matchingCommand) {
             // Handled by controller command
             matchingCommand.action();
@@ -386,6 +412,16 @@ export class ViewManager implements CommandManager {
 
         // Not handled
         return false;
+    }
+
+    /**
+     * Whether a command both matches the event's key bindings and is currently
+     * available. Disabled commands are skipped so their keys stay inert — the
+     * M/E/S slices, for instance, are unavailable on a 2×2 or with no selection,
+     * and pressing M/E/S must then do nothing at all.
+     */
+    private isCommandActivatable(cmd: Command, e: KeyboardEvent): boolean {
+        return this.matchesKeyBindings(cmd.keyBindings, e) && (cmd.isEnabled?.() ?? true);
     }
 
     /**
@@ -451,6 +487,67 @@ export class ViewManager implements CommandManager {
     }
 
     /**
+     * Generate the controller (global) commands.
+     *
+     * The M/E/S slices do not have a fixed target above 3×3 — they turn the
+     * slice holding the active view's selected sticker — so the options callback
+     * hands them the selection at generation time. Read lazily through a getter
+     * rather than captured, so it stays correct after importing state.
+     */
+    private buildControllerCommands(): Command[] {
+        return this.cubeModel.getCommands({
+            resolveSelectedLayer: createSelectedLayerResolver(
+                () => this.cubeModel.getReadOnlyModel(),
+                () => this.getActiveViewSelection()
+            ),
+        });
+    }
+
+    /**
+     * The sticker selected in the active view, if that view tracks a selection.
+     */
+    private getActiveViewSelection(): StickerId | undefined {
+        const activeViewId = this.getActiveViewId();
+        const view = activeViewId ? this.activeViews.get(activeViewId)?.view : undefined;
+        return view?.getSelectedSticker?.();
+    }
+
+    /**
+     * Rebuild the controller command buttons when the selection steering the
+     * M/E/S slices has actually changed.
+     *
+     * Selection is reported on every keyboard navigation step and on every
+     * post-move selection restore, but only a change of *layer* alters what the
+     * slice buttons say. Re-rendering the whole command panel on each report
+     * would tear down and rebuild the global controls during arrow-key
+     * navigation, so the resolved layers are compared first and an unchanged
+     * signature returns early.
+     */
+    private refreshControllerCommands(): void {
+        const signature = this.sliceSelectionSignature();
+        if (signature === this.lastSliceSelectionSignature) return;
+        this.lastSliceSelectionSignature = signature;
+
+        this.registerCommands('controller', this.buildControllerCommands());
+        this.renderGlobalCommands();
+        this.commandRenderer.refreshCommandStates(this.commandRegistry);
+    }
+
+    /**
+     * Compact description of what the M/E/S slices currently target: the cube
+     * size plus the layer each axis would turn. Two states with the same
+     * signature produce identical slice commands, so a rebuild is unnecessary.
+     */
+    private sliceSelectionSignature(): string {
+        const state = this.cubeModel.getReadOnlyModel().getCurrentState();
+        const stickerId = this.getActiveViewSelection();
+        const layers = [Axis.X, Axis.Y, Axis.Z].map(
+            axis => selectedLayerOnAxis(state, stickerId, axis) ?? '-'
+        );
+        return `${state.cubeSize}:${layers.join(',')}`;
+    }
+
+    /**
      * Updates the focus to the specified view, bringing it to the front
      * @param viewId - The ID of the view to focus
      */
@@ -466,8 +563,10 @@ export class ViewManager implements CommandManager {
         // Update visual focus indication
         this.updateVisualFocus();
 
-        // Update global commands when focus changes
-        this.renderGlobalCommands();
+        // Update global commands when focus changes. Selection-dependent commands
+        // (M/E/S above 3×3) must be rebuilt, not merely re-rendered, because the
+        // newly active view may hold a different selection.
+        this.refreshControllerCommands();
 
         // In tabbed mode, update tabs and show only the active panel
         this.tabBar?.updateTabs(this.activeViews);

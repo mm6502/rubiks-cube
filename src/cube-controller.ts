@@ -4,7 +4,7 @@ import { getInverseMoveString, parseStringMove } from '@/cube/core/move-parser';
 import { StateManager } from '@/cube/core/state-manager';
 import { CubeModel, CubeState, MoveDefinition, MoveResult, ReadOnlyCubeModel } from '@/cube/types';
 import { getEventBus } from '@/event-bus-accessor';
-import { Command, EventName, MoveRequestedEvent } from '@/types';
+import { Command, CommandGenerationOptions, EventName, MoveRequestedEvent } from '@/types';
 
 import { getCommands as getCommandsInternal } from './cube-controller.commands';
 import { logger } from './diagnostics/logger';
@@ -350,10 +350,12 @@ export class CubeController implements CubeModel, ReadOnlyCubeModel {
 
     /**
      * Get the list of available commands for the cube controller.
+     * @param options Host-supplied live view state; the M/E/S slices use it to
+     * follow the active view's selection at sizes above 3×3.
      * @returns Array of Command objects.
      */
-    getCommands(): Command[] {
-        return getCommandsInternal(this.getReadOnlyModel());
+    getCommands(options?: CommandGenerationOptions): Command[] {
+        return getCommandsInternal(this.getReadOnlyModel(), options);
     }
 
     /**
