@@ -153,16 +153,32 @@ target: if the rule were wrong for that class, 2×2 and 4×4 could both pass.
 
 ## Size-aware loading
 
-Every size, 3×3 included, resolves through one glob over `view-*.svg`. 3×3 used
-to be special-cased behind a hand-written static import; now that generation
-produces `view-3.svg` like every other size, the loader has no per-size branch
-and no size can drift into being "the special one".
+Every size resolves through one path: the loader serves `view-<n>.svg` when it
+exists and otherwise builds that size in the browser from `parameters.json` on
+first request, caching the result. Committing an asset is therefore a build-time
+optimisation, not a requirement — a size is never "unsupported" merely because
+nobody committed its file.
+
+That is what lets the assets be optional. With all six committed the build
+inlines them (measured 153.7 KB gzip); with none committed it inlines no SVG at
+all (110.7 KB gzip) and every size is still served, at the cost of one build per
+size on first view — `generate(7)` cold measures ~11 ms, under a frame.
+
+Committing an asset is worth it when a size is on the default path and its ~7 KB
+gzip is cheaper than the first-view build; drop it when bundle size matters
+more. Either way the markup is the same: the loader's built output is
+content-identical to the committed file, and `svg-loader.test.ts` asserts that
+so the two paths cannot drift.
+
+3×3 used to be special-cased behind a hand-written static import; it now
+resolves like every other size, so no size can drift into being "the special
+one".
 
 The hand-authored 3×3 original lives in `fixtures/reference-3x3.svg`, one
 directory below the assets. It is a fidelity reference, not a shipping asset,
-and it sits there so that neither the loader's glob nor the asset-canvas glob
-can reach it — which is what keeps the generator's fidelity tests comparing
-against an independent reference instead of against the generator's own output.
+and it sits there so that neither glob can reach it — which is what keeps the
+generator's fidelity tests comparing against an independent reference instead of
+against the generator's own output.
 
 An N=5 asset is a validation target only. Generate it to a path outside `src/`
 (for example `scripts/circular-svg/tmp/`) so it can never be globbed into the

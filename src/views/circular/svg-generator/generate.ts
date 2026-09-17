@@ -1,6 +1,6 @@
 import { emitSvg } from './emit';
 import { ALL_FACES, CircularSvgParameters } from './geometry';
-import { GhostParameters, GhostSpec, allGhosts, emitGhosts } from './ghosts';
+import { GhostSpec, allGhosts, emitGhosts } from './ghosts';
 import { PROBE_VIEWBOX, boundsToViewBox, markupBounds } from './measure';
 import parametersFile from './parameters.json';
 import { ValidationIssue, formatIssues, validate } from './validate';
@@ -103,17 +103,34 @@ export interface GenerationResult {
 }
 
 /**
- * Generate one size and validate it.
+ * Build one size's SVG markup WITHOUT validating it.
  *
- * Validation runs before the result is returned, so a caller that writes only on
- * an empty issue list can never leave a partial or non-conforming asset behind.
+ * Split out from `generate()` so the runtime can generate on demand without
+ * paying for five geometry checks on every first view of a size. Validation
+ * exists to protect the committed assets at build time; at runtime the markup is
+ * identical, and a failure there would be a generator bug that the test suite
+ * already covers. Callers that write files must use `generate()`.
+ *
+ * Throws if the size has no parameter set — see `resolveParameters`.
  */
-export function generate(cubeSize: number, file: ParametersFile = PARAMETERS): GenerationResult {
+export function buildSvg(cubeSize: number, file: ParametersFile = PARAMETERS): string {
+    return build(cubeSize, file).svg;
+}
+
+/**
+ * The shared build, returning the intermediates `generate()` needs to validate.
+ *
+ * Kept private so the two public entries cannot drift: `buildSvg` and `generate`
+ * produce byte-identical markup because they run this same function once.
+ */
+function build(
+    cubeSize: number,
+    file: ParametersFile
+): { svg: string; ghosts: GhostSpec[]; params: CircularSvgParameters; viewBox: string } {
     const resolved = resolveParameters(cubeSize, file);
     const { ghostRadiusOffset, ...params } = resolved;
-    const ghostParams: GhostParameters = { radiusOffset: ghostRadiusOffset };
 
-    const ghosts = allGhosts(cubeSize, params, ghostParams);
+    const ghosts = allGhosts(cubeSize, params, { radiusOffset: ghostRadiusOffset });
 
     // Emit once against a deliberately oversized canvas to measure what is drawn,
     // then re-emit with a viewBox fitted to that measurement. Deriving the canvas
@@ -140,9 +157,19 @@ export function generate(cubeSize: number, file: ParametersFile = PARAMETERS): G
         ghosts: emitGhosts(ghosts, params.stickerRadius),
     });
 
-    const issues = validate({ cubeSize, params: fitted, svg, ghosts });
+    return { svg, ghosts, params: fitted, viewBox };
+}
 
-    return { cubeSize, svg, ghosts, issues };
+/**
+ * Generate one size and validate it.
+ *
+ * Validation runs before the result is returned, so a caller that writes only on
+ * an empty issue list can never leave a partial or non-conforming asset behind.
+ * Use this for anything that lands on disk; use `buildSvg` for runtime rendering.
+ */
+export function generate(cubeSize: number, file: ParametersFile = PARAMETERS): GenerationResult {
+    const { svg, ghosts, params } = build(cubeSize, file);
+    return { cubeSize, svg, ghosts, issues: validate({ cubeSize, params, svg, ghosts }) };
 }
 
 /** Sizes with a parameter set, ascending. */
