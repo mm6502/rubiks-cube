@@ -4,9 +4,9 @@ import { getPositionKey } from '@/cube/utils';
 import { logger } from '@/diagnostics/logger';
 import { EventName } from '@/types';
 
+import { assertLoadable } from './svg-loader';
 import { AxisCircle, SVGAxisCoords, getCenterOfElement, isPointOnCircle } from './svg-tools';
 import { CircularCubeViewInternalData, StickerLookupMap } from './types';
-import rawSvg from './view.svg?raw';
 
 /**
  * Parse axis circles from SVG element by querying for all <circle>
@@ -202,7 +202,10 @@ export function buildStickerLookupMap(svgRoot: SVGSVGElement): StickerLookupResu
         }
 
         const { cubePosition, cubeFace } = mapping;
-        const posKey = getPositionKey(cubePosition);
+        // The key must be built for the active size: getPositionKey defaults to
+        // 3 and throws on coordinates outside 0..2, so omitting the size breaks
+        // every size above 3 during initialization.
+        const posKey = getPositionKey(cubePosition, cubeSize);
 
         if (!lookupMap.has(posKey)) {
             lookupMap.set(posKey, new Map());
@@ -262,6 +265,13 @@ export function initialize(
 
     // Make container focusable for keyboard navigation
     container.tabIndex = 0;
+
+    // Resolve the asset for the active cube size. If a committed `view-<n>.svg` is
+    // present the loader serves it; otherwise it generates the markup on demand from
+    // parameters.json. An unsupported size throws rather than falling back to another
+    // size's markup, which would render a cube at the wrong size.
+    const cubeSize = model.getCurrentState().cubeSize;
+    const rawSvg = assertLoadable(cubeSize);
 
     // Inline the SVG so we can address elements directly and ensure it scales to the lesser of width/height.
     // data-role="clip-container"  — clips overflowing content when zoomed/panned; receives wheel/pointer events.

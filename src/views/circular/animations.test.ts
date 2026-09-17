@@ -17,123 +17,109 @@ import { AxisCircle } from './svg-tools';
 
 describe('Face Animation', () => {
     describe('getAffectedFaces', () => {
-        it('should identify U face for Y-axis layer 2', () => {
-            // Arrange
+        /**
+         * Every face move, at every size the view supports, from the move
+         * definition the engine actually generates.
+         *
+         * The earlier version of these tests used hardcoded 3×3 layer indices and
+         * a fixed cubeSize, so a hardcoded `2` in the implementation passed while
+         * being wrong at every larger size. That is what let U/R/B silently stop
+         * animating their on-face stickers above 3×3 while D/L/F kept working.
+         */
+        const SIZES = [2, 3, 4, 5];
+        const LAST_LAYER_FACES: Face[] = [Face.R, Face.U, Face.B];
+
+        it.each(SIZES)('affects the right face for every face move at size %i', cubeSize => {
+            const last = cubeSize - 1;
+
+            const cases: { face: Face; axis: Axis; layer: number }[] = [
+                { face: Face.D, axis: Axis.Y, layer: 0 },
+                { face: Face.U, axis: Axis.Y, layer: last },
+                { face: Face.L, axis: Axis.X, layer: 0 },
+                { face: Face.R, axis: Axis.X, layer: last },
+                { face: Face.F, axis: Axis.Z, layer: 0 },
+                { face: Face.B, axis: Axis.Z, layer: last },
+            ];
+
+            for (const { face, axis, layer } of cases) {
+                const move: MoveDefinition = {
+                    name: String(face),
+                    axis,
+                    layerIndices: [layer],
+                    angle: QuarterTurn.QUARTER,
+                };
+
+                const faces = getAffectedFaces(move, cubeSize);
+
+                expect(faces).toContain(face);
+                // Exactly one face, and never its opposite.
+                expect(faces).toHaveLength(1);
+            }
+        });
+
+        it.each(SIZES)('animates on-face stickers for the last-layer trio at size %i', cubeSize => {
+            // R, U and B sit on the last layer. Before the fix these returned no
+            // face above 3×3, so their on-face stickers were never animated.
+            const last = cubeSize - 1;
+            for (const face of LAST_LAYER_FACES) {
+                const axis = face === Face.R ? Axis.X : face === Face.U ? Axis.Y : Axis.Z;
+                const move: MoveDefinition = {
+                    name: String(face),
+                    axis,
+                    layerIndices: [last],
+                    angle: QuarterTurn.QUARTER,
+                };
+
+                expect(getAffectedFaces(move, cubeSize)).toContain(face);
+            }
+        });
+
+        it('does not treat the last layer as index 2 above size 3', () => {
+            // The specific regression: at 4×4 the last layer is 3, so a hardcoded
+            // 2 matches nothing and U/R/B lose their face animation.
             const move: MoveDefinition = {
                 name: 'U',
                 axis: Axis.Y,
-                layerIndices: [2],
+                layerIndices: [3],
                 angle: QuarterTurn.QUARTER,
             };
 
-            // Act
-            const faces = getAffectedFaces(move);
-
-            // Assert
-            expect(faces).toContain(Face.U);
-            expect(faces).not.toContain(Face.D);
+            expect(getAffectedFaces(move, 4)).toContain(Face.U);
         });
 
-        it('should identify D face for Y-axis layer 0', () => {
-            // Arrange
-            const move: MoveDefinition = {
-                name: 'D',
-                axis: Axis.Y,
-                layerIndices: [0],
-                angle: QuarterTurn.QUARTER,
-            };
+        it('identifies both faces for a whole-cube rotation at any size', () => {
+            // x/y/z carry every layer, so both faces on the axis are affected and
+            // both animate their on-face stickers.
+            for (const cubeSize of SIZES) {
+                const allLayers = Array.from({ length: cubeSize }, (_, i) => i);
+                for (const [axis, expected] of [
+                    [Axis.Y, [Face.D, Face.U]],
+                    [Axis.X, [Face.L, Face.R]],
+                    [Axis.Z, [Face.F, Face.B]],
+                ] as [Axis, Face[]][]) {
+                    const move: MoveDefinition = {
+                        name: 'rotation',
+                        axis,
+                        layerIndices: allLayers,
+                        angle: QuarterTurn.QUARTER,
+                    };
 
-            // Act
-            const faces = getAffectedFaces(move);
-
-            // Assert
-            expect(faces).toContain(Face.D);
-            expect(faces).not.toContain(Face.U);
+                    const faces = getAffectedFaces(move, cubeSize);
+                    for (const face of expected) expect(faces).toContain(face);
+                }
+            }
         });
 
-        it('should identify R face for X-axis layer 2', () => {
-            // Arrange
+        it('affects no face for a middle slice move', () => {
+            // A slice that touches neither outer layer is not a face rotation.
             const move: MoveDefinition = {
-                name: 'R',
+                name: 'M',
                 axis: Axis.X,
-                layerIndices: [2],
+                layerIndices: [1],
                 angle: QuarterTurn.QUARTER,
             };
 
-            // Act
-            const faces = getAffectedFaces(move);
-
-            // Assert
-            expect(faces).toContain(Face.R);
-            expect(faces).not.toContain(Face.L);
-        });
-
-        it('should identify L face for X-axis layer 0', () => {
-            // Arrange
-            const move: MoveDefinition = {
-                name: 'L',
-                axis: Axis.X,
-                layerIndices: [0],
-                angle: QuarterTurn.QUARTER,
-            };
-
-            // Act
-            const faces = getAffectedFaces(move);
-
-            // Assert
-            expect(faces).toContain(Face.L);
-            expect(faces).not.toContain(Face.R);
-        });
-
-        it('should identify F face for Z-axis layer 0', () => {
-            // Arrange
-            const move: MoveDefinition = {
-                name: 'F',
-                axis: Axis.Z,
-                layerIndices: [0],
-                angle: QuarterTurn.QUARTER,
-            };
-
-            // Act
-            const faces = getAffectedFaces(move);
-
-            // Assert
-            expect(faces).toContain(Face.F);
-            expect(faces).not.toContain(Face.B);
-        });
-
-        it('should identify B face for Z-axis layer 2', () => {
-            // Arrange
-            const move: MoveDefinition = {
-                name: 'B',
-                axis: Axis.Z,
-                layerIndices: [2],
-                angle: QuarterTurn.QUARTER,
-            };
-
-            // Act
-            const faces = getAffectedFaces(move);
-
-            // Assert
-            expect(faces).toContain(Face.B);
-            expect(faces).not.toContain(Face.F);
-        });
-
-        it('should identify both faces for middle slice moves', () => {
-            // Arrange
-            const move: MoveDefinition = {
-                name: 'E',
-                axis: Axis.Y,
-                layerIndices: [0, 2],
-                angle: QuarterTurn.QUARTER,
-            };
-
-            // Act
-            const faces = getAffectedFaces(move);
-
-            // Assert
-            expect(faces).toContain(Face.U);
-            expect(faces).toContain(Face.D);
+            expect(getAffectedFaces(move, 3)).toEqual([]);
         });
     });
 

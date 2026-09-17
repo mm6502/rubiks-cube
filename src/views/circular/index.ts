@@ -1,6 +1,7 @@
 import { ViewFactory } from '@/view-manager/view-registry';
 
 import { CircularCubeView } from './circular-view';
+import { loadedSizes } from './svg-loader';
 
 export const circularViewFactory: ViewFactory = {
     create(_config?: any): CircularCubeView {
@@ -16,9 +17,10 @@ export const circularViewFactory: ViewFactory = {
     },
 
     getSupportedSizes(): number[] {
-        // Circular view is SVG-per-N; only 3×3 has an authored SVG so far.
-        // Other sizes land in a later phase.
-        return [3];
+        // Circular view is SVG-per-N. Supported sizes are derived from what the loader can
+        // serve: committed `view-<n>.svg` assets when present, otherwise on-demand generation
+        // from `parameters.json`. A size is unsupported only when it has no parameter set.
+        return loadedSizes();
     },
 
     getDefaultConfig(): { x: number; y: number; width: number; height: number } {

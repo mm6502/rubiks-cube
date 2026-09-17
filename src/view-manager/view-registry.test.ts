@@ -8,6 +8,7 @@ import {
     getViewTitle,
     viewSupportsSize,
 } from '@/view-manager/view-registry';
+import { loadedSizes } from '@/views/circular/svg-loader';
 
 beforeAll(() => {
     // Suppress logs during tests.
@@ -77,11 +78,15 @@ describe('ViewRegistry', () => {
         expect(view).toBeUndefined();
     });
 
-    it('circular view supports only size 3 (SVG-per-N)', () => {
-        expect(viewSupportsSize('circular', 3)).toBe(true);
-        for (const size of [2, 4, 5, 6, 7]) {
-            expect(viewSupportsSize('circular', size)).toBe(false);
+    it('circular view supports exactly the sizes the loader can serve', () => {
+        // The Circular view is SVG-per-N, but assets are optional: the loader serves a
+        // committed `view-<n>.svg` when present and otherwise generates markup on demand from
+        // parameters.json. So support is defined by loader capability, not by whether a file
+        // was committed.
+        for (const size of loadedSizes()) {
+            expect(viewSupportsSize('circular', size)).toBe(true);
         }
+        expect(viewSupportsSize('circular', 99)).toBe(false);
     });
 
     it('basic, flat, and moves support all sizes 2-7', () => {

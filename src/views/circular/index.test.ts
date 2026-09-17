@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { circularViewFactory } from './index';
+import { loadedSizes, svgMarkupForSize } from './svg-loader';
 
 // Mock CSS modules
 vi.mock('./circular.module.css', () => ({
@@ -11,6 +12,26 @@ vi.mock('./circular.module.css', () => ({
 }));
 
 describe('circularViewFactory', () => {
+    describe('getSupportedSizes', () => {
+        it('offers every size that has a resolvable asset', () => {
+            // The list is derived from the loader rather than restated, so this
+            // asserts the two agree and that the set is the expected one. Each
+            // size named must have a committed asset; svg-loader.test.ts asserts
+            // the same property from the other direction.
+            const sizes = circularViewFactory.getSupportedSizes!();
+            expect(sizes).toEqual(loadedSizes());
+            expect(sizes).toEqual([2, 3, 4, 5, 6, 7]);
+        });
+
+        it('never offers a size the loader cannot resolve', () => {
+            // The failure this guards against is a checkbox for a size with no
+            // asset, which would throw on selection rather than being greyed out.
+            for (const size of circularViewFactory.getSupportedSizes!()) {
+                expect(svgMarkupForSize(size)).toBeDefined();
+            }
+        });
+    });
+
     describe('create', () => {
         it('should create a new CircularCubeView instance', () => {
             // Arrange & Act

@@ -103,9 +103,16 @@ export class CircularCubeView implements CubeView {
         // initial paint
         this.update(model);
 
-        // Default selection: F4 sticker.
-        const f4 = CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, 4);
-        if (f4) this.updateSelected(f4.id);
+        // Default selection: the centre sticker of the front face. Derived from
+        // the cube size rather than a fixed face position, which only exists at
+        // 3×3 (position 4) — at 2×2 that lookup silently matched nothing and the
+        // view opened with no sticker selected.
+        const cubeSize = model.getCurrentState().cubeSize;
+        const centreRow = Math.floor((cubeSize - 1) / 2);
+        const centreCol = Math.floor((cubeSize - 1) / 2);
+        const centrePosition = centreRow * cubeSize + centreCol;
+        const centre = CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, centrePosition);
+        if (centre) this.updateSelected(centre.id);
     }
 
     setLayoutMode(mode: LayoutMode): void {

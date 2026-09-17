@@ -1,0 +1,78 @@
+{
+    "$comment": "Per-size parameter sets for the Circular view SVG generator. Adding a size means adding an entry under 'sizes', not editing generator code. Values come from the geometry spec's invariants, tuned by eye where the spec declines to derive (face-ellipse offset and semi-axes, apex rounding). See README.md for derivation notes. NOTE: there is deliberately no 'viewBox' here. The canvas is DERIVED by the generator, which emits a probe at an oversized viewBox, measures what was drawn, and re-emits fitted to that measurement. Hand-maintained viewBox values used to live here and every one of them had drifted out of sync with what was emitted, so they were removed rather than fixed.",
+    "defaults": {
+        "triangleSide": 100,
+        "innerRadius": 70,
+        "ringStep": 15,
+        "stickerRadius": 7,
+        "centreX": 200,
+        "centreY": 219,
+        "apexHeight": 87,
+        "ellipseOffsetNear": 0.4225,
+        "ellipseOffsetFar": 0.2871,
+        "ellipseMargin": 2.9286,
+        "ellipseAspect": 1.0177,
+        "labelWidth": 20,
+        "labelHeight": 16,
+        "faceLabelGap": 1,
+        "ghostRadiusOffset": 1
+    },
+    "sizes": {
+        "3": {
+            "$comment": "Ring geometry extracted from the hand-authored reference asset now kept at src/views/circular/fixtures/reference-3x3.svg, and regenerating from these values still reproduces its sticker coordinates and ring radii exactly. The ellipse values differ from the reference: they are sized to enclose the ghost circles as well as the stickers, which the reference's fixed 46x40 does not.",
+            "ellipseMargin": 2.05,
+            "ellipseOffsetNear": 0.12,
+            "ellipseOffsetFar": -0.05,
+            "ellipseAspect": 1.0177
+        },
+        "2": {
+            "$comment": "Ring step is 20 rather than the shared 15: cluster extent at 2x2 is exactly one ring step, so the reference spacing left the two rings too close to read as a cluster. This is the one size that departs from consistent local grain, and the one size whose sticker clearance therefore differs.",
+            "innerRadius": 75,
+            "ringStep": 20,
+            "ellipseMargin": 2.4,
+            "ellipseOffsetNear": 0.05,
+            "ellipseOffsetFar": 0.05,
+            "ellipseAspect": 1
+        },
+        "4": {
+            "$comment": "innerRadius is raised from the shared 70. At the shared scale no ellipse offset both encloses the ghosts and keeps the ellipses apart - 0 of 1681 offset pairs work - and r_min is the lever that opens inter-cluster room. Ring step stays at 15: minimum sticker clearance tracks the step, not the ring count.",
+            "triangleSide": 113.619,
+            "innerRadius": 87.5,
+            "apexHeight": 98.848,
+            "ellipseMargin": 2.2,
+            "ellipseOffsetNear": 0,
+            "ellipseOffsetFar": 0.1,
+            "ellipseAspect": 1.05
+        },
+        "5": {
+            "$comment": "Served at every cube size like the rest. Needs its own triangle side and inner radius: at the 3x3 values the rings crowd enough that stickers land on a third ring, violating I3. Originally added as the ghost-rule falsification size (the first where edge-derived ghosts are a strict majority) and later enabled for real use.",
+            "triangleSide": 141.163,
+            "innerRadius": 98.814,
+            "apexHeight": 122.812,
+            "ellipseMargin": 2.3,
+            "ellipseOffsetNear": 0.1,
+            "ellipseOffsetFar": 0.1,
+            "ellipseAspect": 1
+        },
+        "6": {
+            "$comment": "Served at every cube size like the rest. Carries its own ring geometry for the same reason as size 5.",
+            "triangleSide": 169.396,
+            "innerRadius": 118.577,
+            "apexHeight": 147.375,
+            "ellipseMargin": 2.35,
+            "ellipseOffsetNear": 0.07,
+            "ellipseOffsetFar": 0.07,
+            "ellipseAspect": 1
+        },
+        "7": {
+            "$comment": "Served at every cube size like the rest. Carries its own ring geometry for the same reason as size 5.",
+            "triangleSide": 198.229,
+            "innerRadius": 138.76,
+            "apexHeight": 172.459,
+            "ellipseMargin": 2.35,
+            "ellipseOffsetNear": 0.02,
+            "ellipseOffsetFar": 0.02,
+            "ellipseAspect": 0.95
+        }
+    }
+}

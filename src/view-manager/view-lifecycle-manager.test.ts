@@ -300,6 +300,36 @@ describe('ViewLifecycleManager', () => {
             expect(vi.mocked(savePanelState)).toHaveBeenCalled();
         });
 
+        it('should show a visible note when a view fails to initialize', () => {
+            // A creation throw previously left only a console log: the panel was
+            // removed and the checkbox cleared, so the view simply never appeared
+            // with no explanation. This asserts the failure is surfaced.
+            const container = document.createElement('div');
+            container.className = 'view-controls';
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = 'show-basic-front';
+            checkbox.checked = true;
+            label.appendChild(checkbox);
+            container.appendChild(label);
+            document.body.appendChild(container);
+
+            vi.mocked(createView).mockImplementationOnce(() => {
+                throw new Error('boom');
+            });
+
+            expect(() => viewLifecycleManager['showView']('basic-front')).not.toThrow();
+
+            // Panel cleaned up, checkbox cleared, and a note left behind.
+            expect(mockActiveViews.has('basic-front')).toBe(false);
+            expect(checkbox.checked).toBe(false);
+
+            const note = document.getElementById('failure-basic-front');
+            expect(note).not.toBeNull();
+            expect(note!.textContent).toContain('Failed to load');
+        });
+
         it('should not persist panel position in tabbed mode', () => {
             const mockOnPanelAdded = vi.fn();
             const tabbedManager = new ViewLifecycleManager(

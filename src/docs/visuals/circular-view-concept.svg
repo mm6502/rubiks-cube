@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Documentation asset. Embedded in src/docs/circular-view.md via ![](), which
+  browsers load as an <img>. Two changes were needed for that to work at all,
+  because the original was authored for INLINE embedding:
+
+  1. `color` is set on the root element. The stylesheet below uses
+     `stroke: currentColor`, which for an <img> does NOT inherit from the host
+     page — it resolves against the SVG document's own default. Without this
+     the rings rendered black-on-transparent and vanished in dark mode.
+  2. An opaque background rect is drawn first. The page background is not
+     visible through a replaced element, so without it the diagram sat on
+     whatever the viewer's canvas was.
+
+  Together these make the diagram behave like the PNG beside it: legible on
+  both light and dark backgrounds. The dark ink is GitHub's light-mode
+  foreground; the palette below it is unchanged from the original.
+-->
 <svg
   xmlns="http://www.w3.org/2000/svg"
   viewBox="50 30 300 325"
@@ -6,6 +23,7 @@
   height="325"
   role="img"
   aria-labelledby="title desc"
+  color="#1f2328"
 >
   <title id="title">Rubik cube state – concentric axes concept</title>
   <desc id="desc">
@@ -45,6 +63,11 @@
       <rect x="190" y="67" width="20" height="16" fill="black" />
     </mask>
   </defs>
+
+  <!-- Opaque backing. A replaced element (an <img>-embedded SVG) cannot show the
+       page background, so this is what the diagram actually sits on. Matches the
+       near-white of the companion PNG. -->
+  <rect x="50" y="30" width="300" height="325" fill="#fefefe" />
 
   <!-- Concentric rings (3 layers) -->
   <g mask="url(#label-mask)">

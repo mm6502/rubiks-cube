@@ -7,6 +7,27 @@ representation based on three sets of concentric circles representing the X, Y,
 and Z axes. Each sticker is positioned at the intersection of two axis circles,
 creating a unique coordinate-based visualization.
 
+![The concentric-circle concept: three interleaved axis circle sets with a
+sticker at each intersection](visuals/circular-view-concept.svg)
+
+The idea in its original composite form, next to a perspective cube. This is the
+early mock-up that the layout above was derived from, kept for reference: its
+cube is drawn in perspective with an unrelated colour palette, so treat it as
+the design intent rather than a specification.
+
+![Original composite mock-up: the concentric-circle diagram beside a perspective
+cube](visuals/circular-view-concept.png)
+
+> Both files were originally committed as `concept.svg` and `concept.png` inside
+> `src/views/circular/`. They were never referenced by any code, in any commit,
+> and neither reached the build. They live here because they document this view,
+> not because the app loads them.
+
+Note that the mock-ups predate the shipping palette and the two disagree: here
+`F` is blue and `R` is red, while the generated assets use the reverse. Take the
+geometry and the labelling scheme from these images, and the colours from the
+assets.
+
 ## SVG Structure
 
 ### Axis Circles
@@ -279,7 +300,10 @@ paths so the inference logic can be tested and overridden independently.
 - `src/views/circular/animations.ts` - Move animation support
 - `src/views/circular/highlights.ts` - Sticker highlight management
 - `src/views/circular/keyboard-cube-walking.ts` - Keyboard navigation
-- `src/views/circular/view.svg` - SVG asset with axis circles and stickers
+- `src/views/circular/view-<n>.svg` - Generated SVG asset per cube size (2-7),
+  with axis circles, stickers and ghost hints
+- `src/views/circular/fixtures/reference-3x3.svg` - The hand-authored 3x3
+  original, kept as the fidelity reference for the generator's tests
 - `src/interaction/move-inference.ts` - Face/row/col → WCA notation inference
 - `src/interaction/drag-state-machine.ts` - Generic gesture recogniser
 - `src/cube/types/` - Cube state and cubie type definitions
