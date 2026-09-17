@@ -1,7 +1,9 @@
 import { markupBounds } from '@/views/circular/svg-generator/measure';
 
+import { loadedSizes, svgMarkupForSize } from './svg-loader';
+
 /**
- * Canvas containment for the committed assets.
+ * Canvas containment for every size the view can serve.
  *
  * The property: nothing an asset draws may fall outside its own viewBox. The mask
  * makes anything beyond the canvas transparent, so an element outside it is not
@@ -13,31 +15,28 @@ import { markupBounds } from '@/views/circular/svg-generator/measure';
  * every size from 4 up had its outermost ring's arc cropped — up to ~42 degrees at
  * 7×7. The canvas check shared the same omission, so it passed the cropped assets.
  * Measuring the emitted markup instead of a list of element kinds closes that gap,
- * and this test asserts the property directly on what shipped.
+ * and this test asserts the property directly on what the app serves.
  *
- * Assets are loaded through Vite's raw glob rather than the filesystem, because
- * the app tsconfig has no Node types. That also makes the set of assets under test
- * exactly the set the app can serve.
+ * Subjects come from the LOADER, not from a filesystem glob. Committing an asset
+ * is optional: the loader serves `view-<n>.svg` when present and builds the size
+ * otherwise. Deriving the list from the loader means these assertions cover
+ * exactly what the app can render either way — a glob-based list silently became
+ * empty, and therefore vacuous, the moment the assets stopped being committed.
  */
-const assets = import.meta.glob<string>('./view*.svg', {
-    eager: true,
-    query: '?raw',
-    import: 'default',
-});
 
 /**
- * The generated per-size assets.
+ * Every size the app can serve, with the markup it would render.
  *
- * Every shipped size now comes from the generator, so the set under test is the
- * same set the loader serves. The hand-authored 3x3 original lives in
- * `fixtures/`, one level down: it is a fidelity reference, not a shipping asset,
- * and this glob must not reach it.
+ * Sourced from the loader so this cannot drift from the shipping set. The
+ * hand-authored 3x3 original lives in `fixtures/`, one level down; the loader
+ * never reaches it, so it cannot appear here as a shipping size.
  */
-function committedAssets(): { name: string; svg: string }[] {
-    return Object.entries(assets)
-        .filter(([path]) => /\/view-\d+\.svg$/.test(path))
-        .map(([path, svg]) => ({ name: path.replace(/^.*\//, ''), svg }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+function servedAssets(): { name: string; size: number; svg: string }[] {
+    return loadedSizes().map(size => ({
+        name: `size ${size}`,
+        size,
+        svg: svgMarkupForSize(size)!,
+    }));
 }
 
 function parseViewBox(svg: string): { vx: number; vy: number; vw: number; vh: number } {
@@ -47,24 +46,24 @@ function parseViewBox(svg: string): { vx: number; vy: number; vw: number; vh: nu
     return { vx, vy, vw, vh };
 }
 
-describe('circular view — committed assets fit inside their canvas', () => {
-    it('finds every generated asset and no fixture', () => {
-        const list = committedAssets();
-        expect(list.map(a => a.name)).toEqual([
-            'view-2.svg',
-            'view-3.svg',
-            'view-4.svg',
-            'view-5.svg',
-            'view-6.svg',
-            'view-7.svg',
-        ]);
-        // The glob must not reach the fixtures directory: a fixture inside this
-        // set would be checked against a canvas it was never generated for.
-        expect(list.some(a => a.name.includes('reference'))).toBe(false);
+describe('circular view — every served size fits inside its canvas', () => {
+    it('covers every size the loader serves, and no fixture', () => {
+        const list = servedAssets();
+        expect(list.map(a => a.size)).toEqual(loadedSizes());
+        expect(list.map(a => a.size)).toEqual([2, 3, 4, 5, 6, 7]);
+
+        // A size the loader cannot serve must not appear, and the hand-authored
+        // reference must never be treated as a shipping size — its ellipses are
+        // fixed at 46x40, which no generated asset uses.
+        for (const { svg, size } of list) {
+            expect(svg).toContain(`data-cube-size="${size}"`);
+            expect(svg).not.toContain('fixtures/');
+            expect(svg).not.toContain('rx="46"');
+        }
     });
 
-    it.each(committedAssets().map(a => a.name))('%s draws nothing outside its viewBox', name => {
-        const svg = committedAssets().find(a => a.name === name)!.svg;
+    it.each(servedAssets().map(a => a.name))('%s draws nothing outside its viewBox', name => {
+        const svg = servedAssets().find(a => a.name === name)!.svg;
         const { vx, vy, vw, vh } = parseViewBox(svg);
         const b = markupBounds(svg);
 
@@ -80,14 +79,14 @@ describe('circular view — committed assets fit inside their canvas', () => {
         expect(overflow).toEqual({ left: 0, top: 0, right: 0, bottom: 0 });
     });
 
-    it.each(committedAssets().map(a => a.name))(
+    it.each(servedAssets().map(a => a.name))(
         '%s keeps every axis circle inside the canvas',
         name => {
             // The specific regression, asserted on its own so a failure names the
             // cause rather than reporting generic overflow. Rings are the outermost
             // geometry: a ring reaches centre ± r_max, and its extreme point carries
             // no sticker, so a canvas sized to the stickers and ellipses misses it.
-            const svg = committedAssets().find(a => a.name === name)!.svg;
+            const svg = servedAssets().find(a => a.name === name)!.svg;
             const { vx, vy, vw, vh } = parseViewBox(svg);
 
             const circles: { id: string; x0: number; y0: number; x1: number; y1: number }[] = [];

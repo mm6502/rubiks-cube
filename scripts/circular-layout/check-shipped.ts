@@ -1,16 +1,21 @@
 /**
- * Which SHIPPED assets have ghost circles protruding from their face ellipses?
+ * Which servable size has ghost circles protruding from their face ellipses?
  *
- * The app does not consume the preview parameters — it loads the committed assets
- * in src/views/circular/. Every size, 3x3 included, is generated as view-<n>.svg,
- * so the question "does D need applying?" has to be asked of those files, not of
- * the preview table.
+ * The app does not consume the preview parameters — it renders whatever the
+ * loader resolves for a size. Committing `view-<n>.svg` is optional: the loader
+ * serves that file when present and builds the size from `parameters.json`
+ * otherwise. So this asks the question of what the app actually renders, taking
+ * each size's markup from the same generator the loader falls back to.
  *
- * This reads each committed asset, pairs every ghost with its target face's
- * ellipse, and reports the clearance. Negative means the ghost pokes outside its
- * ellipse, which is the reported symptom.
+ * This pairs every ghost with its target face's ellipse and reports the
+ * clearance. Negative means the ghost pokes outside its ellipse, which is the
+ * reported symptom.
+ *
+ * Usage: npx tsx scripts/circular-layout/check-shipped.ts
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+
+import { availableSizes, buildSvg, loadParameters } from '@/views/circular/svg-generator/generate';
 
 interface Ell {
     face: string;
@@ -29,9 +34,7 @@ interface Circle {
     tag: string;
 }
 
-function parse(path: string) {
-    const svg = readFileSync(path, 'utf8');
-
+function parseMarkup(svg: string) {
     const ellipses: Ell[] = [];
     for (const m of svg.matchAll(/<ellipse\b[^>]*\/>/g)) {
         const tag = m[0];
@@ -89,18 +92,38 @@ function clearance(e: Ell, c: Circle): number {
     return boundary - r - c.r;
 }
 
-console.log('Ghost enclosure in the COMMITTED assets\n');
+console.log('Ghost enclosure in what the app renders\n');
 console.log(
-    '  file        | ellipse rx x ry | worst ghost clearance | offending ghost | worst sticker clearance'
+    '  size | source    | ellipse rx x ry | worst ghost clearance | offending ghost | worst sticker clearance'
 );
 
-const dir = 'src/views/circular';
-const files = readdirSync(dir)
-    .filter(f => /^view-\d+\.svg$/.test(f))
-    .sort();
+/**
+ * Each servable size, with the markup the app would render for it.
+ *
+ * Reads the committed asset when there is one and builds it otherwise, mirroring
+ * the loader. A filesystem-only scan silently produced an empty table once the
+ * assets stopped being committed, which read as "no problems" rather than "no
+ * input".
+ */
+function servableSizes(): { size: number; source: string; svg: string }[] {
+    return availableSizes(loadParameters()).map(size => {
+        const path = `src/views/circular/view-${size}.svg`;
+        const committed = existsSync(path);
+        return {
+            size,
+            source: committed ? 'committed' : 'generated',
+            svg: committed ? readFileSync(path, 'utf8') : buildSvg(size, loadParameters()),
+        };
+    });
+}
 
-for (const file of files) {
-    const { ellipses, ghosts, stickers } = parse(`${dir}/${file}`);
+const sizes = servableSizes();
+if (!sizes.length) {
+    console.log('  no sizes configured in parameters.json');
+}
+
+for (const { size, source, svg } of sizes) {
+    const { ellipses, ghosts, stickers } = parseMarkup(svg);
     if (!ellipses.length) continue;
 
     let ghostWorst = Infinity;
@@ -127,7 +150,7 @@ for (const file of files) {
 
     const verdict = ghostWorst < 0 ? 'GHOSTS PROTRUDE' : ghostWorst < 1 ? 'tight' : 'ok';
     console.log(
-        `  ${file.padEnd(11)} | ${u.rx.toFixed(1).padStart(5)} x ${u.ry.toFixed(1).padStart(5)} | ` +
+        `  ${String(size).padStart(4)} | ${source.padEnd(9)} | ${u.rx.toFixed(1).padStart(5)} x ${u.ry.toFixed(1).padStart(5)} | ` +
             `${ghostWorst.toFixed(2).padStart(21)} | ${(ghostTag || '-').padEnd(15)} | ${stickerWorst.toFixed(2).padStart(23)}  ${verdict}`
     );
 }
