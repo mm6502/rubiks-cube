@@ -7,6 +7,27 @@ representation based on three sets of concentric circles representing the X, Y,
 and Z axes. Each sticker is positioned at the intersection of two axis circles,
 creating a unique coordinate-based visualization.
 
+![The concentric-circle concept: three interleaved axis circle sets with a
+sticker at each intersection](visuals/circular-view-concept.svg)
+
+The idea in its original composite form, next to a perspective cube. This is the
+early mock-up that the layout above was derived from, kept for reference: its
+cube is drawn in perspective with an unrelated colour palette, so treat it as
+the design intent rather than a specification.
+
+![Original composite mock-up: the concentric-circle diagram beside a perspective
+cube](visuals/circular-view-concept.png)
+
+> Both files were originally committed as `concept.svg` and `concept.png` inside
+> `src/views/circular/`. They were never referenced by any code, in any commit,
+> and neither reached the build. They live here because they document this view,
+> not because the app loads them.
+
+Note that the mock-ups predate the shipping palette and the two disagree: here
+`F` is blue and `R` is red, while the generated assets use the reverse. Take the
+geometry and the labelling scheme from these images, and the colours from the
+assets.
+
 ## SVG Structure
 
 ### Axis Circles
