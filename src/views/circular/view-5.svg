@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="-24 -77 448 485"
+  preserveAspectRatio="xMidYMid meet"
+  role="img"
+  aria-labelledby="title desc"
+  width="100%"
+  height="100%"
+  data-cube-size="5"
+  style="max-width:100%; max-height:100%; display:block;"
+>
+  <desc id="desc">
+    Three interleaved sets of concentric circles representing X, Y, and Z axes.
+    Each set has 5 rings for layer indices 0, 1, 2, 3, 4. The three centers form an isosceles triangle,
+    and circle intersections create slanted-square (diamond-like) regions.
+  </desc>
+  <defs>
+    <style>
+      /* Theme-friendly: inherits text/stroke color from surrounding CSS */
+      .stroke { stroke: currentColor; fill: none; vector-effect: non-scaling-stroke; }
+
+      .axisLabelRect { fill: currentColor; stroke: currentColor; stroke-width: 0.5; opacity: 0.0; }
+      .axisLabel { fill: currentColor; font: 10px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+      .axisX { stroke-width: 1.5; opacity: 0.66; }
+      .axisY { stroke-width: 1.5; opacity: 0.66; }
+      .axisZ { stroke-width: 1.5; opacity: 0.66; }
+
+      .faceLabel text { fill: currentColor; font: bold 12px Arial, system-ui, -apple-system, sans-serif; }
+      .faceLabel rect { fill: var(--color-domain-face-label-bg); stroke: var(--color-domain-face-label-border); stroke-width: 1.5; }
+      .faceLabel > g { transition: transform 0.3s ease; }
+      .faceEllipse { fill: currentColor; stroke: currentColor; stroke-width: 1.5; opacity: 0.2; }
+    </style>
+    <mask id="label-mask">
+      <rect x="-24" y="-77" width="448" height="485" fill="white" />
+      <rect id="mask-z-4" x="33.94" y="260.58" width="20" height="16" fill="black" />
+      <rect id="mask-z-3" x="20.97" y="268.1" width="20" height="16" fill="black" />
+      <rect id="mask-z-2" x="7.99" y="275.63" width="20" height="16" fill="black" />
+      <rect id="mask-z-1" x="-4.99" y="283.15" width="20" height="16" fill="black" />
+      <rect id="mask-z-0" x="-17.96" y="290.68" width="20" height="16" fill="black" />
+      <rect id="mask-x-0" x="397.96" y="290.68" width="20" height="16" fill="black" />
+      <rect id="mask-x-1" x="384.99" y="283.15" width="20" height="16" fill="black" />
+      <rect id="mask-x-2" x="372.01" y="275.63" width="20" height="16" fill="black" />
+      <rect id="mask-x-3" x="359.03" y="268.1" width="20" height="16" fill="black" />
+      <rect id="mask-x-4" x="346.06" y="260.58" width="20" height="16" fill="black" />
+      <rect id="mask-y-0" x="190" y="-70.63" width="20" height="16" fill="black" />
+      <rect id="mask-y-1" x="190" y="-55.63" width="20" height="16" fill="black" />
+      <rect id="mask-y-2" x="190" y="-40.63" width="20" height="16" fill="black" />
+      <rect id="mask-y-3" x="190" y="-25.63" width="20" height="16" fill="black" />
+      <rect id="mask-y-4" x="190" y="-10.63" width="20" height="16" fill="black" />
+      <!-- 15 label holes: 5 per axis -->
+    </mask>
+  </defs>
+  <!-- Concentric rings (5 layers) -->
+  <g mask="url(#label-mask)">
+    <g class="stroke axisZ" aria-label="Axis Z">
+      <circle id="Z-layer-4" data-axis="Z" data-layer-index="4" cx="129.4185" cy="219" r="158.814" />
+      <circle id="Z-layer-3" data-axis="Z" data-layer-index="3" cx="129.4185" cy="219" r="143.814" />
+      <circle id="Z-layer-2" data-axis="Z" data-layer-index="2" cx="129.4185" cy="219" r="128.814" />
+      <circle id="Z-layer-1" data-axis="Z" data-layer-index="1" cx="129.4185" cy="219" r="113.814" />
+      <circle id="Z-layer-0" data-axis="Z" data-layer-index="0" cx="129.4185" cy="219" r="98.814" />
+    </g>
+
+    <g class="stroke axisX" aria-label="Axis X">
+      <circle id="X-layer-4" data-axis="X" data-layer-index="4" cx="270.5815" cy="219" r="98.814" />
+      <circle id="X-layer-3" data-axis="X" data-layer-index="3" cx="270.5815" cy="219" r="113.814" />
+      <circle id="X-layer-2" data-axis="X" data-layer-index="2" cx="270.5815" cy="219" r="128.814" />
+      <circle id="X-layer-1" data-axis="X" data-layer-index="1" cx="270.5815" cy="219" r="143.814" />
+      <circle id="X-layer-0" data-axis="X" data-layer-index="0" cx="270.5815" cy="219" r="158.814" />
+    </g>
+
+    <g class="stroke axisY" aria-label="Axis Y">
+      <circle id="Y-layer-4" data-axis="Y" data-layer-index="4" cx="200" cy="96.188" r="98.814" />
+      <circle id="Y-layer-3" data-axis="Y" data-layer-index="3" cx="200" cy="96.188" r="113.814" />
+      <circle id="Y-layer-2" data-axis="Y" data-layer-index="2" cx="200" cy="96.188" r="128.814" />
+      <circle id="Y-layer-1" data-axis="Y" data-layer-index="1" cx="200" cy="96.188" r="143.814" />
+      <circle id="Y-layer-0" data-axis="Y" data-layer-index="0" cx="200" cy="96.188" r="158.814" />
+    </g>
+  </g>
+  <!-- Labels: axis + layer index per ring -->
+  <g class="axisLabel" aria-hidden="true">
+    <g data-label-id="z-4" data-axis="Z" data-layer-index="0" transform="translate(33.94, 260.58)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">F↻</text>
+      <title>[z:0] F move rotates this circle clockwise.</title>
+    </g>
+    <g data-label-id="z-3" data-axis="Z" data-layer-index="1" transform="translate(20.97, 268.1)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">2S↻</text>
+      <title>[z:1] 2S move rotates this circle clockwise. (follows F)</title>
+    </g>
+    <g data-label-id="z-2" data-axis="Z" data-layer-index="2" transform="translate(7.99, 275.63)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">3S↻</text>
+      <title>[z:2] 3S move rotates this circle clockwise. (follows F)</title>
+    </g>
+    <g data-label-id="z-1" data-axis="Z" data-layer-index="3" transform="translate(-4.99, 283.15)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">4S↻</text>
+      <title>[z:3] 4S move rotates this circle clockwise. (follows F)</title>
+    </g>
+    <g data-label-id="z-0" data-axis="Z" data-layer-index="4" transform="translate(-17.96, 290.68)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">B↺</text>
+      <title>[z:4] B move rotates this circle counter-clockwise.</title>
+    </g>
+
+    <g data-label-id="y-0" data-axis="Y" data-layer-index="0" transform="translate(190, -70.63)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">D↺</text>
+      <title>[y:0] D move rotates this circle counter-clockwise.</title>
+    </g>
+    <g data-label-id="y-1" data-axis="Y" data-layer-index="1" transform="translate(190, -55.63)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">2E↺</text>
+      <title>[y:1] 2E move rotates this circle counter-clockwise. (follows D)</title>
+    </g>
+    <g data-label-id="y-2" data-axis="Y" data-layer-index="2" transform="translate(190, -40.63)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">3E↺</text>
+      <title>[y:2] 3E move rotates this circle counter-clockwise. (follows D)</title>
+    </g>
+    <g data-label-id="y-3" data-axis="Y" data-layer-index="3" transform="translate(190, -25.63)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">4E↺</text>
+      <title>[y:3] 4E move rotates this circle counter-clockwise. (follows D)</title>
+    </g>
+    <g data-label-id="y-4" data-axis="Y" data-layer-index="4" transform="translate(190, -10.63)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">U↻</text>
+      <title>[y:4] U move rotates this circle clockwise.</title>
+    </g>
+
+    <g data-label-id="x-0" data-axis="X" data-layer-index="0" transform="translate(397.96, 290.68)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">L↺</text>
+      <title>[x:0] L move rotates this circle counter-clockwise.</title>
+    </g>
+    <g data-label-id="x-1" data-axis="X" data-layer-index="1" transform="translate(384.99, 283.15)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">2M↺</text>
+      <title>[x:1] 2M move rotates this circle counter-clockwise. (follows L)</title>
+    </g>
+    <g data-label-id="x-2" data-axis="X" data-layer-index="2" transform="translate(372.01, 275.63)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">3M↺</text>
+      <title>[x:2] 3M move rotates this circle counter-clockwise. (follows L)</title>
+    </g>
+    <g data-label-id="x-3" data-axis="X" data-layer-index="3" transform="translate(359.03, 268.1)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">4M↺</text>
+      <title>[x:3] 4M move rotates this circle counter-clockwise. (follows L)</title>
+    </g>
+    <g data-label-id="x-4" data-axis="X" data-layer-index="4" transform="translate(346.06, 260.58)">
+      <rect class="axisLabelRect" width="20" height="16" />
+      <text x="10" y="8" text-anchor="middle" dominant-baseline="middle">R↻</text>
+      <title>[x:4] R move rotates this circle clockwise.</title>
+    </g>
+  </g>
+  <!-- Cube face labels positioned outside ellipses -->
+  <!-- Labels tilt dynamically via JS when keyboard is active to hint Arrow-Up rotation direction. -->
+  <g class="faceLabel" aria-hidden="true">
+    <g data-face="U" id="face-label-U" transform="translate(200,46)">
+      <rect x="-10" y="-10" width="20" height="20" rx="3" />
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="middle">U</text>
+    </g>
+
+    <g data-face="D" id="face-label-D" transform="translate(200,392)">
+      <rect x="-10" y="-10" width="20" height="20" rx="3" />
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="middle">D</text>
+    </g>
+
+    <g data-face="L" id="face-label-L" transform="translate(11.66,69.54)">
+      <rect x="-10" y="-10" width="20" height="20" rx="3" />
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="middle">L</text>
+    </g>
+
+    <g data-face="R" id="face-label-R" transform="translate(317.87,245.41)">
+      <rect x="-10" y="-10" width="20" height="20" rx="3" />
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="middle">R</text>
+    </g>
+
+    <g data-face="F" id="face-label-F" transform="translate(82.13,245.41)">
+      <rect x="-10" y="-10" width="20" height="20" rx="3" />
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="middle">F</text>
+    </g>
+
+    <g data-face="B" id="face-label-B" transform="translate(388.34,69.54)">
+      <rect x="-10" y="-10" width="20" height="20" rx="3" />
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="middle">B</text>
+    </g>
+  </g>
+  <!-- Face Ellipses -->
+  <g class="faceEllipse">
+    <ellipse data-face="U" id="U-face-ellipse" cx="200" cy="109.66" rx="70.85" ry="52.66" />
+    <ellipse data-face="D" id="D-face-ellipse" cx="200" cy="328.34" rx="70.85" ry="52.66" />
+    <ellipse data-face="L" id="L-face-ellipse" cx="70.04" cy="103.18" rx="70.66" ry="52.72" transform="rotate(-60.05 70.04 103.18)" />
+    <ellipse data-face="R" id="R-face-ellipse" cx="259.38" cy="211.99" rx="70.66" ry="52.72" transform="rotate(-60.26 259.38 211.99)" />
+    <ellipse data-face="F" id="F-face-ellipse" cx="140.62" cy="211.99" rx="70.66" ry="52.72" transform="rotate(60.26 140.62 211.99)" />
+    <ellipse data-face="B" id="B-face-ellipse" cx="329.96" cy="103.18" rx="70.66" ry="52.72" transform="rotate(60.05 329.96 103.18)" />
+  </g>
+  <!-- Ghost hint stickers — semi-transparent, non-interactive hints showing
+       distant stickers on the far side of each axis circle's gap. -->
+  <g class="ghost-sticker-wrapper" aria-hidden="true">
+    <!-- Ghost stickers at face U -->
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="4" data-ghost-face="U" data-ghost-index="0" data-ghost-target="sticker-U-0" data-ghost-source="sticker-B-4" cx="206.34" cy="73.76" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="4" data-ghost-face="U" data-ghost-index="1" data-ghost-target="sticker-U-0" data-ghost-source="sticker-L-0" cx="193.66" cy="73.76" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="3" data-ghost-face="U" data-ghost-index="2" data-ghost-target="sticker-U-1" data-ghost-source="sticker-B-3" cx="222.62" cy="83.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="2" data-ghost-face="U" data-ghost-index="3" data-ghost-target="sticker-U-2" data-ghost-source="sticker-B-2" cx="237.27" cy="94.57" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="U" data-ghost-index="4" data-ghost-target="sticker-U-3" data-ghost-source="sticker-B-1" cx="250.30" cy="107.01" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="U" data-ghost-index="5" data-ghost-target="sticker-U-4" data-ghost-source="sticker-B-0" cx="261.69" cy="120.59" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="4" data-ghost-face="U" data-ghost-index="6" data-ghost-target="sticker-U-4" data-ghost-source="sticker-R-4" cx="258.93" cy="127.08" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="3" data-ghost-face="U" data-ghost-index="7" data-ghost-target="sticker-U-5" data-ghost-source="sticker-L-1" cx="177.38" cy="83.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="3" data-ghost-face="U" data-ghost-index="8" data-ghost-target="sticker-U-9" data-ghost-source="sticker-R-3" cx="243.09" cy="130.91" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="2" data-ghost-face="U" data-ghost-index="9" data-ghost-target="sticker-U-10" data-ghost-source="sticker-L-2" cx="162.73" cy="94.57" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="2" data-ghost-face="U" data-ghost-index="10" data-ghost-target="sticker-U-14" data-ghost-source="sticker-R-2" cx="228.79" cy="137.03" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="U" data-ghost-index="11" data-ghost-target="sticker-U-15" data-ghost-source="sticker-L-3" cx="149.70" cy="107.01" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="U" data-ghost-index="12" data-ghost-target="sticker-U-19" data-ghost-source="sticker-R-1" cx="216.00" cy="145.13" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="4" data-ghost-face="U" data-ghost-index="13" data-ghost-target="sticker-U-20" data-ghost-source="sticker-F-0" cx="141.07" cy="127.08" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="U" data-ghost-index="14" data-ghost-target="sticker-U-20" data-ghost-source="sticker-L-4" cx="138.31" cy="120.59" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="3" data-ghost-face="U" data-ghost-index="15" data-ghost-target="sticker-U-21" data-ghost-source="sticker-F-1" cx="156.91" cy="130.91" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="2" data-ghost-face="U" data-ghost-index="16" data-ghost-target="sticker-U-22" data-ghost-source="sticker-F-2" cx="171.21" cy="137.03" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="U" data-ghost-index="17" data-ghost-target="sticker-U-23" data-ghost-source="sticker-F-3" cx="184.00" cy="145.13" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="U" data-ghost-index="18" data-ghost-target="sticker-U-24" data-ghost-source="sticker-F-4" cx="195.28" cy="155.01" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="U" data-ghost-index="19" data-ghost-target="sticker-U-24" data-ghost-source="sticker-R-0" cx="204.72" cy="155.01" r="7" />
+    <!-- Ghost stickers at face D -->
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="4" data-ghost-face="D" data-ghost-index="0" data-ghost-target="sticker-D-0" data-ghost-source="sticker-F-20" cx="141.07" cy="310.92" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="1" data-ghost-target="sticker-D-0" data-ghost-source="sticker-L-24" cx="138.31" cy="317.41" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="3" data-ghost-face="D" data-ghost-index="2" data-ghost-target="sticker-D-1" data-ghost-source="sticker-F-21" cx="156.91" cy="307.09" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="2" data-ghost-face="D" data-ghost-index="3" data-ghost-target="sticker-D-2" data-ghost-source="sticker-F-22" cx="171.21" cy="300.97" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="4" data-ghost-target="sticker-D-3" data-ghost-source="sticker-F-23" cx="184.00" cy="292.87" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="5" data-ghost-target="sticker-D-4" data-ghost-source="sticker-F-24" cx="195.28" cy="282.99" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="6" data-ghost-target="sticker-D-4" data-ghost-source="sticker-R-20" cx="204.72" cy="282.99" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="7" data-ghost-target="sticker-D-5" data-ghost-source="sticker-L-23" cx="149.70" cy="330.99" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="8" data-ghost-target="sticker-D-9" data-ghost-source="sticker-R-21" cx="216.00" cy="292.87" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="2" data-ghost-face="D" data-ghost-index="9" data-ghost-target="sticker-D-10" data-ghost-source="sticker-L-22" cx="162.73" cy="343.43" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="2" data-ghost-face="D" data-ghost-index="10" data-ghost-target="sticker-D-14" data-ghost-source="sticker-R-22" cx="228.79" cy="300.97" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="3" data-ghost-face="D" data-ghost-index="11" data-ghost-target="sticker-D-15" data-ghost-source="sticker-L-21" cx="177.38" cy="354.58" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="3" data-ghost-face="D" data-ghost-index="12" data-ghost-target="sticker-D-19" data-ghost-source="sticker-R-23" cx="243.09" cy="307.09" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="4" data-ghost-face="D" data-ghost-index="13" data-ghost-target="sticker-D-20" data-ghost-source="sticker-B-24" cx="206.34" cy="364.24" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="4" data-ghost-face="D" data-ghost-index="14" data-ghost-target="sticker-D-20" data-ghost-source="sticker-L-20" cx="193.66" cy="364.24" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="3" data-ghost-face="D" data-ghost-index="15" data-ghost-target="sticker-D-21" data-ghost-source="sticker-B-23" cx="222.62" cy="354.58" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="2" data-ghost-face="D" data-ghost-index="16" data-ghost-target="sticker-D-22" data-ghost-source="sticker-B-22" cx="237.27" cy="343.43" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="D" data-ghost-index="17" data-ghost-target="sticker-D-23" data-ghost-source="sticker-B-21" cx="250.30" cy="330.99" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="D" data-ghost-index="18" data-ghost-target="sticker-D-24" data-ghost-source="sticker-B-20" cx="261.69" cy="317.41" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="4" data-ghost-face="D" data-ghost-index="19" data-ghost-target="sticker-D-24" data-ghost-source="sticker-R-24" cx="258.93" cy="310.92" r="7" />
+    <!-- Ghost stickers at face L -->
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="0" data-ghost-target="sticker-L-0" data-ghost-source="sticker-B-4" cx="110.06" cy="55.25" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="4" data-ghost-face="L" data-ghost-index="1" data-ghost-target="sticker-L-0" data-ghost-source="sticker-U-0" cx="114.34" cy="60.90" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="3" data-ghost-face="L" data-ghost-index="2" data-ghost-target="sticker-L-1" data-ghost-source="sticker-U-5" cx="109.85" cy="76.52" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="2" data-ghost-face="L" data-ghost-index="3" data-ghost-target="sticker-L-2" data-ghost-source="sticker-U-10" cx="108.10" cy="91.96" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="4" data-ghost-target="sticker-L-3" data-ghost-source="sticker-U-15" cx="108.80" cy="107.07" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="5" data-ghost-target="sticker-L-4" data-ghost-source="sticker-F-0" cx="107.12" cy="129.92" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="6" data-ghost-target="sticker-L-4" data-ghost-source="sticker-U-20" cx="111.80" cy="121.77" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="7" data-ghost-target="sticker-L-5" data-ghost-source="sticker-B-9" cx="92.66" cy="58.35" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="8" data-ghost-target="sticker-L-9" data-ghost-source="sticker-F-5" cx="92.91" cy="134.72" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="2" data-ghost-face="L" data-ghost-index="9" data-ghost-target="sticker-L-10" data-ghost-source="sticker-B-14" cx="75.42" cy="63.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="2" data-ghost-face="L" data-ghost-index="10" data-ghost-target="sticker-L-14" data-ghost-source="sticker-F-10" cx="79.50" cy="141.72" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="3" data-ghost-face="L" data-ghost-index="11" data-ghost-target="sticker-L-15" data-ghost-source="sticker-B-19" cx="58.49" cy="70.53" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="3" data-ghost-face="L" data-ghost-index="12" data-ghost-target="sticker-L-19" data-ghost-source="sticker-F-15" cx="67.04" cy="151.01" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="4" data-ghost-face="L" data-ghost-index="13" data-ghost-target="sticker-L-20" data-ghost-source="sticker-B-24" cx="42.04" cy="79.79" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="4" data-ghost-face="L" data-ghost-index="14" data-ghost-target="sticker-L-20" data-ghost-source="sticker-D-20" cx="35.72" cy="90.77" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="3" data-ghost-face="L" data-ghost-index="15" data-ghost-target="sticker-L-21" data-ghost-source="sticker-D-15" cx="36.01" cy="109.65" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="2" data-ghost-face="L" data-ghost-index="16" data-ghost-target="sticker-L-22" data-ghost-source="sticker-D-10" cx="38.39" cy="127.86" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="L" data-ghost-index="17" data-ghost-target="sticker-L-23" data-ghost-source="sticker-D-5" cx="42.69" cy="145.30" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="4" data-ghost-face="L" data-ghost-index="18" data-ghost-target="sticker-L-24" data-ghost-source="sticker-F-20" cx="55.81" cy="162.75" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="L" data-ghost-index="19" data-ghost-target="sticker-L-24" data-ghost-source="sticker-D-0" cx="48.77" cy="161.90" r="7" />
+    <!-- Ghost stickers at face R -->
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="R" data-ghost-index="0" data-ghost-target="sticker-R-0" data-ghost-source="sticker-F-4" cx="217.61" cy="193.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="R" data-ghost-index="1" data-ghost-target="sticker-R-0" data-ghost-source="sticker-U-24" cx="222.30" cy="185.27" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="R" data-ghost-index="2" data-ghost-target="sticker-R-1" data-ghost-source="sticker-U-19" cx="236.51" cy="180.46" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="2" data-ghost-face="R" data-ghost-index="3" data-ghost-target="sticker-R-2" data-ghost-source="sticker-U-14" cx="249.92" cy="173.47" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="3" data-ghost-face="R" data-ghost-index="4" data-ghost-target="sticker-R-3" data-ghost-source="sticker-U-9" cx="262.37" cy="164.18" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="R" data-ghost-index="5" data-ghost-target="sticker-R-4" data-ghost-source="sticker-B-0" cx="280.65" cy="153.29" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="4" data-ghost-face="R" data-ghost-index="6" data-ghost-target="sticker-R-4" data-ghost-source="sticker-U-4" cx="273.61" cy="152.43" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="R" data-ghost-index="7" data-ghost-target="sticker-R-5" data-ghost-source="sticker-F-9" cx="220.62" cy="208.12" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="R" data-ghost-index="8" data-ghost-target="sticker-R-9" data-ghost-source="sticker-B-5" cx="286.73" cy="169.89" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="2" data-ghost-face="R" data-ghost-index="9" data-ghost-target="sticker-R-10" data-ghost-source="sticker-F-14" cx="221.32" cy="223.23" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="2" data-ghost-face="R" data-ghost-index="10" data-ghost-target="sticker-R-14" data-ghost-source="sticker-B-10" cx="291.03" cy="187.33" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="3" data-ghost-face="R" data-ghost-index="11" data-ghost-target="sticker-R-15" data-ghost-source="sticker-F-19" cx="219.57" cy="238.66" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="3" data-ghost-face="R" data-ghost-index="12" data-ghost-target="sticker-R-19" data-ghost-source="sticker-B-15" cx="293.41" cy="205.54" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="4" data-ghost-face="R" data-ghost-index="13" data-ghost-target="sticker-R-20" data-ghost-source="sticker-F-24" cx="215.07" cy="254.28" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="0" data-ghost-face="R" data-ghost-index="14" data-ghost-target="sticker-R-20" data-ghost-source="sticker-D-4" cx="219.35" cy="259.94" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="1" data-ghost-face="R" data-ghost-index="15" data-ghost-target="sticker-R-21" data-ghost-source="sticker-D-9" cx="236.76" cy="256.84" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="2" data-ghost-face="R" data-ghost-index="16" data-ghost-target="sticker-R-22" data-ghost-source="sticker-D-14" cx="253.99" cy="251.77" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="3" data-ghost-face="R" data-ghost-index="17" data-ghost-target="sticker-R-23" data-ghost-source="sticker-D-19" cx="270.93" cy="244.66" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="4" data-ghost-face="R" data-ghost-index="18" data-ghost-target="sticker-R-24" data-ghost-source="sticker-B-20" cx="293.69" cy="224.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Z" data-ghost-layer="4" data-ghost-face="R" data-ghost-index="19" data-ghost-target="sticker-R-24" data-ghost-source="sticker-D-24" cx="287.38" cy="235.40" r="7" />
+    <!-- Ghost stickers at face F -->
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="4" data-ghost-face="F" data-ghost-index="0" data-ghost-target="sticker-F-0" data-ghost-source="sticker-U-20" cx="126.39" cy="152.43" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="F" data-ghost-index="1" data-ghost-target="sticker-F-0" data-ghost-source="sticker-L-4" cx="119.35" cy="153.29" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="3" data-ghost-face="F" data-ghost-index="2" data-ghost-target="sticker-F-1" data-ghost-source="sticker-U-21" cx="137.63" cy="164.18" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="2" data-ghost-face="F" data-ghost-index="3" data-ghost-target="sticker-F-2" data-ghost-source="sticker-U-22" cx="150.08" cy="173.47" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="F" data-ghost-index="4" data-ghost-target="sticker-F-3" data-ghost-source="sticker-U-23" cx="163.49" cy="180.46" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="F" data-ghost-index="5" data-ghost-target="sticker-F-4" data-ghost-source="sticker-U-24" cx="177.70" cy="185.27" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="F" data-ghost-index="6" data-ghost-target="sticker-F-4" data-ghost-source="sticker-R-0" cx="182.39" cy="193.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="F" data-ghost-index="7" data-ghost-target="sticker-F-5" data-ghost-source="sticker-L-9" cx="113.27" cy="169.89" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="F" data-ghost-index="8" data-ghost-target="sticker-F-9" data-ghost-source="sticker-R-5" cx="179.38" cy="208.12" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="2" data-ghost-face="F" data-ghost-index="9" data-ghost-target="sticker-F-10" data-ghost-source="sticker-L-14" cx="108.97" cy="187.33" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="2" data-ghost-face="F" data-ghost-index="10" data-ghost-target="sticker-F-14" data-ghost-source="sticker-R-10" cx="178.68" cy="223.23" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="3" data-ghost-face="F" data-ghost-index="11" data-ghost-target="sticker-F-15" data-ghost-source="sticker-L-19" cx="106.59" cy="205.54" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="3" data-ghost-face="F" data-ghost-index="12" data-ghost-target="sticker-F-19" data-ghost-source="sticker-R-15" cx="180.43" cy="238.66" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="4" data-ghost-face="F" data-ghost-index="13" data-ghost-target="sticker-F-20" data-ghost-source="sticker-D-0" cx="112.62" cy="235.40" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="4" data-ghost-face="F" data-ghost-index="14" data-ghost-target="sticker-F-20" data-ghost-source="sticker-L-24" cx="106.31" cy="224.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="3" data-ghost-face="F" data-ghost-index="15" data-ghost-target="sticker-F-21" data-ghost-source="sticker-D-1" cx="129.07" cy="244.66" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="2" data-ghost-face="F" data-ghost-index="16" data-ghost-target="sticker-F-22" data-ghost-source="sticker-D-2" cx="146.01" cy="251.77" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="F" data-ghost-index="17" data-ghost-target="sticker-F-23" data-ghost-source="sticker-D-3" cx="163.24" cy="256.84" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="F" data-ghost-index="18" data-ghost-target="sticker-F-24" data-ghost-source="sticker-D-4" cx="180.65" cy="259.94" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="4" data-ghost-face="F" data-ghost-index="19" data-ghost-target="sticker-F-24" data-ghost-source="sticker-R-20" cx="184.93" cy="254.28" r="7" />
+    <!-- Ghost stickers at face B -->
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="0" data-ghost-target="sticker-B-0" data-ghost-source="sticker-U-4" cx="288.20" cy="121.77" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="1" data-ghost-target="sticker-B-0" data-ghost-source="sticker-R-4" cx="292.88" cy="129.92" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="2" data-ghost-target="sticker-B-1" data-ghost-source="sticker-U-3" cx="291.20" cy="107.07" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="2" data-ghost-face="B" data-ghost-index="3" data-ghost-target="sticker-B-2" data-ghost-source="sticker-U-2" cx="291.90" cy="91.96" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="3" data-ghost-face="B" data-ghost-index="4" data-ghost-target="sticker-B-3" data-ghost-source="sticker-U-1" cx="290.15" cy="76.52" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="4" data-ghost-face="B" data-ghost-index="5" data-ghost-target="sticker-B-4" data-ghost-source="sticker-U-0" cx="285.66" cy="60.90" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="6" data-ghost-target="sticker-B-4" data-ghost-source="sticker-L-0" cx="289.94" cy="55.25" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="7" data-ghost-target="sticker-B-5" data-ghost-source="sticker-R-9" cx="307.09" cy="134.72" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="8" data-ghost-target="sticker-B-9" data-ghost-source="sticker-L-5" cx="307.34" cy="58.35" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="2" data-ghost-face="B" data-ghost-index="9" data-ghost-target="sticker-B-10" data-ghost-source="sticker-R-14" cx="320.50" cy="141.72" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="2" data-ghost-face="B" data-ghost-index="10" data-ghost-target="sticker-B-14" data-ghost-source="sticker-L-10" cx="324.58" cy="63.42" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="3" data-ghost-face="B" data-ghost-index="11" data-ghost-target="sticker-B-15" data-ghost-source="sticker-R-19" cx="332.96" cy="151.01" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="3" data-ghost-face="B" data-ghost-index="12" data-ghost-target="sticker-B-19" data-ghost-source="sticker-L-15" cx="341.51" cy="70.53" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="0" data-ghost-face="B" data-ghost-index="13" data-ghost-target="sticker-B-20" data-ghost-source="sticker-D-24" cx="351.23" cy="161.90" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="4" data-ghost-face="B" data-ghost-index="14" data-ghost-target="sticker-B-20" data-ghost-source="sticker-R-24" cx="344.19" cy="162.75" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="1" data-ghost-face="B" data-ghost-index="15" data-ghost-target="sticker-B-21" data-ghost-source="sticker-D-23" cx="357.31" cy="145.30" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="2" data-ghost-face="B" data-ghost-index="16" data-ghost-target="sticker-B-22" data-ghost-source="sticker-D-22" cx="361.61" cy="127.86" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="3" data-ghost-face="B" data-ghost-index="17" data-ghost-target="sticker-B-23" data-ghost-source="sticker-D-21" cx="363.99" cy="109.65" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="X" data-ghost-layer="4" data-ghost-face="B" data-ghost-index="18" data-ghost-target="sticker-B-24" data-ghost-source="sticker-D-20" cx="364.28" cy="90.77" r="7" />
+    <circle class="ghost-sticker" data-ghost-axis="Y" data-ghost-layer="4" data-ghost-face="B" data-ghost-index="19" data-ghost-target="sticker-B-24" data-ghost-source="sticker-L-20" cx="357.96" cy="79.79" r="7" />
+  </g>
+  <!-- Intersection Stickers -->
+<!-- Face U -->
+<g class="face-face sticker-wrapper" data-face="U" aria-label="Face U">
+  <circle data-face="U" data-pos="0" id="sticker-U-0" class="sticker" data-axis-circles="X:0 Z:4" cx="200.00" cy="76.73" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="1" id="sticker-U-1" class="sticker" data-axis-circles="X:1 Z:4" cx="216.08" cy="85.91" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="2" id="sticker-U-2" class="sticker" data-axis-circles="X:2 Z:4" cx="230.56" cy="96.56" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="3" id="sticker-U-3" class="sticker" data-axis-circles="X:3 Z:4" cx="243.45" cy="108.47" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="4" id="sticker-U-4" class="sticker" data-axis-circles="X:4 Z:4" cx="254.75" cy="121.46" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="5" id="sticker-U-5" class="sticker" data-axis-circles="X:0 Z:3" cx="183.92" cy="85.91" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="6" id="sticker-U-6" class="sticker" data-axis-circles="X:1 Z:3" cx="200.00" cy="93.70" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="7" id="sticker-U-7" class="sticker" data-axis-circles="X:2 Z:3" cx="214.48" cy="103.04" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="8" id="sticker-U-8" class="sticker" data-axis-circles="X:3 Z:3" cx="227.38" cy="113.71" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="9" id="sticker-U-9" class="sticker" data-axis-circles="X:4 Z:3" cx="238.67" cy="125.48" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="10" id="sticker-U-10" class="sticker" data-axis-circles="X:0 Z:2" cx="169.44" cy="96.56" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="11" id="sticker-U-11" class="sticker" data-axis-circles="X:1 Z:2" cx="185.52" cy="103.04" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="12" id="sticker-U-12" class="sticker" data-axis-circles="X:2 Z:2" cx="200.00" cy="111.24" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="13" id="sticker-U-13" class="sticker" data-axis-circles="X:3 Z:2" cx="212.89" cy="120.89" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="14" id="sticker-U-14" class="sticker" data-axis-circles="X:4 Z:2" cx="224.19" cy="131.75" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="15" id="sticker-U-15" class="sticker" data-axis-circles="X:0 Z:1" cx="156.55" cy="108.47" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="16" id="sticker-U-16" class="sticker" data-axis-circles="X:1 Z:1" cx="172.62" cy="113.71" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="17" id="sticker-U-17" class="sticker" data-axis-circles="X:2 Z:1" cx="187.11" cy="120.89" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="18" id="sticker-U-18" class="sticker" data-axis-circles="X:3 Z:1" cx="200.00" cy="129.71" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="19" id="sticker-U-19" class="sticker" data-axis-circles="X:4 Z:1" cx="211.30" cy="139.95" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="20" id="sticker-U-20" class="sticker" data-axis-circles="X:0 Z:0" cx="145.25" cy="121.46" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="21" id="sticker-U-21" class="sticker" data-axis-circles="X:1 Z:0" cx="161.33" cy="125.48" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="22" id="sticker-U-22" class="sticker" data-axis-circles="X:2 Z:0" cx="175.81" cy="131.75" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="23" id="sticker-U-23" class="sticker" data-axis-circles="X:3 Z:0" cx="188.70" cy="139.95" r="7" fill="#ffffff" />
+  <circle data-face="U" data-pos="24" id="sticker-U-24" class="sticker" data-axis-circles="X:4 Z:0" cx="200.00" cy="149.84" r="7" fill="#ffffff" />
+</g>
+<!-- Face D -->
+<g class="face-face sticker-wrapper" data-face="D" aria-label="Face D">
+  <circle data-face="D" data-pos="0" id="sticker-D-0" class="sticker" data-axis-circles="X:0 Z:0" cx="145.25" cy="316.54" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="1" id="sticker-D-1" class="sticker" data-axis-circles="X:1 Z:0" cx="161.33" cy="312.52" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="2" id="sticker-D-2" class="sticker" data-axis-circles="X:2 Z:0" cx="175.81" cy="306.25" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="3" id="sticker-D-3" class="sticker" data-axis-circles="X:3 Z:0" cx="188.70" cy="298.05" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="4" id="sticker-D-4" class="sticker" data-axis-circles="X:4 Z:0" cx="200.00" cy="288.16" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="5" id="sticker-D-5" class="sticker" data-axis-circles="X:0 Z:1" cx="156.55" cy="329.53" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="6" id="sticker-D-6" class="sticker" data-axis-circles="X:1 Z:1" cx="172.62" cy="324.29" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="7" id="sticker-D-7" class="sticker" data-axis-circles="X:2 Z:1" cx="187.11" cy="317.11" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="8" id="sticker-D-8" class="sticker" data-axis-circles="X:3 Z:1" cx="200.00" cy="308.29" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="9" id="sticker-D-9" class="sticker" data-axis-circles="X:4 Z:1" cx="211.30" cy="298.05" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="10" id="sticker-D-10" class="sticker" data-axis-circles="X:0 Z:2" cx="169.44" cy="341.44" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="11" id="sticker-D-11" class="sticker" data-axis-circles="X:1 Z:2" cx="185.52" cy="334.96" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="12" id="sticker-D-12" class="sticker" data-axis-circles="X:2 Z:2" cx="200.00" cy="326.76" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="13" id="sticker-D-13" class="sticker" data-axis-circles="X:3 Z:2" cx="212.89" cy="317.11" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="14" id="sticker-D-14" class="sticker" data-axis-circles="X:4 Z:2" cx="224.19" cy="306.25" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="15" id="sticker-D-15" class="sticker" data-axis-circles="X:0 Z:3" cx="183.92" cy="352.09" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="16" id="sticker-D-16" class="sticker" data-axis-circles="X:1 Z:3" cx="200.00" cy="344.30" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="17" id="sticker-D-17" class="sticker" data-axis-circles="X:2 Z:3" cx="214.48" cy="334.96" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="18" id="sticker-D-18" class="sticker" data-axis-circles="X:3 Z:3" cx="227.38" cy="324.29" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="19" id="sticker-D-19" class="sticker" data-axis-circles="X:4 Z:3" cx="238.67" cy="312.52" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="20" id="sticker-D-20" class="sticker" data-axis-circles="X:0 Z:4" cx="200.00" cy="361.27" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="21" id="sticker-D-21" class="sticker" data-axis-circles="X:1 Z:4" cx="216.08" cy="352.09" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="22" id="sticker-D-22" class="sticker" data-axis-circles="X:2 Z:4" cx="230.56" cy="341.44" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="23" id="sticker-D-23" class="sticker" data-axis-circles="X:3 Z:4" cx="243.45" cy="329.53" r="7" fill="#ffd500" />
+  <circle data-face="D" data-pos="24" id="sticker-D-24" class="sticker" data-axis-circles="X:4 Z:4" cx="254.75" cy="316.54" r="7" fill="#ffd500" />
+</g>
+<!-- Face L -->
+<g class="face-face sticker-wrapper" data-face="L" aria-label="Face L">
+  <circle data-face="L" data-pos="0" id="sticker-L-0" class="sticker" data-axis-circles="Y:4 Z:4" cx="107.39" cy="61.72" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="1" id="sticker-L-1" class="sticker" data-axis-circles="Y:4 Z:3" cx="102.94" cy="77.64" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="2" id="sticker-L-2" class="sticker" data-axis-circles="Y:4 Z:2" cx="101.23" cy="93.31" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="3" id="sticker-L-3" class="sticker" data-axis-circles="Y:4 Z:1" cx="101.96" cy="108.55" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="4" id="sticker-L-4" class="sticker" data-axis-circles="Y:4 Z:0" cx="104.97" cy="123.26" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="5" id="sticker-L-5" class="sticker" data-axis-circles="Y:3 Z:4" cx="90.54" cy="65.02" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="6" id="sticker-L-6" class="sticker" data-axis-circles="Y:3 Z:3" cx="87.13" cy="81.54" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="7" id="sticker-L-7" class="sticker" data-axis-circles="Y:3 Z:2" cx="86.20" cy="97.65" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="8" id="sticker-L-8" class="sticker" data-axis-circles="Y:3 Z:1" cx="87.46" cy="113.20" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="9" id="sticker-L-9" class="sticker" data-axis-circles="Y:3 Z:0" cx="90.74" cy="128.07" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="10" id="sticker-L-10" class="sticker" data-axis-circles="Y:2 Z:4" cx="73.83" cy="70.23" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="11" id="sticker-L-11" class="sticker" data-axis-circles="Y:2 Z:3" cx="71.49" cy="87.37" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="12" id="sticker-L-12" class="sticker" data-axis-circles="Y:2 Z:2" cx="71.42" cy="103.98" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="13" id="sticker-L-13" class="sticker" data-axis-circles="Y:2 Z:1" cx="73.39" cy="119.93" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="14" id="sticker-L-14" class="sticker" data-axis-circles="Y:2 Z:0" cx="77.21" cy="135.11" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="15" id="sticker-L-15" class="sticker" data-axis-circles="Y:1 Z:4" cx="57.41" cy="77.45" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="16" id="sticker-L-16" class="sticker" data-axis-circles="Y:1 Z:3" cx="56.19" cy="95.23" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="17" id="sticker-L-17" class="sticker" data-axis-circles="Y:1 Z:2" cx="57.10" cy="112.40" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="18" id="sticker-L-18" class="sticker" data-axis-circles="Y:1 Z:1" cx="59.94" cy="128.85" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="19" id="sticker-L-19" class="sticker" data-axis-circles="Y:1 Z:0" cx="64.53" cy="144.47" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="20" id="sticker-L-20" class="sticker" data-axis-circles="Y:0 Z:4" cx="41.47" cy="86.76" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="21" id="sticker-L-21" class="sticker" data-axis-circles="Y:0 Z:3" cx="41.44" cy="105.23" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="22" id="sticker-L-22" class="sticker" data-axis-circles="Y:0 Z:2" cx="43.47" cy="123.05" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="23" id="sticker-L-23" class="sticker" data-axis-circles="Y:0 Z:1" cx="47.38" cy="140.11" r="7" fill="#009b48" />
+  <circle data-face="L" data-pos="24" id="sticker-L-24" class="sticker" data-axis-circles="Y:0 Z:0" cx="53.02" cy="156.34" r="7" fill="#009b48" />
+</g>
+<!-- Face R -->
+<g class="face-face sticker-wrapper" data-face="R" aria-label="Face R">
+  <circle data-face="R" data-pos="0" id="sticker-R-0" class="sticker" data-axis-circles="Y:4 Z:0" cx="224.45" cy="191.93" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="1" id="sticker-R-1" class="sticker" data-axis-circles="Y:4 Z:1" cx="238.68" cy="187.12" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="2" id="sticker-R-2" class="sticker" data-axis-circles="Y:4 Z:2" cx="252.21" cy="180.08" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="3" id="sticker-R-3" class="sticker" data-axis-circles="Y:4 Z:3" cx="264.88" cy="170.71" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="4" id="sticker-R-4" class="sticker" data-axis-circles="Y:4 Z:4" cx="276.40" cy="158.85" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="5" id="sticker-R-5" class="sticker" data-axis-circles="Y:3 Z:0" cx="227.46" cy="206.64" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="6" id="sticker-R-6" class="sticker" data-axis-circles="Y:3 Z:1" cx="241.95" cy="201.99" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="7" id="sticker-R-7" class="sticker" data-axis-circles="Y:3 Z:2" cx="256.03" cy="195.26" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="8" id="sticker-R-8" class="sticker" data-axis-circles="Y:3 Z:3" cx="269.47" cy="186.34" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="9" id="sticker-R-9" class="sticker" data-axis-circles="Y:3 Z:4" cx="282.04" cy="175.08" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="10" id="sticker-R-10" class="sticker" data-axis-circles="Y:2 Z:0" cx="228.19" cy="221.88" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="11" id="sticker-R-11" class="sticker" data-axis-circles="Y:2 Z:1" cx="243.22" cy="217.53" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="12" id="sticker-R-12" class="sticker" data-axis-circles="Y:2 Z:2" cx="258.00" cy="211.21" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="13" id="sticker-R-13" class="sticker" data-axis-circles="Y:2 Z:3" cx="272.32" cy="202.79" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="14" id="sticker-R-14" class="sticker" data-axis-circles="Y:2 Z:4" cx="285.94" cy="192.14" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="15" id="sticker-R-15" class="sticker" data-axis-circles="Y:1 Z:0" cx="226.48" cy="237.54" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="16" id="sticker-R-16" class="sticker" data-axis-circles="Y:1 Z:1" cx="242.29" cy="233.64" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="17" id="sticker-R-17" class="sticker" data-axis-circles="Y:1 Z:2" cx="257.93" cy="227.82" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="18" id="sticker-R-18" class="sticker" data-axis-circles="Y:1 Z:3" cx="273.23" cy="219.96" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="19" id="sticker-R-19" class="sticker" data-axis-circles="Y:1 Z:4" cx="287.97" cy="209.95" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="20" id="sticker-R-20" class="sticker" data-axis-circles="Y:0 Z:0" cx="222.03" cy="253.47" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="21" id="sticker-R-21" class="sticker" data-axis-circles="Y:0 Z:1" cx="238.88" cy="250.17" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="22" id="sticker-R-22" class="sticker" data-axis-circles="Y:0 Z:2" cx="255.59" cy="244.95" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="23" id="sticker-R-23" class="sticker" data-axis-circles="Y:0 Z:3" cx="272.01" cy="237.74" r="7" fill="#0046ad" />
+  <circle data-face="R" data-pos="24" id="sticker-R-24" class="sticker" data-axis-circles="Y:0 Z:4" cx="287.95" cy="228.42" r="7" fill="#0046ad" />
+</g>
+<!-- Face F -->
+<g class="face-face sticker-wrapper" data-face="F" aria-label="Face F">
+  <circle data-face="F" data-pos="0" id="sticker-F-0" class="sticker" data-axis-circles="X:0 Y:4" cx="123.60" cy="158.85" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="1" id="sticker-F-1" class="sticker" data-axis-circles="X:1 Y:4" cx="135.12" cy="170.71" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="2" id="sticker-F-2" class="sticker" data-axis-circles="X:2 Y:4" cx="147.79" cy="180.08" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="3" id="sticker-F-3" class="sticker" data-axis-circles="X:3 Y:4" cx="161.32" cy="187.12" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="4" id="sticker-F-4" class="sticker" data-axis-circles="X:4 Y:4" cx="175.55" cy="191.93" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="5" id="sticker-F-5" class="sticker" data-axis-circles="X:0 Y:3" cx="117.96" cy="175.08" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="6" id="sticker-F-6" class="sticker" data-axis-circles="X:1 Y:3" cx="130.53" cy="186.34" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="7" id="sticker-F-7" class="sticker" data-axis-circles="X:2 Y:3" cx="143.97" cy="195.26" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="8" id="sticker-F-8" class="sticker" data-axis-circles="X:3 Y:3" cx="158.05" cy="201.99" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="9" id="sticker-F-9" class="sticker" data-axis-circles="X:4 Y:3" cx="172.54" cy="206.64" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="10" id="sticker-F-10" class="sticker" data-axis-circles="X:0 Y:2" cx="114.06" cy="192.14" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="11" id="sticker-F-11" class="sticker" data-axis-circles="X:1 Y:2" cx="127.68" cy="202.79" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="12" id="sticker-F-12" class="sticker" data-axis-circles="X:2 Y:2" cx="142.00" cy="211.21" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="13" id="sticker-F-13" class="sticker" data-axis-circles="X:3 Y:2" cx="156.78" cy="217.53" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="14" id="sticker-F-14" class="sticker" data-axis-circles="X:4 Y:2" cx="171.81" cy="221.88" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="15" id="sticker-F-15" class="sticker" data-axis-circles="X:0 Y:1" cx="112.03" cy="209.95" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="16" id="sticker-F-16" class="sticker" data-axis-circles="X:1 Y:1" cx="126.77" cy="219.96" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="17" id="sticker-F-17" class="sticker" data-axis-circles="X:2 Y:1" cx="142.07" cy="227.82" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="18" id="sticker-F-18" class="sticker" data-axis-circles="X:3 Y:1" cx="157.71" cy="233.64" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="19" id="sticker-F-19" class="sticker" data-axis-circles="X:4 Y:1" cx="173.52" cy="237.54" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="20" id="sticker-F-20" class="sticker" data-axis-circles="X:0 Y:0" cx="112.05" cy="228.42" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="21" id="sticker-F-21" class="sticker" data-axis-circles="X:1 Y:0" cx="127.99" cy="237.74" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="22" id="sticker-F-22" class="sticker" data-axis-circles="X:2 Y:0" cx="144.41" cy="244.95" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="23" id="sticker-F-23" class="sticker" data-axis-circles="X:3 Y:0" cx="161.12" cy="250.17" r="7" fill="#b71234" />
+  <circle data-face="F" data-pos="24" id="sticker-F-24" class="sticker" data-axis-circles="X:4 Y:0" cx="177.97" cy="253.47" r="7" fill="#b71234" />
+</g>
+<!-- Face B -->
+<g class="face-face sticker-wrapper" data-face="B" aria-label="Face B">
+  <circle data-face="B" data-pos="0" id="sticker-B-0" class="sticker" data-axis-circles="X:4 Y:4" cx="295.03" cy="123.26" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="1" id="sticker-B-1" class="sticker" data-axis-circles="X:3 Y:4" cx="298.04" cy="108.55" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="2" id="sticker-B-2" class="sticker" data-axis-circles="X:2 Y:4" cx="298.77" cy="93.31" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="3" id="sticker-B-3" class="sticker" data-axis-circles="X:1 Y:4" cx="297.06" cy="77.64" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="4" id="sticker-B-4" class="sticker" data-axis-circles="X:0 Y:4" cx="292.61" cy="61.72" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="5" id="sticker-B-5" class="sticker" data-axis-circles="X:4 Y:3" cx="309.26" cy="128.07" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="6" id="sticker-B-6" class="sticker" data-axis-circles="X:3 Y:3" cx="312.54" cy="113.20" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="7" id="sticker-B-7" class="sticker" data-axis-circles="X:2 Y:3" cx="313.80" cy="97.65" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="8" id="sticker-B-8" class="sticker" data-axis-circles="X:1 Y:3" cx="312.87" cy="81.54" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="9" id="sticker-B-9" class="sticker" data-axis-circles="X:0 Y:3" cx="309.46" cy="65.02" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="10" id="sticker-B-10" class="sticker" data-axis-circles="X:4 Y:2" cx="322.79" cy="135.11" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="11" id="sticker-B-11" class="sticker" data-axis-circles="X:3 Y:2" cx="326.61" cy="119.93" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="12" id="sticker-B-12" class="sticker" data-axis-circles="X:2 Y:2" cx="328.58" cy="103.98" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="13" id="sticker-B-13" class="sticker" data-axis-circles="X:1 Y:2" cx="328.51" cy="87.37" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="14" id="sticker-B-14" class="sticker" data-axis-circles="X:0 Y:2" cx="326.17" cy="70.23" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="15" id="sticker-B-15" class="sticker" data-axis-circles="X:4 Y:1" cx="335.47" cy="144.47" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="16" id="sticker-B-16" class="sticker" data-axis-circles="X:3 Y:1" cx="340.06" cy="128.85" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="17" id="sticker-B-17" class="sticker" data-axis-circles="X:2 Y:1" cx="342.90" cy="112.40" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="18" id="sticker-B-18" class="sticker" data-axis-circles="X:1 Y:1" cx="343.81" cy="95.23" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="19" id="sticker-B-19" class="sticker" data-axis-circles="X:0 Y:1" cx="342.59" cy="77.45" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="20" id="sticker-B-20" class="sticker" data-axis-circles="X:4 Y:0" cx="346.98" cy="156.34" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="21" id="sticker-B-21" class="sticker" data-axis-circles="X:3 Y:0" cx="352.62" cy="140.11" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="22" id="sticker-B-22" class="sticker" data-axis-circles="X:2 Y:0" cx="356.53" cy="123.05" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="23" id="sticker-B-23" class="sticker" data-axis-circles="X:1 Y:0" cx="358.56" cy="105.23" r="7" fill="#ff5800" />
+  <circle data-face="B" data-pos="24" id="sticker-B-24" class="sticker" data-axis-circles="X:0 Y:0" cx="358.53" cy="86.76" r="7" fill="#ff5800" />
+</g>
+</svg>

@@ -8,6 +8,7 @@ import {
     getViewTitle,
     viewSupportsSize,
 } from '@/view-manager/view-registry';
+import { loadedSizes } from '@/views/circular/svg-loader';
 
 beforeAll(() => {
     // Suppress logs during tests.
@@ -77,17 +78,16 @@ describe('ViewRegistry', () => {
         expect(view).toBeUndefined();
     });
 
-    it('circular view supports only the sizes with a generated asset', () => {
+    it('circular view supports exactly the sizes with a committed asset', () => {
         // Size capability is SVG-per-N: a size becomes available when its asset
-        // is generated and committed. 2, 3 and 4 have assets today; 5 has a
-        // parameter set but is a ghost-rule validation target, and 6-7 have
-        // neither, so all three must stay unavailable.
-        for (const size of [2, 3, 4]) {
+        // is generated and committed. The expectation is derived from the loader
+        // rather than restated, so enabling a size means committing its asset and
+        // nothing else.
+        for (const size of loadedSizes()) {
             expect(viewSupportsSize('circular', size)).toBe(true);
         }
-        for (const size of [5, 6, 7]) {
-            expect(viewSupportsSize('circular', size)).toBe(false);
-        }
+        // A size with no asset must stay unavailable, or selecting it would throw.
+        expect(viewSupportsSize('circular', 99)).toBe(false);
     });
 
     it('basic, flat, and moves support all sizes 2-7', () => {

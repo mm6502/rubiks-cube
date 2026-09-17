@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { circularViewFactory } from './index';
+import { loadedSizes, svgMarkupForSize } from './svg-loader';
 
 // Mock CSS modules
 vi.mock('./circular.module.css', () => ({
@@ -12,19 +13,22 @@ vi.mock('./circular.module.css', () => ({
 
 describe('circularViewFactory', () => {
     describe('getSupportedSizes', () => {
-        it('offers the sizes that have a validated asset', () => {
-            // Each size listed here must have a committed asset the loader can
-            // resolve; svg-loader.test.ts asserts the other direction.
-            expect(circularViewFactory.getSupportedSizes!()).toEqual([2, 3, 4]);
+        it('offers every size that has a resolvable asset', () => {
+            // The list is derived from the loader rather than restated, so this
+            // asserts the two agree and that the set is the expected one. Each
+            // size named must have a committed asset; svg-loader.test.ts asserts
+            // the same property from the other direction.
+            const sizes = circularViewFactory.getSupportedSizes!();
+            expect(sizes).toEqual(loadedSizes());
+            expect(sizes).toEqual([2, 3, 4, 5, 6, 7]);
         });
 
-        it('does not offer sizes whose assets are validation-only or absent', () => {
-            const sizes = circularViewFactory.getSupportedSizes!();
-            // 5x5 is a ghost-rule validation target with a real parameter set,
-            // so it is the one most likely to be enabled by accident.
-            expect(sizes).not.toContain(5);
-            expect(sizes).not.toContain(6);
-            expect(sizes).not.toContain(7);
+        it('never offers a size the loader cannot resolve', () => {
+            // The failure this guards against is a checkbox for a size with no
+            // asset, which would throw on selection rather than being greyed out.
+            for (const size of circularViewFactory.getSupportedSizes!()) {
+                expect(svgMarkupForSize(size)).toBeDefined();
+            }
         });
     });
 
