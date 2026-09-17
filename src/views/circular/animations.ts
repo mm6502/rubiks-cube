@@ -45,20 +45,29 @@ const AXIS_TO_FACES: Record<Axis, Face[]> = {
 };
 
 /**
- * Determines which faces are affected by a move
+ * Determines which faces are affected by a move.
+ *
+ * `cubeSize` is required because the outer layer's index is `cubeSize - 1`, not a
+ * constant. Hardcoding `2` here meant that above 3×3 only layer 0 ever matched,
+ * so D/L/F — the faces that sit on layer 0 — returned a face and had their
+ * on-face stickers animated, while U/R/B (which sit on the last layer) returned
+ * nothing and animated only their adjacent stickers. The hardcoded value happened
+ * to be correct at 3×3, which is the only size the tests exercised, so it went
+ * unnoticed at every larger size.
+ *
  * @internal
  */
-export function getAffectedFaces(move: MoveDefinition): Face[] {
+export function getAffectedFaces(move: MoveDefinition, cubeSize: number): Face[] {
     const faces = AXIS_TO_FACES[move.axis];
     const affectedFaces: Face[] = [];
+    const lastLayer = cubeSize - 1;
 
-    // Layer 0 affects the first face in the array
+    // The face at index 0 sits on layer 0; the one at index 1 on the last layer.
     if (move.layerIndices.includes(0)) {
         affectedFaces.push(faces[0]);
     }
 
-    // Layer 2 affects the second face in the array
-    if (move.layerIndices.includes(2)) {
+    if (move.layerIndices.includes(lastLayer)) {
         affectedFaces.push(faces[1]);
     }
 
@@ -198,8 +207,9 @@ export async function animateMove(
         return;
     }
 
-    // Determine affected faces based on the move definition.
-    const affectedFaces = getAffectedFaces(moveDefinition);
+    // Determine affected faces based on the move definition and the active size:
+    // the outer layer is cubeSize - 1, so this cannot be a fixed index.
+    const affectedFaces = getAffectedFaces(moveDefinition, event.preState.cubeSize);
 
     // Animations steps adjustment.
     var animationConfig = { ...DEFAULT_ANIMATION_CONFIG };
