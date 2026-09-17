@@ -1,7 +1,7 @@
 ---
 title: 'feat: Circular View per-N SVG generator with 2×2 support'
 type: feat
-status: active
+status: completed
 date: 2026-09-17
 origin: docs/brainstorms/2026-09-17-circular-view-svg-generator-2x2-requirements.md
 ---
