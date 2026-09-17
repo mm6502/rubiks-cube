@@ -3,7 +3,8 @@ import { CubeView, Face, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { Size2D } from '@/cube/types/cubie';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
-import { Command, MoveExecutedEvent } from '@/types';
+import { getEventBus } from '@/event-bus-accessor';
+import { Command, EventName, MoveExecutedEvent } from '@/types';
 
 import * as highlights from './highlights';
 import * as initialization from './initialization';
@@ -160,6 +161,20 @@ export class CircularCubeView implements CubeView {
 
     updateSelected(selectedSticker?: StickerId): void {
         highlights.updateSelected(this.state, styles, selectedSticker);
+        // Announce the new selection: commands whose target depends on it (the
+        // M/E/S slices above 3×3) derive it from the sticker, not from the cube.
+        getEventBus().emit(EventName.STICKER_SELECTED, {
+            stickerId: selectedSticker,
+            viewId: this.getViewType(),
+        });
+    }
+
+    /**
+     * The sticker currently selected in this view, if any. Read by the command
+     * host so the M/E/S slices can follow the active view's selection.
+     */
+    getSelectedSticker(): StickerId | undefined {
+        return this.state.currentSelected;
     }
 
     handleKeyDown(event: KeyboardEvent): boolean {

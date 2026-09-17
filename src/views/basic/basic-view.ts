@@ -432,6 +432,20 @@ export class BasicView implements CubeView {
 
     updateSelected(selectedSticker?: StickerId): void {
         updateSelected(this.state, selectedSticker);
+        // Announce the new selection: commands whose target depends on it (the
+        // M/E/S slices above 3×3) derive it from the sticker, not from the cube.
+        Application.eventBus.emit(EventName.STICKER_SELECTED, {
+            stickerId: selectedSticker,
+            viewId: this.getViewType(),
+        });
+    }
+
+    /**
+     * The sticker currently selected in this view, if any. Read by the command
+     * host so the M/E/S slices can follow the active view's selection.
+     */
+    getSelectedSticker(): StickerId | undefined {
+        return this.state.currentSelected;
     }
 
     // -------------------------------------------------------------------------

@@ -288,6 +288,20 @@ export class FlatView implements CubeView {
     /** Marks the given sticker as selected and updates the spatial anchor used for keyboard navigation. */
     updateSelected(selectedSticker?: StickerId): void {
         selection.updateSelected(this.state, selectedSticker);
+        // Announce the new selection: commands whose target depends on it (the
+        // M/E/S slices above 3×3) derive it from the sticker, not from the cube.
+        Application.eventBus.emit(EventName.STICKER_SELECTED, {
+            stickerId: selectedSticker,
+            viewId: this.getViewType(),
+        });
+    }
+
+    /**
+     * The sticker currently selected in this view, if any. Read by the command
+     * host so the M/E/S slices can follow the active view's selection.
+     */
+    getSelectedSticker(): StickerId | undefined {
+        return this.state.currentSelected;
     }
 
     /** Dispatches a keydown event to the command system; returns true if the event was consumed. */
