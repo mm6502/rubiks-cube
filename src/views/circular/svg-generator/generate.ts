@@ -1,5 +1,5 @@
 import { emitSvg } from './emit';
-import { ALL_FACES, CircularSvgParameters, FittedParameters } from './geometry';
+import { CircularSvgParameters, FittedParameters } from './geometry';
 import { GhostSpec, allGhosts, emitGhosts } from './ghosts';
 import { PROBE_VIEWBOX, boundsToViewBox, markupBounds } from './measure';
 import parametersFile from './parameters.json';
@@ -184,5 +184,10 @@ export function availableSizes(file: ParametersFile = PARAMETERS): number[] {
 }
 
 /** Human-readable validation report. */
+// Re-exported deliberately: the CLI (`scripts/circular-svg/generate.ts`) imports
+// `formatIssues` from this module rather than reaching into `validate` directly,
+// so the CLI depends on exactly one entry point. `.fallowrc.json` ignores
+// `scripts/**`, so static analysis cannot see that consumer and reports this as
+// unused. Removing it crashes the CLI (verified).
+// fallow-ignore-next-line unused-export
 export { formatIssues };
-export { ALL_FACES };

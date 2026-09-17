@@ -32,7 +32,7 @@ export interface Bounds {
  * stroke in the asset is 2 units, drawn centred on the path, so 6 units leaves
  * clearance even for the ring and ellipse outlines.
  */
-export const CANVAS_PAD = 6;
+const CANVAS_PAD = 6;
 
 /** A viewBox large enough that anything the emitter draws falls inside it. */
 export const PROBE_VIEWBOX = '-100000 -100000 200000 200000';

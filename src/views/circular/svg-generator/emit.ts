@@ -16,6 +16,7 @@ import {
     round,
     stickerId,
     stickerPosition,
+    triangleCentroid,
 } from './geometry';
 import { labelContent } from './labels';
 
@@ -26,9 +27,6 @@ import { labelContent } from './labels';
  * resolve. See `validate.ts` for the checks that assert it, and
  * `scripts/circular-svg/README.md` for the parameter table.
  */
-
-/** The three face labels whose positions the interaction dead-zone depends on. */
-export const DEAD_ZONE_FACE_LABELS: Face[] = [Face.L, Face.B, Face.D];
 
 interface Point2D {
     x: number;
@@ -57,20 +55,14 @@ interface Point2D {
  * 7 units at 3x3 and 33 at 7x7 — which is the gap this corrects.
  */
 function faceLabelPosition(face: Face, cubeSize: number, params: CircularSvgParameters): Point2D {
-    const centres = axisCentres(params);
-
     // The label sits just beyond its face's ellipse, along the direction from the
     // triangle centroid through the face's own sticker centroid.
     const ellipse = faceEllipseGeometry(face, cubeSize, params);
-
-    const triangleCentroid = {
-        x: (centres[Axis.X].x + centres[Axis.Y].x + centres[Axis.Z].x) / 3,
-        y: (centres[Axis.X].y + centres[Axis.Y].y + centres[Axis.Z].y) / 3,
-    };
+    const centroid = triangleCentroid(params);
 
     const outward = {
-        x: ellipse.cx - triangleCentroid.x,
-        y: ellipse.cy - triangleCentroid.y,
+        x: ellipse.cx - centroid.x,
+        y: ellipse.cy - centroid.y,
     };
     const length = Math.hypot(outward.x, outward.y) || 1;
     const unit = { x: outward.x / length, y: outward.y / length };

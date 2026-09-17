@@ -108,7 +108,7 @@ export const FACE_RING_AXES: Record<Face, [Axis, Axis]> = {
 };
 
 /** The axis a face sits on (the one whose rings it does NOT lie on). */
-export const FACE_AXIS: Record<Face, Axis> = {
+const FACE_AXIS: Record<Face, Axis> = {
     [Face.F]: Axis.Z,
     [Face.B]: Axis.Z,
     [Face.L]: Axis.X,
@@ -125,7 +125,7 @@ export const FACE_AXIS: Record<Face, Axis> = {
  * and the farther one for the opposite three. The polarity is fixed by the
  * triangle layout and was verified against all 54 reference stickers.
  */
-export const FACE_IS_NEAR_THIRD: Record<Face, boolean> = {
+const FACE_IS_NEAR_THIRD: Record<Face, boolean> = {
     [Face.F]: true,
     [Face.B]: false,
     [Face.R]: true,
@@ -278,7 +278,16 @@ export function stickerPosition(
     return firstDistance < secondDistance === wantNear ? first : second;
 }
 
-/** All sticker positions for one face, indexed by face position. */
+/**
+ * Every sticker position on a face, in face-position order.
+ *
+ * Exported for the layout analysis scripts under `scripts/circular-layout/`
+ * (`analyse-tangency`, `analyse-ghost-enclosure`), which sweep parameter sets
+ * and need the same grid the emitter uses. `.fallowrc.json` ignores `scripts/**`,
+ * so static analysis cannot see those consumers and reports this as unused.
+ * Removing the export breaks both scripts (verified).
+ */
+// fallow-ignore-next-line unused-export
 export function faceStickerPositions(
     face: Face,
     cubeSize: number,
@@ -446,28 +455,6 @@ export function labelOrdinal(
         if (ringRadius(axis, layer, cubeSize, params) > radius) ordinal++;
     }
     return ordinal;
-}
-
-/** Every label for a cube of the given size, grouped by axis in emission order. */
-export function allLabels(cubeSize: number, params: CircularSvgParameters): LabelGeometry[] {
-    const labels: LabelGeometry[] = [];
-    for (const axis of [Axis.Z, Axis.Y, Axis.X]) {
-        for (let layerIndex = 0; layerIndex < cubeSize; layerIndex++) {
-            labels.push(labelGeometry(axis, layerIndex, cubeSize, params));
-        }
-    }
-    return labels;
-}
-
-/**
- * The layer indices that carry a notation label for this cube size.
- *
- * Every ring gets a label, but the *notation* differs: at the extremes the
- * label is a face letter, and inner layers are slice moves. Callers use this to
- * decide which face-letter labels the view's dead-zone interaction depends on.
- */
-export function hasMiddleLayers(cubeSize: number): boolean {
-    return cubeSize > 2;
 }
 
 function normalise(vector: Point2D): Point2D {

@@ -57,7 +57,7 @@ export interface ValidationInput {
  * absent, falling back to `params.viewBox` is the next best thing — and at this
  * point in the pipeline `params` IS the fitted value, so the two agree.
  */
-export function declaredViewBox(svg: string, params: FittedParameters): string {
+function declaredViewBox(svg: string, params: FittedParameters): string {
     return /viewBox="([^"]*)"/.exec(svg)?.[1] ?? params.viewBox;
 }
 
@@ -313,7 +313,7 @@ export function validateConformance(input: ValidationInput): ValidationIssue[] {
  * Measuring the markup means whatever the emitter draws is covered, so a layer
  * added later cannot be forgotten.
  */
-export function validateCanvas(
+function validateCanvas(
     cubeSize: number,
     params: FittedParameters,
     svg: string
@@ -357,7 +357,7 @@ export function validateCanvas(
 }
 
 /** Face ellipses must exist, be non-degenerate, and stay inside the viewBox. */
-export function validateEllipses(
+function validateEllipses(
     cubeSize: number,
     params: FittedParameters,
     svg: string
@@ -402,7 +402,7 @@ export function validateEllipses(
  * sticker, must sit on a ring that exists, and must not land on top of its own
  * target.
  */
-export function validateGhosts(input: ValidationInput): ValidationIssue[] {
+function validateGhosts(input: ValidationInput): ValidationIssue[] {
     const { cubeSize, params, ghosts } = input;
     const issues: ValidationIssue[] = [];
     if (!ghosts || ghosts.length === 0) return issues;
