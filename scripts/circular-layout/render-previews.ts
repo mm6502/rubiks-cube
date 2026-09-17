@@ -4,9 +4,11 @@
  * This is the durable replacement for the throwaway scripts used while the
  * layout was being derived. It emits through the real generator, so the output
  * carries the production element contract — rings, mask, notation labels, face
- * labels and ghosts — rather than a hand-rolled approximation. Only the label
- * mask rectangle is patched, because it is still hardcoded to 400x340 and would
- * clip any canvas larger than that.
+ * labels and ghosts — and the canvas is derived by the generator rather than
+ * patched here. An earlier version sized the canvas itself and patched the mask;
+ * both were removed once the generator took responsibility for fitting the
+ * viewBox, because two implementations drifted and one of them cropped the outer
+ * ring at every size above 3.
  *
  * Usage:
  *   npx tsx scripts/circular-layout/render-previews.ts
@@ -28,6 +30,7 @@ import {
     stickerPosition,
 } from '@/views/circular/svg-generator/geometry';
 import type { CircularSvgParameters } from '@/views/circular/svg-generator/geometry';
+import { markupBounds } from '@/views/circular/svg-generator/measure';
 import { validateInvariants } from '@/views/circular/svg-generator/validate';
 
 // ---------------------------------------------------------------------------
@@ -557,19 +560,12 @@ for (const size of SIZES) {
         throw new Error(`N=${size}: ${invariantIssues.map(i => i.message).join('; ')}`);
     }
 
-    // Canvas: cover stickers and ellipses, with a small margin.
-    let x0 = Infinity;
-    let y0 = Infinity;
-    let x1 = -Infinity;
-    let y1 = -Infinity;
-    const add = (x: number, y: number) => {
-        if (x < x0) x0 = x;
-        if (y < y0) y0 = y;
-        if (x > x1) x1 = x;
-        if (y > y1) y1 = y;
-    };
-    // A first pass over the module's own geometry sizes the canvas.
-    const probeFile: ParametersFile = {
+    // Canvas: let the generator derive it. It emits against an oversized probe,
+    // measures the result and re-emits fitted, so every layer the emitter draws is
+    // included without this script maintaining a list of element kinds. That list
+    // was wrong here twice: once omitting the labels, once omitting the axis
+    // circles, which cropped the outer ring's arc at every size above 3.
+    const file: ParametersFile = {
         defaults: {
             triangleSide: prop.d,
             innerRadius: prop.rMin,
@@ -587,103 +583,40 @@ for (const size of SIZES) {
             faceLabelGap: 1,
             ghostRadiusOffset: 1,
         },
-        sizes: { [String(size)]: { viewBox: '-10000 -10000 20000 20000' } },
-    };
-    const probe = generate(size, probeFile);
-    const probed = parseEmitted(probe.svg);
-    for (const s of probed.stickers) {
-        add(s.x - s.r, s.y - s.r);
-        add(s.x + s.r, s.y + s.r);
-    }
-    // Ghosts too: they sit further along the arc than their stickers, so they can
-    // be the outermost circles.
-    for (const g of probed.ghosts) {
-        add(g.x - g.r, g.y - g.r);
-        add(g.x + g.r, g.y + g.r);
-    }
-    for (const { e } of probed.ellipses) {
-        const reach = Math.max(e.rx, e.ry);
-        add(e.cx - reach, e.cy - reach);
-        add(e.cx + reach, e.cy + reach);
-    }
-    // Ring notation labels and face labels. Omitting these was a real defect: the
-    // canvas was sized from stickers and ellipses alone, so labels near the
-    // periphery fell outside it and were clipped by the mask. The count grew with
-    // size - 11 elements at 3x3, more above - and 3x3 was the size the earlier
-    // review happened to look at.
-    for (const l of elementsOf(probe.svg)) {
-        add(l.x0, l.y0);
-        add(l.x1, l.y1);
-    }
-    const pad = 6;
-    const viewBox = `${Math.floor(x0 - pad)} ${Math.floor(y0 - pad)} ${Math.ceil(x1 - x0 + 2 * pad)} ${Math.ceil(y1 - y0 + 2 * pad)}`;
-
-    const file: ParametersFile = {
-        ...probeFile,
-        sizes: { [String(size)]: { viewBox } },
+        sizes: { [String(size)]: { viewBox: '0 0 1 1' } },
     };
     const { svg, issues } = generate(size, file);
+    const viewBox = /viewBox="([^"]*)"/.exec(svg)![1];
+    const [vx, vy, vw, vh] = viewBox.split(/\s+/).map(Number);
 
-    // The label mask is still a fixed rectangle, so widen it to the canvas.
-    // Without this the larger sizes lose ring geometry silently.
-    const [vx, vy, vw, vh] = viewBox.split(' ').map(Number);
-    const patched = svg.replace(
-        /<rect x="0" y="0" width="400" height="340" fill="white" \/>/,
-        `<rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="white" />`
-    );
-
-    const emitted = parseEmitted(patched);
+    // The mask tracks the viewBox in the emitter now, so no patching is needed:
+    // the emitted asset is already unclipped.
+    const emitted = parseEmitted(svg);
     const metrics = measure(size, params, emitted);
     const cell = cellShape(size, params);
 
-    // Nothing may fall outside the canvas. The mask is patched to the viewBox, so
-    // an element beyond it is clipped away rather than drawn - which is how the
-    // clipped ring labels went unnoticed.
-    const canvas = {
-        x0: vx,
-        y0: vy,
-        x1: vx + vw,
-        y1: vy + vh,
-    };
-    const outside: string[] = [];
-    const checkInside = (
-        kind: string,
-        tag: string,
-        bx0: number,
-        by0: number,
-        bx1: number,
-        by1: number
-    ) => {
-        const tol = 0.5;
-        if (
-            bx0 < canvas.x0 - tol ||
-            by0 < canvas.y0 - tol ||
-            bx1 > canvas.x1 + tol ||
-            by1 > canvas.y1 + tol
-        ) {
-            outside.push(`${kind} ${tag}`);
-        }
-    };
-    for (const s of emitted.stickers) {
-        checkInside('sticker', s.face, s.x - s.r, s.y - s.r, s.x + s.r, s.y + s.r);
-    }
-    for (const g of emitted.ghosts) {
-        checkInside('ghost', g.target, g.x - g.r, g.y - g.r, g.x + g.r, g.y + g.r);
-    }
-    for (const { face, e } of emitted.ellipses) {
-        const reach = Math.max(e.rx, e.ry);
-        checkInside('ellipse', face, e.cx - reach, e.cy - reach, e.cx + reach, e.cy + reach);
-    }
-    for (const l of elementsOf(patched)) {
-        checkInside(l.kind, l.tag, l.x0, l.y0, l.x1, l.y1);
-    }
+    // Canvas containment. The generator already guarantees this via validateCanvas
+    // (the CLI refuses to write an asset that would be cropped), but the preview is
+    // rendered separately, so it reports the same property rather than assuming it.
+    // Measured from the markup with the shared helper, so the preview and the
+    // generator cannot drift into measuring different things.
+    const canvas = { x0: vx, y0: vy, x1: vx + vw, y1: vy + vh };
+    const b = markupBounds(svg);
+    const tol = 0.5;
+    const overflow = Math.max(
+        canvas.x0 - b.x0,
+        canvas.y0 - b.y0,
+        b.x1 - canvas.x1,
+        b.y1 - canvas.y1
+    );
+    const outside = overflow > tol ? [`content by ${overflow.toFixed(1)}`] : [];
 
-    writeFileSync(`${OUT_DIR}/view-${size}.svg`, patched);
+    writeFileSync(`${OUT_DIR}/view-${size}.svg`, svg);
 
     writeFileSync(
         `${OUT_DIR}/view-${size}.png`,
         new Resvg(
-            patched
+            svg
                 .replace(/(\sstyle=")/, ' style="color:#555;')
                 .replace(/<style>/, '<style>\n    :root { color: #555; }')
                 .replace(
@@ -698,7 +631,7 @@ for (const size of SIZES) {
 
     rendered.push({
         size,
-        svg: patched,
+        svg,
         viewBox,
         metrics,
         cell,

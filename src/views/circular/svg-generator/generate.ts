@@ -1,6 +1,7 @@
 import { emitSvg } from './emit';
 import { ALL_FACES, CircularSvgParameters } from './geometry';
 import { GhostParameters, GhostSpec, allGhosts, emitGhosts } from './ghosts';
+import { PROBE_VIEWBOX, boundsToViewBox, markupBounds } from './measure';
 import parametersFile from './parameters.json';
 import { ValidationIssue, formatIssues, validate } from './validate';
 
@@ -113,13 +114,33 @@ export function generate(cubeSize: number, file: ParametersFile = PARAMETERS): G
     const ghostParams: GhostParameters = { radiusOffset: ghostRadiusOffset };
 
     const ghosts = allGhosts(cubeSize, params, ghostParams);
+
+    // Emit once against a deliberately oversized canvas to measure what is drawn,
+    // then re-emit with a viewBox fitted to that measurement. Deriving the canvas
+    // this way means a layer the emitter adds later is included automatically:
+    // sizing from a hand-written list of element kinds was wrong twice, the second
+    // time omitting the axis circles and cropping their outer arc at every size
+    // from 4 up.
+    //
+    // The probe canvas is large enough that nothing is clipped, and the mask
+    // backing rect tracks the viewBox, so the probe is a faithful measurement of
+    // the real drawing rather than of a clipped one.
+    const probeParams: CircularSvgParameters = { ...params, viewBox: PROBE_VIEWBOX };
+    const probeSvg = emitSvg({
+        cubeSize,
+        params: probeParams,
+        ghosts: emitGhosts(ghosts, params.stickerRadius),
+    });
+    const viewBox = boundsToViewBox(markupBounds(probeSvg));
+
+    const fitted: CircularSvgParameters = { ...params, viewBox };
     const svg = emitSvg({
         cubeSize,
-        params,
+        params: fitted,
         ghosts: emitGhosts(ghosts, params.stickerRadius),
     });
 
-    const issues = validate({ cubeSize, params, svg, ghosts });
+    const issues = validate({ cubeSize, params: fitted, svg, ghosts });
 
     return { cubeSize, svg, ghosts, issues };
 }

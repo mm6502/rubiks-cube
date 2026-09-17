@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  viewBox="51 23 297 321"
+  viewBox="49 23 302 321"
   preserveAspectRatio="xMidYMid meet"
   role="img"
   aria-labelledby="title desc"
@@ -32,7 +32,7 @@
       .faceEllipse { fill: currentColor; stroke: currentColor; stroke-width: 1.5; opacity: 0.2; }
     </style>
     <mask id="label-mask">
-      <rect x="51" y="23" width="297" height="321" fill="white" />
+      <rect x="49" y="23" width="302" height="321" fill="white" />
       <rect id="mask-z-1" x="75.12" y="248.63" width="20" height="16" fill="black" />
       <rect id="mask-z-0" x="57.82" y="258.66" width="20" height="16" fill="black" />
       <rect id="mask-x-0" x="322.18" y="258.66" width="20" height="16" fill="black" />

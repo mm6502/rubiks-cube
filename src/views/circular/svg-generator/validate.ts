@@ -12,6 +12,7 @@ import {
     stickerPosition,
 } from './geometry';
 import { GhostSpec } from './ghosts';
+import { markupBounds } from './measure';
 
 /**
  * Pre-write validation.
@@ -250,22 +251,31 @@ export function validateConformance(input: ValidationInput): ValidationIssue[] {
         fail(`expected ${cubeSize * 3} label-mask holes, found ${maskHoles.length}`);
     }
 
-    // Mask backing: must span the viewBox, not a fixed rectangle. A fixed rect
-    // acts as a hidden clip for any canvas larger than it or offset from the
-    // origin, hiding rings and labels silently.
-    const [vbX, vbY, vbW, vbH] = input.params.viewBox.split(/\s+/).map(Number);
-    const backing =
-        /<mask id="label-mask">\s*<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)"/.exec(
-            svg
-        );
-    if (!backing) {
-        fail('label-mask has no backing rect');
+    // Mask backing: must span the viewBox the asset itself declares, not a fixed
+    // rectangle. A fixed rect acts as a hidden clip for any canvas larger than it
+    // or offset from the origin, hiding rings and labels silently.
+    //
+    // Read against the SVG's own viewBox attribute rather than the caller's
+    // params: the generator derives the canvas during emission, so the params it
+    // was called with are pre-fit and would disagree with the markup.
+    const declared = /viewBox="([^"]*)"/.exec(svg)?.[1];
+    if (!declared) {
+        fail('root has no viewBox');
     } else {
-        const [bx, by, bw, bh] = backing.slice(1).map(Number);
-        if (bx !== vbX || by !== vbY || bw !== vbW || bh !== vbH) {
-            fail(
-                `label-mask backing rect (${bx} ${by} ${bw} ${bh}) does not span the viewBox (${vbX} ${vbY} ${vbW} ${vbH}) — rings outside it would be clipped away`
+        const [vbX, vbY, vbW, vbH] = declared.split(/\s+/).map(Number);
+        const backing =
+            /<mask id="label-mask">\s*<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)"/.exec(
+                svg
             );
+        if (!backing) {
+            fail('label-mask has no backing rect');
+        } else {
+            const [bx, by, bw, bh] = backing.slice(1).map(Number);
+            if (bx !== vbX || by !== vbY || bw !== vbW || bh !== vbH) {
+                fail(
+                    `label-mask backing rect (${bx} ${by} ${bw} ${bh}) does not span the viewBox (${vbX} ${vbY} ${vbW} ${vbH}) — rings outside it would be clipped away`
+                );
+            }
         }
     }
 
@@ -276,73 +286,55 @@ export function validateConformance(input: ValidationInput): ValidationIssue[] {
  * Every visible element must lie inside the viewBox.
  *
  * The mask makes anything outside the drawn area transparent, so an element
- * beyond the viewBox is not merely off-screen — it is erased, with no error. The
- * face ellipses already have their own check; this covers the layers that had
- * none: stickers, ghosts, and both label groups. A canvas sized from stickers and
- * ellipses alone clipped the ring notation labels at every size, which is how
- * this gap was found.
+ * beyond the viewBox is not merely off-screen — it is erased, with no error.
+ *
+ * The extent is measured from the emitted markup rather than from a list of
+ * element kinds. A hand-written list was wrong twice: first omitting the ring and
+ * face labels, then omitting the axis circles — the outermost geometry, since a
+ * ring reaches centre ± r_max and its extreme point carries no sticker. That
+ * second omission cropped the outer ring's arc at every size from 4 up, by up to
+ * ~42 degrees at 7×7, and this check passed the cropped assets because it shared
+ * the same blind spot.
+ *
+ * Measuring the markup means whatever the emitter draws is covered, so a layer
+ * added later cannot be forgotten.
  */
 export function validateCanvas(
     cubeSize: number,
     params: CircularSvgParameters,
     svg: string
 ): ValidationIssue[] {
+    void cubeSize;
     const issues: ValidationIssue[] = [];
-    const [vx, vy, vw, vh] = params.viewBox.split(/\s+/).map(Number);
+
+    // Against the SVG's own viewBox, not the caller's params: the generator
+    // derives the canvas during emission, so the params are pre-fit and would
+    // compare the drawing against a canvas that was never emitted.
+    const declared = /viewBox="([^"]*)"/.exec(svg)?.[1];
+    const [vx, vy, vw, vh] = (declared ?? params.viewBox).split(/\s+/).map(Number);
+
+    const bounds = markupBounds(svg);
     const tol = 0.5;
 
-    const check = (kind: string, tag: string, x0: number, y0: number, x1: number, y1: number) => {
-        if (x0 < vx - tol || y0 < vy - tol || x1 > vx + vw + tol || y1 > vy + vh + tol) {
-            issues.push({
-                group: 'canvas',
-                message: `${kind} "${tag}" extends outside viewBox "${params.viewBox}": x ${x0.toFixed(1)}..${x1.toFixed(1)}, y ${y0.toFixed(1)}..${y1.toFixed(1)}`,
-            });
-        }
-    };
-
-    for (const face of ALL_FACES) {
-        for (let position = 0; position < cubeSize * cubeSize; position++) {
-            const p = stickerPosition(face, position, cubeSize, params);
-            const r = params.stickerRadius;
-            check('sticker', stickerId(face, position), p.x - r, p.y - r, p.x + r, p.y + r);
-        }
+    const outside: { side: string; overshoot: number }[] = [];
+    if (bounds.x0 < vx - tol) outside.push({ side: 'left', overshoot: vx - bounds.x0 });
+    if (bounds.y0 < vy - tol) outside.push({ side: 'top', overshoot: vy - bounds.y0 });
+    if (bounds.x1 > vx + vw + tol)
+        outside.push({ side: 'right', overshoot: bounds.x1 - (vx + vw) });
+    if (bounds.y1 > vy + vh + tol) {
+        outside.push({ side: 'bottom', overshoot: bounds.y1 - (vy + vh) });
     }
 
-    // Ghosts, read from the markup so the check covers what was actually emitted.
-    for (const m of svg.matchAll(/<circle\b[^>]*class="ghost-sticker"[^>]*\/>/g)) {
-        const tag = m[0];
-        const x = Number(/cx="([-\d.]+)"/.exec(tag)?.[1]);
-        const y = Number(/cy="([-\d.]+)"/.exec(tag)?.[1]);
-        const r = Number(/r="([-\d.]+)"/.exec(tag)?.[1]);
-        const id = /data-ghost-target="([^"]*)"/.exec(tag)?.[1] ?? '?';
-        check('ghost', id, x - r, y - r, x + r, y + r);
-    }
-
-    // Ring notation labels: a <g> keyed by data-label-id, with the box at origin.
-    for (const m of svg.matchAll(
-        /<g data-label-id="([^"]*)"[^>]*transform="translate\(([-\d.]+),\s*([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
-    )) {
-        const w = Number(/width="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
-        const h = Number(/height="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
-        if (!Number.isFinite(w) || !Number.isFinite(h)) continue;
-        const x = Number(m[2]);
-        const y = Number(m[3]);
-        check('ring label', m[1], x, y, x + w, y + h);
-    }
-
-    // Face labels: a <g> keyed by face-label id, with a rect centred on the anchor.
-    for (const m of svg.matchAll(
-        /<g data-face="[A-Z]" id="face-label-([A-Z])"[^>]*transform="translate\(([-\d.]+),([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
-    )) {
-        const body = m[4];
-        const rx = Number(/<rect x="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        const ry = Number(/<rect x="[-\d.]+" y="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        const w = Number(/width="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        const h = Number(/height="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        if (!Number.isFinite(rx) || !Number.isFinite(w)) continue;
-        const x = Number(m[2]);
-        const y = Number(m[3]);
-        check('face label', m[1], x + rx, y + ry, x + rx + w, y + ry + h);
+    if (outside.length) {
+        issues.push({
+            group: 'canvas',
+            message:
+                `drawn content extends outside viewBox "${params.viewBox}" on the ` +
+                `${outside.map(o => `${o.side} by ${o.overshoot.toFixed(1)}`).join(', ')}; ` +
+                `content spans x ${bounds.x0.toFixed(1)}..${bounds.x1.toFixed(1)}, ` +
+                `y ${bounds.y0.toFixed(1)}..${bounds.y1.toFixed(1)} — ` +
+                `the label mask erases anything beyond the canvas`,
+        });
     }
 
     return issues;
