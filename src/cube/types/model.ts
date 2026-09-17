@@ -2,7 +2,7 @@
 import { MoveHistory } from '@/cube/core/move-history';
 import { CubeState } from '@/cube/types/cube-state';
 import { MoveResult } from '@/cube/types/move';
-import { Command } from '@/types';
+import { Command, CommandGenerationOptions } from '@/types';
 
 /**
  * Read-only interface for views to query model data
@@ -81,8 +81,12 @@ export interface CubeModel {
 
     // Commands
 
-    /** Get the list of available commands for this model */
-    getCommands(): Command[];
+    /**
+     * Get the list of available commands for this model.
+     * @param options Host-supplied live view state; commands whose target
+     * depends on the active view's selection (the M/E/S slices) use it.
+     */
+    getCommands(options?: CommandGenerationOptions): Command[];
 
     // Read-only model access
 

@@ -1,4 +1,20 @@
 // Command interface and types for the Commanding and Eventing System
+import type { Axis } from '@/cube/types/common';
+
+/**
+ * Options the command host supplies when generating commands whose target
+ * depends on live view state rather than on the model alone — currently the
+ * M/E/S slices, which follow the active view's selected sticker (see
+ * `resolveSliceTarget`).
+ */
+export type CommandGenerationOptions = {
+    /**
+     * Layer index, along the given axis, that holds the active view's current
+     * selection. Undefined when nothing is selected (or nothing is resolvable),
+     * which leaves selection-dependent commands unavailable.
+     */
+    resolveSelectedLayer?: (axis: Axis) => number | undefined;
+};
 
 /**
  * Categories for commands in the application.

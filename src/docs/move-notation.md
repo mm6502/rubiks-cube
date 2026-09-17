@@ -86,6 +86,9 @@ officially defined in WCA regulations for 3×3×3.
 > - E rotates like D (not U)
 > - S rotates like F (not B)
 
+**2×2 has no slice moves.** With only two layers per axis there is no interior
+layer to turn, so M/E/S are unavailable at that size.
+
 ### Alternative Wide Move Notation
 
 | Notation             | Alternative            | Description          |
@@ -134,6 +137,24 @@ For cubes larger than 3×3, slices are numbered from the outer layer inward.
 | **2M, 3M, 4M...** | Vertical slices (X-axis)   |
 | **2E, 3E, 4E...** | Horizontal slices (Y-axis) |
 | **2S, 3S, 4S...** | Standing slices (Z-axis)   |
+
+#### Which layer the M/E/S buttons turn
+
+Above 3×3 a bare `M`/`E`/`S` would not identify a layer — it is only an alias
+for `2M`/`2E`/`2S`, which is arbitrary from the user's point of view. The M/E/S
+buttons and keys therefore take their layer from the **sticker currently
+selected in the active view**:
+
+- The layer is the selected sticker's coordinate on that move's axis, and the
+  move is emitted with its layer number (`4M`, `2E`, `3S`).
+- The three families track their own axis independently, so a selection can
+  leave M available while E is not, and vice versa.
+- A surface sticker always has one coordinate at an outer layer (0 or n−1), so
+  at most two of the three slices are available at any time. Turning an outer
+  layer is a face move, not a slice — selecting an R-face sticker disables M,
+  and the R/L buttons already cover that turn.
+- With nothing selected, M/E/S are unavailable. On 3×3 they keep their fixed
+  conventional meaning (layer 1, spelled `M`/`E`/`S`) and are always available.
 
 ### Alternative Layer Notation
 

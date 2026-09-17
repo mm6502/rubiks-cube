@@ -55,6 +55,16 @@ export interface CubeView {
     getCommands(): Command[];
 
     /**
+     * Get the sticker currently selected in this view, if any.
+     *
+     * Selection is view-local, but some commands are not: the M/E/S slices
+     * follow whichever sticker the *active* view has selected, so the command
+     * host reads it through this accessor.
+     * @returns The selected sticker ID, or undefined when the view has no selection
+     */
+    getSelectedSticker?(): StickerId | undefined;
+
+    /**
      * Handle keyboard down events for this view (called before keyup)
      * @param event - The keyboard event
      * @returns True if the event was handled, false otherwise

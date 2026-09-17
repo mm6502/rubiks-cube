@@ -7,6 +7,12 @@ status and future plans.
 
 ## Current tasks
 
+- [x] M/E/S slice moves follow the active view's selection on n>3 (target layer
+      from the selected sticker, notation emitted as `2M`/`3E`/`4S`); M/E/S are
+      unavailable on 2×2 and while nothing is selected. 3×3 keeps the fixed
+      conventional middle slice (`M`/`E`/`S`). See
+      [src/docs/move-notation.md](src/docs/move-notation.md).
+
 - [ ] Moves view icon fallback for size-specific moves — numbered slice/wide
       moves (`2M`, `3E`, `4S`, `2Rw`, ...) render no icon on n>3 cubes; add a
       family-glyph + notation-label fallback reusing the existing icon set (zero
