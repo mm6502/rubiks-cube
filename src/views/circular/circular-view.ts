@@ -7,7 +7,7 @@ import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { logger } from '@/diagnostics/logger';
 import { getEventBus } from '@/event-bus-accessor';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
-import { contactView, registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
+import { registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
 
 import * as highlights from './highlights';
 import * as initialization from './initialization';
@@ -67,14 +67,10 @@ export class CircularCubeView implements CubeView {
             this.updateSelected(id)
         );
 
-        // Claim keyboard focus and announce the interaction when the user contacts
-        // this view. Wired here rather than in `initialization.initialize` because
-        // that function does not receive the view id the event payload requires.
-        container.addEventListener('pointerdown', () =>
-            contactView(this.state.container, this.getViewType())
-        );
-
-        // Make this view addressable without a pointer (see `shared/focus`).
+        // Pointer contact (`pointerdown` → claim focus + announce the
+        // interaction) is wired by `registerViewContainer`, which also owns the
+        // teardown path for it. Registration is also what makes this view
+        // addressable without a pointer (see `shared/focus`).
         registerViewContainer(this.getViewType(), container);
 
         // Wire up zoom/pan on the scaffold elements added by initialization.

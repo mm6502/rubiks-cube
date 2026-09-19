@@ -4,7 +4,7 @@ import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils, createFlatView } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
-import { contactView, registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
+import { registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
 
 import * as commands from './commands';
 import * as legendDrag from './legend-drag';
@@ -129,13 +129,10 @@ export class FlatView implements CubeView {
         // Make focusable for keyboard navigation
         this.state.container.tabIndex = 0;
 
-        // Claim keyboard focus on contact, so arrow keys reach this view rather
-        // than whatever control held focus before.
-        this.state.container.addEventListener('pointerdown', () =>
-            contactView(this.state.container, this.getViewType())
-        );
-
-        // Make this view addressable without a pointer (see `shared/focus`).
+        // Pointer contact (`pointerdown` → claim focus + announce the
+        // interaction) is wired by `registerViewContainer`, which also owns the
+        // teardown path for it. Registration is also what makes this view
+        // addressable without a pointer (see `shared/focus`).
         registerViewContainer(this.getViewType(), this.state.container);
 
         // Create the flat view container

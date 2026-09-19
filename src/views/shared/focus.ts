@@ -86,27 +86,78 @@ export function contactView(container: HTMLElement | null | undefined, viewId: s
  * This is a registry rather than a view-manager lookup on purpose: this module
  * must not depend on `view-manager/` (see the header), and resolving a container
  * is the only piece of activation that the registry needs to supply.
+ *
+ * Registration also owns the view's `pointerdown` contact listener, so the two
+ * user-facing routes into a view — pointer contact and programmatic activation —
+ * share one lifecycle. They are torn down together by
+ * {@link unregisterViewContainer}.
  */
 const viewContainers = new Map<string, HTMLElement>();
 
 /**
- * Announce that a view's container exists and can receive activation.
+ * Abort signal per registered view, used to detach that view's contact listener.
  *
- * Idempotent for a repeated id: the latest container wins, which is what a view
- * re-created on a size switch needs.
+ * Registration previously returned no teardown path: each view attached an
+ * anonymous `pointerdown` closure to its container, which nothing could remove.
+ * Re-creating a view on the same container therefore stacked a second listener
+ * (one pointer-down produced two `viewInteracted` emissions), and a destroyed
+ * view kept announcing itself because its closure stayed attached to the DOM
+ * element. Holding an `AbortController` here makes both cases impossible without
+ * each view having to remember to clean up.
+ *
+ * The pattern is the one `src/views/circular/zoom-pan.ts` already uses —
+ * `abort.abort()` plus `{ signal }` on every `addEventListener`.
+ */
+const viewAbortControllers = new Map<string, AbortController>();
+
+/**
+ * Announce that a view's container exists and can receive activation, and
+ * attach its pointer-contact listener.
+ *
+ * Registering owns the listener deliberately. A view that registers without
+ * wiring contact, or wires contact without being able to tear it down, is the
+ * asymmetry that produced the stacked-handler and announce-after-destroy
+ * defects. One call now establishes both, and {@link unregisterViewContainer}
+ * removes both.
+ *
+ * Idempotent for a repeated id: the latest container wins, and any listener on
+ * a previously registered container is detached first. A view re-created on a
+ * size switch therefore replaces its registration rather than adding to it.
  *
  * @param viewId The view's registered id, as returned by its `getViewType()`
+ * @param container The view's content container
  */
 export function registerViewContainer(viewId: string, container: HTMLElement): void {
+    // Replace any previous registration for this id, listener included. Without
+    // this the old container would keep a live closure, and the old controller
+    // would never be aborted (the id keys a single entry).
+    unregisterViewContainer(viewId);
+
+    const controller = new AbortController();
     viewContainers.set(viewId, container);
+    viewAbortControllers.set(viewId, controller);
+
+    container.addEventListener(
+        'pointerdown',
+        () => {
+            contactView(container, viewId);
+        },
+        { signal: controller.signal }
+    );
 }
 
 /**
- * Forget a view's container so a destroyed view cannot be activated.
+ * Forget a view's container so a destroyed view cannot be activated, and detach
+ * its contact listener so it cannot announce an interaction either.
+ *
+ * Safe to call for an unknown id, so a view can unregister unconditionally in
+ * its teardown.
  *
  * @param viewId The id passed to {@link registerViewContainer}
  */
 export function unregisterViewContainer(viewId: string): void {
+    viewAbortControllers.get(viewId)?.abort();
+    viewAbortControllers.delete(viewId);
     viewContainers.delete(viewId);
 }
 

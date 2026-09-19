@@ -44,54 +44,55 @@ interface ViewHarness {
     destroy: () => void;
 }
 
-/** Builds each view into a mounted container, returning a teardown. */
-const harnesses: Record<string, () => ViewHarness> = {
-    basic: () => {
-        const container = document.createElement('div');
-        document.body.appendChild(container);
+/**
+ * Builds a view into the given container. Split from the `harnesses` map below so
+ * a test can re-create a view on a container that already hosted one — the
+ * re-init case where a stale listener would otherwise stack.
+ */
+const builders: Record<string, (container: HTMLElement) => () => void> = {
+    basic: container => {
         const view = new BasicView({ viewType: 'basic-front' });
         view.create(container, new CubeController());
-        return {
-            name: 'basic',
-            expectViewId: 'basic-front',
-            container,
-            destroy: () => {
-                view.destroy();
-                container.remove();
-            },
-        };
+        return () => view.destroy();
     },
-    circular: () => {
-        const container = document.createElement('div');
-        document.body.appendChild(container);
+    circular: container => {
         const view = circularViewFactory.create();
         view.create(container, circularModel);
-        return {
-            name: 'circular',
-            expectViewId: 'circular',
-            container,
-            destroy: () => {
-                view.destroy();
-                container.remove();
-            },
-        };
+        return () => view.destroy();
     },
-    flat: () => {
-        const container = document.createElement('div');
-        document.body.appendChild(container);
+    flat: container => {
         const view = new FlatView(flatStyles);
         view.create(container, new CubeController());
-        return {
-            name: 'flat',
-            expectViewId: 'flat',
-            container,
-            destroy: () => {
-                view.destroy();
-                container.remove();
-            },
-        };
+        return () => view.destroy();
     },
 };
+
+const viewIds: Record<string, string> = {
+    basic: 'basic-front',
+    circular: 'circular',
+    flat: 'flat',
+};
+
+/** Builds each view into a mounted container, returning a teardown. */
+const harnesses: Record<string, () => ViewHarness> = Object.fromEntries(
+    Object.entries(builders).map(([name, build]) => [
+        name,
+        () => {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const destroyView = build(container);
+            return {
+                name,
+                expectViewId: viewIds[name],
+                container,
+                destroy: () => {
+                    destroyView();
+                    container.remove();
+                },
+            };
+        },
+    ])
+);
 
 describe.each(Object.keys(harnesses))('%s view claims DOM focus on contact', viewName => {
     let harness: ViewHarness;
@@ -173,5 +174,64 @@ describe.each(Object.keys(harnesses))('%s view claims DOM focus on contact', vie
         // A destroyed view must not be reachable — otherwise a stale id can take
         // focus and announce itself as interactive.
         expect(activateView(harness.expectViewId)).toBe(false);
+    });
+
+    // ─── teardown: one listener per contact, silence after destroy ────────────
+
+    it('counts exactly one interaction per contact', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        harness.container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        // Guards every shape below: a view that registers twice would report two.
+        const interactions = emitSpy.mock.calls.filter(
+            ([event]) => event === EventName.VIEW_INTERACTED
+        );
+        expect(interactions).toHaveLength(1);
+    });
+
+    it('does not stack a second handler when the view is re-created on the same container', () => {
+        // The container survives a view's destroy+re-create (the shape a future
+        // view-reuse or re-init path would have). The teardown happens FIRST, as
+        // it would on a real re-init; registering a second view on a live id
+        // would legitimately replace the first registration instead.
+        harness.destroy();
+        const container = harness.container;
+        document.body.appendChild(container);
+        const destroyRecreated = builders[viewName](container);
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        const interactions = emitSpy.mock.calls.filter(
+            ([event]) => event === EventName.VIEW_INTERACTED
+        );
+        // One listener, so one emission. Before registration owned the listener,
+        // the stale closure was still attached and this reported two.
+        expect(interactions).toHaveLength(1);
+
+        destroyRecreated();
+        container.remove();
+    });
+
+    it('stays silent on contact after destroy', () => {
+        harness.destroy();
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        // The container may outlive the view; a torn-down view must not keep
+        // claiming focus or announce itself as interactive.
+        harness.container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        const interactions = emitSpy.mock.calls.filter(
+            ([event]) => event === EventName.VIEW_INTERACTED
+        );
+        expect(interactions).toHaveLength(0);
+        expect(document.activeElement).not.toBe(harness.container);
     });
 });

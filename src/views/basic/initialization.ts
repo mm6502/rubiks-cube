@@ -3,7 +3,7 @@ import { Application } from '@/application';
 import { ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { EventName } from '@/types';
 import { getDefaultVectors } from '@/views/basic/navigation';
-import { contactView, registerViewContainer } from '@/views/shared/focus';
+import { registerViewContainer } from '@/views/shared/focus';
 
 import * as cubieRendering from './cubie-rendering';
 import { initializeGhostAnchors, updateSize } from './rendering';
@@ -140,26 +140,18 @@ function attachContainerListeners(
     cubeElement: HTMLElement,
     state: BasicViewInternalData
 ): void {
-    // Claim keyboard focus as soon as the user contacts the view's content.
+    // Contact (`pointerdown`) is wired by `registerViewContainer`, which also
+    // owns the teardown path for it — so this function deliberately does not
+    // attach a second listener here. Claiming keyboard focus on contact matters
+    // because an arrow key pressed while the user's focus is still on a
+    // controls-sidebar widget would otherwise reach both the view (through the
+    // document-level capture handler) and that widget, resizing the cube while
+    // the user tried to move the selection.
     //
-    // This is on the container rather than the cube element so a contact
-    // anywhere inside the view counts, and on `pointerdown` rather than `click`
-    // because the touch handler suppresses the native default on pointer-down
-    // (to stop native drag), so a later click may never fire for touch input.
-    //
-    // Without this the view never takes focus, so an arrow key pressed while the
-    // user's focus is still on a controls-sidebar widget reaches both the view
-    // (through the document-level capture handler) and that widget — the user
-    // sees the cube resize while trying to move the selection.
-    container.addEventListener('pointerdown', () => {
-        contactView(state.container, state.viewType);
-    });
-
-    // Make this view addressable without a pointer, so an actor that can only
-    // move DOM focus directly still completes the whole interaction.
-    if (state.container) {
-        registerViewContainer(state.viewType, state.container);
-    }
+    // Registration is also what makes this view addressable without a pointer,
+    // so an actor that can only move DOM focus directly still completes the
+    // whole interaction.
+    registerViewContainer(state.viewType, container);
 
     // Mouseover/out for highlighting
     cubeElement.addEventListener('mouseover', (event: MouseEvent) => {
