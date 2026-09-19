@@ -3,7 +3,7 @@
 For current code quality evaluation, see
 [code quality evaluation](code-quality-evaluation.md).
 
-Last quality snapshot: **2026-09-20 at commit `e4fb7ea`** — 113 test files
+Last quality snapshot: **2026-09-20 at commit `40a1899`** — 113 test files
 passing, 2585 tests passing, 94.87% statements / 86.49% branches / 97.37%
 functions / 95.95% lines. (Counts are pinned to that commit because later work
 adds tests; re-measure rather than trusting the figure after any change.)
