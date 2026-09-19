@@ -720,6 +720,13 @@ is recorded here as resolved so it is not re-litigated.
   were not exercised. If U1's tests surface something unexpected there, record
   it as a follow-up rather than widening this change.
 
+  > **Resolved** (`6c12e60`, `be40002`). The cosmetic states were measured, and
+  > the check was worth adding: tilt and pitch change the visible face set, so a
+  > visibility assertion is genuinely per-state rather than cosmetic-neutral.
+  > They also caught an error in the drafting assumption — the orientation group
+  > has 24 members and one needs four rotations to reach, so a sweep capped at
+  > three covered only 23. See "Gap closed: tilt and pitch" below.
+
 ---
 
 ## Sources & Research
