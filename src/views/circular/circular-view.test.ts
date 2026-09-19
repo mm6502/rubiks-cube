@@ -5,7 +5,16 @@ import { Map as IMap } from 'immutable';
 import * as keyboardMoves from '@/interaction/keyboard-moves';
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
-import { CubeState, Cubie, CubieId, LayoutMode, PositionKey, StickerId } from '@/cube/types';
+import {
+    CubeState,
+    Cubie,
+    CubieId,
+    Face,
+    LayoutMode,
+    PositionKey,
+    SUPPORTED_SIZES,
+    StickerId,
+} from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { EventName } from '@/types';
@@ -15,6 +24,7 @@ import * as initialization from './initialization';
 import * as keyboard from './keyboard-cube-walking';
 import * as rendering from './rendering';
 import { CircularCubeView } from './circular-view';
+import styles from './circular.module.css';
 import { circularViewFactory } from './index';
 import { CircularTouchHandler } from './touch-handler';
 import { ZoomPanController } from './zoom-pan';
@@ -408,6 +418,64 @@ describe('CircularCubeView (unit)', () => {
         const requestedPosition = getStickerAtSpy.mock.calls[0]?.[2];
         expect(requestedPosition).toBe(centerFacePosition(3));
         expect(updateSelectedSpy).toHaveBeenCalledWith('sticker-center');
+    });
+
+    // ─── create: default selection at every supported size ────────────────────
+
+    describe('default selection across sizes', () => {
+        // Exercises the real path end to end, unlike the mocked test above: a
+        // genuine CubeController, the loader's SVG for that size, and the closest
+        // circle that actually carries the selected class. The mocked test can
+        // only show the *requested position* is size-derived, because a mocked
+        // `getStickerAt` returns its id whatever the position — it would stay
+        // green even if the SVG had no circle for that position and no highlight
+        // ever appeared. Basic (`basic-view.core.test.ts`) and Flat
+        // (`flat-view.test.ts`) already pin identity this way; this closes the
+        // same gap for Circular.
+        it.each(SUPPORTED_SIZES)('opens on the front-face centre sticker at size %i', cubeSize => {
+            const sizeController = new CubeController(cubeSize);
+            const sizeView = new CircularCubeView();
+            const sizeContainer = document.createElement('div');
+            document.body.appendChild(sizeContainer);
+
+            try {
+                sizeView.create(sizeContainer, sizeController);
+
+                // The centre position is derived per size, so a hardcoded
+                // 3×3-only position fails here rather than passing quietly.
+                const expected = CubeStateUtils.getStickerAt(
+                    sizeController.getCurrentState(),
+                    Face.F,
+                    centerFacePosition(cubeSize)
+                );
+
+                expect(expected, `size ${cubeSize} has a front-face centre`).toBeDefined();
+                // Exact identity, not mere definedness: a definedness-only
+                // assertion stays green if the selection drifts to another sticker.
+                expect(sizeView.getSelectedSticker()).toBe(expected!.id);
+
+                // The reported sticker and the visible highlight must agree; the
+                // user only ever sees the latter.
+                const highlighted = [...sizeContainer.querySelectorAll('circle')].filter(circle =>
+                    circle.classList.contains(styles['selected'])
+                );
+                expect(highlighted, `size ${cubeSize} highlights exactly one circle`).toHaveLength(
+                    1
+                );
+                expect(highlighted[0].getAttribute('data-face')).toBe(Face.F);
+            } finally {
+                // Must run even when an assertion above fails. Both objects hold
+                // global event-bus subscriptions: `CircularCubeView.create()`
+                // registers view listeners and `CubeController`'s constructor
+                // subscribes to MOVE_REQUESTED. A leaked subscriber keeps
+                // reacting to every later move in this file — parsing a notation
+                // that may not exist at that size and throwing from an unrelated
+                // test, which is exactly the cascade a failing assertion causes.
+                sizeView.destroy();
+                sizeController.dispose();
+                sizeContainer.remove();
+            }
+        });
     });
 
     // ─── setLayoutMode ────────────────────────────────────────────────────────
