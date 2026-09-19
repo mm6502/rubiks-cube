@@ -1,9 +1,98 @@
 ---
 date: 2026-09-17
 topic: circular-view-layout-scaling-law
+status: open
 ---
 
 # Circular View Layout — Feasibility Law and Ellipse Solver (Requirements)
+
+> **Amendment (2026-09-19) — premise does not reproduce against the shipped
+> configuration.** This document's Problem Frame states that the committed
+> layouts overlap, and uses that as the reason to build a derived scaling law
+> plus an ellipse solver. Measured today, against the parameter sets the app
+> actually ships, **no size overlaps**. The proposed remedy is also not what
+> resolved the sizes. Both findings are recorded below so a future reader does
+> not act on the Problem Frame as if it described the current system.
+>
+> ## Finding 1 — the overlap figures do not reproduce
+>
+> Re-measured against `src/views/circular/svg-generator/parameters.json` (the
+> shipped set, which is what the app renders at runtime), for every size 2–7:
+>
+> | N       | This document claims             | Measured now | Minimum gap        |
+> | ------- | -------------------------------- | ------------ | ------------------ |
+> | 3       | 3 overlapping pairs (depth 0.65) | **0 pairs**  | 0.20               |
+> | 4       | 6 pairs (depth 15.63)            | **0 pairs**  | 5.32               |
+> | 5       | 9 pairs (depth 35.82)            | **0 pairs**  | 2.76               |
+> | 2, 6, 7 | —                                | **0 pairs**  | 7.53 / 4.82 / 9.13 |
+>
+> **The criterion**, stated so the numbers are checkable rather than asserted:
+> the gap is the exact signed separation between two _filled_ ellipses computed
+> from the support function, in SVG user units, where `gap ≤ 0` means the two
+> shapes intersect (including containment). "No overlap" means the minimum gap
+> across all 15 face pairs is strictly positive. The harness is
+> `scripts/circular-layout/analyse-tangency.ts` and
+> `scripts/circular-layout/render-previews.ts`, both reading the shipped
+> parameters through the generator. The support function is the right tool here
+> precisely because sampling the two boundaries under-reports a crossing — no
+> sample lands exactly on it — which is the failure mode this document itself
+> warns about in its acceptance examples.
+>
+> Two of the three causes the document names are also gone. No size inherits the
+> `2.9286` ellipse margin: every one of the six configured sizes overrides
+> `ellipseMargin` (2.05 / 2.4 / 2.2 / 2.3 / 2.35 / 2.35), so the "mis-scaled
+> halo" no longer exists. And the label mask no longer emits a fixed 400×340
+> white rectangle — it derives its width and height from the canvas the
+> generator actually emitted, so the hidden-clip problem it describes cannot
+> occur.
+>
+> ## Finding 2 — hand-tuning, not a derived law, is what resolved the sizes
+>
+> This matters more than the measurement drift, because it means the document's
+> _approach_ was not the one taken. The shipped layout values are
+> **hand-tuned**, and the three ways to confirm that are:
+>
+> - `parameters.json` says so itself, in the file's own preamble: the values
+>   "come from the geometry spec's invariants, **tuned by eye** where the spec
+>   declines to derive (face-ellipse offset and semi-axes, apex rounding)".
+> - **Nothing writes the file.** No script in `scripts/` or `src/` persists
+>   `parameters.json`; it is read-only to the toolchain. A solver that fed it
+>   would have to write it.
+> - `analyse-tangency.ts` is a one-shot _analysis_ over configuration B — a
+>   superseded starting point — that prints a table to stdout and exits. It is
+>   not a solver wired into the generator, and its own header describes it as
+>   the starting point rather than the source of truth.
+>
+> So R1's "derives each size's governing ratios from a stated relation instead
+> of applying one Triangle side to every size" was not implemented. Each size
+> does carry its own `triangleSide` and `innerRadius`, but as reviewed constants
+> rather than as the output of a relation carrying a stated comfort factor above
+> a measured feasibility boundary (R2). The ellipse placement is likewise
+> hand-chosen rather than the product of the bounded search R4 specifies.
+>
+> ## Status and disposition
+>
+> The derived-law approach is **not currently planned** and nothing here is
+> deleted. It remains available as a future option: the observation that the
+> binding quantity is a scale-invariant _ratio_ of Triangle side to ring step,
+> and that raising the Triangle side alone makes overlap worse, are genuinely
+> useful and were what pointed the way to the per-size constants that shipped.
+>
+> Two things to weigh before reviving it. First, the document's premise would
+> need re-measuring against the current configuration before any of its
+> feasibility claims are used, since the numbers it reasons from describe a
+> layout that is no longer shipped. Second, the concrete pain it aimed to remove
+> — "adding a size requires tuning rather than a parameter choice" — persists in
+> a different form and is already tracked as a follow-up: the shipped ellipse
+> values now live in **three** places that nothing keeps in sync
+> (`parameters.json`, the `PROPOSALS` block in `render-previews.ts`, and
+> configuration `B` in `analyse-tangency.ts`). Consolidating those is a smaller,
+> better-scoped task than deriving the law, and
+> `docs/plans/2026-09-19-001-fix-default-selection-and-doc-truth-up-plan.md`
+> records it under "Deferred to Follow-Up Work".
+>
+> The body below is the original requirements document, unchanged, as the
+> historical record of the investigation.
 
 ## Summary
 
