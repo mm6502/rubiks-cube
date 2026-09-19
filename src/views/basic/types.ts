@@ -46,7 +46,6 @@ export type BasicViewInternalData = {
     viewForward: Vector3;
     isTilted: boolean;
     isPitched: boolean;
-    isHovered: boolean;
     layoutMode: LayoutMode;
     currentSelected?: StickerId;
     selectedFace?: string;

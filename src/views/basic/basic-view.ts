@@ -103,7 +103,6 @@ export class BasicView implements CubeView {
             viewForward: defaultVectors.viewForward,
             isTilted: false,
             isPitched: false,
-            isHovered: false,
             layoutMode: 'floating',
             currentSelected: undefined,
         };

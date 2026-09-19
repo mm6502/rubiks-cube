@@ -229,12 +229,6 @@ describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
             expect(view.getState().viewForward).toEqual({ x: 0, y: 0, z: 1 });
         });
 
-        it('hover appends scale(1.05)', () => {
-            (view as unknown as { state: { isHovered: boolean } }).state.isHovered = true;
-            updateRotation((view as unknown as { state: any }).state);
-            expect(view.getCubeElement()!.style.transform).toContain('scale(1.05)');
-        });
-
         it('base rotateX comes before base rotateY in transform string', () => {
             updateRotation((view as unknown as { state: any }).state);
             const t = view.getCubeElement()!.style.transform;

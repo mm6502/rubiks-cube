@@ -64,7 +64,6 @@ export function initialize(
         viewForward: defaultVectors.viewForward,
         isTilted: false,
         isPitched: false,
-        isHovered: false,
         layoutMode: 'floating' as const,
         currentSelected: undefined,
     };
