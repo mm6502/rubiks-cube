@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
-import { Face, StickerId } from '@/cube/types';
+import { Face, SUPPORTED_SIZES, StickerId } from '@/cube/types';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { logger } from '@/diagnostics/logger';
 import { NavDirection } from '@/types';
 
@@ -772,6 +774,30 @@ describe('keyboard-cube-walking', () => {
             expect(result).toBe(false);
             expect(onSelected).not.toHaveBeenCalled();
         });
+
+        it.each(SUPPORTED_SIZES)(
+            'should fall back to the same center the view default uses at size %i',
+            cubeSize => {
+                // The recovery fallback previously used floor(n²/2), which agrees
+                // with the view's own default only on odd sizes — on even sizes it
+                // landed on column 0 (an outer layer), silently disabling M where
+                // create() had enabled it. Recovery and create must agree.
+                model = new CubeController(cubeSize);
+                const onSelected = vi.fn();
+                const state = makeState();
+
+                const result = recoverSelection(state, onSelected);
+
+                expect(result).toBe(true);
+
+                const expected = CubeStateUtils.getStickerAt(
+                    model.getCurrentState(),
+                    Face.F,
+                    centerFacePosition(cubeSize)
+                );
+                expect(onSelected).toHaveBeenCalledWith(expected?.id);
+            }
+        );
     });
 
     describe('navigate recovery', () => {

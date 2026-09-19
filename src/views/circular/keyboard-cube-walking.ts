@@ -4,6 +4,7 @@
 import { Face, StickerId } from '@/cube/types';
 import { compareValues, distance2 } from '@/cube/utils';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { getAdjacentStickerOnSurface } from '@/cube/utils/surface-walking';
 import { logger } from '@/diagnostics/logger';
 import { NavDirection } from '@/types';
@@ -156,8 +157,7 @@ export function recoverSelection(
     if (!state.model) return false;
     const cubeState = state.model.getCurrentState?.();
     if (!cubeState) return false;
-    const cubeSize = cubeState.cubeSize;
-    const centerPos = Math.floor((cubeSize * cubeSize) / 2);
+    const centerPos = centerFacePosition(cubeState.cubeSize);
 
     // 1. Try exact spatial anchor (face + position).
     if (state.selectedFace != null && state.selectedPosition != null) {

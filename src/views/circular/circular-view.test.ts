@@ -7,6 +7,7 @@ import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
 import { CubeState, Cubie, CubieId, LayoutMode, PositionKey, StickerId } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { EventName } from '@/types';
 
 import * as highlights from './highlights';
@@ -376,9 +377,9 @@ describe('CircularCubeView (unit)', () => {
         expect((view as any).state.touchHandler).toBeNull();
     });
 
-    // ─── create: if (f4) branch ───────────────────────────────────────────────
+    // ─── create: if (center) branch ───────────────────────────────────────────
 
-    it('create calls updateSelected with found f4 sticker id', () => {
+    it('create selects the size-correct center sticker of the F face', () => {
         // Arrange
         const fakeState: any = {
             svgRoot: document.createElement('svg') as unknown as SVGSVGElement,
@@ -392,14 +393,21 @@ describe('CircularCubeView (unit)', () => {
         vi.spyOn(initialization, 'initialize').mockReturnValue(fakeState);
         vi.spyOn(initialization, 'attachStickerEventListeners').mockImplementation(() => {});
         vi.spyOn(rendering, 'renderState').mockImplementation(() => {});
-        vi.spyOn(CubeStateUtils, 'getStickerAt').mockReturnValue({ id: 'sticker-f4' } as any);
+        const getStickerAtSpy = vi
+            .spyOn(CubeStateUtils, 'getStickerAt')
+            .mockReturnValue({ id: 'sticker-center' } as any);
         const updateSelectedSpy = vi.spyOn(view, 'updateSelected');
 
         // Act
         view.create(container, mockModel);
 
-        // Assert
-        expect(updateSelectedSpy).toHaveBeenCalledWith('sticker-f4');
+        // Assert the *position requested*, not just the mock's return value. The
+        // previous version of this test asserted only the returned id, which the
+        // mock supplied regardless of the position — so it would have passed under
+        // any formula, including the hardcoded 3×3-only one.
+        const requestedPosition = getStickerAtSpy.mock.calls[0]?.[2];
+        expect(requestedPosition).toBe(centerFacePosition(3));
+        expect(updateSelectedSpy).toHaveBeenCalledWith('sticker-center');
     });
 
     // ─── setLayoutMode ────────────────────────────────────────────────────────

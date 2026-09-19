@@ -2,6 +2,7 @@ import { Application } from '@/application';
 import { CubeView, Face, FaceGrid, ReadOnlyCubeModel, Size2D, StickerId } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils, createFlatView } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
 
 import * as commands from './commands';
@@ -219,9 +220,14 @@ export class FlatView implements CubeView {
         // Subscribe to move executed events for selective updates
         Application.eventBus.on(EventName.MOVE_EXECUTED, this.handleMoveExecuted.bind(this));
 
-        // Default selection: F4 sticker.
-        const f4 = CubeStateUtils.getStickerAt(_model.getCurrentState(), Face.F, 4);
-        if (f4) this.updateSelected(f4.id);
+        // Default selection: center sticker of the front face. The position comes
+        // from the shared helper rather than a literal, which only existed at 3×3.
+        const center = CubeStateUtils.getStickerAt(
+            _model.getCurrentState(),
+            Face.F,
+            centerFacePosition(_model.getCurrentState().cubeSize)
+        );
+        if (center) this.updateSelected(center.id);
     }
 
     /**

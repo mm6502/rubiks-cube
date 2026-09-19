@@ -11,6 +11,7 @@ import {
     Vector3,
 } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import {
     inferKeyboardMove,
     isFaceSelectKey,
@@ -262,9 +263,15 @@ export class BasicView implements CubeView {
             }
         }
 
-        // Default selection: center sticker of the variant's front face.
+        // Default selection: center sticker of the variant's front face. The
+        // position comes from the shared helper rather than a literal, which only
+        // existed at 3×3 — at 2×2 the lookup silently matched nothing.
         const defaultFace = this.state.variant === BasicVariant.Back ? Face.B : Face.F;
-        const center = CubeStateUtils.getStickerAt(model.getCurrentState(), defaultFace, 4);
+        const center = CubeStateUtils.getStickerAt(
+            model.getCurrentState(),
+            defaultFace,
+            centerFacePosition(model.getCurrentState().cubeSize)
+        );
         if (center) this.updateSelected(center.id);
     }
 

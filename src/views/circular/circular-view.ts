@@ -3,6 +3,7 @@ import { CubeView, Face, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { Size2D } from '@/cube/types/cubie';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { getEventBus } from '@/event-bus-accessor';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
 
@@ -108,11 +109,11 @@ export class CircularCubeView implements CubeView {
         // the cube size rather than a fixed face position, which only exists at
         // 3×3 (position 4) — at 2×2 that lookup silently matched nothing and the
         // view opened with no sticker selected.
-        const cubeSize = model.getCurrentState().cubeSize;
-        const centreRow = Math.floor((cubeSize - 1) / 2);
-        const centreCol = Math.floor((cubeSize - 1) / 2);
-        const centrePosition = centreRow * cubeSize + centreCol;
-        const centre = CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, centrePosition);
+        const centre = CubeStateUtils.getStickerAt(
+            model.getCurrentState(),
+            Face.F,
+            centerFacePosition(model.getCurrentState().cubeSize)
+        );
         if (centre) this.updateSelected(centre.id);
     }
 
