@@ -6,8 +6,6 @@
 // supported operation with a named entry point, it is not a one-way door, and
 // the invariant the plan states — "a view either has a selection it can show, or
 // reports that it does not" — holds in both directions.
-import { describe, expect, it } from 'vitest';
-
 import { CubeController } from '@/cube-controller';
 import { SUPPORTED_SIZES, StickerId } from '@/cube/types';
 import { BasicView } from '@/views/basic/basic-view';
