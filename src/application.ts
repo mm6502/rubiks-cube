@@ -66,7 +66,10 @@ export class Application {
             this.restoreSavedState();
 
             this.viewManager.initialize();
-            // Note: Default selected sticker is now set by ViewManager when first view is created.
+            // Each view sets its own default selection at the end of its create()
+            // call, deriving the position from the active cube size. The ViewManager
+            // only *reads* it (via CubeView.getSelectedSticker) to build the
+            // selection-dependent commands.
             this.setupEventListeners();
 
             // Set up the cube-size selector (radio group) and the size-switch path.
