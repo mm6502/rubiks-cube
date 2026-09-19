@@ -315,6 +315,29 @@ flowchart TD
   so that view has two sources for one question. Unverified whether they can
   disagree; worth a follow-up look rather than a speculative fix now.
 
+  > **Investigated — not a defect, and the naming is the problem.** They can and
+  > do disagree, measured directly: after `create()` the view bag reads `F`
+  > while the handler reads `undefined`; `handler.selectFace(U)` leaves the view
+  > bag on `F`; `view.updateSelected(...)` leaves the handler on `U`. They only
+  > coincide after a gesture that happens to write both.
+  >
+  > That is correct, because they answer different questions:
+  >
+  > - **View state bag** (`types.ts:79`) — "which face does the _selected
+  >   sticker_ sit on". A spatial anchor, derived from `currentSelected`, read
+  >   by `restoreSelection` and used as the selection's position.
+  > - **Handler state** (`touch-handler-types.ts:186`) — "which face is the user
+  >   _highlighting_". Drives the halo ring and face-direct drag.
+  >
+  > They coincide in the common case but are independent by design: the halo can
+  > sit on one face while the selected sticker is on another, and the handler's
+  > is cleared by a halo tap while the bag's survives to re-anchor from.
+  >
+  > No fix needed. The actionable residue is the shared name — two fields called
+  > `selectedFace` in the same view, with different types (`string` vs `Face`)
+  > and different meanings, is what made this look like duplication worth
+  > collapsing.
+
 ---
 
 ## Implementation Units
