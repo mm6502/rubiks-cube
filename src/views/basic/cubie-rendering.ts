@@ -3,6 +3,7 @@ import { Face, resolveCubeColor } from '@/cube/types';
 import type { Position3D, ReadonlyCubie, StickerId } from '@/cube/types';
 import { getPositionKey } from '@/cube/utils/coordinates';
 
+import { reapplySelectionMarkup } from './selection';
 import type { BasicViewInternalData } from './types';
 
 /**
@@ -180,6 +181,13 @@ export function initializeCubies(state: BasicViewInternalData, size: number): vo
     const cubeElementWithSize = state.cubeElement as HTMLElement & { cubieSize?: number };
     cubeElementWithSize.cubieSize = cubieSize;
     (state as BasicViewInternalData & { cubieSize?: number }).cubieSize = cubieSize;
+
+    // The rebuild above replaced every cubie element, so any derived markup —
+    // notably the `selected` class — is gone while `state.currentSelected`
+    // survives. Re-apply it here, at the rebuild boundary, so every caller is
+    // covered: this function is reached from both `rendering.update` and the
+    // resize path, and a per-caller fix would leave one of them broken.
+    reapplySelectionMarkup(state);
 }
 
 /**
