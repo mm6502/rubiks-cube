@@ -174,7 +174,21 @@ export class BasicView implements CubeView {
             styles: this.state.styles,
             getCubeSize: () => this.state.model?.getCurrentState().cubeSize ?? 3,
             getState: () => this.state,
-            onStickerSelected: id => this.updateSelected(id as StickerId | undefined),
+            // Two halves used to make up this cast, and only one of them was
+            // real:
+            //
+            // - `| undefined` advertised a cleared selection as a gesture
+            //   outcome. No gesture can produce one — every rendered sticker
+            //   carries `data-sticker-id`, so the touch handler's `?? undefined`
+            //   fallback is unreachable (verified) — so that half was a widening
+            //   with no runtime path behind it, and it is gone. Clearing remains
+            //   supported through `clearSelection` and an explicit
+            //   `updateSelected(state)` call.
+            // - `as StickerId` bridges the touch handler's deliberately loose
+            //   `(stickerId?: string) => void` to the branded id `updateSelected`
+            //   expects. That mismatch is real, so this half stays; narrowing it
+            //   means narrowing the touch handler's declaration.
+            onStickerSelected: id => this.updateSelected(id as StickerId),
             onViewRotated: (_direction: 'horizontal' | 'vertical', rotation, steps) => {
                 updateRotation(this.state);
                 updateFaceLabels(this.state, _direction);

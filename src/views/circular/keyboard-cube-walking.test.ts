@@ -14,6 +14,7 @@ import {
     isNavigationKey,
     mapKeyToNavDirection,
     navigate,
+    resetMissingSelectionWarning,
 } from './keyboard-cube-walking';
 import { AxisCircle } from './svg-tools';
 
@@ -174,6 +175,49 @@ describe('keyboard-cube-walking', () => {
 
             // Assert
             expect(result).toBe(false);
+        });
+
+        it('reports the unhandled state once rather than silently returning false (U15)', () => {
+            // "Nothing selected" is unreachable through navigation itself, but it
+            // is a state the view could be driven into. Returning a bare `false`
+            // left it invisible; the warning makes it observable while staying
+            // once-per-view, so a held arrow key cannot flood the log.
+            resetMissingSelectionWarning();
+            const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+            const state = {
+                model: {} as never,
+                currentSelected: undefined,
+            } as unknown as CircularCubeViewInternalData;
+
+            // Act — three presses, one report.
+            expect(navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, state)).toBe(
+                false
+            );
+            expect(navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, state)).toBe(
+                false
+            );
+            expect(navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, state)).toBe(
+                false
+            );
+
+            // Assert
+            expect(warnSpy).toHaveBeenCalledTimes(1);
+            expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('no sticker is selected'));
+        });
+
+        it('does not warn when the key is not a navigation key (U15)', () => {
+            // The guard must stay scoped to the navigation path: a non-navigation
+            // key is not an unhandled navigation request.
+            resetMissingSelectionWarning();
+            const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+            const state = {
+                model: {} as never,
+                currentSelected: undefined,
+            } as unknown as CircularCubeViewInternalData;
+
+            expect(navigate(new KeyboardEvent('keydown', { key: 'a' }), false, state)).toBe(false);
+
+            expect(warnSpy).not.toHaveBeenCalled();
         });
 
         it('should return false when model is unavailable', () => {

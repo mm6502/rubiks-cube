@@ -89,16 +89,55 @@ export function reapplySelectionMarkup(state: BasicViewInternalData): void {
 }
 
 /**
+ * Clear the selection: remove its markup and drop the stored anchor.
+ *
+ * This is the **supported clear path**, and it is not a one-way door — see
+ * {@link updateSelected} for how a selection is re-established. It exists as a
+ * named operation because "nothing selected" used to be reachable only by
+ * passing `undefined` to `updateSelected`, which made a supported state look
+ * like an accident of an optional parameter.
+ *
+ * @param state The view state carrying the selection and the DOM container
+ */
+export function clearSelection(state: BasicViewInternalData): void {
+    const allStickers = state.container?.querySelectorAll(`.${state.styles.sticker}`);
+    allStickers?.forEach((sticker: Element) => sticker.classList.remove(state.styles.selected));
+
+    state.currentSelected = undefined;
+    state.selectedCubiePosition = undefined;
+    state.selectedFace = undefined;
+}
+
+/**
  * Applies a keyboard/click selection to the given sticker, clearing any
  * previous selection and updating the state.
+ *
+ * Omitting `selectedSticker` clears the selection — the same outcome as calling
+ * {@link clearSelection}. That is a supported state, not a terminal one: the
+ * next call with a real sticker id re-establishes a selection, which is what
+ * every production caller does (`navigation.ts` passes `onSelected?.(id)`).
+ *
+ * The parameter stays optional rather than being narrowed to a required
+ * `StickerId` so that clearing remains expressible. Narrowing it would satisfy
+ * "a cleared selection cannot be reached" by making "a cleared selection cannot
+ * be requested", which removes a capability instead of constraining it; the
+ * tests that clear deliberately are the evidence that the capability is real.
+ *
+ * @param state The view state carrying the selection and the DOM container
+ * @param selectedSticker The sticker to select, or omitted to clear
  */
 export function updateSelected(state: BasicViewInternalData, selectedSticker?: StickerId): void {
+    if (!selectedSticker) {
+        clearSelection(state);
+        return;
+    }
+
     const allStickers = state.container?.querySelectorAll(`.${state.styles.sticker}`);
     allStickers?.forEach((sticker: Element) => sticker.classList.remove(state.styles.selected));
 
     state.currentSelected = selectedSticker;
 
-    if (selectedSticker && state.model) {
+    if (state.model) {
         const cubeState = state.model.getCurrentState();
         const stickerObj = CubeStateUtils.getStickerById(cubeState, selectedSticker);
         if (stickerObj) {
@@ -113,7 +152,7 @@ export function updateSelected(state: BasicViewInternalData, selectedSticker?: S
         state.selectedFace = undefined;
     }
 
-    if (selectedSticker && state.container) {
+    if (state.container) {
         const stickerElement = state.container.querySelector(
             `.${state.styles.sticker}[data-sticker-id="${selectedSticker}"]`
         ) as HTMLElement;

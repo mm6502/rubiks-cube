@@ -4,10 +4,27 @@
 import { StickerId } from '@/cube/types';
 import { compareValues, distance2 } from '@/cube/utils';
 import { getAdjacentStickerOnSurface } from '@/cube/utils/surface-walking';
+import { logger } from '@/diagnostics/logger';
 import { NavDirection } from '@/types';
 
 import { AxisCircle, getCenterOfElement, getRadiusOfElement } from './svg-tools';
 import { CircularCubeViewInternalData } from './types';
+
+/**
+ * Guards the "navigation with nothing selected" warning so it is emitted at
+ * most once per view instance.
+ *
+ * Module-level rather than on the view state on purpose: the warn is about an
+ * unreachable state, so it is a diagnostic breadcrumb, not per-view bookkeeping
+ * worth adding to the state bag. Per-keypress logging was the alternative and
+ * was rejected — a stuck arrow key would otherwise flood the console.
+ */
+let warnedMissingSelection = false;
+
+/** @internal Test hook — resets the once-per-view warning latch. */
+export function resetMissingSelectionWarning(): void {
+    warnedMissingSelection = false;
+}
 
 /**
  * Check if a keyboard event is a navigation key (arrow keys).
@@ -76,8 +93,20 @@ export function navigate(
     // This used to attempt a recovery from saved spatial anchors. That existed
     // only because tapping the halo or the same sticker again cleared the
     // selection; those paths are gone, so the state is no longer reachable and
-    // the recovery is a guard rather than a feature.
-    if (!state.currentSelected) return false;
+    // the recovery is a guard rather than a feature. Because it is unreachable
+    // in production, the log below is deliberately per-view rather than
+    // per-keypress: it exists to make the state *observable* if it ever is
+    // reached, not to describe normal input.
+    if (!state.currentSelected) {
+        if (!warnedMissingSelection) {
+            warnedMissingSelection = true;
+            logger.warn(
+                'Circular view navigation ignored: no sticker is selected. ' +
+                    'Arrow keys need a selection to walk from.'
+            );
+        }
+        return false;
+    }
 
     let nextStickerId: StickerId | undefined;
 
