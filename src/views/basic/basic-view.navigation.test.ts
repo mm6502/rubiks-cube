@@ -106,10 +106,7 @@ describe('an arrow that only reveals the selected face keeps the selection', () 
                     }
                 }
             }
-        },
-        // 20 views per size is inherently slower than a single-view test; the
-        // default 5s budget is tuned for one, not for a full direction sweep.
-        30000
+        }
     );
 
     it('still rotates the face into view (the fix must not disable the reveal)', () => {

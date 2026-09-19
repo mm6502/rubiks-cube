@@ -3,9 +3,9 @@
 For current code quality evaluation, see
 [code quality evaluation](code-quality-evaluation.md).
 
-Last quality snapshot: **2026-09-19 at commit `dc4e7d0`** — 103 test files
-passing, 2328 tests passing, 94.33% statements / 85.78% branches / 96.30%
-functions / 95.46% lines. (Counts are pinned to that commit because later work
+Last quality snapshot: **2026-09-20 at commit `e4fb7ea`** — 113 test files
+passing, 2585 tests passing, 94.87% statements / 86.49% branches / 97.37%
+functions / 95.95% lines. (Counts are pinned to that commit because later work
 adds tests; re-measure rather than trusting the figure after any change.)
 
 This document owns the completeness record. [TODO.md](TODO.md) owns actionable
@@ -17,8 +17,7 @@ apart.
 - [x] (Sep 2026) Selection behaves identically in all three views — clearing a
       face highlight (tapping the background, the halo, or the same sticker
       again) keeps the sticker selected, so keyboard navigation continues from
-      it instead of dead-ending. Only Circular used to drop the selection, and
-      the recovery path that compensated for it is gone with it.
+      it instead of dead-ending.
 - [x] (Sep 2026) Size-correct default selection — one shared helper derives the
       centre face position from the active cube size, replacing two hardcoded
       3×3-only positions and an inconsistent recovery formula. See

@@ -88,6 +88,8 @@
     position: relative;
     flex: 1;
     overflow: hidden;
+    border-bottom-left-radius: var(--border-radius);
+    border-bottom-right-radius: var(--border-radius);
     /* Remove default focus outline; we use a custom box-shadow on the panel instead */
     outline: none;
 }
