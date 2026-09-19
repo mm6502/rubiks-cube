@@ -327,7 +327,13 @@ export class BasicView implements CubeView {
      * sticker's cell and make resolution ambiguous.
      */
     private stickerCandidates(): PositionedSticker[] {
-        /* c8 ignore if — callers guard on model presence */
+        // Required by the compiler, not merely by the callers: `state.model` is
+        // declared optional (`model?: ReadOnlyCubeModel`), so this guard is what
+        // makes `this.state.model.getCurrentState()` legal below. Removing it
+        // fails the build with TS2532 ("Object is possibly 'undefined'"), so the
+        // annotation records a compiler-required narrowing rather than a
+        // caller-guaranteed condition.
+        /* c8 ignore if — compiler-required narrowing for the optional model */
         if (!this.state.model) return [];
 
         const candidates: PositionedSticker[] = [];
@@ -383,7 +389,13 @@ export class BasicView implements CubeView {
      * selected-nothing state.
      */
     private reanchorSelection(cell: VisualCell | undefined): void {
-        /* c8 ignore if — callers pass a cell only when a selection exists */
+        // Load-bearing and genuinely reachable: one caller passes
+        // `selectionVisualCell()`, which returns `undefined` when there is no
+        // selection or the sticker cannot be located. The condition can
+        // therefore be true in production. The annotation exists only because no
+        // test drives that combination yet — a coverage gap, tracked as U11,
+        // rather than a caller guarantee. Do not read this as unreachable.
+        /* c8 ignore if — coverage gap tracked by U11, not dead code */
         if (!cell || !this.state.model) return;
 
         const cubeState = this.state.model.getCurrentState();
