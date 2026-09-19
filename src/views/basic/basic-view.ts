@@ -3,7 +3,6 @@
 import { Application } from '@/application';
 import {
     CubeView,
-    CubieType,
     Face,
     LayoutMode,
     ReadOnlyCubeModel,
@@ -54,6 +53,12 @@ import * as cubieRendering from './cubie-rendering';
 import * as initialization from './initialization';
 import styles from './basic-view.module.css';
 import {
+    ReanchorTarget,
+    selectionVisualCell as policySelectionVisualCell,
+    preserveSelectionAcrossOrientationChange as preserveSelection,
+    reanchorSelection as reanchor,
+} from './reanchor';
+import {
     getMinimumSize,
     getVisibleFacesWithPositions,
     resize,
@@ -63,13 +68,7 @@ import {
 } from './rendering';
 import { BasicVariant } from './types';
 import type { BasicViewInternalData, BasicViewState } from './types';
-import {
-    PositionedSticker,
-    ViewOrientation,
-    VisualCell,
-    stickerAtVisualCell,
-    visualCellOfSticker,
-} from './visual-cell';
+import type { ViewOrientation, VisualCell } from './visual-cell';
 
 export type { BasicVariant, BasicViewInternalData, BasicViewState } from './types';
 
@@ -333,111 +332,53 @@ export class BasicView implements CubeView {
         }
     }
 
-    /**
-     * Every physical sticker of the cube, as visual-cell candidates.
-     *
-     * Virtual-centre cubies are skipped: each carries a sticker on its own face
-     * at the centre position, which would appear as a duplicate of a real
-     * sticker's cell and make resolution ambiguous.
-     */
-    private stickerCandidates(): PositionedSticker[] {
-        // Required by the compiler, not merely by the callers: `state.model` is
-        // declared optional (`model?: ReadOnlyCubeModel`), so this guard is what
-        // makes `this.state.model.getCurrentState()` legal below. Removing it
-        // fails the build with TS2532 ("Object is possibly 'undefined'"), so the
-        // annotation records a compiler-required narrowing rather than a
-        // caller-guaranteed condition.
-        /* c8 ignore if — compiler-required narrowing for the optional model */
-        if (!this.state.model) return [];
-
-        const candidates: PositionedSticker[] = [];
-        for (const cubie of this.state.model.getCurrentState().cubiesById.values()) {
-            if (cubie.type === CubieType.VIRTUAL_CENTER) continue;
-            for (const sticker of cubie.stickers.values()) {
-                candidates.push({
-                    id: sticker.id,
-                    face: sticker.currentFace,
-                    position: sticker.facePosition,
-                });
-            }
-        }
-        return candidates;
-    }
-
     /** The view orientation, in the shape the visual-cell rule expects. */
     private orientation(): ViewOrientation {
         return { viewRight: this.state.viewRight, viewUp: this.state.viewUp };
     }
 
     /**
-     * The visual cell the current selection occupies, or `undefined` when there
-     * is no selection or it cannot be located.
+     * The view-side contract the re-anchor policy needs.
+     *
+     * The policy itself lives in `./reanchor` so Circular and Flat can reuse it.
+     * This adapter is what keeps it view-agnostic: the policy decides *which*
+     * sticker should be selected and hands the id back, and the view decides what
+     * selecting it means — its own markup, its own state fields, and its own
+     * `STICKER_SELECTED` emission.
      */
-    private selectionVisualCell(): VisualCell | undefined {
-        if (!this.state.currentSelected || !this.state.model) return undefined;
-
-        const cubeState = this.state.model.getCurrentState();
-        const sticker = CubeStateUtils.getStickerById(cubeState, this.state.currentSelected);
-        if (!sticker) return undefined;
-
-        return visualCellOfSticker(
-            { face: sticker.currentFace, position: sticker.facePosition },
-            cubeState.cubeSize,
-            this.orientation()
-        );
+    private reanchorTarget(): ReanchorTarget {
+        return {
+            // Accessors, not values: the policy reads these both before and after
+            // the orientation changes, so a snapshot would resolve the captured
+            // cell against a stale front face.
+            getModel: () => this.state.model,
+            getCurrentSelected: () => this.state.currentSelected,
+            getOrientation: () => this.orientation(),
+            getFrontFace: () => viewFrontFace(this.state),
+            applySelection: id => this.updateSelected(id),
+        };
     }
 
     /**
      * Keep the selection on screen after the view's orientation changed.
      *
-     * The selection is stored as a sticker id, which is model-anchored: rotating
-     * the view does not move that sticker, so a rotation can leave it on a face
-     * behind the cube — nothing visible, while the app still reports a selection.
-     * This re-anchors it to whatever sticker now occupies the same *visual* cell
-     * on the newly-front face, so the selection stays where the user was looking.
-     *
-     * When no sticker occupies that cell the previous selection is kept rather
-     * than cleared. A miss is reachable legitimately (a cell that exists at one
-     * cube size has no equivalent at a smaller one), and keeping the old
-     * selection degrades to the previous behaviour instead of a
-     * selected-nothing state.
+     * Delegates to the extracted policy, passing this view as the target. The
+     * cell is captured before the orientation moves and resolved after it lands,
+     * so the selection follows the screen position the user was looking at rather
+     * than the face that used to be front.
      */
-    private reanchorSelection(cell: VisualCell | undefined): void {
-        // Load-bearing and genuinely reachable: one caller passes
-        // `selectionVisualCell()`, which returns `undefined` when there is no
-        // selection or the sticker cannot be located. The condition can
-        // therefore be true in production. The annotation exists only because no
-        // test drives that combination yet — a coverage gap, tracked as U11,
-        // rather than a caller guarantee. Do not read this as unreachable.
-        /* c8 ignore if — coverage gap tracked by U11, not dead code */
-        if (!cell || !this.state.model) return;
-
-        const cubeState = this.state.model.getCurrentState();
-        const front = viewFrontFace(this.state);
-
-        const match = stickerAtVisualCell(
-            cell,
-            front,
-            this.stickerCandidates(),
-            cubeState.cubeSize,
-            this.orientation()
-        );
-
-        if (match) this.updateSelected(match.id);
+    private preserveSelectionAcrossOrientationChange(applyOrientation: () => void): void {
+        preserveSelection(this.reanchorTarget(), applyOrientation);
     }
 
     /**
-     * Re-anchor the selection across an orientation change.
+     * Re-anchor a previously captured cell, without changing the orientation.
      *
-     * Callers wrap a rotation in this so the cell is captured before the
-     * orientation moves and resolved after it lands. Doing it this way — rather
-     * than deriving the new cell from the old one — keeps a single
-     * implementation of the rule in `visual-cell.ts`.
+     * Used by `setState`, where the orientation is restored first and the anchor
+     * is reconciled against it afterwards.
      */
-    private preserveSelectionAcrossOrientationChange(applyOrientation: () => void): void {
-        const cellBefore = this.selectionVisualCell();
-        applyOrientation();
-        this.reanchorSelection(cellBefore);
+    private reanchorSelection(cell: VisualCell | undefined): void {
+        reanchor(cell, this.reanchorTarget());
     }
 
     resize(): void {
@@ -809,7 +750,7 @@ export class BasicView implements CubeView {
         // orderings differ in intent, not in visibility — capturing here is
         // "keep this visual cell across the restore", capturing later would be a
         // no-op for a centre selection. Left as intended.
-        const cellBefore = this.selectionVisualCell();
+        const cellBefore = policySelectionVisualCell(this.reanchorTarget());
 
         // Migrate old format — reset to default.
         /* c8 ignore if — migration for old state format */
