@@ -427,11 +427,20 @@ export class BasicView implements CubeView {
         /* c8 ignore if — guard for non-navigation keys */
         if (!isNavigationKey(event)) return false;
 
+        // A rotation the arrow key triggers is *not* a view rotation the user
+        // asked for: it exists to bring the selected sticker's face forward, and
+        // the selection must survive it unchanged. Routing it through
+        // `rotateViewLeft()` and friends would apply the user-rotation rule
+        // (preserve the screen cell, not the sticker), which slides the selection
+        // onto whichever sticker now occupies that cell — off a face centre onto
+        // an edge cubie at column 0. Mutate the orientation directly and refresh
+        // the rendering instead; the linked-view event still fires so a peer Basic
+        // view stays in sync.
         const onRotated = (r: ViewRotation): void => {
-            if (r === ViewRotation.Left) this.rotateViewLeft();
-            /* c8 ignore else if */ else if (r === ViewRotation.Right) this.rotateViewRight();
-            /* c8 ignore else if */ else if (r === ViewRotation.Up) this.rotateViewUp();
-            /* c8 ignore else if */ else if (r === ViewRotation.Down) this.rotateViewDown();
+            if (r === ViewRotation.Left) rotateViewLeft(this.state);
+            /* c8 ignore else if */ else if (r === ViewRotation.Right) rotateViewRight(this.state);
+            /* c8 ignore else if */ else if (r === ViewRotation.Up) rotateViewUp(this.state);
+            /* c8 ignore else if */ else if (r === ViewRotation.Down) rotateViewDown(this.state);
             /* c8 ignore if — guard when not linked */
             if (isLinked(this.state.viewType)) {
                 Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
