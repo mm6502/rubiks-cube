@@ -123,6 +123,111 @@ describe('Application', () => {
         });
     });
 
+    // ─── The reported defect, end to end ─────────────────────────────────────
+
+    describe('arrow keys do not change cube size while a view is in use', () => {
+        /** The real controls structure, so `.size-options` sits outside any view. */
+        function realControlsDom(): void {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div class="controls">
+                        <details class="control-section" data-persist open>
+                            <div class="control-section-body">
+                                <div class="size-options" role="radiogroup"></div>
+                            </div>
+                        </details>
+                    </div>
+                    <div class="visualizations" id="visualizations"></div>
+                </div>
+            `;
+        }
+
+        /**
+         * Opens a view through the real lifecycle path and returns the panel
+         * element plus the content element the view actually receives.
+         *
+         * The distinction matters: the view's container is the `view-content`
+         * element, and the `.view-panel` is its *ancestor*. A pointer-down
+         * dispatched on the ancestor does not reach a listener on the content
+         * (events bubble up, not down), so contacting "the view" must target the
+         * content element.
+         */
+        function openView(
+            application: Application,
+            viewType: string
+        ): { panel: HTMLElement; content: HTMLElement } {
+            const lifecycle = (application as any).viewManager?.viewLifecycleManager;
+            if (lifecycle) {
+                lifecycle.showView(viewType);
+            }
+            const panel = document.querySelector<HTMLElement>(`[data-view-panel="${viewType}"]`);
+            const content = panel?.querySelector<HTMLElement>('[data-view-content]') ?? null;
+            expect(panel).not.toBeNull();
+            expect(content).not.toBeNull();
+            return { panel: panel!, content: content! };
+        }
+
+        it('keeps the size unchanged when an arrow key arrives with the view focused (AE8/AE9)', () => {
+            // Arrange — the reported sequence: the user has the size control
+            // focused, then contacts the view, then presses an arrow key.
+            realControlsDom();
+            const application = new Application();
+            application.initialize();
+            (StatePersistence.saveState as any).mockReturnValue(true);
+
+            const sizeBefore = application.getCurrentSize();
+            const { content } = openView(application, 'basic-front');
+
+            // Contact the view: this is what claims focus (U4) and reports the
+            // interaction (U5).
+            content.dispatchEvent(
+                new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+            );
+            expect(document.activeElement).toBe(content);
+
+            // Act — the key that previously resized the cube.
+            const down = new KeyboardEvent('keydown', {
+                key: 'ArrowRight',
+                bubbles: true,
+                cancelable: true,
+            });
+            document.dispatchEvent(down);
+
+            // Assert — the view acted, the cube size did not change.
+            expect(application.getCurrentSize()).toBe(sizeBefore);
+        });
+
+        it('leaves the size control responsive when it holds focus (AE8)', () => {
+            // Arrange — the reverse order: the user returns to the size control.
+            realControlsDom();
+            const application = new Application();
+            application.initialize();
+            (StatePersistence.saveState as any).mockReturnValue(true);
+            openView(application, 'basic-front');
+
+            const radio = document.querySelector<HTMLInputElement>('.size-options input');
+            expect(radio).not.toBeNull();
+            radio!.focus();
+            expect(document.activeElement).toBe(radio);
+
+            const viewManager = (application as any).viewManager;
+            const stackTop = viewManager.getActiveViewId();
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowRight' })
+            );
+
+            // Assert — the stack still points somewhere, but no view is delegated
+            // to, so the radio group's own handler stays in charge.
+            expect(handled).toBe(false);
+            if (stackTop) {
+                const staleView = viewManager['activeViews'].get(stackTop);
+                expect(staleView).toBeTruthy();
+            }
+        });
+    });
+
     describe('event handlers', () => {
         beforeEach(() => {
             app.initialize();

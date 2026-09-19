@@ -367,11 +367,11 @@ export class ViewManager implements CommandManager {
      * @returns True if the event was handled, false otherwise
      */
     public handleKeyDown(e: KeyboardEvent): boolean {
-        // Offer the active view a chance to handle the keydown event
+        // Offer the focused view a chance to handle the keydown event
         // This allows views to prevent default behavior (e.g., button navigation)
-        if (this.focusStack.length > 0) {
-            const activeViewId = this.focusStack[this.focusStack.length - 1];
-            const activeViewEntry = this.activeViews.get(activeViewId);
+        const focusedViewId = this.viewIdHoldingFocus();
+        if (focusedViewId) {
+            const activeViewEntry = this.activeViews.get(focusedViewId);
             if (activeViewEntry?.view.handleKeyDown) {
                 const handled = activeViewEntry.view.handleKeyDown(e);
                 if (handled) {
@@ -382,7 +382,7 @@ export class ViewManager implements CommandManager {
             // Check view-specific command bindings: return true to suppress the
             // browser default (e.g. Ctrl+Arrow moving the text cursor) even though
             // the command action itself fires on keyUp.
-            const viewCommands = this.commandRegistry.get(activeViewId);
+            const viewCommands = this.commandRegistry.get(focusedViewId);
             if (viewCommands?.some(cmd => this.isCommandActivatable(cmd, e))) {
                 return true;
             }
@@ -398,16 +398,54 @@ export class ViewManager implements CommandManager {
     }
 
     /**
+     * Which view should act on a key press, decided by where focus actually is.
+     *
+     * Delegating to the top of the focus stack unconditionally is what let an
+     * arrow key reach both the focused control and a view at once: the cube-size
+     * radio group sits in the controls sidebar, so focusing it left the stack
+     * pointing at whichever view was used last. The key then resized the cube
+     * while also walking the view's selection.
+     *
+     * The fallback to the stack top is therefore **conditional**. It fires only
+     * when focus is on the document body — nowhere in particular, which is the
+     * state a command-driven key press arrives in. Focus on any real control
+     * outside every view delegates to no view at all, so that control acts alone.
+     */
+    private viewIdHoldingFocus(): string | undefined {
+        const active = document.activeElement;
+
+        // Focus on a body (or nothing focusable at all) is "nowhere in
+        // particular", so keep the historical stack behaviour.
+        if (!active || active === document.body || active === document.documentElement) {
+            return this.getActiveViewId();
+        }
+
+        for (const [viewId, { container }] of this.activeViews) {
+            if (container.contains(active)) {
+                return viewId;
+            }
+        }
+
+        // Focus is on a real control that belongs to no view — for example the
+        // size selector. Returning undefined hands the key to that control; an
+        // unconditional fallback here would re-create the reported defect.
+        return undefined;
+    }
+
+    /**
      * Handles keyboard up events by checking command bindings and delegating to active views
      * @param e - The keyboard event
      * @returns True if the event was handled, false otherwise
      */
     public handleKeyUp(e: KeyboardEvent): boolean {
-        // First, offer the active view a chance to handle the key event
-        // This allows views to override command bindings (e.g., for text input)
-        if (this.focusStack.length > 0) {
-            const activeViewId = this.focusStack[this.focusStack.length - 1];
-            const activeViewEntry = this.activeViews.get(activeViewId);
+        // Offer the focused view a chance to handle the key event
+        // This allows views to override command bindings (e.g., for text input).
+        // Uses the same focus-derived choice as `handleKeyDown`: bound commands
+        // fire here, so delegating on keyup to a view that does not hold focus
+        // would let a view act on a key it was never given.
+        const focusedViewId = this.viewIdHoldingFocus();
+        if (focusedViewId) {
+            const activeViewEntry = this.activeViews.get(focusedViewId);
             if (activeViewEntry?.view.handleKeyUp) {
                 const handled = activeViewEntry.view.handleKeyUp(e);
                 if (handled) {
@@ -417,7 +455,7 @@ export class ViewManager implements CommandManager {
             }
 
             // If view didn't handle it, check view-specific commands
-            const commands = this.commandRegistry.get(activeViewId);
+            const commands = this.commandRegistry.get(focusedViewId);
             const matchingCommand = commands?.find(cmd => this.isCommandActivatable(cmd, e));
             if (matchingCommand) {
                 // Handled by view command

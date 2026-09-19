@@ -645,7 +645,6 @@ describe('ViewManager', () => {
         // Act & Assert
         expect(viewManager.handleKeyDown(new KeyboardEvent('keydown', { key: 'a' }))).toBe(false);
     });
-
     it('handleKeyDown returns true for a matching view command binding (suppresses default on keydown)', () => {
         // Arrange: register a Ctrl+ArrowLeft view command
         const action = vi.fn();
@@ -1419,6 +1418,175 @@ describe('ViewManager', () => {
             expect(addedBySecond).toBe(1);
             expect(fresh.getActiveViewId()).toBe('flat');
             fresh.dispose();
+        });
+    });
+
+    // ─── Keyboard delegation follows DOM focus ───────────────────────────────
+
+    describe('keyboard delegation is derived from DOM focus', () => {
+        /**
+         * Registers a view whose container is `container` and that records whether
+         * it was asked to handle a key — so a view acting without focus becomes
+         * observable rather than merely implied.
+         */
+        function registerView(id: string, container: HTMLElement): ReturnType<typeof vi.fn> {
+            const handleKeyDown = vi.fn(() => true);
+            viewManager['activeViews'].set(id, {
+                view: { handleKeyDown } as any,
+                container,
+            });
+            return handleKeyDown;
+        }
+
+        /** Adds a focusable control to the document, outside every view. */
+        function sizeControl(): HTMLElement {
+            // Mirrors the real size selector: a radio in the controls sidebar, not
+            // inside any `.view-panel`.
+            const input = document.createElement('input');
+            input.type = 'radio';
+            document.body.appendChild(input);
+            return input;
+        }
+
+        it('does not delegate to a view while focus is on a control outside every view (AE8)', () => {
+            // Arrange — the stack still points at the view the user last used, so
+            // an unconditional fallback would hand it the key. This is the case
+            // that distinguishes a conditional fallback from an unconditional one.
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const handleKeyDown = registerView('basic-front', container);
+            viewManager['focusStack'] = ['basic-front'];
+
+            const control = sizeControl();
+            control.focus();
+            expect(document.activeElement).toBe(control);
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowLeft' })
+            );
+
+            // Assert
+            expect(handleKeyDown).not.toHaveBeenCalled();
+            expect(handled).toBe(false);
+        });
+
+        it('delegates to the view holding focus (AE9)', () => {
+            // Arrange
+            const container = document.createElement('div');
+            container.tabIndex = 0;
+            document.body.appendChild(container);
+            const handleKeyDown = registerView('basic-front', container);
+            sizeControl();
+            container.focus();
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowLeft' })
+            );
+
+            // Assert
+            expect(handleKeyDown).toHaveBeenCalledTimes(1);
+            expect(handled).toBe(true);
+        });
+
+        it('delegates to the view whose container holds focus, not the stack top', () => {
+            // Arrange — two views, focus on the one that is *not* the stack top.
+            const focused = document.createElement('div');
+            focused.tabIndex = 0;
+            document.body.appendChild(focused);
+            const other = document.createElement('div');
+            document.body.appendChild(other);
+
+            const focusedHandler = registerView('flat', focused);
+            const otherHandler = registerView('basic-front', other);
+            viewManager['focusStack'] = ['basic-front'];
+
+            focused.focus();
+
+            // Act
+            viewManager.handleKeyDown(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+
+            // Assert
+            expect(focusedHandler).toHaveBeenCalledTimes(1);
+            expect(otherHandler).not.toHaveBeenCalled();
+        });
+
+        it('falls back to the stack top when focus is on the document body', () => {
+            // Arrange — "nowhere in particular" is the state a command-driven key
+            // press arrives in, so the historical behaviour must be preserved.
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const handleKeyDown = registerView('basic-front', container);
+            viewManager['focusStack'] = ['basic-front'];
+
+            (document.activeElement as HTMLElement | null)?.blur?.();
+            expect(document.activeElement).toBe(document.body);
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowLeft' })
+            );
+
+            // Assert
+            expect(handleKeyDown).toHaveBeenCalledTimes(1);
+            expect(handled).toBe(true);
+        });
+
+        it('matches only controller commands when no view holds focus and the stack is empty', () => {
+            // Arrange
+            const action = vi.fn();
+            viewManager['focusStack'] = [];
+            viewManager['commandRegistry'].set('controller', [
+                {
+                    id: 'global-cmd',
+                    label: 'Global',
+                    category: CommandCategory.CUBE,
+                    action,
+                    keyBindings: [{ key: 'ArrowLeft' }],
+                } as Command,
+            ]);
+            const control = sizeControl();
+            control.focus();
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowLeft' })
+            );
+
+            // Assert — controller commands still suppress the default, because they
+            // are global and have no focused control to yield to.
+            expect(handled).toBe(true);
+        });
+
+        it('does not let a view act on keyup when it does not hold focus', () => {
+            // Arrange — bound commands fire on keyup, so delegating there to an
+            // unfocused view would let it act on a key it was never given (R10).
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const action = vi.fn();
+            viewManager['activeViews'].set('basic-front', {
+                view: { handleKeyUp: vi.fn(() => false) } as any,
+                container,
+            });
+            viewManager['focusStack'] = ['basic-front'];
+            viewManager['commandRegistry'].set('basic-front', [
+                {
+                    id: 'rotate-left',
+                    label: 'Rotate Left',
+                    category: CommandCategory.VIEW,
+                    action,
+                    keyBindings: [{ key: 'ArrowLeft' }],
+                } as Command,
+            ]);
+            const control = sizeControl();
+            control.focus();
+
+            // Act
+            viewManager.handleKeyUp(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+
+            // Assert
+            expect(action).not.toHaveBeenCalled();
         });
     });
 });
