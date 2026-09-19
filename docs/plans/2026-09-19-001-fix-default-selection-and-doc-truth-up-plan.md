@@ -167,6 +167,17 @@ Six distinct problems, none requiring behavioural change:
   with no visible effect before recovering on keyup), which is a behaviour
   change beyond a default-selection fix. R14 requires that this residual is
   recorded.
+
+  > **Superseded.** The residual was resolved the other way round: rather than
+  > porting recovery to Basic and Flat, Circular's deselect paths were removed
+  > so the state recovery existed for can no longer arise. `recoverSelection` is
+  > deleted and `onStickerSelected` no longer accepts `undefined`. That also
+  > dissolves the "tapping the background deselects" premise above — in Basic
+  > and Flat it never did, and in Circular it no longer does.
+  >
+  > The narrative in this document is left as written, as the record of what was
+  > believed and scoped at the time.
+
 - **Consolidating the duplicated layout parameters.** The shipped ellipse values
   exist in three places — `src/views/circular/svg-generator/parameters.json`
   (what the app uses), `PROPOSALS` in

@@ -33,23 +33,28 @@ not repeat each other's content, so they cannot drift apart.
 This section outlines tasks that may be addressed in the future, though they are
 not currently scheduled for implementation.
 
-- [ ] Reassess whether Basic and Flat need a selection-recovery path. **The
-      original justification for this item did not survive checking** and is
-      recorded here so it is not re-derived: it claimed the dead-end is
-      "reachable after load because tapping the background deselects". It is not
-      reachable. In Basic, tapping the background clears the _face_ selection
-      but still calls `onStickerSelected(hit.stickerId)` with a real id, and
-      `handleTap` never passes `undefined`; across all production sources only
-      Circular ever calls `onStickerSelected(undefined)`
-      (`touch-handler-interaction.ts:229`, the halo-deselect path). Both views
-      also establish a default selection in `create()`. So with no production
-      path clearing the sticker selection in Basic or Flat, the "arrows return
-      not-handled and the page scrolls" scenario cannot currently arise, and
-      Circular's `recoverSelection` is defending a state its siblings cannot
-      enter. What remains worth deciding is the opposite question: whether the
-      recovery path is _dead code_ in effect, or whether Basic and Flat should
-      gain an explicit deselect (making recovery genuinely necessary). That is a
-      behaviour decision, not a port.
+- [x] Unify the deselect behaviour across the three views. Circular was the only
+      view that cleared the _sticker_ selection (tapping the halo, or the same
+      sticker/face again); Basic and Flat only ever toggle the _face_ highlight
+      and keep the selection. Circular's `recoverSelection` existed only to
+      recover from the state its own deselect created, so the asymmetry was
+      costing a whole recovery path plus a three-tier fallback.
+
+      Resolved by removing Circular's deselect rather than porting recovery:
+      `onStickerSelected` no longer accepts `undefined`, `recoverSelection` is
+      deleted, and tapping the halo now just clears the face highlight. All three
+      views behave the same way, and navigation with nothing selected reports the
+      key as unhandled — the same answer Basic and Flat already gave.
+
+      The item's original justification did not survive checking, and is recorded
+      so it is not re-derived: it claimed the dead-end was "reachable after load
+      because tapping the background deselects". It never was — in Basic, tapping
+      the background clears the face but still passes a real sticker id, and
+      across all production sources only Circular ever passed `undefined`.
+
+      Side effect worth knowing: deselect was the only way to reach the
+      "nothing selected" state at n>3, where `slice-target.ts` disables M/E/S.
+      Those commands are now always available when a cube is selected on n>3.
 
 ## Closed
 
