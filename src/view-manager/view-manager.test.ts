@@ -423,6 +423,48 @@ describe('ViewManager', () => {
         expect(containerB.style.display).toBe('');
     });
 
+    it('keeps every non-active panel out of the tab order in tabbed mode', () => {
+        // Arrange — panels contain focusable controls, so *how* they are hidden
+        // determines whether Tab can reach them.
+        //
+        // This guards a real bug: the controls menu hid its contents by moving
+        // the panel off-screen, which left 63 of its 69 focusable elements
+        // reachable by Tab while invisible.
+        //
+        // `display: none` removes a subtree from the tab order and from the
+        // accessibility tree outright. The other hiding mechanisms used in this
+        // codebase (`visibility: hidden`, `opacity: 0`) exist to make CSS
+        // transitions possible and do NOT remove anything from the tab order —
+        // a panel hidden that way stays fully tab-reachable.
+        //
+        // So the invariant asserted here is the property that matters, not the
+        // styling. If panel hiding is ever swapped for an animatable mechanism,
+        // this fails, and that mechanism must declare `inert` on the hidden
+        // panels instead.
+        const containers = ['a', 'b', 'c'].map(id => {
+            const container = document.createElement('div');
+            container.innerHTML = `<button>${id}</button>`;
+            viewManager['activeViews'].set(id, {
+                view: { resize: vi.fn() } as any,
+                container,
+            });
+            return container;
+        });
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
+        viewManager['focusStack'] = ['b'];
+        viewManager['tabBar'] = { show: vi.fn(), hide: vi.fn(), updateTabs: vi.fn() } as any;
+        viewManager['panelInteractionHandler'] = {
+            setLayoutMode: vi.fn(),
+            setInitialPanelPosition: vi.fn(),
+        } as any;
+
+        // Act
+        (viewManager as any).applyLayoutMode();
+
+        // Assert — exactly the active panel stays reachable
+        expect(containers.map(container => container.style.display)).toEqual(['none', '', 'none']);
+    });
+
     it('showOnlyActivePanel calls resize synchronously when panel was hidden', () => {
         // Arrange — panel starts hidden (display: none) so it gets the sync resize treatment
         viewManager['layoutMode'] = LayoutMode.Tabbed;

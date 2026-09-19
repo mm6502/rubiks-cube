@@ -602,6 +602,103 @@ describe('Application', () => {
             expect(toggle.getAttribute('aria-expanded')).toBe('false');
         });
 
+        it('should hide the closed panel from the tab order with inert', () => {
+            // Arrange — the panel is hidden by CSS (off-screen on mobile), and
+            // CSS positioning alone does not remove it from the tab order.
+            const controls = document.querySelector<HTMLElement>('.controls')!;
+
+            // Assert — closed on load, and therefore unreachable by Tab
+            expect(controls.classList.contains('controls--open')).toBe(false);
+            expect(controls.hasAttribute('inert')).toBe(true);
+            expect(controls.getAttribute('aria-hidden')).toBe('true');
+        });
+
+        it('should make the panel reachable when opened and unreachable again when closed', () => {
+            // Arrange
+            const controls = document.querySelector<HTMLElement>('.controls')!;
+            const toggle = document.querySelector<HTMLButtonElement>('.menu-toggle')!;
+
+            // Act — open
+            toggle.click();
+
+            // Assert — open panels must stay fully reachable
+            expect(controls.hasAttribute('inert')).toBe(false);
+            expect(controls.hasAttribute('aria-hidden')).toBe(false);
+
+            // Act — close
+            toggle.click();
+
+            // Assert — hidden again
+            expect(controls.hasAttribute('inert')).toBe(true);
+            expect(controls.getAttribute('aria-hidden')).toBe('true');
+        });
+
+        it('should mark the desktop-collapsed panel inert and clear it when expanded', () => {
+            // Arrange
+            mockMatchMedia(true);
+            document.body.innerHTML = `
+                <div class="container">
+                    <div id="visualizations"></div>
+                    <button class="menu-toggle" aria-expanded="false"></button>
+                    <button class="controls-close"></button>
+                    <div class="controls"></div>
+                    <div class="controls-overlay"></div>
+                </div>
+            `;
+            const app2 = new Application();
+            app2.initialize();
+            const controls = document.querySelector<HTMLElement>('.controls')!;
+            const toggle = document.querySelector<HTMLButtonElement>('.menu-toggle')!;
+
+            // Act — collapse
+            toggle.click();
+
+            // Assert — the collapsed sidebar is translated off-screen but still
+            // occupies the DOM, so it must be declared unreachable explicitly
+            expect(controls.hasAttribute('inert')).toBe(true);
+            expect(controls.getAttribute('aria-hidden')).toBe('true');
+
+            // Act — expand
+            toggle.click();
+
+            // Assert — reachable again
+            expect(controls.hasAttribute('inert')).toBe(false);
+            expect(controls.hasAttribute('aria-hidden')).toBe(false);
+        });
+
+        it('should move focus out of the panel when it is closed while focus is inside', () => {
+            // Arrange — the panel contains focusable controls, so a keyboard user
+            // can be inside it when it closes.
+            document.body.innerHTML = `
+                <div id="visualizations"></div>
+                <button class="menu-toggle" aria-expanded="false"></button>
+                <button class="controls-close"></button>
+                <div class="controls">
+                    <button class="option">Option</button>
+                </div>
+                <div class="controls-overlay"></div>
+            `;
+            const app2 = new Application();
+            app2.initialize();
+
+            const controls = document.querySelector<HTMLElement>('.controls')!;
+            const toggle = document.querySelector<HTMLButtonElement>('.menu-toggle')!;
+            const closeBtn = document.querySelector<HTMLButtonElement>('.controls-close')!;
+            const option = document.querySelector<HTMLButtonElement>('.option')!;
+
+            toggle.click();
+            option.focus();
+            expect(document.activeElement).toBe(option);
+
+            // Act — close the panel while focus sits inside it
+            closeBtn.click();
+
+            // Assert — focus must not stay inside a subtree that is now both
+            // `inert` and `aria-hidden`; it moves to the toggle that owns the panel.
+            expect(controls.hasAttribute('inert')).toBe(true);
+            expect(document.activeElement).toBe(toggle);
+        });
+
         it('should close the panel when overlay is clicked', () => {
             // Arrange
             const controls = document.querySelector('.controls')!;
