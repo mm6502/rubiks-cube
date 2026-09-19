@@ -1,10 +1,10 @@
 ---
 title: 'fix: Close review findings and agent-native parity gaps'
 type: fix
-status: active
+status: completed
 date: 2026-09-19
 origin: docs/brainstorms/2026-09-19-selection-visibility-and-view-focus-requirements.md
-review: ce-code-review run 6a0d5cf-20260919 (base 5ffc021 â†’ HEAD 6a0d5cf)
+review: ce-code-review run 6a0d5cf-20260919 (base 5ffc021 -> HEAD 6a0d5cf)
 ---
 
 # fix: Close review findings and agent-native parity gaps
