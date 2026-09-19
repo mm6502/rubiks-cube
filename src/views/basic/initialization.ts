@@ -3,6 +3,7 @@ import { Application } from '@/application';
 import { ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { EventName } from '@/types';
 import { getDefaultVectors } from '@/views/basic/navigation';
+import { focusViewContainer } from '@/views/shared/focus';
 
 import * as cubieRendering from './cubie-rendering';
 import { initializeGhostAnchors, updateSize } from './rendering';
@@ -135,10 +136,25 @@ function handleStickerMouseOut(viewType: string): void {
  * Attaches mouse/touch event listeners to the container and cube element.
  */
 function attachContainerListeners(
-    _container: HTMLElement,
+    container: HTMLElement,
     cubeElement: HTMLElement,
     state: BasicViewInternalData
 ): void {
+    // Claim keyboard focus as soon as the user contacts the view's content.
+    //
+    // This is on the container rather than the cube element so a contact
+    // anywhere inside the view counts, and on `pointerdown` rather than `click`
+    // because the touch handler suppresses the native default on pointer-down
+    // (to stop native drag), so a later click may never fire for touch input.
+    //
+    // Without this the view never takes focus, so an arrow key pressed while the
+    // user's focus is still on a controls-sidebar widget reaches both the view
+    // (through the document-level capture handler) and that widget — the user
+    // sees the cube resize while trying to move the selection.
+    container.addEventListener('pointerdown', () => {
+        focusViewContainer(state.container);
+    });
+
     // Mouseover/out for highlighting
     cubeElement.addEventListener('mouseover', (event: MouseEvent) => {
         const target = event.target as HTMLElement;
