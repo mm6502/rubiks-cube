@@ -319,13 +319,17 @@ verification, so they are stated separately.
 
 ## Dependencies / Assumptions
 
-- **Assumption — one face is "visually front".** The visual-cell mapping in
-  R2–R4 assumes a single front face is well-defined for the current view
-  orientation. `viewFrontFace()` already derives it from the view vectors, so
-  the assumption holds for whole-cube view rotations. It is unverified for the
-  tilted/pitched cosmetic orientations, where "front" may be less well-defined;
-  if it does not hold there, the mapping needs a stated rule for those states
-  rather than an implicit one.
+- **Verified — the front face is always one of the visible faces.** R1's
+  invariant is stated in terms of visibility, so it depends on the front face
+  never being hidden. Measured across the default, tilted, pitched, and
+  rotated-plus-either orientations: in every case `viewFrontFace()` is among the
+  faces `getVisibleFacesWithPositions()` reports as visible. The pitched branch
+  reassigns which _slot_ each face occupies (the front face moves to the slot
+  the tilted state calls `top-left`, and that slot is visible in the pitched
+  layout), so the reassignment changes presentation order, not visibility.
+  Consequence: the visual-cell mapping in R2–R4 does **not** need a separate
+  rule per orientation, and the selection invariant holds in the cosmetic states
+  too.
 - **Assumption — the app's `focusStack` is the only supported notion of active
   view.** No other component tracks a competing "active view" concept. Verified
   for the ViewManager and command rendering; unverified for any diagnostic or
@@ -345,10 +349,8 @@ verification, so they are stated separately.
 
 **Resolve Before Planning**
 
-- Does the visual-cell mapping need to be different for the tilted and pitched
-  orientations, given that the visible slots are reassigned in those states?
-  This determines whether R4 is a per-rotation table or a general mapping, and
-  it changes the size of the work substantially.
+(none — the visual-cell mapping question was resolved during the brainstorm; see
+Dependencies / Assumptions)
 
 **Deferred to Planning**
 
