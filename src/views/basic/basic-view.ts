@@ -582,6 +582,17 @@ export class BasicView implements CubeView {
         // Finalize any running animation (interrupt)
         this.finalizeAnimation();
 
+        // Reconcile the selection anchor now, while the model already reflects
+        // this move. The animation is purely cosmetic — the model is updated
+        // before MOVE_EXECUTED fires — so waiting for it left the anchor pointing
+        // at the pre-move frame. A key pressed during the animation then inferred
+        // its move from stale geometry and produced a different notation than the
+        // same key produced once the animation had finished.
+        //
+        // The markup (the `selected` class) is re-applied after each DOM rebuild
+        // below, because those rebuilds replace the sticker elements that carry it.
+        this.restoreSelection();
+
         if (!event.moveDetails?.movedCubies) {
             this.update(this.state.model);
             // No-cubie path (e.g. whole-cube rotation with no tracked cubies)
@@ -601,6 +612,10 @@ export class BasicView implements CubeView {
                 this.state.styles,
                 this.state.onStickerSelected
             );
+            // The rebuild above replaced the sticker elements, dropping the
+            // markup, so re-apply it — without this the selection stays reported
+            // by the app but is invisible on the non-animated path.
+            this.restoreSelection();
             // Reduced-motion / non-animated whole-cube path.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
             return;
@@ -622,6 +637,7 @@ export class BasicView implements CubeView {
                     );
                     result.animation.cancel(); // remove fill effect after DOM is updated
                     this.ghostStickers?.updateColors();
+                    // Markup only: the anchor was reconciled when the move landed.
                     this.restoreSelection();
                     // Animated whole-cube path — refresh labels post-move.
                     this.refreshFaceLabelsAfterWholeCubeMove(event);

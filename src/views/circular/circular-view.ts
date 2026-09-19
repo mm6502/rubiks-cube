@@ -138,13 +138,19 @@ export class CircularCubeView implements CubeView {
     }
 
     updateSelective(event?: MoveExecutedEvent): void {
+        // Reconcile the selection anchor with the new model state *now*: the
+        // model already reflects this move, and the animation that follows is
+        // purely cosmetic. Doing it inside the promise callback below left the
+        // anchor pointing at the pre-move frame for the duration of the
+        // animation, so a key pressed then inferred its move from stale geometry
+        // and produced a different notation than the same key produced once the
+        // animation had finished.
+        this.restoreSelection();
+
         // Delegate to shared updateSelective which handles animation and state updates.
-        rendering
-            .updateSelective(this.state, event as MoveExecutedEvent)
-            .then(() => this.restoreSelection())
-            .catch(() => {
-                // swallow errors to preserve existing behavior (no-throw on update)
-            });
+        rendering.updateSelective(this.state, event as MoveExecutedEvent).catch(() => {
+            // swallow errors to preserve existing behavior (no-throw on update)
+        });
     }
 
     private restoreSelection(): void {
