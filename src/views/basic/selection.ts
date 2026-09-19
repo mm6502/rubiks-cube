@@ -5,11 +5,17 @@ import type { BasicViewInternalData } from './types';
 
 /**
  * Applies a hover highlight to the given sticker, clearing any previous one.
+ *
+ * Records the highlight on `state` so it can be re-derived after a rebuild — see
+ * {@link reapplyHighlightMarkup}. Passing `undefined` clears both the markup and
+ * the recorded value, so a rebuild with no highlight stays clean.
  */
 export function updateHighlight(
     state: BasicViewInternalData,
     highlightedSticker?: StickerId
 ): void {
+    state.currentHighlight = highlightedSticker;
+
     const stickerClass = state.stickerClass || state.styles.sticker;
     const highlightClass = state.highlightedClass || state.styles.highlighted;
     const allStickers = state.container?.querySelectorAll(`.${stickerClass}`);
@@ -23,6 +29,34 @@ export function updateHighlight(
             stickerElement.classList.add(highlightClass);
         }
     }
+}
+
+/**
+ * Re-apply the hover highlight for the sticker that was highlighted before a
+ * rebuild.
+ *
+ * The highlight is the same class of derived DOM state as the selection: it is
+ * written into cubie elements, and a rebuild replaces every one of them. Both
+ * are therefore re-derived at the same boundary, so the DOM cannot come back
+ * disagreeing with the app after a resize or a model update.
+ *
+ * Safe when nothing is highlighted — it applies nothing rather than inventing a
+ * highlight.
+ *
+ * @param state The view state carrying `currentHighlight` and the DOM container
+ */
+export function reapplyHighlightMarkup(state: BasicViewInternalData): void {
+    const highlighted = state.currentHighlight;
+    if (!highlighted || !state.container) return;
+
+    const stickerClass = state.stickerClass || state.styles.sticker;
+    const highlightClass = state.highlightedClass || state.styles.highlighted;
+
+    const stickerElement = state.container.querySelector(
+        `.${stickerClass}[data-sticker-id="${highlighted}"]`
+    ) as HTMLElement | null;
+
+    stickerElement?.classList.add(highlightClass);
 }
 
 /**

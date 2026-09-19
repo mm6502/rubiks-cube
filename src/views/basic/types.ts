@@ -48,6 +48,18 @@ export type BasicViewInternalData = {
     isPitched: boolean;
     layoutMode: LayoutMode;
     currentSelected?: StickerId;
+    /**
+     * The sticker currently hover-highlighted, if any.
+     *
+     * Tracked so the highlight — like the selection — can be re-derived at the
+     * rebuild boundary. Cubie elements are replaced wholesale on every resize
+     * and model update, which drops the `highlighted` class while the pointer is
+     * still resting on that sticker. Without this the DOM disagreed with the app
+     * about which sticker was highlighted, and `setHighlightedSticker`'s
+     * unchanged-value early return left no path to repair it until the pointer
+     * moved away and back.
+     */
+    currentHighlight?: StickerId;
     selectedFace?: string;
     selectedCubiePosition?: Vector3;
     cubieSize?: number;

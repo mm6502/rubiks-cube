@@ -631,10 +631,20 @@ short-circuit) while removing the collision.
 
 ### U5. Make the size selector a first-class command participant
 
-> **Status: confirmed by probe, ready to implement.** The routing gap and the
-> selector's role in it are measured, not inferred. See the Verification Log for
-> the transcript and for the two private `keydown` handlers deliberately left
-> out of scope.
+> **Status: re-measured during execution — the routing gap is confirmed, but the
+> double-action premise and this unit's prescribed remedy are refuted. Not
+> implemented as written (see Verification Log).** The gap (a plain arrow is
+> dropped when focus rests on a control outside every view) is real and was
+> re-confirmed on an inert button, so it does not depend on the size radios. The
+> double-action is **not reproducible**: the router has no plain-arrow claimant,
+> so it never delegates and `preventDefault()` is never called. And the remedy —
+> remove the selector's listener, re-register its arrows as commands — would
+> introduce the both-fire outcome, because _every_ arrow binding in the app is
+> `altKey: true`. Views handle plain arrows through
+> `handleKeyDown`/`handleKeyUp`, not through `keyBindings`. Closing the gap
+> safely needs a design that can tell an arrow-consuming control from an inert
+> one — the "tuned predicate" this unit set out to avoid — so it is a decision
+> for the user, not a mechanical change.
 
 - **Goal:** The size selector is owned by the shared command/ownership rules
   instead of keeping a private listener, so it cannot double-act on a key and
@@ -671,6 +681,14 @@ short-circuit) while removing the collision.
 - **Patterns to follow:** `src/views/basic/commands.ts` for command declaration
   and `keyBindings`; `src/cube/commands/undo-redo.ts` for a non-view command
   with bindings.
+- **Execution note (added after re-measurement — read before implementing):**
+  this unit's Approach and Capture-phase note are **refuted** by the probe
+  recorded in the Verification Log (rows U and V). Do not implement as written.
+  Specifically: there is no double-action to remove, and moving the selector
+  onto `keyBindings` requires adding global plain-arrow commands that do not
+  exist, which creates the both-fire outcome. The surviving work is the routing
+  gap only, and it needs a way to tell an arrow-consuming control from an inert
+  one before it can be closed safely. That is a design decision for the user.
 - **Test scenarios:**
   - Covers AE8. Focus last on the size control, contact a view, press an arrow
     key: the selection moves and the cube size does not change.
@@ -1200,46 +1218,111 @@ leave, and the Circular-side log is still worth adding. No
 `undefined`-permission work is needed in Basic, because there is nothing to
 forbid.
 
-**U5 — confirmed, with the mechanism measured**
+**U5 — re-measured during execution: the routing gap is confirmed, the
+double-action premise and the prescribed remedy are refuted**
 
-The premise holds and is now evidenced rather than argued. Probe: with the focus
-stack naming a view but DOM focus on a control outside every view (the size
-radio group shape), a plain arrow reaches nothing:
+The earlier entry for this unit recorded only the routing half and treated the
+selector as the aggravating case on the strength of reading `application.ts`.
+Re-probing the whole unit before implementing it shows the routing half is real
+and the rest is not.
+
+_Confirmed: a plain arrow is dropped when focus rests on a control outside every
+view._ Re-measured on an inert `<button>` placed in the controls sidebar, so the
+result does not depend on the size radios specifically:
 
 ```
-focus is on: INPUT (outside every view)
-viewIdHoldingFocus() = undefined
-getActiveViewId()    = basic-front      <- the stack still names the view
-handleKeyDown(ArrowLeft) returned: false
-view.handleKeyDown called: 0 times
-PLAIN ARROW REACHES NOTHING? true
+activeElement: BUTTON#inert-control
+viewIdHoldingFocus(): undefined
+getActiveViewId(): basic-front      <- the stack still names the view
+handleKeyDown returned: false
+view.handleKeyDown calls: 0
+KEY DROPPED (nothing acts): true
 ```
 
-The two accessors disagree by design (`getActiveViewId` drives styling and
-command rendering; `viewIdHoldingFocus` decides routing), so the UI shows a
-focused view while its keys go nowhere. That is the state U5 exists to remove.
+**Refuted: there is no escape hatch today.** The earlier note claimed the size
+selector "papers over" the routing gap and must therefore be removed rather than
+supplemented. Measured, the selector's focus path leaves the view untouched, so
+the gap is total rather than partly covered:
 
-Why the size selector is the aggravating case, verified in code:
+```
+=== focus on SIZE RADIO, ArrowRight ===
+size changed: 3 -> 4 (true)
+view.handleKeyDown calls: 0
+DOUBLE ACTION: false
+```
 
-- `application.ts:162` installs the selector's own container-level `keydown`
-  listener. It handles `ArrowLeft`/`ArrowRight` only.
-- `application.ts:274` registers the app's routing handler on `document` with
-  **capture: true**. Capture runs first, and `preventDefault()` does **not**
-  stop propagation — so a key that the routing layer considered "handled" would
-  still reach the selector's listener. This is the exact mechanism behind the
-  originally reported double-action (AE8), and it is why the selector must not
-  remain a private claimant.
-- Two other private `keydown` handlers exist outside the shared system
-  (`about-modal.ts:48`, `command-renderer.ts:649` for the toggle button). They
-  are not arrow-key claimants, so they are **out of scope** for U5 — recorded so
-  the unit is not read as "consolidate every listener".
+**Refuted: the reported double-action is not reproducible on the current tree.**
+The earlier note reasoned that because the router is registered with
+`capture: true` and `preventDefault()` does not stop propagation, the selector's
+listener "still fires and produces the reported double-action". That reasoning
+holds only if the router _delegates_ the key. Measured, it does not — capture
+phase runs the router first, the router returns `false`, `preventDefault()` is
+never called, the event propagates to the container listener, and the size
+changes with **zero** view-handler calls. One claimant, not two.
 
-**Narrowing note for U5:** the unit's fix is the selector's route into the
-shared command system. The plan's earlier framing ("the fallback predicate does
-not need to distinguish controls that consume arrows") is right, but it depends
-on the selector's private listener being _gone_, not merely supplemented —
-otherwise the capture-phase double-action remains. Keep that ordering explicit
-in the unit.
+The reason is structural: **views do not bind arrow keys as commands.** Probed
+against the registry:
+
+```
+view commands with arrow bindings:
+  rotate-view-left  -> [{ key: 'ArrowLeft',  altKey: true }]
+  rotate-view-right -> [{ key: 'ArrowRight', altKey: true }]
+  rotate-view-up    -> [{ key: 'ArrowUp',    altKey: true }]
+  rotate-view-down  -> [{ key: 'ArrowDown',  altKey: true }]
+controller commands with arrow bindings: NONE
+```
+
+Every arrow binding in the app is `altKey: true`. Plain arrows are handled by
+each view's own `handleKeyDown`/`handleKeyUp` (`basic-view.ts:442`,
+`flat-view.ts:329`, Circular's `keyboard-cube-walking.ts`), which the router
+reaches only when `viewIdHoldingFocus()` resolves to a view. So with focus on
+the selector the router has no arrow claimant to run, and the double-action
+cannot arise.
+
+**Refuted: the prescribed remedy would introduce the defect it targets.** U5
+says to remove the selector's private listener and re-register its arrows as
+commands so the shared system becomes "the single claimant". But the shared
+system has **no plain-arrow commands to register** — the plan's own
+`Patterns to follow` point at `basic/commands.ts`, where the arrow entries are
+alt-modified. Adding plain-arrow commands would make the router handle plain
+arrows globally, which is exactly the both-fire outcome:
+
+1. capture phase → router matches the new command, returns `true`;
+2. `preventDefault()` is called — which does not stop propagation;
+3. the event still reaches whatever holds focus;
+4. with the selector's listener removed, the browser's **native** radio-group
+   arrow behaviour becomes the second actor, and on the theme group
+   (`index.html:114-125`) that is a third.
+
+So the unit as written trades a working control for a regression. The
+"capture-phase double-action" it cites is a real property of the router, but it
+is currently latent — it needs a plain-arrow command or a plain-arrow resolution
+to become reachable, and neither exists.
+
+**Re-scoped for implementation.** Only the routing half survives, and its
+boundary is narrower than the unit implies:
+
+- The gap is specifically "focus on a control that does not consume the arrow,
+  outside every view". `viewIdHoldingFocus()` returns `undefined` by a
+  documented deliberate decision (its own comment records the reason: an
+  unconditional fallback re-created the _original_ reported defect). Any fix
+  must therefore distinguish a control that consumes arrows from one that does
+  not — which is the "tuned predicate" the plan set out to avoid, and is now
+  unavoidable in some form.
+- The size selector cannot be moved without first introducing plain-arrow
+  commands, which is a behaviour change to global key routing, not a
+  consolidation. That work is **not** justified by the measurements above and is
+  not attempted here.
+- Nothing measured here requires removing the selector's listener. It is the
+  only claimant for plain arrows when focus is on the selector, and it is the
+  only reason the selector's keyboard navigation works at all.
+
+**Outcome:** U5 is not implemented as written. The routing gap is recorded as
+confirmed-but-latent with a narrower boundary; the double-action and the
+"selector must go" premise are recorded as refuted (rows U and V). Fixing the
+gap safely needs a design that can tell arrow-consuming controls from inert
+ones, which is a decision for the user rather than a mechanical change — see the
+execution note appended to the unit.
 
 **U6 — confirmed by probe, both claims**
 
@@ -1771,9 +1854,9 @@ wrong.
 
 > **Count note (corrected during U12 verification):** this intro previously read
 > "These six findings were investigated... Five were disproven". It was written
-> when the table below had six rows; it now has nineteen across two sub-tables.
-> Kept as a note rather than deleted, because the drift itself is the reason U12
-> exists.
+> when the table below had six rows; it now has twenty-one across two
+> sub-tables. Kept as a note rather than deleted, because the drift itself is
+> the reason U12 exists.
 
 | #   | Claim                                                                                                            | Verdict and evidence                                                                                                                                                                                                                                                                      |
 | --- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1790,23 +1873,25 @@ Further claims came from this plan's own review pass and were disproven while
 implementing, by measurement or negative control rather than by reading. They
 are recorded here so the same ground is not re-covered by a later unit.
 
-| #   | Claim                                                                                                                  | Verdict and evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| G   | `setState`'s cell-capture ordering can leave the selection on a hidden face                                            | **Refuted by negative control.** Re-injecting the original ordering (capture before the migration branch's `resetView`) leaves all 11 anchor tests passing. `reanchorSelection` resolves against `viewFrontFace` at call time, so visibility does not depend on capture time. Reviewed code left unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| H   | `alignCubeToView` leaves the selection on a hidden face                                                                | **Refuted by negative control.** The command _does_ change the front face (measured `R -> F`), but unwrapping it leaves the invariant intact, because it emits whole-cube moves that the `MOVE_EXECUTED` path already reconciles. Shipped as a wrapper for uniformity and defence in depth, labelled as such.                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| I   | A rejected `animateMove` latches the render gate off permanently                                                       | **Mechanism confirmed, trigger unreachable.** Probed: a rejected `finished` does leave `_pendingTotal` above zero and stops later renders. But no production path cancels an in-flight Circular animation - all five `cancel()` sites either run after `.finished` resolves, belong to ghost fades that await first, or belong to Basic. `CircularCubeView.destroy()` cancels nothing. No `try/finally` shipped.                                                                                                                                                                                                                                                                                                                      |
-| J   | U3's rejection latch was the whole animation-completion story                                                          | **Incomplete, not wrong.** Splitting U3's three bundled claims surfaced a reachable one the bundle had hidden: `resetCube()` and `scrambleCube()` call `updateViews(undefined)` mid-flight, and `finishAnimation` then paints the superseded `_latestPostState` over the reset. Confirmed by probe; re-scoped as **U14** and remains open.                                                                                                                                                                                                                                                                                                                                                                                            |
-| K   | Basic's touch handler can pass `undefined`, so a user can clear Basic's selection                                      | **Refuted by probe.** All 54 rendered stickers carry `data-sticker-id`, and `StickerHit.stickerId` is read from that attribute, so the `?? undefined` fallback is unreachable through gestures. Every production `updateSelected` caller passes a real id (`navigation.ts:247` uses `onSelected?.(newSticker.id)`). The `id as StickerId                                                                                                                                                                                                                                                                                                                                                                                              | undefined`cast widens the type with no runtime path behind it. Only tests call`updateSelected(undefined)`. |
-| L   | The cleared selection is a user-facing defect, and Basic/Circular disagree on whether clearing is allowed              | **Overstated.** The terminal property is real (probed: `NONE` after a clear, still `NONE` after a move), but nothing in production can reach it, so it is a latent robustness gap in a public method rather than a live defect. The `deselect` paths in the touch handler are the **face highlight** ring, not the sticker selection, which is why the "two views disagree" framing does not hold. Re-scoped as **U15**.                                                                                                                                                                                                                                                                                                              |
-| M   | The size selector's private `keydown` listener is the only thing keeping plain arrows working while focus is on chrome | **Half right.** The selector is a private claimant and must go (verified at `application.ts:162`), but the routing gap it papers over is real and independent: with the stack naming a view and focus on chrome, a plain arrow reaches nothing (`viewIdHoldingFocus() = undefined`, `view.handleKeyDown` called 0 times). The aggravating mechanism is that the app's router is registered with **capture: true** (`application.ts:274`), and `preventDefault()` does not stop propagation — which is why the selector's listener still fires and produces the reported double-action. U5 must remove the listener, not merely supplement it.                                                                                         |
-| N   | Re-creating a view on the same container stacks `pointerdown` handlers, and a destroyed view still announces itself    | **Confirmed by probe.** One contact after `create #1` emits once; after a second `create` on the same container it emits twice; after `destroy()` a contact still emits. Basic's `destroy()` nulls `state.container` without detaching the listener, while Circular and Flat clear `innerHTML` (detaching the target) — so all three register an anonymous closure with no removal path, but only Basic leaves it live on a container that outlives it. Caveat: `createViewPanelDOM` always builds a fresh element and `hideView` removes the container, so the stacking half is not reachable through the normal open/hide path today; the destroy-then-contact half is. U6 stays open as a leak, not a current user-facing symptom. |
-| O   | `reapplySelectionMarkup` can mark a second element, so two stickers carry `selected` at once                           | **Refuted by probe.** Counting marked elements across create, resize, update, repeated resizes, a changed selection, and a resize after that change: always exactly one. `initializeCubies` removes every cubie element before rebuilding (`cubie-rendering.ts:145-146`) and `reapplySelectionMarkup` runs once right after (`:190`), so no marked element survives a rebuild to accumulate a second mark. The missing clear pass is a symmetry tidy-up, not a defect.                                                                                                                                                                                                                                                                |
-| P   | The new `as Face` / `as StickerId` casts widen the model-to-view boundary, so they need a validation step before them  | **Understated — the casts are redundant, not unchecked.** `Sticker` already declares `readonly id: StickerId` and `readonly currentFace: Face` (`src/cube/types/sticker.ts`), so each cast asserts what the compiler already knows. Removing all four passes `type-check` with the basic suites green (21 files / 401 tests), so there is nothing to validate and the remedy is deletion. A no-op cast is worse than none: it implies a narrowing that did not happen, and hides the day the real type changes.                                                                                                                                                                                                                       |
-| Q   | The vitest-globals import in `selection-markup.test.ts` is a convention violation this branch introduced               | **Half right.** It is a genuine violation of a quotable AGENTS.md rule ("Do **not** import them from `'vitest'`"), and the file is new here (`59aa460`, status `A`). But **78 of 110 test files** in the repo carry the same import and only 32 follow the rule, while `npx eslint .` passes - so no lint rule implements the documented standard. Drift, not something this branch introduced. Fix the new file; the 78-file cleanup is out of scope.                                                                                                                                                                                                                                                                                |
-| R   | The re-anchor miss branch and the `setState` re-anchor path are untested                                               | **Already covered.** The miss branch is asserted at view level in `basic-view.manual-rotation.test.ts:386` ("retains the previous selection when the cell cannot be resolved"), driving a real view with an unoccupiable cell. The `setState` path was untested but **was closed by U2** in this plan (`selection-anchor-timing.test.ts` drives both legacy and vector payloads). Two of the four items U11 named need no work.                                                                                                                                                                                                                                                                                                       |
-| R2  | `visual-cell.test.ts` covers the production candidate filter                                                           | **Refuted.** Its `physicalStickers()` helper (`visual-cell.test.ts:54-68`) is a verbatim copy of production's `stickerCandidates()` (`basic-view.ts:330-347`), same comment included. Every assertion feeds the copy, so the production filter - including its `VIRTUAL_CENTER` exclusion - has zero coverage. The suite would stay green if production dropped the exclusion. Genuine gap; kept in U11.                                                                                                                                                                                                                                                                                                                              |
-| S   | The event catalogue omits several implemented members                                                                  | **Understated by an order of magnitude.** Measured: **11 of the 16 implemented event values are absent from the doc entirely** - `undoRequested`, `redoRequested`, `viewStateChanged`, `cubeResetRequested`, `cubeScrambleRequested`, `storageClearRequested`, `stateExportRequested`, `stateImportRequested`, `basicViewRotationLinked`, `basicViewResetLinked`, `basicViewGhostToggled`. A 69% gap, while line 134 presents a five-item list as "Core events implemented". The whole doc is 163 lines, so this is under-documentation rather than a drifted section.                                                                                                                                                                |
-| T   | The catalogue documents the `moveRequested` payload correctly but omits fields                                         | **Worse than omitted - the field is renamed.** Doc line 59 says `payload: {notation, viewId}`; the type is `{ moveNotation, viewId, tentative }`. A reader following the prose writes `payload.notation` and gets `undefined` with no type error, because the doc is prose rather than a type. Also: retired `COMMAND_EXECUTED` / `CommandExecutedEvent` appear nowhere in any doc, and the refutation-table intro still says "six findings... five were disproven" above nineteen rows.                                                                                                                                                                                                                                              |
+| #   | Claim                                                                                                                                                                                  | Verdict and evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| G   | `setState`'s cell-capture ordering can leave the selection on a hidden face                                                                                                            | **Refuted by negative control.** Re-injecting the original ordering (capture before the migration branch's `resetView`) leaves all 11 anchor tests passing. `reanchorSelection` resolves against `viewFrontFace` at call time, so visibility does not depend on capture time. Reviewed code left unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| H   | `alignCubeToView` leaves the selection on a hidden face                                                                                                                                | **Refuted by negative control.** The command _does_ change the front face (measured `R -> F`), but unwrapping it leaves the invariant intact, because it emits whole-cube moves that the `MOVE_EXECUTED` path already reconciles. Shipped as a wrapper for uniformity and defence in depth, labelled as such.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| I   | A rejected `animateMove` latches the render gate off permanently                                                                                                                       | **Mechanism confirmed, trigger unreachable.** Probed: a rejected `finished` does leave `_pendingTotal` above zero and stops later renders. But no production path cancels an in-flight Circular animation - all five `cancel()` sites either run after `.finished` resolves, belong to ghost fades that await first, or belong to Basic. `CircularCubeView.destroy()` cancels nothing. No `try/finally` shipped.                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| J   | U3's rejection latch was the whole animation-completion story                                                                                                                          | **Incomplete, not wrong.** Splitting U3's three bundled claims surfaced a reachable one the bundle had hidden: `resetCube()` and `scrambleCube()` call `updateViews(undefined)` mid-flight, and `finishAnimation` then paints the superseded `_latestPostState` over the reset. Confirmed by probe; re-scoped as **U14** and remains open.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| K   | Basic's touch handler can pass `undefined`, so a user can clear Basic's selection                                                                                                      | **Refuted by probe.** All 54 rendered stickers carry `data-sticker-id`, and `StickerHit.stickerId` is read from that attribute, so the `?? undefined` fallback is unreachable through gestures. Every production `updateSelected` caller passes a real id (`navigation.ts:247` uses `onSelected?.(newSticker.id)`). The `id as StickerId                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | undefined`cast widens the type with no runtime path behind it. Only tests call`updateSelected(undefined)`. |
+| L   | The cleared selection is a user-facing defect, and Basic/Circular disagree on whether clearing is allowed                                                                              | **Overstated.** The terminal property is real (probed: `NONE` after a clear, still `NONE` after a move), but nothing in production can reach it, so it is a latent robustness gap in a public method rather than a live defect. The `deselect` paths in the touch handler are the **face highlight** ring, not the sticker selection, which is why the "two views disagree" framing does not hold. Re-scoped as **U15**.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| M   | The size selector's private `keydown` listener is the only thing keeping plain arrows working while focus is on chrome                                                                 | **Half right.** The selector is a private claimant and must go (verified at `application.ts:162`), but the routing gap it papers over is real and independent: with the stack naming a view and focus on chrome, a plain arrow reaches nothing (`viewIdHoldingFocus() = undefined`, `view.handleKeyDown` called 0 times). The aggravating mechanism is that the app's router is registered with **capture: true** (`application.ts:274`), and `preventDefault()` does not stop propagation — which is why the selector's listener still fires and produces the reported double-action. U5 must remove the listener, not merely supplement it.                                                                                                                                                                                                                        |
+| N   | Re-creating a view on the same container stacks `pointerdown` handlers, and a destroyed view still announces itself                                                                    | **Confirmed by probe.** One contact after `create #1` emits once; after a second `create` on the same container it emits twice; after `destroy()` a contact still emits. Basic's `destroy()` nulls `state.container` without detaching the listener, while Circular and Flat clear `innerHTML` (detaching the target) — so all three register an anonymous closure with no removal path, but only Basic leaves it live on a container that outlives it. Caveat: `createViewPanelDOM` always builds a fresh element and `hideView` removes the container, so the stacking half is not reachable through the normal open/hide path today; the destroy-then-contact half is. U6 stays open as a leak, not a current user-facing symptom.                                                                                                                                |
+| O   | `reapplySelectionMarkup` can mark a second element, so two stickers carry `selected` at once                                                                                           | **Refuted by probe.** Counting marked elements across create, resize, update, repeated resizes, a changed selection, and a resize after that change: always exactly one. `initializeCubies` removes every cubie element before rebuilding (`cubie-rendering.ts:145-146`) and `reapplySelectionMarkup` runs once right after (`:190`), so no marked element survives a rebuild to accumulate a second mark. The missing clear pass is a symmetry tidy-up, not a defect.                                                                                                                                                                                                                                                                                                                                                                                               |
+| P   | The new `as Face` / `as StickerId` casts widen the model-to-view boundary, so they need a validation step before them                                                                  | **Understated — the casts are redundant, not unchecked.** `Sticker` already declares `readonly id: StickerId` and `readonly currentFace: Face` (`src/cube/types/sticker.ts`), so each cast asserts what the compiler already knows. Removing all four passes `type-check` with the basic suites green (21 files / 401 tests), so there is nothing to validate and the remedy is deletion. A no-op cast is worse than none: it implies a narrowing that did not happen, and hides the day the real type changes.                                                                                                                                                                                                                                                                                                                                                      |
+| Q   | The vitest-globals import in `selection-markup.test.ts` is a convention violation this branch introduced                                                                               | **Half right.** It is a genuine violation of a quotable AGENTS.md rule ("Do **not** import them from `'vitest'`"), and the file is new here (`59aa460`, status `A`). But **78 of 110 test files** in the repo carry the same import and only 32 follow the rule, while `npx eslint .` passes - so no lint rule implements the documented standard. Drift, not something this branch introduced. Fix the new file; the 78-file cleanup is out of scope.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| R   | The re-anchor miss branch and the `setState` re-anchor path are untested                                                                                                               | **Already covered.** The miss branch is asserted at view level in `basic-view.manual-rotation.test.ts:386` ("retains the previous selection when the cell cannot be resolved"), driving a real view with an unoccupiable cell. The `setState` path was untested but **was closed by U2** in this plan (`selection-anchor-timing.test.ts` drives both legacy and vector payloads). Two of the four items U11 named need no work.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| R2  | `visual-cell.test.ts` covers the production candidate filter                                                                                                                           | **Refuted.** Its `physicalStickers()` helper (`visual-cell.test.ts:54-68`) is a verbatim copy of production's `stickerCandidates()` (`basic-view.ts:330-347`), same comment included. Every assertion feeds the copy, so the production filter - including its `VIRTUAL_CENTER` exclusion - has zero coverage. The suite would stay green if production dropped the exclusion. Genuine gap; kept in U11.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| S   | The event catalogue omits several implemented members                                                                                                                                  | **Understated by an order of magnitude.** Measured: **11 of the 16 implemented event values are absent from the doc entirely** - `undoRequested`, `redoRequested`, `viewStateChanged`, `cubeResetRequested`, `cubeScrambleRequested`, `storageClearRequested`, `stateExportRequested`, `stateImportRequested`, `basicViewRotationLinked`, `basicViewResetLinked`, `basicViewGhostToggled`. A 69% gap, while line 134 presents a five-item list as "Core events implemented". The whole doc is 163 lines, so this is under-documentation rather than a drifted section.                                                                                                                                                                                                                                                                                               |
+| T   | The catalogue documents the `moveRequested` payload correctly but omits fields                                                                                                         | **Worse than omitted - the field is renamed.** Doc line 59 says `payload: {notation, viewId}`; the type is `{ moveNotation, viewId, tentative }`. A reader following the prose writes `payload.notation` and gets `undefined` with no type error, because the doc is prose rather than a type. Also: retired `COMMAND_EXECUTED` / `CommandExecutedEvent` appear nowhere in any doc, and the refutation-table intro still says "six findings... five were disproven" above nineteen rows.                                                                                                                                                                                                                                                                                                                                                                             |
+| U   | Focus on the size selector makes one arrow key act twice (the reported double-action), because the router is registered with `capture: true` and the selector keeps a private listener | **Refuted by measurement.** With focus on the selector and `ArrowRight` pressed: `size changed: 3 -> 4 (true)`, `view.handleKeyDown calls: 0`, `DOUBLE ACTION: false`. The capture-phase reasoning holds only if the router _delegates_ the key — measured, it returns `false` (no plain-arrow claimant exists), so `preventDefault()` is never called and the event reaches the selector as the sole actor. Every arrow `keyBinding` in the app is `altKey: true`; views handle plain arrows via `handleKeyDown`/`handleKeyUp`, which the router reaches only when `viewIdHoldingFocus()` resolves to a view. One claimant, not two.                                                                                                                                                                                                                                |
+| V   | The size selector "papers over" the routing gap and must be removed rather than supplemented, so the shared command system becomes the single claimant                                 | **Refuted - the remedy would introduce the defect it targets.** The shared system has no plain-arrow commands to register (all arrow bindings are `altKey: true`), so "register the selector's arrows as commands" means adding _global_ plain-arrow commands. Step by step: capture phase matches the new command and returns `true`; `preventDefault()` is called but does not stop propagation; the event still reaches whatever holds focus; with the selector's listener removed, the browser's native radio-group behaviour becomes the second actor, and on the theme group (`index.html:114-125`) a third. The selector's listener is also the only reason its own keyboard navigation works. The routing gap it was accused of papering over is _total_ rather than partly covered (`view.handleKeyDown calls: 0`). Re-scoped; see the unit's status block. |
 
 **Lesson recorded:** bundling three distinct claims under one unit's verdict hid
 a reachable defect behind two unreachable ones. Verifying claims _individually_,
