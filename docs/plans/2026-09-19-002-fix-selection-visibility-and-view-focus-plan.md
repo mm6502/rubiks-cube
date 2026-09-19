@@ -840,39 +840,62 @@ control's listener and therefore proved nothing):
 Both halves of the requirement hold: the view no longer lets the key reach the
 size control, and the size control still works when it is the focused element.
 
-### Known remaining gap
+### Gap that was open at completion: tilt and pitch
 
-The tilted and pitched cosmetic orientations are still not exercised against the
-re-anchoring rule itself, as recorded under Risks. A failure there surfaces as a
-resolution miss, which U2 degrades to "keep the prior selection" rather than a
-broken state.
+Recorded when this plan completed: the tilted and pitched cosmetic orientations
+were not exercised against the re-anchoring rule, as noted under Risks. A
+failure there surfaces as a resolution miss, which U2 degrades to "keep the
+prior selection" rather than a broken state.
+
+Closed below, by measurement.
 
 ### Gap closed: tilt and pitch
 
 That gap was investigated and closed by measurement rather than by argument, so
 it is no longer an open risk.
 
-`isTilted`/`isPitched` change only:
+`isTilted`/`isPitched` change:
 
 - the CSS base angles (`rendering.ts:38-39`),
-- which label slot each face occupies (`rendering.ts:78`, `:97`),
+- which face label occupies each slot (`rendering.ts:78`, `:97`),
 - ghost-edge visibility and the generated label DOM ids.
 
-They never touch `viewForward`/`viewRight`/`viewUp`, and those vectors plus the
-model state are the only inputs the re-anchoring rule reads. `resetView` already
-documents the pair as "cosmetic-only flags".
+A first reading concluded they touch nothing the rule depends on. That was too
+strong, and the measurement corrected it: tilting and pitching also change the
+**visible face set**. At the same orientation the default state shows
+`U@top F@bottom-left R@bottom-right`, while pitched shows
+`F@top-left D@middle-bottom-pitched R@top-right` — pitching turns the up face
+out of view and the down face into view.
 
-Measured over **4 cosmetic states × 6 sizes × 4 rotations = 96 cases**, checking
-after every rotation that a selection survives, that it sits on the face the
-view now shows as front, and that it is among the visible faces: **0 failures**.
+So a visibility check is genuinely per-state, which is exactly why this coverage
+was worth adding. The geometric rule itself (`visual-cell.ts`) never reads the
+flags; only the visibility _assertion_ does.
 
-The measurement was itself validated by a negative control — disabling the
-re-anchor produced `selFace=F` while `front=B` after two left rotations, exactly
-the failure the sweep looks for. A probe that cannot fail proves nothing, so
-this confirms the sweep was capable of detecting the problem it reports absent.
+**Measurement 1 — orientations.** All four cosmetic states × every rotation
+sequence up to length 4, from the default orientation. BFS over the four
+rotations establishes that the orientation group has **24** members and that one
+of them is reachable only at depth 4 — so an earlier sweep capped at length 3
+covered just 23 of 24, and the obvious "3 is enough" assumption was wrong. After
+each sequence the selection must survive, sit on the face the view now shows as
+front, and be among the visible faces: **0 failures**, and the front face was
+hidden in **0** cases. The sweep asserts it reached all 24 orientations, so it
+cannot silently degrade into covering a subset.
+
+**Measurement 2 — the restore path.** `setState` restores the saved orientation
+_and_ the cosmetic flags before re-anchoring, so a saved state could resolve a
+selection against the wrong cosmetic context. Swept 4 source × 4 target cosmetic
+states × 3 sizes = **48 cases**: **0 failures**.
+
+**Negative controls.** A probe that cannot fail proves nothing, so both were
+validated by disabling the re-anchor: the orientation sweep then fails 47 tests,
+and the restore probe fails **48/48** reporting `sel=F front=D`. The zeroes
+above are therefore statements about a measurement known to be able to detect
+the failure it reports absent.
 
 Made permanent as tests, rather than left as a one-off probe:
 `basic-view.manual-rotation.test.ts` now parametrises the four cosmetic states
-(default, tilted, pitched, both), asserting the front-face invariant after each
-of the four rotations, and at every supported size. That takes the file from 38
-to 66 tests; disabling the re-anchor fails 43 of them.
+(default, tilted, pitched, both) and, for each, sweeps every rotation sequence
+up to length 4 — asserting after each that the selection survives, sits on the
+front face, and is visible, and asserting that all 24 orientations were reached.
+Its per-size checks run at every supported size. That takes the file from 38 to
+70 tests; disabling the re-anchor fails 47 of them.

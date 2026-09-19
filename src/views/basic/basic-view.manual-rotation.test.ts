@@ -483,12 +483,18 @@ describe('BasicView selection survives view rotation', () => {
         expect(view.getSelectedSticker()).not.toBe(before);
     });
 
-    // The tilt and pitch affordances are cosmetic: they change the CSS base
-    // angles and which label slot each face occupies, but they do not touch
-    // `viewForward`/`viewRight`/`viewUp`, which is all the re-anchoring rule
-    // reads. That was previously an untested assumption — the rule was only
-    // verified in the default orientation, so a future change that made these
-    // states affect the vectors could have broken re-anchoring unnoticed.
+    // The tilt and pitch affordances were an untested variable for this rule.
+    //
+    // They change the CSS base angles *and* the visible-face set: at the same
+    // orientation the default state shows U@top / F@bottom-left / R@bottom-right
+    // while pitched shows F@top-left / D@middle-bottom-pitched / R@top-right,
+    // because pitching turns the up face out of view and the down face into
+    // view. So the visibility assertion below is genuinely per-state rather than
+    // a restatement of the front-face one.
+    //
+    // Sequenced rotations are used, not single ones: a single rotation from the
+    // default reaches only 5 of the 24 cube orientations, so a one-step sweep
+    // would leave most of the space unverified.
     describe.each([
         { isTilted: false, isPitched: false, label: 'default' },
         { isTilted: true, isPitched: false, label: 'tilted' },
@@ -501,6 +507,18 @@ describe('BasicView selection survives view rotation', () => {
                 .state;
             state.isTilted = isTilted;
             state.isPitched = isPitched;
+        }
+
+        /** The face the given sticker currently occupies, per the model. */
+        function faceOfSticker(stickerId?: string): Face | undefined {
+            if (!stickerId) return undefined;
+            for (const cubie of model.getCurrentState().cubiesById.values()) {
+                if (cubie.type === CubieType.VIRTUAL_CENTER) continue;
+                for (const sticker of cubie.stickers.values()) {
+                    if (sticker.id === stickerId) return sticker.currentFace as Face;
+                }
+            }
+            return undefined;
         }
 
         it('keeps the selection on the front face across every rotation', () => {
@@ -522,6 +540,68 @@ describe('BasicView selection survives view rotation', () => {
                 expect(faceOf(selected), `${rotation}: sits on the front face`).toBe(frontFace());
                 expect(visibleFaces(), `${rotation}: is visible`).toContain(faceOf(selected));
             }
+        });
+
+        it('holds across the full orientation group', () => {
+            // Measured by BFS over the four rotations: the group has 24 members,
+            // and one of them is only reachable at depth 4. Sweeping sequences up
+            // to length 3 therefore covers 23 of 24 — which is why this goes to
+            // depth 4 rather than stopping at the obvious 3.
+            applyCosmetic(view);
+
+            const rotations = [
+                'rotateViewLeft',
+                'rotateViewRight',
+                'rotateViewUp',
+                'rotateViewDown',
+            ] as const;
+
+            const sequences: Array<readonly string[]> = [];
+            // All sequences up to length 4. BFS over the four rotations shows the
+            // group has 24 members and that one needs depth 4, so enumerating to
+            // depth 3 covers only 23 — this enumerates the depth-4 layer too.
+            const build = (prefix: readonly string[]): void => {
+                sequences.push(prefix);
+                if (prefix.length === 4) return;
+                for (const rotation of rotations) build([...prefix, rotation]);
+            };
+            build([]);
+
+            const orientations = new Set<string>();
+
+            for (const sequence of sequences) {
+                // Reset each time so the sequence starts from the known default.
+                view.resetView();
+                applyCosmetic(view);
+
+                for (const rotation of sequence) {
+                    (view as unknown as Record<string, () => void>)[rotation]();
+                }
+
+                const label = sequence.join('>') || 'none';
+                const state = (view as unknown as { state: never }).state as never;
+                const front = viewFrontFace(state);
+                const visible = getVisibleFacesWithPositions(state).visibleFaces.map(e => e.face);
+
+                const vectors = (view as unknown as { state: { viewRight: object } }).state;
+                orientations.add(
+                    `${JSON.stringify(vectors.viewRight)}|${JSON.stringify(
+                        (vectors as unknown as { viewUp: object }).viewUp
+                    )}`
+                );
+
+                const selected = view.getSelectedSticker();
+                expect(selected, `${label}: selection survives`).toBeDefined();
+                expect(faceOfSticker(selected), `${label}: sits on the front face`).toBe(front);
+                expect(visible, `${label}: front face is visible`).toContain(front);
+                expect(visible, `${label}: selection is visible`).toContain(
+                    faceOfSticker(selected)
+                );
+            }
+
+            // 24 is the full group. If this collapsed to a handful of
+            // orientations the sweep would not be covering the space it claims to.
+            expect(orientations.size, 'distinct orientations reached').toBe(24);
         });
 
         it.each(SUPPORTED_SIZES)('keeps the selection on the front face at size %i', cubeSize => {
