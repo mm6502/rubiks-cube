@@ -1,7 +1,7 @@
 ---
 title: 'fix: Selection visibility and view focus ownership'
 type: fix
-status: active
+status: completed
 date: 2026-09-19
 origin: docs/brainstorms/2026-09-19-selection-visibility-and-view-focus-requirements.md
 ---
@@ -762,3 +762,87 @@ is recorded here as resolved so it is not re-litigated.
   two rebuild call sites and the `remove()` that drops the selection markup.
   `initializeCubies` is reached from both, which is why U3's re-derivation
   belongs at the rebuild rather than at either caller.
+
+---
+
+## Completion Record
+
+All seven units are implemented. Three deviations from the drafted plan are
+recorded here, each because the code disagreed with the draft.
+
+### Deviation 1 — U5 surfaced a second inert catalogue member
+
+Writing R13's test (enumerate the catalogue, assert every declared member has a
+production emitter) measured all 17 members rather than assuming. Sixteen had
+both an emitter and a subscriber. `COMMAND_EXECUTED` had **zero of each** and
+had been declared since the first commit, with a payload interface describing
+"command tracking and UI state management" — a feature the app does not have,
+and which the architecture document does not list among its core events.
+
+R13 permits removal, so it was removed along with `CommandExecutedEvent` and its
+union member. Wiring it up instead would have meant inventing a consumer, which
+is a new feature rather than this plan's scope. The R13 test now pins the rule:
+adding an inert member fails the suite.
+
+### Deviation 2 — U4's wiring point differs from the draft's suggestion
+
+The draft named Basic's `attachContainerListeners` (which received an unused
+`_container`) as the natural focus site. It is, but the trigger had to be
+`pointerdown` on the container rather than `mouseenter`, because the draft's own
+reasoning applies: the touch handlers suppress the native default on
+pointer-down, so `mouseenter`-style triggers do not fire for touch input. The
+unused parameter is now used.
+
+Circular's wiring could not live in `initialization.initialize()` at all: the
+`viewInteracted` payload requires the view id and that function never receives
+one. It moved to `CircularCubeView.create()`, where `getViewType()` is
+available. A consequence worth recording: a test driving `initialize()` alone
+cannot observe Circular's focus behaviour, which is why U7's Circular test
+drives `create()`.
+
+### Deviation 3 — U6's delegation change also had to cover `handleKeyUp`
+
+The draft described the decision order to preserve for `handleKeyDown`. Bound
+commands, however, fire on **keyup** — `handleKeyDown` returns `true` only to
+suppress the browser default. Leaving `handleKeyUp` stack-driven would therefore
+have let a view with no focus execute its command on a key it was never given,
+contradicting R10 in the opposite direction. Both handlers now share one
+derivation.
+
+### Verification performed
+
+| Check                                                        | Result                                                               |
+| ------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Type check (`tsconfig.json`, `tsconfig.test.json`)           | Clean                                                                |
+| Full suite                                                   | 108 files, 2438 tests, all passing                                   |
+| Coverage thresholds (70 %; `touch-handler.ts` 75 % branches) | 94.55 % statements, 85.97 % branches                                 |
+| `npm run all2` (lint, format, type-check, coverage, build)   | Passed, single-file `dist/index.html` built                          |
+| R13 catalogue test is load-bearing                           | Injecting an inert member fails 2 tests                              |
+| U2 re-anchoring is load-bearing                              | Disabling it fails 13 tests                                          |
+| U3 re-derivation is load-bearing                             | Disabling it fails 8 tests                                           |
+| U4 focus wiring is load-bearing                              | Disabling it fails 1 integration test and the end-to-end test        |
+| U5 subscription is load-bearing                              | Removing `on()` fails 4 tests; removing the matching `off()` fails 1 |
+| U6 conditional fallback is load-bearing                      | Making it unconditional fails the two AE8 tests                      |
+| U7 rotation assertion is load-bearing                        | After adding `resize()`, disabling re-derivation fails it            |
+
+### Browser verification of the reported defect
+
+Measured in a real browser against the dev server, dispatching keys on
+`document.activeElement` with bubbling (browser semantics, unlike the synthetic
+`document`-level dispatch a first attempt used, which cannot reach the size
+control's listener and therefore proved nothing):
+
+| Sequence                                          | Observed                                              |
+| ------------------------------------------------- | ----------------------------------------------------- |
+| Focus size radio → contact view → `ArrowRight`    | Focus moved into the view; **size unchanged** (3 → 3) |
+| Focus size radio → `ArrowRight` (no view contact) | **Size changed** (3 → 4)                              |
+
+Both halves of the requirement hold: the view no longer lets the key reach the
+size control, and the size control still works when it is the focused element.
+
+### Known remaining gap
+
+The tilted and pitched cosmetic orientations are still not exercised against the
+re-anchoring rule itself, as recorded under Risks. A failure there surfaces as a
+resolution miss, which U2 degrades to "keep the prior selection" rather than a
+broken state.
