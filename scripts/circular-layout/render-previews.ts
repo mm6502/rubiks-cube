@@ -46,6 +46,28 @@ import { validateInvariants } from '@/views/circular/svg-generator/validate';
 //   B  : pre-tangency layouts
 //   A  : the first per-size tuning, N=4+ left at densest-feasible
 //
+// **`PROPOSALS` is an experiment surface, not a mirror of the shipped values.**
+// It is duplicated against `src/views/circular/svg-generator/parameters.json`
+// on purpose, and the two are deliberately not wired together:
+//
+//   * `parameters.json` is what the app renders. It is append-only in practice
+//     and every change to it ships.
+//   * `PROPOSALS` is where a *candidate* layout is tried out before anything
+//     ships — the shape it holds (`d`/`rMin`/`step`/`margin`/`oN`/`oF`/`aspect`)
+//     is the same one `analyse-*` solves in, so a solved configuration can be
+//     pasted straight in and looked at.
+//
+// Do not "fix" the duplication by pointing this at `loadParameters()`. That
+// would delete the ability to preview a layout that is not yet shipped, which is
+// the only reason this block exists. (The same reasoning is why `analyse-tangency`'s
+// configuration `B` is kept rather than folded in: it is the baseline those
+// analyses compare against.)
+//
+// The values currently agree with `parameters.json` for every size; that is a
+// snapshot of what was promoted, not an invariant anyone maintains. `note` is
+// the one field that exists only here — it renders into the preview index, so it
+// describes the proposal rather than the shipped layout.
+//
 // Sticker radius is 7 everywhere: stickers are never resized between sizes.
 // Ring step is 15 everywhere except N=2, which takes a larger step so its two
 // rings spread far enough to stop reading as sparse — the one documented
@@ -61,7 +83,7 @@ import { validateInvariants } from '@/views/circular/svg-generator/validate';
 //   ellipseMargin, ellipseOffsetNear, ellipseOffsetFar, ellipseAspect
 // ---------------------------------------------------------------------------
 
-/** Identifies the frozen configuration below; referenced by the brainstorm doc. */
+/** Labels the configuration this block currently holds, for the emitted index. */
 const CONFIG_ID = 'D';
 
 interface Proposal {
@@ -136,7 +158,7 @@ const PROPOSALS: Record<number, Proposal> = {
         oN: 0.07,
         oF: 0.07,
         aspect: 1,
-        note: 'Beyond the sizes the app ships; included to show the progression still holds.',
+        note: 'Served like every other size. Carries its own ring geometry for the same reason as N=5.',
     },
     7: {
         d: 198.229,
@@ -146,7 +168,7 @@ const PROPOSALS: Record<number, Proposal> = {
         oN: 0.02,
         oF: 0.02,
         aspect: 0.95,
-        note: 'Beyond the sizes the app ships; included to show the progression still holds.',
+        note: 'Served like every other size. Carries its own ring geometry for the same reason as N=5.',
     },
 };
 

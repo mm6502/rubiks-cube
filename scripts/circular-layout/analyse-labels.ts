@@ -38,7 +38,20 @@ interface Pt {
     y: number;
 }
 
-/** Configuration C's ellipse values, per size. */
+/**
+ * Configuration C's ellipse values, per size.
+ *
+ * C is **superseded** — the app ships configuration D, whose ellipses are grown
+ * far enough to enclose the ghost circles as well as the stickers. This table is
+ * kept because C is the configuration this analysis was originally run against,
+ * and its numbers are the historical record for that measurement.
+ *
+ * ⚠ Do not read these as the shipped values, and do not "sync" them to
+ * `parameters.json`: C's ellipses are deliberately smaller, so folding the
+ * shipped numbers in would silently rewrite what this script reports. To measure
+ * the *shipped* layout, use `check-shipped.ts`, which loads `parameters.json`
+ * directly.
+ */
 const C: Record<number, { margin: number; oN: number; oF: number }> = {
     2: { margin: 2.4, oN: 0.05, oF: 0.05 },
     3: { margin: 1.739, oN: 0, oF: 0 },
@@ -48,7 +61,15 @@ const C: Record<number, { margin: number; oN: number; oF: number }> = {
     7: { margin: 2.879, oN: 0, oF: 0 },
 };
 
-/** Ring geometry per size, matching the renderer's proposal table. */
+/**
+ * Ring geometry per size, from configuration B.
+ *
+ * Held separately from `C` above because B and C differ in the rings at N=4
+ * (`rMin` 79.533 here versus the shipped 87.5, which B's solver raised to open
+ * inter-cluster room once ghosts had to be enclosed). So these are B's rings
+ * paired with C's ellipses — a combination that never shipped, assembled because
+ * that is the case this analysis set out to measure.
+ */
 const RING: Record<number, { d: number; rMin: number; step: number; aspect: number }> = {
     2: { d: 100, rMin: 75, step: 20, aspect: 1.0 },
     3: { d: 100, rMin: 70, step: 15, aspect: 1.0177 },

@@ -33,29 +33,6 @@ not repeat each other's content, so they cannot drift apart.
 This section outlines tasks that may be addressed in the future, though they are
 not currently scheduled for implementation.
 
-- [ ] Consolidate the duplicated Circular layout parameters. The shipped ellipse
-      values are mirrored in the `PROPOSALS` block of
-      `scripts/circular-layout/render-previews.ts`: same numbers, held in a
-      different shape (`d`/`rMin`/`step`/`margin`/`oN`/`oF`/`aspect` versus
-      `triangleSide`/`innerRadius`/`ringStep`/`ellipseMargin`/...), so a change
-      to one silently leaves the other describing a different layout.
-
-      **Corrected during review.** This item previously named configuration `B`
-      in `scripts/circular-layout/analyse-tangency.ts` as the third copy. It is
-      not a copy: `B` is the deliberate pre-tangency *baseline* the solver
-      compares against — its comment says "the starting point", and its values
-      differ on purpose (at N=4 it carries `rMin 79.533, margin 2.0, oN/oF 0.2`
-      where the shipped layout has `rMin 87.5, margin 2.2, oN 0, oF 0.1`).
-      Folding it in would destroy the comparison it exists to make. The real
-      duplication is the two-way mirror between `parameters.json` and
-      `PROPOSALS`.
-
-- [ ] Fix the stale range comment in `PROPOSALS`
-      (`scripts/circular-layout/render-previews.ts`): sizes 6 and 7 are
-      annotated "Beyond the sizes the app ships", but `SUPPORTED_SIZES` is
-      `[2..7]`. The comment predates 6 and 7 shipping. Small, and worth folding
-      into the item above rather than its own change.
-
 - [ ] Reassess whether Basic and Flat need a selection-recovery path. **The
       original justification for this item did not survive checking** and is
       recorded here so it is not re-derived: it claimed the dead-end is
@@ -75,6 +52,28 @@ not currently scheduled for implementation.
       behaviour decision, not a port.
 
 ## Closed
+
+- [x] Document the Circular layout parameters as an intentional experiment
+      surface rather than a duplication to collapse. `PROPOSALS` in
+      `render-previews.ts` deliberately mirrors the shape `analyse-*` solves in,
+      so a candidate layout can be pasted in and previewed before anything
+      ships; pointing it at `loadParameters()` would delete exactly that
+      ability. The ownership note in the file now says so, and warns against
+      "fixing" it.
+
+- [x] Fix the stale range comment in `PROPOSALS`
+      (`scripts/circular-layout/render-previews.ts`): sizes 6 and 7 were
+      annotated "Beyond the sizes the app ships", but `SUPPORTED_SIZES` is
+      `[2..7]` and `parameters.json` already described both as "Served at every
+      cube size". They now match the JSON.
+
+- [x] Fix the misleading header on `analyse-labels.ts`, a **fourth** copy of the
+      geometry (`C` ellipse values plus a `RING` table). Its comment called the
+      rings "matching the renderer's proposal table"; they do not — the `RING`
+      table is configuration **B**'s, and its N=4 `rMin` of 79.533 is the
+      pre-ghost value, not the shipped 87.5. The comments now name C and B as
+      superseded and warn against syncing them to `parameters.json`, which would
+      silently rewrite what that analysis reports.
 
 - [x] Replace the private `toFacePosition` in
       `src/views/circular/svg-generator/ghosts.ts` with the shared
