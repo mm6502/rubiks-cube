@@ -124,9 +124,10 @@ function visualCellOfId(
  * @param target The view-side state and model
  */
 export function reanchorSelection(cell: VisualCell | undefined, target: ReanchorTarget): void {
-    if (!cell || !target.getModel()) return;
+    const model = target.getModel();
+    if (!cell || !model) return;
 
-    const match = resolveStickerAtVisualCell(cell, target);
+    const match = resolveStickerAtVisualCell(cell, model, target);
 
     if (match) target.applySelection(match.id);
 }
@@ -178,16 +179,18 @@ export function preserveSelectionAcrossOrientationChange(
  * dependence to preserve or to fix, and the first match remains correct.
  *
  * @param cell The visual cell to resolve
- * @param target The view-side state and model
+ * @param model The model to resolve against — passed in rather than re-read from
+ *   the target, because the caller has already established it is present. Reading
+ *   it again here would duplicate that guard and leave a branch no caller can
+ *   reach.
+ * @param target The view-side state, for the orientation and front face
  * @returns The matching sticker, or `undefined` when the cell is unoccupied
  */
 function resolveStickerAtVisualCell(
     cell: VisualCell,
+    model: ReadOnlyCubeModel,
     target: ReanchorTarget
 ): PositionedSticker | undefined {
-    const model = target.getModel();
-    if (!model) return undefined;
-
     const cubeState = model.getCurrentState();
     const { cubeSize } = cubeState;
 
