@@ -846,3 +846,33 @@ The tilted and pitched cosmetic orientations are still not exercised against the
 re-anchoring rule itself, as recorded under Risks. A failure there surfaces as a
 resolution miss, which U2 degrades to "keep the prior selection" rather than a
 broken state.
+
+### Gap closed: tilt and pitch
+
+That gap was investigated and closed by measurement rather than by argument, so
+it is no longer an open risk.
+
+`isTilted`/`isPitched` change only:
+
+- the CSS base angles (`rendering.ts:38-39`),
+- which label slot each face occupies (`rendering.ts:78`, `:97`),
+- ghost-edge visibility and the generated label DOM ids.
+
+They never touch `viewForward`/`viewRight`/`viewUp`, and those vectors plus the
+model state are the only inputs the re-anchoring rule reads. `resetView` already
+documents the pair as "cosmetic-only flags".
+
+Measured over **4 cosmetic states × 6 sizes × 4 rotations = 96 cases**, checking
+after every rotation that a selection survives, that it sits on the face the
+view now shows as front, and that it is among the visible faces: **0 failures**.
+
+The measurement was itself validated by a negative control — disabling the
+re-anchor produced `selFace=F` while `front=B` after two left rotations, exactly
+the failure the sweep looks for. A probe that cannot fail proves nothing, so
+this confirms the sweep was capable of detecting the problem it reports absent.
+
+Made permanent as tests, rather than left as a one-off probe:
+`basic-view.manual-rotation.test.ts` now parametrises the four cosmetic states
+(default, tilted, pitched, both), asserting the front-face invariant after each
+of the four rotations, and at every supported size. That takes the file from 38
+to 66 tests; disabling the re-anchor fails 43 of them.

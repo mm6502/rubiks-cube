@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { CubeController } from '@/cube-controller';
-import { CubieType, Face, StickerId } from '@/cube/types';
+import { CubieType, Face, SUPPORTED_SIZES, StickerId } from '@/cube/types';
 import { BasicView } from '@/views/basic/basic-view';
 import styles from '@/views/basic/basic-view.module.css';
 import { viewFrontFace } from '@/views/basic/navigation';
@@ -481,5 +481,87 @@ describe('BasicView selection survives view rotation', () => {
         // selection moved to a *different* sticker on the new front face.
         expect(view.getSelectedSticker()).toBeDefined();
         expect(view.getSelectedSticker()).not.toBe(before);
+    });
+
+    // The tilt and pitch affordances are cosmetic: they change the CSS base
+    // angles and which label slot each face occupies, but they do not touch
+    // `viewForward`/`viewRight`/`viewUp`, which is all the re-anchoring rule
+    // reads. That was previously an untested assumption — the rule was only
+    // verified in the default orientation, so a future change that made these
+    // states affect the vectors could have broken re-anchoring unnoticed.
+    describe.each([
+        { isTilted: false, isPitched: false, label: 'default' },
+        { isTilted: true, isPitched: false, label: 'tilted' },
+        { isTilted: false, isPitched: true, label: 'pitched' },
+        { isTilted: true, isPitched: true, label: 'tilted+pitched' },
+    ])('cosmetic state: $label', ({ isTilted, isPitched }) => {
+        /** Sets the cosmetic flags the way the tilt/pitch commands do. */
+        function applyCosmetic(v: BasicView): void {
+            const state = (v as unknown as { state: { isTilted: boolean; isPitched: boolean } })
+                .state;
+            state.isTilted = isTilted;
+            state.isPitched = isPitched;
+        }
+
+        it('keeps the selection on the front face across every rotation', () => {
+            applyCosmetic(view);
+
+            for (const rotation of [
+                'rotateViewLeft',
+                'rotateViewRight',
+                'rotateViewUp',
+                'rotateViewDown',
+            ] as const) {
+                const selectedBefore = view.getSelectedSticker();
+                expect(selectedBefore, `${rotation}: a selection exists`).toBeDefined();
+
+                view[rotation]();
+
+                const selected = view.getSelectedSticker();
+                expect(selected, `${rotation}: selection survives`).toBeDefined();
+                expect(faceOf(selected), `${rotation}: sits on the front face`).toBe(frontFace());
+                expect(visibleFaces(), `${rotation}: is visible`).toContain(faceOf(selected));
+            }
+        });
+
+        it.each(SUPPORTED_SIZES)('keeps the selection on the front face at size %i', cubeSize => {
+            const sizeModel = new CubeController(cubeSize);
+            const sizeView = new BasicView({ viewType: 'basic-front' });
+            const sizeContainer = document.createElement('div');
+            Object.defineProperty(sizeContainer, 'clientWidth', { value: 600 });
+            Object.defineProperty(sizeContainer, 'clientHeight', { value: 600 });
+            document.body.appendChild(sizeContainer);
+            sizeView.create(sizeContainer, sizeModel);
+            applyCosmetic(sizeView);
+
+            const sizeState = (sizeView as unknown as { state: never }).state as never;
+
+            try {
+                sizeView.rotateViewLeft();
+                sizeView.rotateViewLeft();
+
+                const selected = sizeView.getSelectedSticker();
+                expect(selected, `size ${cubeSize}`).toBeDefined();
+
+                let selectedFace: Face | undefined;
+                for (const cubie of sizeModel.getCurrentState().cubiesById.values()) {
+                    if (cubie.type === CubieType.VIRTUAL_CENTER) continue;
+                    for (const sticker of cubie.stickers.values()) {
+                        if (sticker.id === selected) selectedFace = sticker.currentFace as Face;
+                    }
+                }
+
+                expect(selectedFace, `size ${cubeSize}: on the front face`).toBe(
+                    viewFrontFace(sizeState)
+                );
+                expect(
+                    getVisibleFacesWithPositions(sizeState).visibleFaces.map(e => e.face),
+                    `size ${cubeSize}: visible`
+                ).toContain(selectedFace);
+            } finally {
+                sizeView.destroy();
+                sizeContainer.remove();
+            }
+        });
     });
 });
