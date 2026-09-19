@@ -156,8 +156,11 @@ selected in the active view**:
 - A slice needs a selection to know which layer it turns, so with nothing
   selected none of the three is available. That case no longer arises in the
   app: every view establishes a selection on load and clearing a face highlight
-  keeps the sticker selected, so M/E/S are always available at n≥4. The guard
-  remains for callers driving the command system directly.
+  keeps the sticker selected, so the no-selection guard is no longer reached
+  from the UI. It remains for callers driving the command system directly.
+  "Available" here means only that the guard does not disable them — **which
+  layer each one turns still depends on the selected sticker**, so on load
+  exactly one of the three is unavailable (see the next section).
 - On 3×3 the three keep their fixed conventional meaning (layer 1, spelled
   `M`/`E`/`S`) and are always available, selection or not.
 

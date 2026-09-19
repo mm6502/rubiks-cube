@@ -59,6 +59,37 @@ export function focusViewContainer(container: HTMLElement | null | undefined): v
 }
 
 /**
+ * Tell the app which view was used, updating its own focus model.
+ *
+ * Split out from {@link contactView} because there are now two ways focus can
+ * arrive at a view — a pointer contact, and focus landing there without one —
+ * and only the first of them should also *claim* focus. Both must announce
+ * themselves, and they must announce it identically, which is what this is for.
+ *
+ * Not exported: both callers are in this module, and the registration owns the
+ * listener that uses it. Keeping the public surface to `contactView` and
+ * `activateView` is what makes the layering rule above enforceable.
+ *
+ * @param viewId The view's registered id, as returned by its `getViewType()`
+ */
+function emitViewInteracted(viewId: string): void {
+    getEventBus().emit(EventName.VIEW_INTERACTED, { viewId });
+}
+
+/**
+ * True while this module is claiming focus on behalf of {@link contactView}.
+ *
+ * `contactView` claims focus, which the `focusin` listener it also owns would
+ * then observe as if the user had tabbed in — announcing the same interaction
+ * twice. This marks our own claim so the listener can ignore it. It is cleared
+ * in a `finally` so a throw cannot leave the listener permanently deaf.
+ *
+ * `focusin` is dispatched synchronously by `focus()`, so a flag set immediately
+ * around the call is sufficient; no timer or microtask is involved.
+ */
+let claimingFocus = false;
+
+/**
  * Handle the user contacting a view's content: claim DOM focus and tell the app
  * which view was used.
  *
@@ -70,13 +101,21 @@ export function focusViewContainer(container: HTMLElement | null | undefined): v
  *
  * The view id is announced even when focus could not be claimed (a detached
  * container), because the interaction did happen and the app should reflect it.
+ * When focus *is* claimed the announcement here is still the one that counts —
+ * the paired `focusin` listener skips it, so a contact reports exactly once.
  *
  * @param container The view's content container, or `null`/`undefined` if absent
  * @param viewId The view's registered id, as returned by its `getViewType()`
  */
 export function contactView(container: HTMLElement | null | undefined, viewId: string): void {
-    focusViewContainer(container);
-    getEventBus().emit(EventName.VIEW_INTERACTED, { viewId });
+    claimingFocus = true;
+    try {
+        focusViewContainer(container);
+    } finally {
+        claimingFocus = false;
+    }
+
+    emitViewInteracted(viewId);
 }
 
 /**
@@ -112,24 +151,39 @@ const viewAbortControllers = new Map<string, AbortController>();
 
 /**
  * Announce that a view's container exists and can receive activation, and
- * attach its pointer-contact listener.
+ * attach the listeners that make it reachable.
  *
- * Registering owns the listener deliberately. A view that registers without
+ * Registering owns these listeners deliberately. A view that registers without
  * wiring contact, or wires contact without being able to tear it down, is the
  * asymmetry that produced the stacked-handler and announce-after-destroy
  * defects. One call now establishes both, and {@link unregisterViewContainer}
  * removes both.
  *
- * Idempotent for a repeated id: the latest container wins, and any listener on
- * a previously registered container is detached first. A view re-created on a
+ * **Two listeners, because there are two ways focus arrives.**
+ *
+ * - `pointerdown` covers touching or clicking the content.
+ * - `focusin` covers focus arriving without a pointer — in practice, the user
+ *   tabbing into the container (which is `tabIndex = 0`). Without it, that path
+ *   moved DOM focus while the app's focus stack stayed on the previous view, so
+ *   the two focus models disagreed: keystrokes were routed to the view the user
+ *   tabbed to, while the active-view styling and the actions panel still
+ *   described the one they left. That is the exact split this module exists to
+ *   prevent, so the keyboard path has to be wired here rather than left to
+ *   callers to remember.
+ *
+ * `focusin` rather than `focus`: `focus` does not bubble, and the listener is on
+ * the container while focus may land on any focusable descendant.
+ *
+ * Idempotent for a repeated id: the latest container wins, and any listeners on
+ * a previously registered container are detached first. A view re-created on a
  * size switch therefore replaces its registration rather than adding to it.
  *
  * @param viewId The view's registered id, as returned by its `getViewType()`
  * @param container The view's content container
  */
 export function registerViewContainer(viewId: string, container: HTMLElement): void {
-    // Replace any previous registration for this id, listener included. Without
-    // this the old container would keep a live closure, and the old controller
+    // Replace any previous registration for this id, listeners included. Without
+    // this the old container would keep live closures, and the old controller
     // would never be aborted (the id keys a single entry).
     unregisterViewContainer(viewId);
 
@@ -141,6 +195,23 @@ export function registerViewContainer(viewId: string, container: HTMLElement): v
         'pointerdown',
         () => {
             contactView(container, viewId);
+        },
+        { signal: controller.signal }
+    );
+
+    container.addEventListener(
+        'focusin',
+        () => {
+            // `contactView` claims focus itself and announces the interaction
+            // once; this listener exists for focus that arrives *without* a
+            // pointer (tabbing in). Skipping our own claim is what keeps a
+            // single contact reporting exactly once.
+            if (claimingFocus) return;
+
+            // Only the announcement, not the DOM-focus claim: focus is already
+            // where the user put it, and re-claiming it here would fight the tab
+            // order.
+            emitViewInteracted(viewId);
         },
         { signal: controller.signal }
     );

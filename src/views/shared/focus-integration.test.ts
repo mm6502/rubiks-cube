@@ -234,4 +234,39 @@ describe.each(Object.keys(harnesses))('%s view claims DOM focus on contact', vie
         expect(interactions).toHaveLength(0);
         expect(document.activeElement).not.toBe(harness.container);
     });
+
+    // ─── focus arriving without a pointer (tabbing in) ────────────────────────
+
+    it('activates the view when focus lands in it without a pointer', () => {
+        // The container is `tabIndex = 0`, so a keyboard user can Tab into it.
+        // That moves DOM focus without a pointerdown, and before this was wired
+        // the app's focus stack stayed on the previous view: keystrokes went to
+        // the view the user tabbed into while the active-view styling and the
+        // actions panel still described the one they left.
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        harness.container.focus();
+
+        expect(document.activeElement, 'the container took DOM focus').toBe(harness.container);
+        expect(
+            emitSpy.mock.calls.filter(([event]) => event === EventName.VIEW_INTERACTED),
+            'the view announced the interaction'
+        ).toEqual([[EventName.VIEW_INTERACTED, { viewId: harness.expectViewId }]]);
+    });
+
+    it('still reports exactly one interaction per pointer contact', () => {
+        // Guards the new focusin listener against double-reporting: claiming
+        // focus inside `contactView` fires focusin too, so without the guard one
+        // pointerdown would emit twice.
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        harness.container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        const interactions = emitSpy.mock.calls.filter(
+            ([event]) => event === EventName.VIEW_INTERACTED
+        );
+        expect(interactions).toHaveLength(1);
+    });
 });

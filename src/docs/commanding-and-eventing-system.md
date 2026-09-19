@@ -170,7 +170,7 @@ Views implement different update strategies:
    set — 16 events. Not all are equal in scope: the five interaction events
    (`stickerSelected`, `moveRequested`, `moveExecuted`, `highlightChanged`,
    `viewInteracted`) carry the core cube and focus behaviour, while
-   `undoRequested`/`redoRequested`, the four request-style events
+   `undoRequested`/`redoRequested`, the five request-style events
    (`cubeResetRequested`, `cubeScrambleRequested`, `storageClearRequested`,
    `stateExportRequested`, `stateImportRequested`), the `viewStateChanged`
    persistence signal and the three `basicView*` linked-view notifications are

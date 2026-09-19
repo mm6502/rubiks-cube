@@ -14,7 +14,6 @@ import {
     isNavigationKey,
     mapKeyToNavDirection,
     navigate,
-    resetMissingSelectionWarning,
 } from './keyboard-cube-walking';
 import { AxisCircle } from './svg-tools';
 
@@ -182,7 +181,6 @@ describe('keyboard-cube-walking', () => {
             // is a state the view could be driven into. Returning a bare `false`
             // left it invisible; the warning makes it observable while staying
             // once-per-view, so a held arrow key cannot flood the log.
-            resetMissingSelectionWarning();
             const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
             const state = {
                 model: {} as never,
@@ -205,10 +203,31 @@ describe('keyboard-cube-walking', () => {
             expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('no sticker is selected'));
         });
 
+        it('warns per view, not once for the whole app', () => {
+            // The latch lives on the view's state, so a second view must be able to
+            // report the same condition. A module-level flag would let the first
+            // view silence every later one — which is what this pins.
+            const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+            const first = {
+                model: {} as never,
+                currentSelected: undefined,
+            } as unknown as CircularCubeViewInternalData;
+            const second = {
+                model: {} as never,
+                currentSelected: undefined,
+            } as unknown as CircularCubeViewInternalData;
+
+            navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, first);
+            expect(warnSpy).toHaveBeenCalledTimes(1);
+
+            navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, second);
+
+            expect(warnSpy, 'the second view reports it too').toHaveBeenCalledTimes(2);
+        });
+
         it('does not warn when the key is not a navigation key (U15)', () => {
             // The guard must stay scoped to the navigation path: a non-navigation
             // key is not an unhandled navigation request.
-            resetMissingSelectionWarning();
             const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
             const state = {
                 model: {} as never,

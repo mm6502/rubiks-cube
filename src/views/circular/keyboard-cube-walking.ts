@@ -14,18 +14,15 @@ import { CircularCubeViewInternalData } from './types';
  * Guards the "navigation with nothing selected" warning so it is emitted at
  * most once per view instance.
  *
- * Module-level rather than on the view state on purpose: the warn is about an
- * unreachable state, so it is a diagnostic breadcrumb, not per-view bookkeeping
- * worth adding to the state bag. Per-keypress logging was the alternative and
- * was rejected — a stuck arrow key would otherwise flood the console.
+ * The latch lives on the view's own state, not at module scope: a view's state
+ * object is created per instance, so this is genuinely once-per-view. A module
+ * level flag would be shared by every Circular view ever created, and the first
+ * view to hit the state would silence the warning for all later ones — the
+ * opposite of what a per-view diagnostic is for.
+ *
+ * Per-keypress logging was the other alternative and was rejected: a held arrow
+ * key would flood the console.
  */
-let warnedMissingSelection = false;
-
-/** @internal Test hook — resets the once-per-view warning latch. */
-export function resetMissingSelectionWarning(): void {
-    warnedMissingSelection = false;
-}
-
 /**
  * Check if a keyboard event is a navigation key (arrow keys).
  */
@@ -98,8 +95,8 @@ export function navigate(
     // per-keypress: it exists to make the state *observable* if it ever is
     // reached, not to describe normal input.
     if (!state.currentSelected) {
-        if (!warnedMissingSelection) {
-            warnedMissingSelection = true;
+        if (!state.warnedMissingSelection) {
+            state.warnedMissingSelection = true;
             logger.warn(
                 'Circular view navigation ignored: no sticker is selected. ' +
                     'Arrow keys need a selection to walk from.'
