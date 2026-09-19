@@ -9,8 +9,8 @@ not repeat each other's content, so they cannot drift apart.
 
 - [x] M/E/S slice moves follow the active view's selection on n>3 (target layer
       from the selected sticker, notation emitted as `2M`/`3E`/`4S`); M/E/S are
-      unavailable on 2×2 and while nothing is selected. 3×3 keeps the fixed
-      conventional middle slice (`M`/`E`/`S`). See
+      unavailable on 2×2, and need a selection to know which layer to turn. 3×3
+      keeps the fixed conventional middle slice (`M`/`E`/`S`). See
       [src/docs/move-notation.md](src/docs/move-notation.md).
 
 - [x] Moves view icon fallback for size-specific moves — numbered slice/wide

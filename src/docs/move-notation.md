@@ -153,8 +153,13 @@ selected in the active view**:
   at most two of the three slices are available at any time. Turning an outer
   layer is a face move, not a slice — selecting an R-face sticker disables M,
   and the R/L buttons already cover that turn.
-- With nothing selected, M/E/S are unavailable. On 3×3 they keep their fixed
-  conventional meaning (layer 1, spelled `M`/`E`/`S`) and are always available.
+- A slice needs a selection to know which layer it turns, so with nothing
+  selected none of the three is available. That case no longer arises in the
+  app: every view establishes a selection on load and clearing a face highlight
+  keeps the sticker selected, so M/E/S are always available at n≥4. The guard
+  remains for callers driving the command system directly.
+- On 3×3 the three keep their fixed conventional meaning (layer 1, spelled
+  `M`/`E`/`S`) and are always available, selection or not.
 
 #### On load, exactly one slice is unavailable (n≥4)
 
