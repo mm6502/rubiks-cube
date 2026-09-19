@@ -4,6 +4,7 @@ import { Size2D } from '@/cube/types/cubie';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
+import { logger } from '@/diagnostics/logger';
 import { getEventBus } from '@/event-bus-accessor';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
 import { contactView, registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
@@ -151,8 +152,15 @@ export class CircularCubeView implements CubeView {
         this.restoreSelection();
 
         // Delegate to shared updateSelective which handles animation and state updates.
-        rendering.updateSelective(this.state, event as MoveExecutedEvent).catch(() => {
-            // swallow errors to preserve existing behavior (no-throw on update)
+        //
+        // A failure here is reported rather than swallowed. The empty catch this
+        // replaced claimed to "preserve existing behavior", but that stopped being
+        // true once the post-promise reconcile was removed: with nothing left to
+        // run after a rejection, a silent failure is now a permanently skipped
+        // paint, not a redundant one. The view still does not throw — a rendering
+        // error must not take the app down — but it is no longer invisible.
+        rendering.updateSelective(this.state, event as MoveExecutedEvent).catch(error => {
+            logger.error('Circular view failed to apply an animated update:', error);
         });
     }
 

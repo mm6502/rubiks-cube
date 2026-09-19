@@ -17,6 +17,7 @@ import {
 } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
+import { logger } from '@/diagnostics/logger';
 import { EventName } from '@/types';
 
 import * as highlights from './highlights';
@@ -276,20 +277,28 @@ describe('CircularCubeView (unit)', () => {
         expect(res).toBe(false);
     });
 
-    it('updateSelective swallows errors from rendering.updateSelective', async () => {
+    it('reports an error from rendering.updateSelective without throwing', async () => {
         // Arrange
         const fakeState: any = { svgReady: true };
         (view as any).state = fakeState;
         const updateSpy = vi
             .spyOn(rendering, 'updateSelective')
             .mockRejectedValue(new Error('boom'));
+        const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
 
-        // Act
+        // Act — a rendering failure must not escape as a throw.
         view.updateSelective({} as any);
         await Promise.resolve();
+        await Promise.resolve();
 
-        // Assert
+        // Assert — the failure is delegated *and* made visible in the logs. It
+        // used to be swallowed silently, which turned a rejected paint into an
+        // invisible one once the post-promise reconcile was removed.
         expect(updateSpy).toHaveBeenCalledWith(fakeState, {});
+        expect(errorSpy).toHaveBeenCalledWith(
+            'Circular view failed to apply an animated update:',
+            expect.any(Error)
+        );
     });
 
     it('getViewType and size/commands return expected values', () => {

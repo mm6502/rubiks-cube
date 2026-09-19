@@ -307,12 +307,28 @@ export function updateSelective(
             tracker._pendingTotal!--;
 
             // Only the last finishing animation renders the final state.
-            // Use the latest postState which includes all applied moves.
             if (tracker._pendingTotal! <= 0) {
                 tracker._pendingTotal = 0;
                 const targetOpacity = GHOST_OPACITY_LEVELS[state.ghostOpacityIndex] ?? 0.75;
-                // Render first so ghost sticker colors are updated before they become visible.
-                renderState(state, tracker._latestPostState ?? event.postState);
+                // Render the model *as it stands now*, not the snapshot captured
+                // when this move was registered.
+                //
+                // `_latestPostState` describes the cube immediately after this
+                // move, but an animation can outlive that assumption: a non-move
+                // model change issued mid-flight (reset, scramble, undo, import,
+                // size switch — all of which reach `updateViews(undefined)`)
+                // replaces the model while the transforms are still running.
+                // Painting the registration-time snapshot then repaints a state
+                // the model no longer holds, so the panel shows a cube the user
+                // is not looking at until the next move corrects it.
+                //
+                // The live model is authoritative for what the settled cube looks
+                // like; the snapshot is only a fallback for when no model is
+                // attached (some harnesses drive this function with `model`
+                // unset). Render first so ghost sticker colors are updated before
+                // they become visible.
+                const settledState = state.model?.getCurrentState() ?? tracker._latestPostState;
+                renderState(state, settledState ?? event.postState);
                 setGhostOpacity(state, targetOpacity);
 
                 // Re-apply the highlight for whatever is selected *now*.
