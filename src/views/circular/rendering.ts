@@ -2,7 +2,7 @@ import { getCubeInvariants } from '@/cube/core/cube-invariants';
 import { getMoveDefinition } from '@/cube/core/move-engine';
 import { Axis, Color, ColorMap, CubeState, FACE_COLORS, StickerId } from '@/cube/types';
 import { CubieType, Face, ReadonlyCubie } from '@/cube/types';
-import { CubeStateUtils, getPositionKey } from '@/cube/utils';
+import { getPositionKey } from '@/cube/utils';
 import { MoveExecutedEvent } from '@/types';
 
 import * as highlights from './highlights';
@@ -281,16 +281,6 @@ export function updateSelective(
             return;
         }
 
-        // Determine currently selected sticker before animation.
-        const selected = state.currentSelected as StickerId | undefined;
-        const stickerBefore = CubeStateUtils.getStickerById(event.preState, selected);
-        /* istanbul ignore next 3 */
-        const stickerAfter = CubeStateUtils.getStickerAt(
-            event.postState,
-            stickerBefore?.currentFace,
-            stickerBefore?.facePosition
-        );
-
         // Clear selection during animation
         highlights.removeSelectionHighlight(state, state.styles);
 
@@ -310,9 +300,9 @@ export function updateSelective(
         // Run animation
         await animateMove(event, state.svgRoot!, state.axisCircles, state.stickerLookupMap!);
 
-        finishAnimation(stickerAfter?.id);
+        finishAnimation();
 
-        function finishAnimation(restoreSelectionId?: StickerId) {
+        function finishAnimation() {
             tracker._axisPending![moveAxis]--;
             tracker._pendingTotal!--;
 
@@ -324,8 +314,21 @@ export function updateSelective(
                 // Render first so ghost sticker colors are updated before they become visible.
                 renderState(state, tracker._latestPostState ?? event.postState);
                 setGhostOpacity(state, targetOpacity);
-                if (restoreSelectionId) {
-                    highlights.updateSelected(state, state.styles, restoreSelectionId);
+
+                // Re-apply the highlight for whatever is selected *now*.
+                //
+                // This callback deliberately does not decide which sticker should
+                // be selected. Deriving one here means translating a sticker
+                // through the pre/post states, and this runs in a microtask — by
+                // which time the view may already have reconciled the selection
+                // against the new state. Translating then produced the wrong
+                // sticker and, because this runs last, it won: the highlight ended
+                // up on a different face from the reported selection.
+                //
+                // The view owns the selection; the animation only owns the
+                // highlight's visibility during the transition.
+                if (state.currentSelected) {
+                    highlights.updateSelected(state, state.styles, state.currentSelected);
                 }
             }
         }

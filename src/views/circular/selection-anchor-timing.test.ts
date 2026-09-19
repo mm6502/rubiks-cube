@@ -1,16 +1,20 @@
-// Timing parity for Circular's selection anchor — the Circular half of the
-// reported defect.
+// Circular's selection must end up on the circle the user sees, and must agree
+// whichever way the animation was timed.
 //
-// Same contract as `src/views/basic/selection-anchor-timing.test.ts`: the anchor
-// must be reconciled when the model changes, not when the animation finishes, so
-// the same key produces the same move whether or not an animation is still
-// running.
+// Two things are asserted here that an earlier version of this suite missed, and
+// the omission is why a regression reached review:
 //
-// Circular's mechanism differs from Basic's — animations are queued per axis in
-// a promise chain — so the property is asserted here directly rather than
-// inferred from Basic's fix. The animation is made to never settle, which is the
-// strongest form of "still running": anything chained on it stays pending for the
-// whole test.
+//  1. *Which SVG circle is highlighted*, not just which sticker the view
+//     reports. Circular keeps a sticker id, a spatial anchor, and the highlighted
+//     circle, and they can disagree — the reported sticker was right while the
+//     highlight sat on the wrong face.
+//  2. Animations that actually **settle**. Holding every animation pending
+//     forever tests only the in-flight window; the defect appeared once an
+//     animation finished, because the completion callback also writes a
+//     selection.
+//
+// The animation is driven explicitly so each move can be settled on its own,
+// which is how the slow and fast paths are told apart.
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
 import { Face, SUPPORTED_SIZES } from '@/cube/types';
@@ -18,9 +22,32 @@ import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { EventName, MoveExecutedEvent, MoveRequestedEvent } from '@/types';
 import { CircularCubeView } from '@/views/circular/circular-view';
+import styles from '@/views/circular/circular.module.css';
 
-/** A promise that never settles — stands in for an animation in flight. */
-function pendingAnimation(): void {
+interface Harness {
+    emitted: string[];
+    /** The face of the circle currently carrying the selected class. */
+    highlightedFace: () => string;
+    /** How many circles carry the selected class. */
+    highlightedCount: () => number;
+    /** The sticker id the view reports as selected. */
+    reported: () => string | undefined;
+    /** The face of the sticker the view reports as selected. */
+    reportedFace: () => string;
+    /** Presses Ctrl+Arrow and hands the resulting move to the view. */
+    press: (key: string) => void;
+    /** Lets every animation created so far finish. */
+    settle: () => Promise<void>;
+    dispose: () => void;
+}
+
+/**
+ * Builds a Circular view whose animations are individually controllable.
+ *
+ * Every `animate()` call gets its own resolver, so a test can settle one move at
+ * a time (slow input) or let several pile up and settle together (fast input).
+ */
+function build(size: number): Harness {
     Object.defineProperty(window, 'matchMedia', {
         configurable: true,
         writable: true,
@@ -31,25 +58,22 @@ function pendingAnimation(): void {
             removeEventListener: () => {},
         }),
     });
-    const neverSettles = new Promise<void>(() => {});
-    Object.defineProperty(HTMLElement.prototype, 'animate', {
+
+    const pending: Array<() => void> = [];
+    // `Element.prototype`, not `HTMLElement.prototype`: Circular animates SVG
+    // circles, and SVGElement does not inherit from HTMLElement — a mock on
+    // HTMLElement silently leaves these animations undefined, so they never
+    // complete and the completion callback under test never runs. Existing
+    // Circular suites patch `Element.prototype` for the same reason.
+    Object.defineProperty(Element.prototype, 'animate', {
         configurable: true,
-        value: () => ({ cancel: () => {}, finished: neverSettles }),
+        value: () => {
+            let resolve!: () => void;
+            const finished = new Promise<void>(r => (resolve = r));
+            pending.push(resolve);
+            return { cancel: () => {}, finished };
+        },
     });
-}
-
-interface Harness {
-    model: CubeController;
-    emitted: string[];
-    /** The face:position the view's selection anchor currently resolves to. */
-    anchor: () => string;
-    /** Presses Ctrl+Arrow and delivers the resulting move to the view. */
-    press: (key: string) => Promise<void>;
-    dispose: () => void;
-}
-
-function build(size: number): Harness {
-    pendingAnimation();
 
     const model = new CubeController(size);
     const container = document.createElement('div');
@@ -78,24 +102,49 @@ function build(size: number): Harness {
     expect(centre, `size ${size} has a front centre`).toBeDefined();
     view.updateSelected(centre!.id);
 
-    const anchor = (): string => {
+    const internal = (): { svgElementCache: Map<string, SVGCircleElement> } =>
+        (view as unknown as { state: { svgElementCache: Map<string, SVGCircleElement> } }).state;
+
+    const selectedCircles = (): SVGCircleElement[] =>
+        [...internal().svgElementCache.values()].filter(circle =>
+            circle.classList.contains(styles['selected'])
+        );
+
+    const reportedFace = (): string => {
         const id = view.getSelectedSticker();
         if (!id) return 'none';
         const sticker = CubeStateUtils.getStickerById(model.getCurrentState(), id as never);
-        return `${sticker?.currentFace}:${sticker?.facePosition}`;
+        return `${sticker?.currentFace}`;
+    };
+
+    const drain = async (n: number): Promise<void> => {
+        for (let i = 0; i < n; i++) await Promise.resolve();
     };
 
     return {
-        model,
         emitted,
-        anchor,
-        press: async (key: string) => {
+        highlightedFace: () => {
+            const circles = selectedCircles();
+            return circles.length === 0 ? 'NONE' : (circles[0].getAttribute('data-face') ?? '?');
+        },
+        highlightedCount: () => selectedCircles().length,
+        reported: () => view.getSelectedSticker() as string | undefined,
+        reportedFace,
+        press: (key: string) => {
             // `handleKeyUp` is where a bound move actually fires.
             view.handleKeyUp(new KeyboardEvent('keyup', { key, ctrlKey: true }) as KeyboardEvent);
             // The controller applies the move and emits MOVE_EXECUTED; deliver it
             // to the view exactly as the app does.
             if (lastEvent) view.updateSelective(lastEvent);
-            await Promise.resolve();
+        },
+        settle: async () => {
+            // Resolve animations in waves: settling one can start another, so a
+            // single pass would leave the chain unfinished.
+            for (let round = 0; round < 4; round++) {
+                const batch = pending.splice(0, pending.length);
+                batch.forEach(resolve => resolve());
+                await drain(8);
+            }
         },
         dispose: () => {
             // Remove every subscription made here: these are global listeners, so
@@ -108,71 +157,102 @@ function build(size: number): Harness {
     };
 }
 
-describe('Circular selection anchor is reconciled when the model changes', () => {
+const KEYS = ['ArrowRight', 'ArrowUp'];
+
+describe('Circular selection ends up on the circle the user sees', () => {
     afterEach(() => {
         Application.eventBus.removeAllListeners();
         document.body.innerHTML = '';
     });
 
-    it('opens with a selection, so the assertions below are not vacuous', () => {
+    it('opens with exactly one highlighted circle on the front face', () => {
+        // Guards against every assertion below passing vacuously.
         const harness = build(5);
-        expect(harness.anchor()).not.toBe('none');
+        expect(harness.highlightedCount()).toBe(1);
+        expect(harness.highlightedFace()).toBe('F');
         harness.dispose();
     });
 
-    it('keeps the anchor on the front face while the animation is still in flight', async () => {
-        // The anchor is spatial — a face plus a face position — so after a move it
-        // still names the same *slot*, resolving to whichever sticker now occupies
-        // it. That slot is on the front face, which is what the user sees.
-        //
-        // The reported defect made the anchor name the pre-move *sticker* instead,
-        // which after this move has travelled to the right face: the anchor left
-        // the front face and the next key turned the wrong layer.
+    it('keeps the highlight on the front face when each animation settles (slow input)', async () => {
+        // The reported slow path: the selection ended on the face opposite the
+        // rotation.
         const harness = build(5);
-        const faceBefore = harness.anchor().split(':')[0];
 
-        await harness.press('ArrowRight');
-        expect(harness.anchor().split(':')[0]).toBe(faceBefore);
+        for (const key of KEYS) {
+            harness.press(key);
+            await harness.settle();
+        }
 
-        await harness.press('ArrowUp');
-        expect(harness.anchor().split(':')[0]).toBe(faceBefore);
+        expect(harness.highlightedCount(), 'exactly one circle is selected').toBe(1);
+        expect(harness.highlightedFace(), 'highlight stays on the front face').toBe('F');
 
         harness.dispose();
     });
 
-    it('turns the layer the selection sits in, not the layer it sat in before', async () => {
-        // With a stale anchor the second key targeted the wrong axis entirely,
-        // emitting a slice move on Z (3S') where the selection called for Y (3M').
+    it('leaves the highlight on the front face when both moves are in flight (fast input)', async () => {
         const harness = build(5);
 
-        await harness.press('ArrowRight');
-        await harness.press('ArrowUp');
+        // Both presses land before either animation finishes.
+        for (const key of KEYS) harness.press(key);
+        await harness.settle();
 
-        expect(harness.emitted).toHaveLength(2);
-        // Two presses on perpendicular keys must not collapse to the same move.
-        expect(harness.emitted[0]).not.toBe(harness.emitted[1]);
-        // The stale-frame answer is a Z-axis slice; the correct answer is Y-axis.
-        expect(harness.emitted[1]).toMatch(/M/);
-        expect(harness.emitted[1]).not.toMatch(/S/);
+        expect(harness.highlightedCount()).toBe(1);
+        // The reported fast path ended on D.
+        expect(harness.highlightedFace()).not.toBe('D');
+
+        harness.dispose();
+    });
+
+    it('reaches the same highlighted face whichever way the input was timed', async () => {
+        const slow = build(5);
+        for (const key of KEYS) {
+            slow.press(key);
+            await slow.settle();
+        }
+        const slowFace = slow.highlightedFace();
+        slow.dispose();
+
+        Application.eventBus.removeAllListeners();
+        document.body.innerHTML = '';
+
+        const fast = build(5);
+        for (const key of KEYS) fast.press(key);
+        await fast.settle();
+        const fastFace = fast.highlightedFace();
+        fast.dispose();
+
+        expect(fastFace).toBe(slowFace);
+    });
+
+    it('highlights the circle matching the sticker the view reports', async () => {
+        // The three representations — reported sticker, spatial anchor, and
+        // highlighted circle — must agree, since the user only sees the last one.
+        const harness = build(5);
+
+        for (const key of KEYS) {
+            harness.press(key);
+            await harness.settle();
+
+            expect(harness.reported(), 'a selection is reported').toBeDefined();
+            expect(harness.highlightedCount(), 'one highlight').toBe(1);
+            expect(harness.highlightedFace()).toBe(harness.reportedFace());
+        }
 
         harness.dispose();
     });
 
     it.each(SUPPORTED_SIZES.filter(n => n > 3))(
-        'keeps the anchor on the front face at size %i',
+        'keeps exactly one highlight on the front face at size %i',
         async size => {
             const harness = build(size);
-            const face = harness.anchor().split(':')[0];
 
-            await harness.press('ArrowRight');
-            const afterFirst = harness.anchor().split(':')[0];
-            await harness.press('ArrowUp');
-            const afterSecond = harness.anchor().split(':')[0];
+            for (const key of KEYS) {
+                harness.press(key);
+                await harness.settle();
+            }
 
-            expect([afterFirst, afterSecond], `size ${size}: anchor left the front face`).toEqual([
-                face,
-                face,
-            ]);
+            expect(harness.highlightedCount(), `size ${size}`).toBe(1);
+            expect(harness.highlightedFace(), `size ${size}`).toBe('F');
 
             harness.dispose();
         }
