@@ -146,7 +146,9 @@ function navigateSurface(
  * Recovery priority:
  * 1. Use saved spatial anchors (`selectedFace` + `selectedPosition`) to find the sticker at that position.
  * 2. If only `selectedFace` is available, pick the center sticker of that face.
- * 3. Last resort: pick the center sticker of Face.F (matching the initial default selection).
+ * 3. Last resort: pick the center sticker of Face.F — the same position the view
+ *    uses as its initial default selection, both derived from `centerFacePosition`
+ *    so the two cannot disagree at even sizes.
  *
  * @returns true if a sticker was recovered and selected, false otherwise.
  */
