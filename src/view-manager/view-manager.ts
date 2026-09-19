@@ -597,9 +597,19 @@ export class ViewManager implements CommandManager {
     }
 
     /**
-     * Compact description of what the M/E/S slices currently target: the cube
-     * size plus the layer each axis would turn. Two states with the same
-     * signature produce identical slice commands, so a rebuild is unnecessary.
+     * Compact description of everything the command panel's contents depend on:
+     * the cube size, the layer each M/E/S axis would turn, **and which view is
+     * active**.
+     *
+     * The active view id is part of this deliberately. `renderGlobalCommands`
+     * renders `#view-actions` from `getActiveViewId()`, so two views showing the
+     * same layer at the same size produce identical slice commands but different
+     * panels. Without the id, switching between such views compared equal and the
+     * gate skipped the render, leaving the previous view's actions on screen.
+     *
+     * A selection *report* during arrow-key navigation does not change the active
+     * view, so it still short-circuits — which is the behaviour the gate exists
+     * to provide.
      */
     private sliceSelectionSignature(): string {
         const state = this.cubeModel.getReadOnlyModel().getCurrentState();
@@ -607,7 +617,7 @@ export class ViewManager implements CommandManager {
         const layers = [Axis.X, Axis.Y, Axis.Z].map(
             axis => selectedLayerOnAxis(state, stickerId, axis) ?? '-'
         );
-        return `${state.cubeSize}:${layers.join(',')}`;
+        return `${this.getActiveViewId() ?? '-'}:${state.cubeSize}:${layers.join(',')}`;
     }
 
     /**

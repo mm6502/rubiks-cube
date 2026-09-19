@@ -1229,6 +1229,109 @@ describe('ViewManager', () => {
         });
     });
 
+    // ─── the View Actions panel follows the active view ────────────────────────
+
+    /**
+     * `#view-actions` is rendered by `renderGlobalCommands`, reached through
+     * `refreshControllerCommands` — which suppresses redundant renders by
+     * comparing `sliceSelectionSignature()`. That signature is the cube size plus
+     * the active view's M/E/S layers and, before this suite existed, contained no
+     * view id. Two views showing the same layer for the same size therefore
+     * collided, the gate returned early, and the panel kept showing the previous
+     * view's actions.
+     */
+    describe('the View Actions panel follows the active view', () => {
+        let model: CubeController;
+
+        /** Command ids currently rendered into the panel. */
+        const renderedCommandIds = (): string[] =>
+            Array.from(document.querySelectorAll<HTMLButtonElement>('#view-actions [data-cmd-id]'))
+                .map(button => button.getAttribute('data-cmd-id')!)
+                .sort();
+
+        /** The F-face centre sticker — the view default selection. */
+        const frontCentre = (): StickerId => {
+            const size = model.getCubeSize();
+            const offset = Math.floor((size - 1) / 2) * size + Math.floor((size - 1) / 2);
+            return CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, offset)!.id;
+        };
+
+        /**
+         * Register two stub views on the same cube. Both report the same
+         * selection, which is the collision the gate did not distinguish.
+         */
+        const openTwoViews = (selection: StickerId): void => {
+            for (const viewId of ['view-a', 'view-b']) {
+                viewManager['activeViews'].set(viewId, {
+                    view: { getSelectedSticker: () => selection } as any,
+                    container: document.createElement('div'),
+                });
+                viewManager['registerCommands'](viewId, [
+                    {
+                        id: `${viewId}-only`,
+                        label: `${viewId} only`,
+                        category: CommandCategory.VIEW,
+                        action: vi.fn(),
+                    } as Command,
+                ]);
+            }
+        };
+
+        beforeEach(() => {
+            document.body.innerHTML =
+                '<div id="visualizations"></div><div id="view-actions"></div>';
+            model = new CubeController(3);
+            viewManager = new ViewManager(model);
+            viewManager.initialize();
+        });
+
+        afterEach(() => {
+            Application.eventBus.removeAllListeners();
+        });
+
+        it('replaces the panel contents when the active view changes', () => {
+            openTwoViews(frontCentre());
+
+            // The reported sequence: view A is active and its actions render.
+            viewManager['updateFocus']('view-a');
+            expect(renderedCommandIds()).toEqual(['view-a-only']);
+
+            // Switching to B must replace them. Before the fix the gate compared
+            // an unchanged signature and the panel still read `view-a-only`.
+            viewManager['updateFocus']('view-b');
+            expect(renderedCommandIds()).toEqual(['view-b-only']);
+        });
+
+        it('restores the first view actions when switching back', () => {
+            openTwoViews(frontCentre());
+
+            viewManager['updateFocus']('view-a');
+            viewManager['updateFocus']('view-b');
+            viewManager['updateFocus']('view-a');
+
+            // The gate must not latch on the first comparison in either direction.
+            expect(renderedCommandIds()).toEqual(['view-a-only']);
+        });
+
+        it('still skips a selection report that does not change the active view', () => {
+            const selection = frontCentre();
+            openTwoViews(selection);
+
+            viewManager['updateFocus']('view-a');
+            const renderSpy = vi.spyOn(viewManager['commandRenderer'], 'renderGlobalCommands');
+
+            // A re-report of the same selection in the same view changes nothing the
+            // panel displays, so the gate must still short-circuit. Asserted so the
+            // fix cannot quietly degrade into "always render".
+            Application.eventBus.emit(EventName.STICKER_SELECTED, {
+                stickerId: selection,
+                viewId: 'view-a',
+            });
+
+            expect(renderSpy).not.toHaveBeenCalled();
+        });
+    });
+
     // ─── disabled commands and keyboard routing ────────────────────────────────
 
     describe('keyboard routing honours command availability', () => {
