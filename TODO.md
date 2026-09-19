@@ -34,23 +34,57 @@ This section outlines tasks that may be addressed in the future, though they are
 not currently scheduled for implementation.
 
 - [ ] Consolidate the duplicated Circular layout parameters. The shipped ellipse
-      values exist in three unsynchronised places:
-      `src/views/circular/svg-generator/parameters.json` (what the app uses),
-      the `PROPOSALS` block in `scripts/circular-layout/render-previews.ts`, and
-      configuration `B` in `scripts/circular-layout/analyse-tangency.ts`.
-      Nothing keeps them in sync, so a change to one silently leaves the others
-      describing a different layout.
+      values are mirrored in the `PROPOSALS` block of
+      `scripts/circular-layout/render-previews.ts`: same numbers, held in a
+      different shape (`d`/`rMin`/`step`/`margin`/`oN`/`oF`/`aspect` versus
+      `triangleSide`/`innerRadius`/`ringStep`/`ellipseMargin`/...), so a change
+      to one silently leaves the other describing a different layout.
 
-- [ ] Port the Circular view's selection-recovery path to Basic and Flat. Both
-      currently dead-end when no sticker is selected: arrow keys return "not
-      handled" (so the browser scrolls the page), Space does nothing, and M/E/S
-      are inert. Reachable after load because tapping the background deselects.
-      Deferred because it changes arrow-key semantics.
+      **Corrected during review.** This item previously named configuration `B`
+      in `scripts/circular-layout/analyse-tangency.ts` as the third copy. It is
+      not a copy: `B` is the deliberate pre-tangency *baseline* the solver
+      compares against — its comment says "the starting point", and its values
+      differ on purpose (at N=4 it carries `rMin 79.533, margin 2.0, oN/oF 0.2`
+      where the shipped layout has `rMin 87.5, margin 2.2, oN 0, oF 0.1`).
+      Folding it in would destroy the comparison it exists to make. The real
+      duplication is the two-way mirror between `parameters.json` and
+      `PROPOSALS`.
+
+- [ ] Fix the stale range comment in `PROPOSALS`
+      (`scripts/circular-layout/render-previews.ts`): sizes 6 and 7 are
+      annotated "Beyond the sizes the app ships", but `SUPPORTED_SIZES` is
+      `[2..7]`. The comment predates 6 and 7 shipping. Small, and worth folding
+      into the item above rather than its own change.
 
 - [ ] Replace the private `toFacePosition` in
       `src/views/circular/svg-generator/ghosts.ts` with the exported
-      `calculateStickerPositionOnFace` — a genuine near-duplicate, but in the
-      geometry layer, so folding it in is a behaviour question rather than a
-      rename.
+      `calculateStickerPositionOnFace` — a genuine near-duplicate, and the two
+      bodies are line-for-line the same logic (same six cases, same
+      `(maxIndex - y) * cubeSize + x` forms), so this is a pure consolidation
+      rather than a behaviour question. It lives in the geometry layer, which is
+      why it wants care rather than urgency.
 
-- [ ] Resolve package overrides due to security concerns, should any arise.
+- [ ] Reassess whether Basic and Flat need a selection-recovery path. **The
+      original justification for this item did not survive checking** and is
+      recorded here so it is not re-derived: it claimed the dead-end is
+      "reachable after load because tapping the background deselects". It is not
+      reachable. In Basic, tapping the background clears the _face_ selection
+      but still calls `onStickerSelected(hit.stickerId)` with a real id, and
+      `handleTap` never passes `undefined`; across all production sources only
+      Circular ever calls `onStickerSelected(undefined)`
+      (`touch-handler-interaction.ts:229`, the halo-deselect path). Both views
+      also establish a default selection in `create()`. So with no production
+      path clearing the sticker selection in Basic or Flat, the "arrows return
+      not-handled and the page scrolls" scenario cannot currently arise, and
+      Circular's `recoverSelection` is defending a state its siblings cannot
+      enter. What remains worth deciding is the opposite question: whether the
+      recovery path is _dead code_ in effect, or whether Basic and Flat should
+      gain an explicit deselect (making recovery genuinely necessary). That is a
+      behaviour decision, not a port.
+
+## Closed
+
+- [x] Resolve package overrides due to security concerns. `package.json` carries
+      `"overrides": {}` — an empty block, so there is nothing to resolve. Keep
+      as a standing place to record a real pin if one is ever needed; no action
+      now.
