@@ -1421,6 +1421,66 @@ describe('ViewManager', () => {
         });
     });
 
+    // ─── `getViewIdHoldingFocus`: routing is observable from outside ─────────
+    //
+    // These pin the *distinction* between the two accessors, which is the whole
+    // reason the second one exists: `getActiveViewId` reports the focus stack
+    // (styling, command rendering) and keeps pointing at the last-used view,
+    // while this reports the view a keystroke would actually reach.
+    describe('getViewIdHoldingFocus', () => {
+        /** Registers an open view under `id` with a container in the document. */
+        function registerView(id: string): HTMLElement {
+            const container = document.createElement('div');
+            container.tabIndex = 0;
+            document.body.appendChild(container);
+            viewManager['activeViews'].set(id, {
+                view: { handleKeyDown: vi.fn(() => true) } as any,
+                container,
+            });
+            return container;
+        }
+
+        it('reports the view whose container holds focus', () => {
+            const container = registerView('flat');
+
+            container.focus();
+
+            expect(viewManager.getViewIdHoldingFocus()).toBe('flat');
+        });
+
+        it('reports the stack top when focus is on the body — the command-driven case', () => {
+            registerView('flat');
+            viewManager['focusStack'] = ['flat'];
+            document.body.focus();
+
+            expect(viewManager.getViewIdHoldingFocus()).toBe('flat');
+        });
+
+        it('reports no view when focus is on a control outside every view', () => {
+            registerView('flat');
+            viewManager['focusStack'] = ['flat'];
+            const outside = document.createElement('input');
+            document.body.appendChild(outside);
+
+            outside.focus();
+
+            // The two accessors deliberately disagree here: the stack still names
+            // the last-used view for styling, while routing resolves to nothing.
+            expect(viewManager.getViewIdHoldingFocus()).toBeUndefined();
+            expect(viewManager.getActiveViewId()).toBe('flat');
+        });
+
+        it('agrees with the stack after focus moves into a view', () => {
+            const container = registerView('circular');
+            viewManager['focusStack'] = ['circular'];
+
+            container.focus();
+
+            expect(viewManager.getViewIdHoldingFocus()).toBe(viewManager.getActiveViewId());
+            expect(viewManager.getViewIdHoldingFocus()).toBe('circular');
+        });
+    });
+
     // ─── Keyboard delegation follows DOM focus ───────────────────────────────
 
     describe('keyboard delegation is derived from DOM focus', () => {

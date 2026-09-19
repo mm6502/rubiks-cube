@@ -6,7 +6,7 @@ import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { getEventBus } from '@/event-bus-accessor';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
-import { contactView } from '@/views/shared/focus';
+import { contactView, registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
 
 import * as highlights from './highlights';
 import * as initialization from './initialization';
@@ -72,6 +72,9 @@ export class CircularCubeView implements CubeView {
         container.addEventListener('pointerdown', () =>
             contactView(this.state.container, this.getViewType())
         );
+
+        // Make this view addressable without a pointer (see `shared/focus`).
+        registerViewContainer(this.getViewType(), container);
 
         // Wire up zoom/pan on the scaffold elements added by initialization.
         const clipEl = container.querySelector<HTMLElement>('[data-role="clip-container"]');
@@ -237,6 +240,9 @@ export class CircularCubeView implements CubeView {
     }
 
     destroy(): void {
+        // Stop being addressable: a destroyed view must not be activatable.
+        unregisterViewContainer(this.getViewType());
+
         this.faceLabelTilt.destroy();
         this.state.zoomPan?.destroy();
         this.state.zoomPan = null;

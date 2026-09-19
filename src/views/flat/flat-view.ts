@@ -4,7 +4,7 @@ import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils, createFlatView } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
-import { contactView } from '@/views/shared/focus';
+import { contactView, registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
 
 import * as commands from './commands';
 import * as legendDrag from './legend-drag';
@@ -134,6 +134,9 @@ export class FlatView implements CubeView {
         this.state.container.addEventListener('pointerdown', () =>
             contactView(this.state.container, this.getViewType())
         );
+
+        // Make this view addressable without a pointer (see `shared/focus`).
+        registerViewContainer(this.getViewType(), this.state.container);
 
         // Create the flat view container
         const flatContainer = document.createElement('div');
@@ -382,6 +385,9 @@ export class FlatView implements CubeView {
 
     /** Tears down all event listeners, nulls the touch handler, and clears the container DOM. */
     destroy(): void {
+        // Stop being addressable: a destroyed view must not be activatable.
+        unregisterViewContainer(this.getViewType());
+
         if (this.legendHandlers) {
             document.removeEventListener('pointermove', this.legendHandlers.move);
             document.removeEventListener('pointerup', this.legendHandlers.up);

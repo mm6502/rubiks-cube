@@ -47,6 +47,7 @@ import {
 } from '@/views/basic/navigation';
 import { updateHighlight, updateSelected } from '@/views/basic/selection';
 import { BasicTouchHandler } from '@/views/basic/touch-handler';
+import { unregisterViewContainer } from '@/views/shared/focus';
 
 import * as animations from './animations';
 import * as cubieRendering from './cubie-rendering';
@@ -828,6 +829,9 @@ export class BasicView implements CubeView {
     // -------------------------------------------------------------------------
 
     destroy(): void {
+        // Stop being addressable: a destroyed view must not be activatable.
+        unregisterViewContainer(this.getViewType());
+
         // Finalize any running animation
         this.finalizeAnimation();
 

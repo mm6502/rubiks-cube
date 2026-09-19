@@ -15,6 +15,15 @@
  * shared module rather than in `src/interaction/` (view-agnostic policies over
  * cube data, no DOM) or `src/view-manager/` (a layer the views must not depend
  * on).
+ *
+ * ## Two ways in
+ *
+ * `contactView` is the user's route: a pointer-down on the content. `activateView`
+ * is the programmatic route: an id, resolved against a local registry. Both end
+ * in the same three effects, so a caller cannot produce half the interaction by
+ * moving DOM focus directly. The registry lives here rather than in
+ * `view-manager/` because of the layering rule above — resolving a container is
+ * the only thing activation needs from the outside.
  */
 import { getEventBus } from '@/event-bus-accessor';
 import { EventName } from '@/types';
@@ -68,4 +77,64 @@ export function focusViewContainer(container: HTMLElement | null | undefined): v
 export function contactView(container: HTMLElement | null | undefined, viewId: string): void {
     focusViewContainer(container);
     getEventBus().emit(EventName.VIEW_INTERACTED, { viewId });
+}
+
+/**
+ * Live containers by view id, so a view can be activated without a pointer.
+ *
+ * A view registers here when it is created and unregisters when it is destroyed.
+ * This is a registry rather than a view-manager lookup on purpose: this module
+ * must not depend on `view-manager/` (see the header), and resolving a container
+ * is the only piece of activation that the registry needs to supply.
+ */
+const viewContainers = new Map<string, HTMLElement>();
+
+/**
+ * Announce that a view's container exists and can receive activation.
+ *
+ * Idempotent for a repeated id: the latest container wins, which is what a view
+ * re-created on a size switch needs.
+ *
+ * @param viewId The view's registered id, as returned by its `getViewType()`
+ */
+export function registerViewContainer(viewId: string, container: HTMLElement): void {
+    viewContainers.set(viewId, container);
+}
+
+/**
+ * Forget a view's container so a destroyed view cannot be activated.
+ *
+ * @param viewId The id passed to {@link registerViewContainer}
+ */
+export function unregisterViewContainer(viewId: string): void {
+    viewContainers.delete(viewId);
+}
+
+/**
+ * Activate a view by id, with no pointer event required.
+ *
+ * This is the addressable form of contact: it performs the same three effects
+ * {@link contactView} performs — claim DOM focus, report the interaction, and let
+ * the app move its own focus model — but resolves the container from the
+ * registry instead of requiring a caller inside a listener closure.
+ *
+ * It exists because the pointer was previously the *only* way to reach the pair,
+ * which meant an actor that can move DOM focus directly (a script, an
+ * automation driver, a keyboard-only user tabbing in) completed half the
+ * interaction: DOM focus moved while `focusStack` stayed where it was. The two
+ * focus models could therefore disagree, which is the split this mechanism
+ * exists to prevent.
+ *
+ * Calling it for an unknown or destroyed view is safe and does nothing — a
+ * caller cannot know whether a view is currently open, so this must not throw.
+ *
+ * @param viewId The view's registered id
+ * @returns True when a registered container was found and activation ran
+ */
+export function activateView(viewId: string): boolean {
+    const container = viewContainers.get(viewId);
+    if (!container) return false;
+
+    contactView(container, viewId);
+    return true;
 }

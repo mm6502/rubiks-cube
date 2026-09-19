@@ -645,6 +645,25 @@ export class ViewManager implements CommandManager {
     }
 
     /**
+     * Gets the view that owns keyboard input right now, derived from where DOM
+     * focus actually is.
+     *
+     * Distinct from {@link getActiveViewId}, and the distinction is deliberate:
+     * `getActiveViewId` reports the focus *stack*, which drives panel styling and
+     * command rendering and keeps pointing at the last-used view after focus
+     * leaves the views entirely. This accessor reports which view a keystroke
+     * would reach — `undefined` when focus sits on a control outside every view.
+     *
+     * Exposed because routing is otherwise not observable from outside, and a
+     * caller cannot tell the two apart by reading the stack alone.
+     *
+     * @returns The view id holding DOM focus, or undefined when none does
+     */
+    public getViewIdHoldingFocus(): string | undefined {
+        return this.viewIdHoldingFocus();
+    }
+
+    /**
      * Updates the visual focus indication on view panels
      */
     private updateVisualFocus(): void {

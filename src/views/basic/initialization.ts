@@ -3,7 +3,7 @@ import { Application } from '@/application';
 import { ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { EventName } from '@/types';
 import { getDefaultVectors } from '@/views/basic/navigation';
-import { contactView } from '@/views/shared/focus';
+import { contactView, registerViewContainer } from '@/views/shared/focus';
 
 import * as cubieRendering from './cubie-rendering';
 import { initializeGhostAnchors, updateSize } from './rendering';
@@ -154,6 +154,12 @@ function attachContainerListeners(
     container.addEventListener('pointerdown', () => {
         contactView(state.container, state.viewType);
     });
+
+    // Make this view addressable without a pointer, so an actor that can only
+    // move DOM focus directly still completes the whole interaction.
+    if (state.container) {
+        registerViewContainer(state.viewType, state.container);
+    }
 
     // Mouseover/out for highlighting
     cubeElement.addEventListener('mouseover', (event: MouseEvent) => {

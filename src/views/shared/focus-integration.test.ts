@@ -17,6 +17,8 @@ import { circularViewFactory } from '@/views/circular';
 import { FlatView } from '@/views/flat/flat-view';
 import flatStyles from '@/views/flat/flat-view.module.css';
 
+import { activateView } from './focus';
+
 // Minimal model for the circular view. The circular view reads `cubiesById`
 // through Immutable's collection API, so a native Map would fail with
 // "state.cubiesById.filter is not a function".
@@ -145,5 +147,31 @@ describe.each(Object.keys(harnesses))('%s view claims DOM focus on contact', vie
         expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, {
             viewId: harness.expectViewId,
         });
+    });
+
+    it('can be activated programmatically, with no pointer event at all', () => {
+        // The actor-facing path. `activateView` must produce the same three
+        // effects as a real contact, so a caller that can only move DOM focus
+        // directly (a script, a driver) still completes the whole interaction
+        // rather than moving focus while the app's model stays put.
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        // Note: deliberately no `.focus()` call and no PointerEvent — if the
+        // production path required either, this assertion would fail.
+        expect(activateView(harness.expectViewId)).toBe(true);
+
+        expect(document.activeElement).toBe(harness.container);
+        expect(document.activeElement).not.toBe(priorFocus);
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, {
+            viewId: harness.expectViewId,
+        });
+    });
+
+    it('is no longer activatable after destroy', () => {
+        harness.destroy();
+
+        // A destroyed view must not be reachable — otherwise a stale id can take
+        // focus and announce itself as interactive.
+        expect(activateView(harness.expectViewId)).toBe(false);
     });
 });
