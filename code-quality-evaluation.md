@@ -1,6 +1,8 @@
 # Code Quality Evaluation
 
-Last evaluated: 2026-09-05
+Last evaluated: 2026-09-19 at commit `dc4e7d0` (103 test files / 2328 tests, all
+passing; `npm run type-check` clean; coverage 94.33% statements / 85.78%
+branches / 96.30% functions / 95.46% lines).
 
 ## ✅ Strengths
 
@@ -32,15 +34,19 @@ Last evaluated: 2026-09-05
   - Null/undefined checks throughout codebase, especially in view components
 
 - Testing (9/10)
-  - 92 test files covering core functionality
+  - 103 test files covering core functionality
   - Comprehensive unit tests for critical logic (move engine, navigation,
     invariants, state management)
   - Well-structured tests with descriptive names and proper setup/teardown
   - Good coverage of edge cases and integration scenarios
-  - 2039 individual tests passing in the latest run (2026-09-05)
+  - 2328 individual tests passing in the latest run (2026-09-19)
   - Dedicated per-module suites cover animations, corner-orientation,
     cubie-rendering, ghost-stickers, initialization, layer-stability, rendering,
     touch-handler, commands, core API, and manual rotation
+  - Default sticker selection is now pinned across every supported size (2–7) in
+    Basic, Flat and Circular, asserting exact sticker identity rather than mere
+    definedness — the weakness that previously let a 3×3-only hardcoded position
+    survive unnoticed at other sizes
 
 - Code Organization (9/10)
   - Clear directory structure: src/ with logical grouping
@@ -115,16 +121,19 @@ Last evaluated: 2026-09-05
 
 | Metric                 | Value                 |
 | ---------------------- | --------------------- |
-| Test Files:            | 92                    |
-| Test Count:            | 2039 passing tests    |
+| Test Files:            | 103                   |
+| Test Count:            | 2328 passing tests    |
 | TypeScript Check:      | ✅ Passed             |
 | Linting:               | ✅ Passed             |
 | Build:                 | ✅ Passed             |
-| Coverage (statements): | 94.28%                |
-| Coverage (branches):   | 85.93%                |
-| Coverage (functions):  | 96.16%                |
-| Coverage (lines):      | 95.38%                |
+| Coverage (statements): | 94.33%                |
+| Coverage (branches):   | 85.78%                |
+| Coverage (functions):  | 96.30%                |
+| Coverage (lines):      | 95.46%                |
 | Quality Gate:          | ✅ npm run all passed |
+
+Measured at commit `dc4e7d0`. Re-measure rather than quoting these figures after
+any change, since the counts move whenever tests are added.
 
 ## 📈 Per-Module Coverage (current, 2026-09-05)
 

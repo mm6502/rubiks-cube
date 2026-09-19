@@ -1,9 +1,9 @@
 # TODO List
 
-If there are no tasks listed below, it means there are no immediate plans for
-new features or changes. In that case see
-[implementation-status.md](implementation-status.md) for current implementation
-status and future plans.
+This document lists actionable tasks. For the completeness record — what has
+shipped, what is planned, known issues, and the quality snapshot — see
+[implementation-status.md](implementation-status.md). The two deliberately do
+not repeat each other's content, so they cannot drift apart.
 
 ## Current tasks
 
@@ -13,28 +13,44 @@ status and future plans.
       conventional middle slice (`M`/`E`/`S`). See
       [src/docs/move-notation.md](src/docs/move-notation.md).
 
-- [ ] Moves view icon fallback for size-specific moves — numbered slice/wide
-      moves (`2M`, `3E`, `4S`, `2Rw`, ...) render no icon on n>3 cubes; add a
-      family-glyph + notation-label fallback reusing the existing icon set (zero
-      new SVG assets). Requirements:
-      [docs/brainstorms/2026-09-05-moves-view-icon-fallback-requirements.md](docs/brainstorms/2026-09-05-moves-view-icon-fallback-requirements.md)
-  - [ ] Feasibility check (at planning): numbered-wide engine support (path A)
-        vs. notation-regex fallback (path C); scramble pool probability check
-  - [ ] Resolver design (canonical-family on `MoveDefinition`)
-  - [ ] Renderer integration in the Moves view
-  - [ ] Unit tests + browser verification (sizes 4–7)
+- [x] Moves view icon fallback for size-specific moves — numbered slice/wide
+      moves (`2M`, `3E`, `4S`, `2Rw`, ...) render the canonical family glyph
+      with the full notation as a label, reusing the existing icon set (zero new
+      SVG assets). Shipped; see
+      [docs/plans/2026-09-06-001-feat-moves-view-icon-fallback-plan.md](docs/plans/2026-09-06-001-feat-moves-view-icon-fallback-plan.md).
 
-- [ ] Add Circular view support for custom cube sizes (2×2–7×7)
-  - [ ] Add 2×2 support (independent follow-up)
-  - [ ] Add 4×4 support (independent follow-up)
-  - [ ] Add 5×5 support (independent follow-up)
-  - [ ] Add 6×6 support (independent follow-up)
-  - [ ] Add 7×7 support (independent follow-up)
+- [x] Circular view support for custom cube sizes (2×2–7×7) — all sizes served
+      from one generated SVG per size, or built on demand when no asset is
+      committed. Shipped; see
+      [docs/plans/2026-09-17-001-feat-circular-svg-generator-plan.md](docs/plans/2026-09-17-001-feat-circular-svg-generator-plan.md).
+
+- [x] Size-correct default selection across Basic, Flat and Circular. Shipped;
+      see
+      [docs/plans/2026-09-19-001-fix-default-selection-and-doc-truth-up-plan.md](docs/plans/2026-09-19-001-fix-default-selection-and-doc-truth-up-plan.md).
 
 ## Future Tasks
 
 This section outlines tasks that may be addressed in the future, though they are
-not currently scheduled for implementation. Examples include resolving package
-overrides due to security concerns.
+not currently scheduled for implementation.
 
-Currently, there are no items in this category.
+- [ ] Consolidate the duplicated Circular layout parameters. The shipped ellipse
+      values exist in three unsynchronised places:
+      `src/views/circular/svg-generator/parameters.json` (what the app uses),
+      the `PROPOSALS` block in `scripts/circular-layout/render-previews.ts`, and
+      configuration `B` in `scripts/circular-layout/analyse-tangency.ts`.
+      Nothing keeps them in sync, so a change to one silently leaves the others
+      describing a different layout.
+
+- [ ] Port the Circular view's selection-recovery path to Basic and Flat. Both
+      currently dead-end when no sticker is selected: arrow keys return "not
+      handled" (so the browser scrolls the page), Space does nothing, and M/E/S
+      are inert. Reachable after load because tapping the background deselects.
+      Deferred because it changes arrow-key semantics.
+
+- [ ] Replace the private `toFacePosition` in
+      `src/views/circular/svg-generator/ghosts.ts` with the exported
+      `calculateStickerPositionOnFace` — a genuine near-duplicate, but in the
+      geometry layer, so folding it in is a behaviour question rather than a
+      rename.
+
+- [ ] Resolve package overrides due to security concerns, should any arise.

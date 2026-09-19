@@ -3,7 +3,14 @@
 For current code quality evaluation, see
 [code quality evaluation](code-quality-evaluation.md).
 
-Last quality snapshot: 2026-09-05 (92 test files passing; 2039 tests passing).
+Last quality snapshot: **2026-09-19 at commit `dc4e7d0`** — 103 test files
+passing, 2328 tests passing, 94.33% statements / 85.78% branches / 96.30%
+functions / 95.46% lines. (Counts are pinned to that commit because later work
+adds tests; re-measure rather than trusting the figure after any change.)
+
+This document owns the completeness record. [TODO.md](TODO.md) owns actionable
+tasks and deliberately does not repeat this checklist, so the two cannot drift
+apart.
 
 ✅ **Complete (100%)**
 
@@ -40,20 +47,23 @@ Last quality snapshot: 2026-09-05 (92 test files passing; 2039 tests passing).
 - [x] (Sep 2026) Cut over Basic 2 to replace the Basic view — the animated
       per-cubie engine is now the single Basic view (see
       [docs/brainstorms/2026-09-05-basic2-cutover-requirements.md](docs/brainstorms/2026-09-05-basic2-cutover-requirements.md))
+- [x] (Sep 2026) Moves view icon fallback for size-specific moves — every valid
+      notation renders as an icon, with numbered slices and wide moves reusing
+      the family glyph plus a full-notation label (zero new SVG assets). See
+      [docs/plans/2026-09-06-001-feat-moves-view-icon-fallback-plan.md](docs/plans/2026-09-06-001-feat-moves-view-icon-fallback-plan.md)
+- [x] (Sep 2026) Circular view support for every cube size (2×2–7×7) — one
+      generated SVG per size, resolved by active cube size. Assets are optional:
+      a size with no committed file is built in the browser from its parameter
+      set on first use. See
+      [docs/plans/2026-09-17-001-feat-circular-svg-generator-plan.md](docs/plans/2026-09-17-001-feat-circular-svg-generator-plan.md)
+- [x] (Sep 2026) Size-correct default selection — one shared helper derives the
+      centre face position from the active cube size, replacing two hardcoded
+      3×3-only positions and an inconsistent recovery formula. See
+      [docs/plans/2026-09-19-001-fix-default-selection-and-doc-truth-up-plan.md](docs/plans/2026-09-19-001-fix-default-selection-and-doc-truth-up-plan.md)
 
 🚧 **Planned**
 
-- [ ] Moves view icon fallback for size-specific moves (in progress — see
-      [docs/brainstorms/2026-09-05-moves-view-icon-fallback-requirements.md](docs/brainstorms/2026-09-05-moves-view-icon-fallback-requirements.md))
-  - Numbered slice/wide moves render as text on n>3; add family-glyph + label
-    fallback reusing existing icons (no new SVG assets)
-
-- [ ] Add Circular view support for custom cube sizes (2×2–7×7)
-  - [ ] 2×2 (independent follow-up)
-  - [ ] 4×4 (independent follow-up)
-  - [ ] 5×5 (independent follow-up)
-  - [ ] 6×6 (independent follow-up)
-  - [ ] 7×7 (independent follow-up)
+(nothing atm — see Future Enhancements below)
 
 ## Future Enhancements
 
@@ -75,7 +85,16 @@ Last quality snapshot: 2026-09-05 (92 test files passing; 2039 tests passing).
 - [!] Basic view (the sole 3D cube view since the Basic 2 cutover): rotations in
   Firefox over 180° unwind rapidly in the opposite direction (matrix3d scheme)
 
+  Kept deliberately, not carried over by default: this is a real
+  browser-specific behaviour of the `matrix3d` + `transition: transform` scheme
+  that whole-cube view rotation still uses, and move-layer animations are
+  unaffected because they take the WAAPI `rotate3d` path. Removing this entry
+  would require first confirming it still reproduces in Firefox.
+
 ### Long Term (almost certainly not, aka NOT planned)
 
-- [-] 2×2, 4×4, 5×5+ cube visualizations
-- [-] Solver algorithms
+- [-] Solver algorithms (solving a scrambled cube programmatically)
+- [-] Additional view types beyond Flat, Basic, Circular and Moves
+
+> Multi-size visualisations (2×2, 4×4, 5×5+) used to be listed here as not
+> planned. They shipped — see the Complete section above.
