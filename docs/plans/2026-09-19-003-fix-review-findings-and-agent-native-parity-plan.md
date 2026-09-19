@@ -631,9 +631,10 @@ short-circuit) while removing the collision.
 
 ### U5. Make the size selector a first-class command participant
 
-> **Status: re-measured during execution — the routing gap is confirmed, but the
-> double-action premise and this unit's prescribed remedy are refuted. Not
-> implemented as written (see Verification Log).** The gap (a plain arrow is
+> **Status: NOT IMPLEMENTED — moved to follow-up work by explicit decision.**
+> Re-measured during execution: the routing gap is confirmed, but the
+> double-action premise and this unit's prescribed remedy are refuted (see
+> Verification Log, and refutation rows U and V). The gap (a plain arrow is
 > dropped when focus rests on a control outside every view) is real and was
 > re-confirmed on an inert button, so it does not depend on the size radios. The
 > double-action is **not reproducible**: the router has no plain-arrow claimant,
@@ -643,8 +644,9 @@ short-circuit) while removing the collision.
 > `altKey: true`. Views handle plain arrows through
 > `handleKeyDown`/`handleKeyUp`, not through `keyBindings`. Closing the gap
 > safely needs a design that can tell an arrow-consuming control from an inert
-> one — the "tuned predicate" this unit set out to avoid — so it is a decision
-> for the user, not a mechanical change.
+> one — the "tuned predicate" this unit set out to avoid — so it is deferred as
+> its own piece of work rather than solved here. See **Scope Boundaries →
+> Deferred to Follow-Up Work**.
 
 - **Goal:** The size selector is owned by the shared command/ownership rules
   instead of keeping a private listener, so it cannot double-act on a key and
@@ -681,14 +683,16 @@ short-circuit) while removing the collision.
 - **Patterns to follow:** `src/views/basic/commands.ts` for command declaration
   and `keyBindings`; `src/cube/commands/undo-redo.ts` for a non-view command
   with bindings.
-- **Execution note (added after re-measurement — read before implementing):**
-  this unit's Approach and Capture-phase note are **refuted** by the probe
-  recorded in the Verification Log (rows U and V). Do not implement as written.
-  Specifically: there is no double-action to remove, and moving the selector
-  onto `keyBindings` requires adding global plain-arrow commands that do not
-  exist, which creates the both-fire outcome. The surviving work is the routing
-  gap only, and it needs a way to tell an arrow-consuming control from an inert
-  one before it can be closed safely. That is a design decision for the user.
+- **Execution note (added after re-measurement — this unit is deferred):** this
+  unit's Approach and Capture-phase note are **refuted** by the probe recorded
+  in the Verification Log (rows U and V). It was not implemented; the routing
+  gap it identified is moved to **Deferred to Follow-Up Work** under Scope
+  Boundaries. Do not implement as written. Specifically: there is no
+  double-action to remove, and moving the selector onto `keyBindings` requires
+  adding global plain-arrow commands that do not exist, which creates the
+  both-fire outcome. The surviving work is the routing gap only, and it needs a
+  way to tell an arrow-consuming control from an inert one before it can be
+  closed safely.
 - **Test scenarios:**
   - Covers AE8. Focus last on the size control, contact a view, press an arrow
     key: the selection moves and the cube size does not change.
@@ -1949,11 +1953,30 @@ records.
   `selectedFace` + `selectedPosition` in Flat and Circular). The review touched
   this area but the unification is a broader refactor than these findings
   require.
+- **Deferred to Follow-Up Work:** U5 — closing the keyboard-routing gap it
+  identified. The gap is confirmed and small in statement but **not** mechanical
+  to fix: a plain arrow pressed while focus rests on a control that does not
+  consume arrows and belongs to no view is dropped (`viewIdHoldingFocus()`
+  reports `undefined`, so the router delegates to nothing). Every other part of
+  U5 did not survive measurement — there is no double-action to remove, the size
+  selector is not papering over the gap, and the prescribed remedy (move the
+  selector onto `keyBindings`) would require adding global plain-arrow commands
+  that do not exist, which creates the both-fire outcome it was meant to
+  prevent. A correct fix needs a way to distinguish an arrow-consuming control
+  from an inert one, which is the predicate the unit set out to avoid. Deferred
+  as its own piece of work with its measurements recorded (Verification Log, and
+  refutation rows U and V), so the next attempt starts from evidence rather than
+  from the refuted premise.
 - **Deferred to Follow-Up Work:** removing `BasicView`'s remaining size beyond
   the re-anchor extraction in U7. The file stays large; further decomposition is
   a separate piece of work.
 - **Deferred to Follow-Up Work:** the pre-existing weak coverage in
   `src/cube/core/move-engine.ts`, which is unrelated to this change set.
+- **Deferred to Follow-Up Work:** the repo-wide vitest-globals drift U10
+  surfaced — 78 of 110 test files import `describe`/`it`/`expect` from
+  `'vitest'`, which AGENTS.md forbids, yet `npx eslint .` passes. Either a lint
+  rule should enforce the documented standard or the doc should be softened;
+  both are repo-wide decisions rather than part of this change set.
 
 ---
 
