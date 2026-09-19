@@ -335,8 +335,8 @@ export class BasicView implements CubeView {
             if (cubie.type === CubieType.VIRTUAL_CENTER) continue;
             for (const sticker of cubie.stickers.values()) {
                 candidates.push({
-                    id: sticker.id as StickerId,
-                    face: sticker.currentFace as Face,
+                    id: sticker.id,
+                    face: sticker.currentFace,
                     position: sticker.facePosition,
                 });
             }
@@ -361,7 +361,7 @@ export class BasicView implements CubeView {
         if (!sticker) return undefined;
 
         return visualCellOfSticker(
-            { face: sticker.currentFace as Face, position: sticker.facePosition },
+            { face: sticker.currentFace, position: sticker.facePosition },
             cubeState.cubeSize,
             this.orientation()
         );
@@ -499,7 +499,7 @@ export class BasicView implements CubeView {
         /* c8 ignore if — sticker always found for valid currentSelected */
         if (!sticker) return;
 
-        const face = sticker.currentFace as Face;
+        const face = sticker.currentFace;
         const current = this.touchHandler.getSelectedFace();
         this.touchHandler.selectFace(current === face ? undefined : face);
     }
@@ -732,10 +732,22 @@ export class BasicView implements CubeView {
     }
 
     alignCubeToView(): void {
-        alignCubeToView(this.state);
-        updateRotation(this.state, true);
-        updateFaceLabels(this.state);
-        this.updateGhostEdges();
+        // The sixth orientation entry point, wrapped for the same reason as the
+        // five above. Measured: this one changes the front face (a rotate-left
+        // then align goes R -> F), so the contract applies.
+        //
+        // Unlike its siblings, though, its selection survives unwrapped — it
+        // emits whole-cube moves, so the model changes and the MOVE_EXECUTED
+        // path re-resolves the selection by position. The wrapper here is
+        // therefore defence in depth, keeping the entry points uniform rather
+        // than fixing a live defect. It also protects the invariant if that
+        // move-emission path ever stops reconciling.
+        this.preserveSelectionAcrossOrientationChange(() => {
+            alignCubeToView(this.state);
+            updateRotation(this.state, true);
+            updateFaceLabels(this.state);
+            this.updateGhostEdges();
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -764,6 +776,13 @@ export class BasicView implements CubeView {
         // record an orientation in which the current selection sits on a face
         // behind the cube, and the re-anchor below resolves it back onto the
         // front face rather than restoring an invisible selection.
+        //
+        // Measured, because the ordering looks wrong at a glance: `reanchorSelection`
+        // resolves against the front face *at call time*, so the invariant holds
+        // whether the cell is captured here or after the branch below. The two
+        // orderings differ in intent, not in visibility — capturing here is
+        // "keep this visual cell across the restore", capturing later would be a
+        // no-op for a centre selection. Left as intended.
         const cellBefore = this.selectionVisualCell();
 
         // Migrate old format — reset to default.
@@ -819,8 +838,9 @@ export class BasicView implements CubeView {
         updateRotation(this.state, true);
         updateFaceLabels(this.state);
 
-        // The saved orientation is now in effect, so resolve the selection's
-        // cell against it.
+        // Resolve the captured cell against the orientation now in effect.
+        // Unchanged from the reviewed code — see the capture site for why the
+        // ordering is deliberate rather than a defect.
         this.reanchorSelection(cellBefore);
     }
 

@@ -197,3 +197,126 @@ describe('Basic selection anchor is reconciled when the model changes', () => {
         harness.dispose();
     });
 });
+
+// ─── Orientation entry points keep the selection visible ────────────────────
+//
+// The re-anchor contract has to hold at *every* entry point that changes the
+// view's orientation, not only the arrow-key path. These cover the two that
+// previously did not: restoring a saved state, and `alignCubeToView`.
+//
+// The defect class: the selection is a sticker id plus a spatial anchor, and an
+// orientation change moves which faces the user can see without touching either.
+// An entry point that skips the re-anchor can therefore leave the selection on a
+// face behind the cube, with `getSelectedSticker()` still reporting it happily.
+describe('every orientation entry point keeps the selection visible', () => {
+    afterEach(() => {
+        Application.eventBus.removeAllListeners();
+        document.body.innerHTML = '';
+        vi.restoreAllMocks();
+    });
+
+    /**
+     * The face the user is looking at, per the view's own orientation rule.
+     *
+     * Asserting against `viewFrontFace` rather than a private field keeps this
+     * reading the same notion of "visible" the app itself uses.
+     */
+    async function frontFace(view: BasicView): Promise<string> {
+        const { viewFrontFace } = await import('@/views/basic/navigation');
+        const state = (view as unknown as { state: Parameters<typeof viewFrontFace>[0] }).state;
+        return `${viewFrontFace(state)}`;
+    }
+
+    /** The face the reported selection currently sits on. */
+    function selectedFace(harness: Harness): string {
+        const selected = harness.view.getSelectedSticker();
+        expect(selected, 'a selection exists').toBeDefined();
+        const sticker = CubeStateUtils.getStickerById(
+            harness.model.getCurrentState(),
+            selected as never
+        );
+        expect(sticker, 'the reported sticker exists in the model').toBeDefined();
+        return `${sticker!.currentFace}`;
+    }
+
+    it('keeps the selection on the front face when a legacy orientation is restored (AE5)', async () => {
+        // The legacy payload's presence of xRotation takes the migration branch,
+        // which calls `resetView`.
+        //
+        // Scope note, measured: this asserts the *invariant*, and it passes with
+        // either capture ordering in `setState` — `reanchorSelection` resolves
+        // against the front face at call time, so visibility does not depend on
+        // when the cell was captured. The ordering is therefore intent (keep this
+        // visual cell), not a visibility fix. Kept as an invariant guard.
+        const harness = build(3, 'none');
+
+        harness.view.setState({ xRotation: 0, yRotation: 90, zRotation: 0 });
+
+        expect(selectedFace(harness)).toBe(await frontFace(harness.view));
+
+        harness.dispose();
+    });
+
+    it('keeps the selection on the front face when an orientation-vector state is restored', async () => {
+        const harness = build(3, 'none');
+
+        // The non-migration branch, which assigns the vectors directly.
+        harness.view.setState({
+            viewRight: { x: 0, y: 0, z: -1 },
+            viewUp: { x: 0, y: 1, z: 0 },
+            viewForward: { x: 1, y: 0, z: 0 },
+        });
+
+        expect(selectedFace(harness)).toBe(await frontFace(harness.view));
+
+        harness.dispose();
+    });
+
+    it('keeps the selection on the front face after alignCubeToView', async () => {
+        // `alignCubeToView` changes the front face (measured: rotate-left then
+        // align goes R -> F), so it is held to the same contract as the other
+        // orientation commands.
+        //
+        // Honest scope note: this test asserts the *invariant*, and it passes
+        // whether or not `alignCubeToView` carries the wrapper — the command
+        // emits whole-cube moves, so the model changes and the MOVE_EXECUTED
+        // path already re-resolves the selection by position. It is a genuine
+        // invariant guard, not proof of the wrapper. The wrapper's own
+        // contribution is covered by the five-command test below.
+        const harness = build(3, 'none');
+
+        // Move away from the default orientation first, so align has real work.
+        harness.view.rotateViewLeft();
+        harness.view.rotateViewUp();
+
+        harness.view.alignCubeToView();
+
+        expect(selectedFace(harness)).toBe(await frontFace(harness.view));
+
+        harness.dispose();
+    });
+
+    it('keeps the selection on the front face across the five wrapped commands', async () => {
+        // The load-bearing test for the wrapper contract. Verified by negative
+        // control: unwrapping `rotateViewLeft` makes this fail with
+        // `expected 'F' to be 'R'` — the selection left on the pre-rotation face
+        // while the view shows a different one.
+        const harness = build(3, 'none');
+
+        const commands: Array<[string, () => void]> = [
+            ['rotateViewLeft', () => harness.view.rotateViewLeft()],
+            ['rotateViewRight', () => harness.view.rotateViewRight()],
+            ['rotateViewUp', () => harness.view.rotateViewUp()],
+            ['rotateViewDown', () => harness.view.rotateViewDown()],
+            ['resetView', () => harness.view.resetView()],
+        ];
+
+        for (const [name, run] of commands) {
+            run();
+
+            expect(selectedFace(harness), `after ${name}`).toBe(await frontFace(harness.view));
+        }
+
+        harness.dispose();
+    });
+});
