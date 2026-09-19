@@ -1,12 +1,9 @@
 /*
  * Functions to help with keyboard navigation of stickers in the Circular Cube View.
  */
-import { Face, StickerId } from '@/cube/types';
+import { StickerId } from '@/cube/types';
 import { compareValues, distance2 } from '@/cube/utils';
-import { CubeStateUtils } from '@/cube/utils/state-conversion';
-import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { getAdjacentStickerOnSurface } from '@/cube/utils/surface-walking';
-import { logger } from '@/diagnostics/logger';
 import { NavDirection } from '@/types';
 
 import { AxisCircle, getCenterOfElement, getRadiusOfElement } from './svg-tools';
@@ -72,19 +69,15 @@ export function navigate(
 
     if (!state.model) return false;
 
-    // If no sticker is selected, try to recover from spatial anchors or a default.
-    if (!state.currentSelected) {
-        if (preview) {
-            // Recovery is possible — signal that we'd handle this key.
-            return true;
-        }
-        const recovered = recoverSelection(state, onSelected);
-        if (!recovered) {
-            logger.error('[Circular Navigation] No sticker selected or model unavailable.');
-            return false;
-        }
-        return true;
-    }
+    // Nothing selected — nothing to navigate from, so report the key as
+    // unhandled rather than inventing a selection. This matches Basic and Flat,
+    // whose navigation returns false for the same case.
+    //
+    // This used to attempt a recovery from saved spatial anchors. That existed
+    // only because tapping the halo or the same sticker again cleared the
+    // selection; those paths are gone, so the state is no longer reachable and
+    // the recovery is a guard rather than a feature.
+    if (!state.currentSelected) return false;
 
     let nextStickerId: StickerId | undefined;
 
@@ -138,63 +131,6 @@ function navigateSurface(
     if (!state.model || !state.currentSelected) return undefined;
     const cubeState = state.model.getCurrentState();
     return getAdjacentStickerOnSurface(cubeState, state.currentSelected, direction);
-}
-
-/**
- * Attempt to recover a sticker selection when `currentSelected` is lost.
- *
- * Recovery priority:
- * 1. Use saved spatial anchors (`selectedFace` + `selectedPosition`) to find the sticker at that position.
- * 2. If only `selectedFace` is available, pick the center sticker of that face.
- * 3. Last resort: pick the center sticker of Face.F — the same position the view
- *    uses as its initial default selection, both derived from `centerFacePosition`
- *    so the two cannot disagree at even sizes.
- *
- * @returns true if a sticker was recovered and selected, false otherwise.
- */
-export function recoverSelection(
-    state: CircularCubeViewInternalData,
-    onSelected?: (id: StickerId) => void
-): boolean {
-    if (!state.model) return false;
-    const cubeState = state.model.getCurrentState?.();
-    if (!cubeState) return false;
-    const centerPos = centerFacePosition(cubeState.cubeSize);
-
-    // 1. Try exact spatial anchor (face + position).
-    if (state.selectedFace != null && state.selectedPosition != null) {
-        const sticker = CubeStateUtils.getStickerAt(
-            cubeState,
-            state.selectedFace as Face,
-            state.selectedPosition
-        );
-        if (sticker) {
-            onSelected?.(sticker.id);
-            return true;
-        }
-    }
-
-    // 2. Try center of the remembered face.
-    if (state.selectedFace != null) {
-        const sticker = CubeStateUtils.getStickerAt(
-            cubeState,
-            state.selectedFace as Face,
-            centerPos
-        );
-        if (sticker) {
-            onSelected?.(sticker.id);
-            return true;
-        }
-    }
-
-    // 3. Last resort: center of F face.
-    const sticker = CubeStateUtils.getStickerAt(cubeState, Face.F, centerPos);
-    if (sticker) {
-        onSelected?.(sticker.id);
-        return true;
-    }
-
-    return false;
 }
 
 /**
