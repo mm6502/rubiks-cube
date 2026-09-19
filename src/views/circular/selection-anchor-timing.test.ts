@@ -159,6 +159,25 @@ function build(size: number): Harness {
 
 const KEYS = ['ArrowRight', 'ArrowUp'];
 
+// The animation and media-query stubs are raw `Object.defineProperty` writes, and
+// `vi.restoreAllMocks()` does not unwind those — it only restores `vi.spyOn`
+// spies. Without the restore below, a stub outlives its own test and a later test
+// in the same worker silently sees it. Verified by probe: the patched
+// `Element.prototype.animate` was still present after this suite's teardown.
+const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+const originalElementAnimate = Object.getOwnPropertyDescriptor(Element.prototype, 'animate');
+
+afterEach(() => {
+    if (originalMatchMedia) Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+    else Reflect.deleteProperty(window, 'matchMedia');
+
+    if (originalElementAnimate) {
+        Object.defineProperty(Element.prototype, 'animate', originalElementAnimate);
+    } else {
+        Reflect.deleteProperty(Element.prototype, 'animate');
+    }
+});
+
 describe('Circular selection ends up on the circle the user sees', () => {
     afterEach(() => {
         Application.eventBus.removeAllListeners();
@@ -196,9 +215,12 @@ describe('Circular selection ends up on the circle the user sees', () => {
         for (const key of KEYS) harness.press(key);
         await harness.settle();
 
-        expect(harness.highlightedCount()).toBe(1);
-        // The reported fast path ended on D.
-        expect(harness.highlightedFace()).not.toBe('D');
+        // Assert the face that is *expected*, not merely the absence of one wrong
+        // face: `not.toBe('D')` also passed on 'NONE' (nothing highlighted) and on
+        // every other wrong face, so it could not distinguish a correct result
+        // from a different regression.
+        expect(harness.highlightedCount(), 'exactly one circle is selected').toBe(1);
+        expect(harness.highlightedFace(), 'highlight stays on the front face').toBe('F');
 
         harness.dispose();
     });
@@ -209,7 +231,12 @@ describe('Circular selection ends up on the circle the user sees', () => {
             slow.press(key);
             await slow.settle();
         }
+        // Pin both sides before comparing. `NONE` (no circle marked) is not a face,
+        // so two empty highlights would otherwise satisfy the equality below — the
+        // parity assertion could pass while both paths were broken.
+        expect(slow.highlightedCount(), 'slow path highlights one circle').toBe(1);
         const slowFace = slow.highlightedFace();
+        expect(slowFace, 'slow path reaches a real face').not.toBe('NONE');
         slow.dispose();
 
         Application.eventBus.removeAllListeners();
@@ -218,7 +245,9 @@ describe('Circular selection ends up on the circle the user sees', () => {
         const fast = build(5);
         for (const key of KEYS) fast.press(key);
         await fast.settle();
+        expect(fast.highlightedCount(), 'fast path highlights one circle').toBe(1);
         const fastFace = fast.highlightedFace();
+        expect(fastFace, 'fast path reaches a real face').not.toBe('NONE');
         fast.dispose();
 
         expect(fastFace).toBe(slowFace);
@@ -241,7 +270,7 @@ describe('Circular selection ends up on the circle the user sees', () => {
         harness.dispose();
     });
 
-    it.each(SUPPORTED_SIZES.filter(n => n > 3))(
+    it.each([...SUPPORTED_SIZES])(
         'keeps exactly one highlight on the front face at size %i',
         async size => {
             const harness = build(size);

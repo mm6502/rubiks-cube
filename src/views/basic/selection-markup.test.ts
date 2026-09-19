@@ -1,7 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import { CubeController } from '@/cube-controller';
-import { StickerId } from '@/cube/types';
+import { SUPPORTED_SIZES, StickerId } from '@/cube/types';
 import { BasicView } from '@/views/basic/basic-view';
 import styles from '@/views/basic/basic-view.module.css';
 
@@ -122,7 +120,7 @@ describe('BasicView selection markup survives a DOM rebuild', () => {
         container.remove();
     });
 
-    it.each([2, 4, 5, 6, 7])('survives the rebuild at size %i', cubeSize => {
+    it.each([...SUPPORTED_SIZES])('survives the rebuild at size %i', cubeSize => {
         const container = document.createElement('div');
         Object.defineProperty(container, 'clientWidth', { value: 600 });
         Object.defineProperty(container, 'clientHeight', { value: 600 });

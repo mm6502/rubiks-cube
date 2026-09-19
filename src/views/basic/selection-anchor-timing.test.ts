@@ -37,6 +37,25 @@ interface Harness {
 /** How the animation is allowed to behave for a given scenario. */
 type AnimationMode = 'pending' | 'resolved' | 'none';
 
+// The animation stubs below are raw `Object.defineProperty` writes, and
+// `vi.restoreAllMocks()` does not unwind those — it only restores `vi.spyOn`
+// spies. Without the restore below, a stub outlives its own test and a later
+// test in the same worker silently sees it. Verified by probe: the patched
+// `HTMLElement.prototype.animate` was still present after teardown.
+const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+const originalHtElementAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'animate');
+
+afterEach(() => {
+    if (originalMatchMedia) Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+    else Reflect.deleteProperty(window, 'matchMedia');
+
+    if (originalHtElementAnimate) {
+        Object.defineProperty(HTMLElement.prototype, 'animate', originalHtElementAnimate);
+    } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+    }
+});
+
 /**
  * Builds a Basic view with the front centre selected, plus a recorded
  * MOVE_EXECUTED event, under the requested animation behaviour.
@@ -173,7 +192,7 @@ describe('Basic selection anchor is reconciled when the model changes', () => {
         expect(noAnimation).toEqual(pending);
     });
 
-    it.each(SUPPORTED_SIZES.filter(n => n > 3))('agrees across timings at size %i', async size => {
+    it.each([...SUPPORTED_SIZES])('agrees across timings at size %i', async size => {
         const pending = await sequence('pending', KEYS, size);
         const resolved = await sequence('resolved', KEYS, size);
 
