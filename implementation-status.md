@@ -14,10 +14,21 @@ apart.
 
 ✅ **Complete (100%)**
 
+- [x] (Sep 2026) Selection behaves identically in all three views — clearing a
+      face highlight (tapping the background, the halo, or the same sticker
+      again) keeps the sticker selected, so keyboard navigation continues from
+      it instead of dead-ending. Only Circular used to drop the selection, and
+      the recovery path that compensated for it is gone with it.
 - [x] (Sep 2026) Size-correct default selection — one shared helper derives the
       centre face position from the active cube size, replacing two hardcoded
       3×3-only positions and an inconsistent recovery formula. See
       [docs/plans/2026-09-19-001-fix-default-selection-and-doc-truth-up-plan.md](docs/plans/2026-09-19-001-fix-default-selection-and-doc-truth-up-plan.md)
+- [x] (Sep 2026) M/E/S slice moves follow the current selection above 3×3 — the
+      slice turns the layer the selected sticker sits in, labelled with that
+      layer (`4M`, `2E`, `3S`). The three families track their axes
+      independently, so at most two are available at once. 3×3 keeps the
+      conventional fixed middle slice; 2×2 has none. See
+      [src/docs/move-notation.md](src/docs/move-notation.md)
 - [x] (Sep 2026) Circular view support for every cube size (2×2–7×7) — one
       generated SVG per size, resolved by active cube size. Assets are optional:
       a size with no committed file is built in the browser from its parameter
