@@ -105,11 +105,11 @@ describe('EventBus', () => {
         // arrange
         const listener1 = vi.fn();
         const listener2 = vi.fn();
-        eventBus.on(EventName.COMMAND_EXECUTED, listener1);
-        eventBus.on(EventName.COMMAND_EXECUTED, listener2);
+        eventBus.on(EventName.MOVE_REQUESTED, listener1);
+        eventBus.on(EventName.MOVE_REQUESTED, listener2);
 
         // act & assert
-        expect(eventBus.listenerCount(EventName.COMMAND_EXECUTED)).toBe(2);
+        expect(eventBus.listenerCount(EventName.MOVE_REQUESTED)).toBe(2);
     });
 
     it('should remove all listeners', () => {

@@ -3,7 +3,6 @@ import { Axis, Face, Position3D, ReadOnlyCubeModel, StickerId } from '@/cube/typ
 import { getPositionKey } from '@/cube/utils';
 import { logger } from '@/diagnostics/logger';
 import { EventName } from '@/types';
-import { focusViewContainer } from '@/views/shared/focus';
 
 import { assertLoadable } from './svg-loader';
 import { AxisCircle, SVGAxisCoords, getCenterOfElement, isPointOnCircle } from './svg-tools';
@@ -266,10 +265,6 @@ export function initialize(
 
     // Make container focusable for keyboard navigation
     container.tabIndex = 0;
-
-    // Claim keyboard focus when the user contacts the view's content — see
-    // `focusViewContainer` for why this is on pointerdown and on the container.
-    container.addEventListener('pointerdown', () => focusViewContainer(container));
 
     // Resolve the asset for the active cube size. If a committed `view-<n>.svg` is
     // present the loader serves it; otherwise it generates the markup on demand from

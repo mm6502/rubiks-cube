@@ -8,8 +8,10 @@
 // without a single place failing.
 import { Map as IMap } from 'immutable';
 
+import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
 import { CubeState, Cubie, CubieId, PositionKey } from '@/cube/types';
+import { EventName } from '@/types';
 import { BasicView } from '@/views/basic/basic-view';
 import { circularViewFactory } from '@/views/circular';
 import { FlatView } from '@/views/flat/flat-view';
@@ -34,6 +36,8 @@ const circularModel = {
 
 interface ViewHarness {
     name: string;
+    /** The id the view registers itself under, as emitted in `viewInteracted`. */
+    expectViewId: string;
     container: HTMLElement;
     destroy: () => void;
 }
@@ -47,6 +51,7 @@ const harnesses: Record<string, () => ViewHarness> = {
         view.create(container, new CubeController());
         return {
             name: 'basic',
+            expectViewId: 'basic-front',
             container,
             destroy: () => {
                 view.destroy();
@@ -61,6 +66,7 @@ const harnesses: Record<string, () => ViewHarness> = {
         view.create(container, circularModel);
         return {
             name: 'circular',
+            expectViewId: 'circular',
             container,
             destroy: () => {
                 view.destroy();
@@ -75,6 +81,7 @@ const harnesses: Record<string, () => ViewHarness> = {
         view.create(container, new CubeController());
         return {
             name: 'flat',
+            expectViewId: 'flat',
             container,
             destroy: () => {
                 view.destroy();
@@ -102,6 +109,8 @@ describe.each(Object.keys(harnesses))('%s view claims DOM focus on contact', vie
     afterEach(() => {
         harness.destroy();
         priorFocus.remove();
+        Application.eventBus.removeAllListeners();
+        vi.restoreAllMocks();
     });
 
     it('is not focused before any contact (control test)', () => {
@@ -124,5 +133,17 @@ describe.each(Object.keys(harnesses))('%s view claims DOM focus on contact', vie
         // If tabIndex were left at -1 the container could not become
         // activeElement, so the assertion above would be impossible to satisfy.
         expect(harness.container.tabIndex).toBe(0);
+    });
+
+    it('announces the interaction with this view id', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        harness.container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, {
+            viewId: harness.expectViewId,
+        });
     });
 });

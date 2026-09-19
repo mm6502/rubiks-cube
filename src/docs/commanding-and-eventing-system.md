@@ -61,7 +61,8 @@ from view-specific controls, and managing animations coherently.
   - `moveExecuted`: Emitted after moves, with comprehensive state change
     information.
   - `highlightChanged`: For sticker highlighting.
-  - `viewInteracted`: For focus management.
+  - `viewInteracted`: For focus management. Emitted by a view when the user
+    contacts its content (pointer-down anywhere in the view).
 
 **Enhanced MoveExecutedEvent Benefits (Implemented):**
 
@@ -112,8 +113,22 @@ Views implement different update strategies:
 **Implementation Notes:**
 
 1. **Focus Determination:** Stack-based system where last interacted view has
-   priority. Views emit `viewInteracted` on mouse enter/click. ViewManager
-   maintains stack.
+   priority. ViewManager maintains the stack and is subscribed to
+   `viewInteracted`, which views emit when the user contacts their content. Two
+   independent routes reach the same call, and they are not redundant:
+   - **Panel chrome.** `PanelInteractionHandler` listens for `pointerdown` on
+     the `#visualizations` ancestor and resolves the panel with
+     `target.closest('.view-panel')`. Because the listener is on an ancestor, a
+     pointer-down anywhere inside a panel already reaches it — including a
+     pointer-down on the view's content, not just its header or resize handles.
+     This is why the stack is _not_ driven by panel chrome alone.
+   - **View content.** Views additionally emit `viewInteracted` with their own
+     id when their content is contacted. This is the documented contract, and it
+     is what makes the mechanism inspectable rather than implicit.
+
+   Contact also claims DOM focus for the view's container, so the element that
+   receives keyboard events and the view the app considers active cannot
+   disagree.
 
 2. **Event Granularity:** Core events implemented: `stickerSelected`,
    `moveRequested`, `moveExecuted`, `highlightChanged`, `viewInteracted`.

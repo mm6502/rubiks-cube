@@ -3,7 +3,7 @@ import { Application } from '@/application';
 import { ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { EventName } from '@/types';
 import { getDefaultVectors } from '@/views/basic/navigation';
-import { focusViewContainer } from '@/views/shared/focus';
+import { contactView } from '@/views/shared/focus';
 
 import * as cubieRendering from './cubie-rendering';
 import { initializeGhostAnchors, updateSize } from './rendering';
@@ -152,7 +152,7 @@ function attachContainerListeners(
     // (through the document-level capture handler) and that widget — the user
     // sees the cube resize while trying to move the selection.
     container.addEventListener('pointerdown', () => {
-        focusViewContainer(state.container);
+        contactView(state.container, state.viewType);
     });
 
     // Mouseover/out for highlighting

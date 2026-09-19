@@ -6,7 +6,10 @@
 // browser (it decides which element receives arrow keys), not just tracked in
 // a variable. A bug where the view "knows" it is focused but the DOM disagrees
 // is exactly the defect these tests exist to catch.
-import { focusViewContainer } from './focus';
+import { Application } from '@/application';
+import { EventName } from '@/types';
+
+import { contactView, focusViewContainer } from './focus';
 
 describe('focusViewContainer', () => {
     afterEach(() => {
@@ -99,5 +102,45 @@ describe('focusViewContainer', () => {
         focusViewContainer(container);
 
         expect(document.activeElement).toBe(container);
+    });
+});
+
+describe('contactView', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+        Application.eventBus.removeAllListeners();
+        vi.restoreAllMocks();
+    });
+
+    it('focuses the container and announces the interaction, in one call', () => {
+        const container = document.createElement('div');
+        container.tabIndex = 0;
+        document.body.appendChild(container);
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        contactView(container, 'flat');
+
+        expect(document.activeElement).toBe(container);
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+    });
+
+    it('announces the interaction even when focus cannot be claimed', () => {
+        // A detached container cannot take focus, but the user did interact with
+        // that view — so the app must still learn about it.
+        const detached = document.createElement('div');
+        detached.tabIndex = 0;
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        contactView(detached, 'circular');
+
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, { viewId: 'circular' });
+    });
+
+    it('does not throw for a null container', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        expect(() => contactView(null, 'flat')).not.toThrow();
+
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, { viewId: 'flat' });
     });
 });

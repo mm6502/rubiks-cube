@@ -6,6 +6,7 @@ import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { getEventBus } from '@/event-bus-accessor';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
+import { contactView } from '@/views/shared/focus';
 
 import * as highlights from './highlights';
 import * as initialization from './initialization';
@@ -63,6 +64,13 @@ export class CircularCubeView implements CubeView {
         // Uses the view type string so the initialization module doesn't need a view instance.
         initialization.attachStickerEventListeners(this.state, this.getViewType(), id =>
             this.updateSelected(id)
+        );
+
+        // Claim keyboard focus and announce the interaction when the user contacts
+        // this view. Wired here rather than in `initialization.initialize` because
+        // that function does not receive the view id the event payload requires.
+        container.addEventListener('pointerdown', () =>
+            contactView(this.state.container, this.getViewType())
         );
 
         // Wire up zoom/pan on the scaffold elements added by initialization.

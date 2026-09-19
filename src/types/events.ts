@@ -36,7 +36,6 @@ export const EventName = {
     REDO_REQUESTED: 'redoRequested',
     VIEW_INTERACTED: 'viewInteracted',
     VIEW_STATE_CHANGED: 'viewStateChanged',
-    COMMAND_EXECUTED: 'commandExecuted',
     CUBE_RESET_REQUESTED: 'cubeResetRequested',
     CUBE_SCRAMBLE_REQUESTED: 'cubeScrambleRequested',
     STORAGE_CLEAR_REQUESTED: 'storageClearRequested',
@@ -165,22 +164,6 @@ export interface ViewStateChangedEvent {
 }
 
 /**
- * Event emitted when a command is executed by a view.
- * Used for command tracking and UI state management.
- */
-export interface CommandExecutedEvent {
-    /**
-     * Unique identifier of the command that was executed.
-     */
-    commandId: string;
-
-    /**
-     * ID of the view that executed the command.
-     */
-    viewId: string;
-}
-
-/**
  * Event emitted when the highlighted sticker changes (e.g., mouseover/mouseout).
  */
 export interface HighlightChangedEvent {
@@ -277,7 +260,6 @@ export type EventPayload =
     | MoveRequestedEvent
     | MoveExecutedEvent
     | ViewInteractedEvent
-    | CommandExecutedEvent
     | HighlightChangedEvent
     | CubeResetRequestedEvent
     | CubeScrambleRequestedEvent

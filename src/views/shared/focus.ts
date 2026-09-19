@@ -16,6 +16,8 @@
  * cube data, no DOM) or `src/view-manager/` (a layer the views must not depend
  * on).
  */
+import { getEventBus } from '@/event-bus-accessor';
+import { EventName } from '@/types';
 
 /**
  * Give a view's container keyboard focus.
@@ -45,4 +47,25 @@ export function focusViewContainer(container: HTMLElement | null | undefined): v
     if (!container.isConnected) return;
 
     container.focus({ preventScroll: true });
+}
+
+/**
+ * Handle the user contacting a view's content: claim DOM focus and tell the app
+ * which view was used.
+ *
+ * These two steps belong together. Focus decides which element receives the
+ * keystroke; the event updates the app's own focus model, which drives active-view
+ * styling and command routing. Wiring them as one call means a view cannot end up
+ * claiming focus without announcing itself, or announcing itself without actually
+ * taking focus — a divergence that would show up only as subtle misrouting.
+ *
+ * The view id is announced even when focus could not be claimed (a detached
+ * container), because the interaction did happen and the app should reflect it.
+ *
+ * @param container The view's content container, or `null`/`undefined` if absent
+ * @param viewId The view's registered id, as returned by its `getViewType()`
+ */
+export function contactView(container: HTMLElement | null | undefined, viewId: string): void {
+    focusViewContainer(container);
+    getEventBus().emit(EventName.VIEW_INTERACTED, { viewId });
 }

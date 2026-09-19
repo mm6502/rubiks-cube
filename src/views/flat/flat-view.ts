@@ -4,7 +4,7 @@ import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils, createFlatView } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
-import { focusViewContainer } from '@/views/shared/focus';
+import { contactView } from '@/views/shared/focus';
 
 import * as commands from './commands';
 import * as legendDrag from './legend-drag';
@@ -132,7 +132,7 @@ export class FlatView implements CubeView {
         // Claim keyboard focus on contact, so arrow keys reach this view rather
         // than whatever control held focus before.
         this.state.container.addEventListener('pointerdown', () =>
-            focusViewContainer(this.state.container)
+            contactView(this.state.container, this.getViewType())
         );
 
         // Create the flat view container

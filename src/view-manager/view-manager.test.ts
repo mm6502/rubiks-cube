@@ -1308,4 +1308,117 @@ describe('ViewManager', () => {
             expect(action).toHaveBeenCalled();
         });
     });
+
+    // ─── VIEW_INTERACTED: content-level contact drives the focus model ───────
+
+    describe('viewInteracted updates the focus model', () => {
+        /** Registers an open view under `id` so it can become active. */
+        function registerView(id: string): void {
+            viewManager['activeViews'].set(id, {
+                view: { getViewType: () => id } as any,
+                container: document.createElement('div'),
+            });
+        }
+
+        it('makes the named view active when it is emitted', () => {
+            // Arrange
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            viewManager.initialize();
+            registerView('basic-front');
+            registerView('flat');
+
+            // Act
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+
+            // Assert
+            expect(viewManager.getActiveViewId()).toBe('flat');
+        });
+
+        it('ignores an unknown view id without throwing', () => {
+            // Arrange — a view can be destroyed while a report is in flight.
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            viewManager.initialize();
+            registerView('flat');
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+
+            // Act & Assert
+            expect(() =>
+                Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'ghost-view' })
+            ).not.toThrow();
+            expect(viewManager.getActiveViewId()).toBe('flat');
+        });
+
+        it('reaches the same active view as the panel-chrome route', () => {
+            // Arrange — the two routes to activation must agree, or the app has
+            // two conflicting notions of which view is in use.
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            viewManager.initialize();
+            registerView('basic-front');
+            registerView('circular');
+
+            // Act — content route.
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'circular' });
+            const viaContent = viewManager.getActiveViewId();
+
+            // Act — panel-chrome route.
+            viewManager.updateFocus('circular');
+
+            // Assert
+            expect(viaContent).toBe('circular');
+            expect(viewManager.getActiveViewId()).toBe(viaContent);
+        });
+
+        it('does not leave a disposed manager reacting to the event', () => {
+            // Arrange — this is the accumulating-listener failure the fifth
+            // subscription is most likely to introduce, since switching cube size
+            // disposes and recreates the ViewManager.
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            viewManager.initialize();
+            registerView('flat');
+
+            const updateFocusSpy = vi.spyOn(viewManager, 'updateFocus');
+
+            // Act
+            viewManager.dispose();
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+
+            // Assert
+            expect(updateFocusSpy).not.toHaveBeenCalled();
+        });
+
+        it('keeps exactly one subscription after dispose and re-initialise', () => {
+            // Arrange — measure deltas rather than absolute counts, because other
+            // tests in this file leave managers un-disposed.
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            const baseline = Application.eventBus.listenerCount(EventName.VIEW_INTERACTED);
+
+            viewManager.initialize();
+            const addedByFirst =
+                Application.eventBus.listenerCount(EventName.VIEW_INTERACTED) - baseline;
+
+            viewManager.dispose();
+            const remainingAfterDispose =
+                Application.eventBus.listenerCount(EventName.VIEW_INTERACTED) - baseline;
+
+            const fresh = new ViewManager(mockCubeController);
+            fresh.initialize();
+            fresh['activeViews'].set('flat', {
+                view: {} as any,
+                container: document.createElement('div'),
+            });
+            const addedBySecond =
+                Application.eventBus.listenerCount(EventName.VIEW_INTERACTED) - baseline;
+
+            // Act — a single emit must move focus exactly once, not once per
+            // leftover subscription from the previous manager.
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+
+            // Assert
+            expect(addedByFirst).toBe(1);
+            expect(remainingAfterDispose).toBe(0);
+            expect(addedBySecond).toBe(1);
+            expect(fresh.getActiveViewId()).toBe('flat');
+            fresh.dispose();
+        });
+    });
 });

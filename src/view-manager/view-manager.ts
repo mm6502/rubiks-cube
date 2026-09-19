@@ -12,6 +12,7 @@ import {
     KeyBinding,
     MoveExecutedEvent,
     StickerSelectedEvent,
+    ViewInteractedEvent,
 } from '@/types';
 
 import { CommandManager } from './command-manager';
@@ -111,6 +112,7 @@ export class ViewManager implements CommandManager {
     private readonly boundCommandStatesRefresh: () => void;
     private readonly boundHighlightChanged: (event: HighlightChangedEvent) => void;
     private readonly boundStickerSelected: (event: StickerSelectedEvent) => void;
+    private readonly boundViewInteracted: (event: ViewInteractedEvent) => void;
     private readonly boundWindowResize: () => void;
     private mediaQueryList: MediaQueryList | null = null;
     private boundMediaQueryChange: ((e: MediaQueryListEvent) => void) | null = null;
@@ -130,6 +132,7 @@ export class ViewManager implements CommandManager {
         this.boundCommandStatesRefresh = this.handleCommandStatesRefresh.bind(this);
         this.boundHighlightChanged = this.handleHighlightChanged.bind(this);
         this.boundStickerSelected = this.handleStickerSelected.bind(this);
+        this.boundViewInteracted = this.handleViewInteracted.bind(this);
         this.boundWindowResize = () => {
             if (this.resizeDebounceTimer !== null) {
                 clearTimeout(this.resizeDebounceTimer);
@@ -153,6 +156,7 @@ export class ViewManager implements CommandManager {
         getEventBus().off(EventName.MOVE_EXECUTED, this.boundCommandStatesRefresh);
         getEventBus().off(EventName.STICKER_SELECTED, this.boundStickerSelected);
         getEventBus().off(EventName.HIGHLIGHT_CHANGED, this.boundHighlightChanged);
+        getEventBus().off(EventName.VIEW_INTERACTED, this.boundViewInteracted);
 
         // The lifecycle manager registers its own VIEW_STATE_CHANGED listener.
         this.viewLifecycleManager?.dispose();
@@ -284,6 +288,11 @@ export class ViewManager implements CommandManager {
         // Also subscribe to highlight change events so external emitters can update views
         getEventBus().on(EventName.HIGHLIGHT_CHANGED, this.boundHighlightChanged);
 
+        // Content-level contact inside a view updates the focus model. Views emit
+        // this when their content is touched; the panel-chrome route already covers
+        // container-level contact, and this adds the content contact that was missing.
+        getEventBus().on(EventName.VIEW_INTERACTED, this.boundViewInteracted);
+
         // Re-scale view content whenever the viewport size changes (debounced).
         if (typeof window !== 'undefined') {
             window.addEventListener('resize', this.boundWindowResize);
@@ -334,6 +343,22 @@ export class ViewManager implements CommandManager {
      */
     private handleStickerSelected(_event: StickerSelectedEvent): void {
         this.refreshControllerCommands();
+    }
+
+    /**
+     * Handles a view reporting that the user contacted its content by making that
+     * view the active one.
+     *
+     * Everything that follows from activation — the focus stack, visual focus and
+     * the command rebuild — already hangs off {@link updateFocus}, so the event needs
+     * no separate derivation. An unknown view id is ignored rather than thrown on:
+     * a view can be destroyed while an interaction report is in flight.
+     */
+    private handleViewInteracted(event: ViewInteractedEvent): void {
+        if (!this.activeViews.has(event.viewId)) {
+            return;
+        }
+        this.updateFocus(event.viewId);
     }
 
     /**
