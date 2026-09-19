@@ -37,6 +37,30 @@ describe('BasicView core API', () => {
         expect(elt).toBeInstanceOf(HTMLElement);
     });
 
+    it('makes the container focusable and claims focus when contacted (U4)', () => {
+        // Arrange — focus on a control outside the view is the state the reported
+        // defect occurred in. Basic had no coverage for this at all.
+        //
+        // The container must be in the document: a detached element cannot hold
+        // focus, and `focusViewContainer` deliberately declines to try.
+        document.body.appendChild(container);
+        const outside = document.createElement('input');
+        document.body.appendChild(outside);
+        outside.focus();
+        expect(document.activeElement).toBe(outside);
+
+        // Act
+        container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+
+        // Assert — the container is focusable *and* actually takes focus, which is
+        // what stops an arrow key also reaching the outside control.
+        expect(container.tabIndex).toBe(0);
+        expect(document.activeElement).toBe(container);
+
+        outside.remove();
+        container.remove();
+    });
+
     it('getCommands returns a full command list and running actions updates state', () => {
         // Arrange
         const spyEmit = vi.spyOn(Application.eventBus, 'emit');

@@ -201,6 +201,25 @@ describe('FlatView', () => {
             expect(container.tabIndex).toBe(0);
         });
 
+        it('claims DOM focus when the container is contacted (U4)', () => {
+            // Arrange — focus on a control outside the view is the state the
+            // reported defect occurred in.
+            const outside = document.createElement('input');
+            document.body.appendChild(outside);
+            outside.focus();
+            expect(document.activeElement).toBe(outside);
+
+            view.create(container, controller);
+
+            // Act
+            container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+
+            // Assert — tabIndex alone is not enough for the container to hold
+            // focus, so the arrow key would otherwise also reach the outside control.
+            expect(document.activeElement).toBe(container);
+            outside.remove();
+        });
+
         it('should create all six faces', () => {
             // Act
             view.create(container, controller);

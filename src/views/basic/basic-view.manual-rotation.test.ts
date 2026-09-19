@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CubeController } from '@/cube-controller';
 import { CubieType, Face, StickerId } from '@/cube/types';
 import { BasicView } from '@/views/basic/basic-view';
+import styles from '@/views/basic/basic-view.module.css';
 import { viewFrontFace } from '@/views/basic/navigation';
 import {
     BASIC_VIEW_ANGLES,
@@ -396,6 +397,26 @@ describe('BasicView selection survives view rotation', () => {
         reanchor.reanchorSelection({ visualX: 99, visualY: 99 });
 
         expect(view.getSelectedSticker()).toBe(before);
+    });
+
+    it('marks exactly one element as selected in the DOM after rotation (U7)', () => {
+        // The state accessor alone cannot catch this class of defect: the
+        // selection is re-derived when the cube DOM is rebuilt, so an assertion
+        // on `getSelectedSticker()` can pass while nothing on screen is marked.
+        // Reading the DOM is what makes a repeat of that failure fail.
+        view.rotateViewLeft();
+
+        // Force the rebuild explicitly. Without it this test passes even with the
+        // re-derivation removed, because rotation alone does not rebuild the
+        // cubies — so it would be incidentally green rather than load-bearing.
+        view.resize();
+
+        // CSS-module class names are hashed, so the resolved class is required.
+        const selectedElements = container.querySelectorAll(`.${styles.selected}`);
+        expect(selectedElements).toHaveLength(1);
+
+        const reported = view.getSelectedSticker();
+        expect(selectedElements[0].getAttribute('data-sticker-id')).toBe(reported);
     });
 
     it('leaves the selection untouched when there is none', () => {

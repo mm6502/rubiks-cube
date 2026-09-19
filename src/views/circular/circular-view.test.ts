@@ -412,6 +412,35 @@ describe('CircularCubeView (unit)', () => {
 
     // ─── setLayoutMode ────────────────────────────────────────────────────────
 
+    it('claims DOM focus when its content is contacted (U4)', () => {
+        // Arrange — the focus wiring lives in `create()`, not in `initialize()`,
+        // because the emitted event carries the view id and `initialize` does not
+        // receive one. A test driving `initialize` alone therefore cannot observe it.
+        //
+        // `initialize` is used for real (not mocked) because it is what sets
+        // `tabIndex`, and a container that is not focusable cannot hold focus.
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const outside = document.createElement('input');
+        document.body.appendChild(outside);
+        outside.focus();
+        expect(document.activeElement).toBe(outside);
+
+        const fresh = new CircularCubeView();
+        fresh.create(container, mockModel);
+        expect(container.tabIndex).toBe(0);
+
+        // Act
+        container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+
+        // Assert
+        expect(document.activeElement).toBe(container);
+
+        fresh.destroy();
+        outside.remove();
+        container.remove();
+    });
+
     it('setLayoutMode delegates to touchHandler', () => {
         // Arrange
         const fakeHandler = { setLayoutMode: vi.fn() } as any;
