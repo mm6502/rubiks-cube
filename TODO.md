@@ -56,14 +56,6 @@ not currently scheduled for implementation.
       `[2..7]`. The comment predates 6 and 7 shipping. Small, and worth folding
       into the item above rather than its own change.
 
-- [ ] Replace the private `toFacePosition` in
-      `src/views/circular/svg-generator/ghosts.ts` with the exported
-      `calculateStickerPositionOnFace` — a genuine near-duplicate, and the two
-      bodies are line-for-line the same logic (same six cases, same
-      `(maxIndex - y) * cubeSize + x` forms), so this is a pure consolidation
-      rather than a behaviour question. It lives in the geometry layer, which is
-      why it wants care rather than urgency.
-
 - [ ] Reassess whether Basic and Flat need a selection-recovery path. **The
       original justification for this item did not survive checking** and is
       recorded here so it is not re-derived: it claimed the dead-end is
@@ -83,6 +75,13 @@ not currently scheduled for implementation.
       behaviour decision, not a port.
 
 ## Closed
+
+- [x] Replace the private `toFacePosition` in
+      `src/views/circular/svg-generator/ghosts.ts` with the shared
+      `calculateStickerPositionOnFace` (`59bea86`). Equivalence was established
+      before the swap rather than assumed — 834 combinations (every size 2–7 ×
+      every face × every cell) with zero mismatches — and the generated ghost
+      set is unchanged at all six sizes afterwards.
 
 - [x] Resolve package overrides due to security concerns. `package.json` carries
       `"overrides": {}` — an empty block, so there is nothing to resolve. Keep
