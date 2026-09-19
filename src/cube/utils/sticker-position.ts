@@ -83,6 +83,39 @@ export function calculateStickerPositionOnFace(
 }
 
 /**
+ * The face position of a face's center cell, for any cube size.
+ *
+ * This is the single source of truth for "where does the default selection
+ * land". Every view previously computed it separately — two hardcoded the 3×3-only
+ * position `4`, and one derived it inline — which meant the default silently
+ * resolved to nothing at 2×2 and to an off-center (sometimes corner) sticker at
+ * 4×4 and above. See `centerFacePosition` callers for the four sites.
+ *
+ * **Odd sizes** have exactly one true center cell, so the choice is forced.
+ * **Even sizes** have a 2×2 block of central cells and no single center, so the
+ * rule picks the one at the lowest row and column (`floor((n-1)/2)`). That choice
+ * is arbitrary in the sense that any of the four would be defensible, but it is
+ * deliberate here because it is a single reproducible rule rather than a
+ * per-axis judgement, and because it is the form the Circular view already used.
+ *
+ * One consequence worth knowing: because the rule indexes row and column
+ * identically, the resulting layer numbers are *asymmetric between axes* on even
+ * sizes — at 4×4 the X slice takes the lower interior layer while the Y slice
+ * takes the upper. That is inherited, not designed.
+ *
+ * Note this is a *sticker index*, not a geometric coordinate. The cube's
+ * geometric midpoint `(cubeSize - 1) / 2` goes fractional on even sizes and is
+ * not usable as a face position — see `src/cube/core/cubie-manager.ts`.
+ *
+ * @param cubeSize The size of the cube (edge length)
+ * @returns The face position (0 to n²-1) of the center cell on any face
+ */
+export function centerFacePosition(cubeSize: number): number {
+    const centerIndex = Math.floor((cubeSize - 1) / 2);
+    return centerIndex * cubeSize + centerIndex;
+}
+
+/**
  * Get the rotation axis and effective angle for a face rotation.
  * Some faces need inverted rotation directions.
  * @param face The face being rotated
