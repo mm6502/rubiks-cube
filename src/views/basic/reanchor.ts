@@ -83,11 +83,15 @@ export function selectionVisualCell(target: ReanchorTarget): VisualCell | undefi
 /**
  * The visual cell a given sticker occupies, or `undefined`.
  *
+ * Not exported: {@link selectionVisualCell} is the supported entry point, and
+ * nothing outside this module has needed the by-id form. Keeping it private
+ * means the module's public surface stays exactly what its callers use.
+ *
  * @param stickerId The sticker to locate
  * @param model The model to resolve it against
  * @param orientation The view's orientation vectors
  */
-export function visualCellOfId(
+function visualCellOfId(
     stickerId: StickerId | undefined,
     model: ReadOnlyCubeModel | undefined,
     orientation: ViewOrientation

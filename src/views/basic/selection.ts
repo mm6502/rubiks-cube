@@ -97,9 +97,13 @@ export function reapplySelectionMarkup(state: BasicViewInternalData): void {
  * passing `undefined` to `updateSelected`, which made a supported state look
  * like an accident of an optional parameter.
  *
+ * Not exported: `updateSelected(state)` with no sticker is the public form, and
+ * this is the body it delegates to. Exposing both would give callers two ways to
+ * ask for one thing with no way to tell which is canonical.
+ *
  * @param state The view state carrying the selection and the DOM container
  */
-export function clearSelection(state: BasicViewInternalData): void {
+function clearSelection(state: BasicViewInternalData): void {
     const allStickers = state.container?.querySelectorAll(`.${state.styles.sticker}`);
     allStickers?.forEach((sticker: Element) => sticker.classList.remove(state.styles.selected));
 
