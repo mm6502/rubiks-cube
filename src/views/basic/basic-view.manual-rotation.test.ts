@@ -5,9 +5,17 @@
 // NOTE: Restored from git history (pre-cutover basic-view.manual-rotation.test.ts)
 // and adapted to the consolidated Basic 2 view. The angle constants previously
 // lived in ./constants; they are now exported from rendering.ts.
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
 import { CubeController } from '@/cube-controller';
+import { CubieType, Face, StickerId } from '@/cube/types';
 import { BasicView } from '@/views/basic/basic-view';
-import { BASIC_VIEW_ANGLES, updateRotation } from '@/views/basic/rendering';
+import { viewFrontFace } from '@/views/basic/navigation';
+import {
+    BASIC_VIEW_ANGLES,
+    getVisibleFacesWithPositions,
+    updateRotation,
+} from '@/views/basic/rendering';
 
 // Default front-variant orientation:
 //   vF = (0, 0,  1)  — model +Z faces viewer
@@ -234,5 +242,223 @@ describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
             const t = view.getCubeElement()!.style.transform;
             expect(t.indexOf('rotateX')).toBeLessThan(t.indexOf('rotateY'));
         });
+    });
+});
+
+// The selection is stored as a sticker id, which is model-anchored: rotating the
+// view does not move that sticker, so without re-anchoring a rotation can leave
+// the selection on a face behind the cube — invisible, while the app still
+// reports a selection. These tests pin the invariant that the selection stays on
+// the face the user is looking at.
+describe('BasicView selection survives view rotation', () => {
+    let view: BasicView;
+    let model: CubeController;
+    let container: HTMLElement;
+
+    const faceOf = (stickerId?: string): Face | undefined => {
+        if (!stickerId) return undefined;
+        for (const cubie of model.getCurrentState().cubiesById.values()) {
+            if (cubie.type === CubieType.VIRTUAL_CENTER) continue;
+            for (const sticker of cubie.stickers.values()) {
+                if (sticker.id === stickerId) return sticker.currentFace as Face;
+            }
+        }
+        return undefined;
+    };
+
+    const frontFace = (): Face =>
+        viewFrontFace((view as unknown as { state: never }).state as never) as Face;
+
+    const visibleFaces = (): Face[] =>
+        getVisibleFacesWithPositions(
+            (view as unknown as { state: never }).state as never
+        ).visibleFaces.map(entry => entry.face);
+
+    beforeEach(() => {
+        model = new CubeController();
+        view = new BasicView({ viewType: 'basic-front' });
+        container = document.createElement('div');
+        Object.defineProperty(container, 'clientWidth', { value: 600 });
+        Object.defineProperty(container, 'clientHeight', { value: 600 });
+        document.body.appendChild(container);
+        view.create(container, model);
+    });
+
+    afterEach(() => {
+        view.destroy();
+        container.remove();
+    });
+
+    it('Covers AE1: stays visible after two left rotations', () => {
+        // The reported case: F-face centre selected, view showing U/F/R. Two
+        // rotations put B at the front, and the selection must follow onto a
+        // visible face rather than staying behind on F.
+        const initial = view.getSelectedSticker();
+        expect(faceOf(initial)).toBe(Face.F);
+
+        view.rotateViewLeft();
+        view.rotateViewLeft();
+
+        const selected = view.getSelectedSticker();
+        expect(selected).toBeDefined();
+        expect(faceOf(selected)).toBe(frontFace());
+        expect(visibleFaces()).toContain(faceOf(selected));
+    });
+
+    it.each(['rotateViewLeft', 'rotateViewRight', 'rotateViewUp', 'rotateViewDown'] as const)(
+        'keeps the selection on the front face after %s',
+        method => {
+            // Start from a non-centre cell: the centre is the easy case and can
+            // pass under a rule that fails everywhere else.
+            const front = frontFace();
+            const corner = [...model.getCurrentState().cubiesById.values()]
+                .filter(cubie => cubie.type !== CubieType.VIRTUAL_CENTER)
+                .flatMap(cubie => [...cubie.stickers.values()])
+                .find(sticker => sticker.currentFace === front && sticker.facePosition === 0);
+            expect(corner).toBeDefined();
+            view.updateSelected(corner!.id as StickerId);
+
+            view[method]();
+
+            const selected = view.getSelectedSticker();
+            expect(selected).toBeDefined();
+            expect(faceOf(selected)).toBe(frontFace());
+        }
+    );
+
+    it('keeps the selection visible across a full four-rotation cycle', () => {
+        // Repeated rotations must not drift the selection off the visible set at
+        // any step.
+        for (let step = 0; step < 4; step++) {
+            view.rotateViewLeft();
+            expect(visibleFaces(), `step ${step}`).toContain(faceOf(view.getSelectedSticker()));
+        }
+    });
+
+    it('Covers AE5: a restored orientation resolves a selection onto the front face', () => {
+        // Save an orientation, then restore it from a *different* orientation.
+        // The saved state records no selection, so the point is that restoring
+        // leaves a visible selection resolved against the restored orientation —
+        // not one left pointing at a hidden face.
+        view.rotateViewLeft();
+        const saved = view.getState();
+
+        view.rotateViewRight();
+        view.rotateViewRight();
+        view.rotateViewRight();
+
+        view.setState(saved);
+
+        const selected = view.getSelectedSticker();
+        expect(selected).toBeDefined();
+        expect(visibleFaces()).toContain(faceOf(selected));
+        expect(faceOf(selected)).toBe(frontFace());
+    });
+
+    it('resolves a selection that the restored orientation would hide', () => {
+        // Drive the real failure mode directly: put the selection on a *corner*
+        // of a face that is hidden in the current orientation, then restore that
+        // same orientation. Without the re-anchor the selection would stay on the
+        // hidden face. A corner is used rather than the centre because the centre
+        // projects to cell (0,0) on every face, which would pass trivially.
+        const hiddenFace = Face.B;
+        const hiddenSticker = [...model.getCurrentState().cubiesById.values()]
+            .filter(cubie => cubie.type !== CubieType.VIRTUAL_CENTER)
+            .flatMap(cubie => [...cubie.stickers.values()])
+            .find(sticker => sticker.currentFace === hiddenFace && sticker.facePosition === 0);
+        expect(hiddenSticker, 'B-face corner exists').toBeDefined();
+
+        // Front is F here, so anything on B is behind the cube.
+        expect(visibleFaces()).not.toContain(hiddenFace);
+
+        view.updateSelected(hiddenSticker!.id as StickerId);
+        expect(faceOf(view.getSelectedSticker())).toBe(hiddenFace);
+
+        view.setState(view.getState());
+
+        const selected = view.getSelectedSticker();
+        expect(selected).toBeDefined();
+        expect(faceOf(selected)).toBe(frontFace());
+        expect(visibleFaces()).toContain(faceOf(selected));
+    });
+
+    it('retains the previous selection when the cell cannot be resolved', () => {
+        // The documented failure mode: a resolution miss must degrade to the old
+        // selection rather than clearing it, so a geometry gap does not turn into
+        // a selected-nothing state.
+        const before = view.getSelectedSticker();
+        expect(before).toBeDefined();
+
+        const reanchor = view as unknown as {
+            reanchorSelection(cell: unknown): void;
+        };
+        // A cell no sticker can occupy.
+        reanchor.reanchorSelection({ visualX: 99, visualY: 99 });
+
+        expect(view.getSelectedSticker()).toBe(before);
+    });
+
+    it('leaves the selection untouched when there is none', () => {
+        view.updateSelected(undefined);
+        expect(view.getSelectedSticker()).toBeUndefined();
+
+        view.rotateViewLeft();
+
+        expect(view.getSelectedSticker()).toBeUndefined();
+    });
+
+    it.each([2, 3, 4, 5, 6, 7])('keeps the selection visible at size %i', cubeSize => {
+        // The invariant is asserted at every supported size rather than one
+        // representative size, because the cell geometry differs per size.
+        const sizeModel = new CubeController(cubeSize);
+        const sizeView = new BasicView({ viewType: 'basic-front' });
+        const sizeContainer = document.createElement('div');
+        Object.defineProperty(sizeContainer, 'clientWidth', { value: 600 });
+        Object.defineProperty(sizeContainer, 'clientHeight', { value: 600 });
+        document.body.appendChild(sizeContainer);
+        sizeView.create(sizeContainer, sizeModel);
+
+        sizeView.rotateViewLeft();
+        sizeView.rotateViewLeft();
+
+        const selected = sizeView.getSelectedSticker();
+        expect(selected, `size ${cubeSize}`).toBeDefined();
+
+        let selectedFace: Face | undefined;
+        for (const cubie of sizeModel.getCurrentState().cubiesById.values()) {
+            if (cubie.type === CubieType.VIRTUAL_CENTER) continue;
+            for (const sticker of cubie.stickers.values()) {
+                if (sticker.id === selected) selectedFace = sticker.currentFace as Face;
+            }
+        }
+
+        const visible = getVisibleFacesWithPositions(
+            (sizeView as unknown as { state: never }).state as never
+        ).visibleFaces.map(entry => entry.face);
+
+        expect(visible, `size ${cubeSize}`).toContain(selectedFace);
+
+        sizeView.destroy();
+        sizeContainer.remove();
+    });
+
+    it('is load-bearing: the selected sticker changes when the view rotates', () => {
+        // Guards against a re-anchor that silently does nothing. If the rule
+        // stopped resolving, the selected id would stay pinned to the physical
+        // sticker — which is exactly the pre-fix behaviour.
+        const front = frontFace();
+        const corner = [...model.getCurrentState().cubiesById.values()]
+            .filter(cubie => cubie.type !== CubieType.VIRTUAL_CENTER)
+            .flatMap(cubie => [...cubie.stickers.values()])
+            .find(sticker => sticker.currentFace === front && sticker.facePosition === 0);
+        view.updateSelected(corner!.id as StickerId);
+        const before = view.getSelectedSticker();
+
+        view.rotateViewLeft();
+
+        // The physical sticker would still resolve; the point is that the
+        // selection moved to a *different* sticker on the new front face.
+        expect(view.getSelectedSticker()).toBeDefined();
+        expect(view.getSelectedSticker()).not.toBe(before);
     });
 });

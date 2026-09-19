@@ -3,6 +3,7 @@
 import { Application } from '@/application';
 import {
     CubeView,
+    CubieType,
     Face,
     LayoutMode,
     ReadOnlyCubeModel,
@@ -42,6 +43,7 @@ import {
     rotateViewLeft,
     rotateViewRight,
     rotateViewUp,
+    viewFrontFace,
 } from '@/views/basic/navigation';
 import { updateHighlight, updateSelected } from '@/views/basic/selection';
 import { BasicTouchHandler } from '@/views/basic/touch-handler';
@@ -60,6 +62,13 @@ import {
 } from './rendering';
 import { BasicVariant } from './types';
 import type { BasicViewInternalData, BasicViewState } from './types';
+import {
+    PositionedSticker,
+    ViewOrientation,
+    VisualCell,
+    stickerAtVisualCell,
+    visualCellOfSticker,
+} from './visual-cell';
 
 export type { BasicVariant, BasicViewInternalData, BasicViewState } from './types';
 
@@ -308,6 +317,101 @@ export class BasicView implements CubeView {
                 this.updateSelected(sticker.id);
             }
         }
+    }
+
+    /**
+     * Every physical sticker of the cube, as visual-cell candidates.
+     *
+     * Virtual-centre cubies are skipped: each carries a sticker on its own face
+     * at the centre position, which would appear as a duplicate of a real
+     * sticker's cell and make resolution ambiguous.
+     */
+    private stickerCandidates(): PositionedSticker[] {
+        /* c8 ignore if — callers guard on model presence */
+        if (!this.state.model) return [];
+
+        const candidates: PositionedSticker[] = [];
+        for (const cubie of this.state.model.getCurrentState().cubiesById.values()) {
+            if (cubie.type === CubieType.VIRTUAL_CENTER) continue;
+            for (const sticker of cubie.stickers.values()) {
+                candidates.push({
+                    id: sticker.id as StickerId,
+                    face: sticker.currentFace as Face,
+                    position: sticker.facePosition,
+                });
+            }
+        }
+        return candidates;
+    }
+
+    /** The view orientation, in the shape the visual-cell rule expects. */
+    private orientation(): ViewOrientation {
+        return { viewRight: this.state.viewRight, viewUp: this.state.viewUp };
+    }
+
+    /**
+     * The visual cell the current selection occupies, or `undefined` when there
+     * is no selection or it cannot be located.
+     */
+    private selectionVisualCell(): VisualCell | undefined {
+        if (!this.state.currentSelected || !this.state.model) return undefined;
+
+        const cubeState = this.state.model.getCurrentState();
+        const sticker = CubeStateUtils.getStickerById(cubeState, this.state.currentSelected);
+        if (!sticker) return undefined;
+
+        return visualCellOfSticker(
+            { face: sticker.currentFace as Face, position: sticker.facePosition },
+            cubeState.cubeSize,
+            this.orientation()
+        );
+    }
+
+    /**
+     * Keep the selection on screen after the view's orientation changed.
+     *
+     * The selection is stored as a sticker id, which is model-anchored: rotating
+     * the view does not move that sticker, so a rotation can leave it on a face
+     * behind the cube — nothing visible, while the app still reports a selection.
+     * This re-anchors it to whatever sticker now occupies the same *visual* cell
+     * on the newly-front face, so the selection stays where the user was looking.
+     *
+     * When no sticker occupies that cell the previous selection is kept rather
+     * than cleared. A miss is reachable legitimately (a cell that exists at one
+     * cube size has no equivalent at a smaller one), and keeping the old
+     * selection degrades to the previous behaviour instead of a
+     * selected-nothing state.
+     */
+    private reanchorSelection(cell: VisualCell | undefined): void {
+        /* c8 ignore if — callers pass a cell only when a selection exists */
+        if (!cell || !this.state.model) return;
+
+        const cubeState = this.state.model.getCurrentState();
+        const front = viewFrontFace(this.state);
+
+        const match = stickerAtVisualCell(
+            cell,
+            front,
+            this.stickerCandidates(),
+            cubeState.cubeSize,
+            this.orientation()
+        );
+
+        if (match) this.updateSelected(match.id);
+    }
+
+    /**
+     * Re-anchor the selection across an orientation change.
+     *
+     * Callers wrap a rotation in this so the cell is captured before the
+     * orientation moves and resolved after it lands. Doing it this way — rather
+     * than deriving the new cell from the old one — keeps a single
+     * implementation of the rule in `visual-cell.ts`.
+     */
+    private preserveSelectionAcrossOrientationChange(applyOrientation: () => void): void {
+        const cellBefore = this.selectionVisualCell();
+        applyOrientation();
+        this.reanchorSelection(cellBefore);
     }
 
     resize(): void {
@@ -568,38 +672,48 @@ export class BasicView implements CubeView {
     // -------------------------------------------------------------------------
 
     rotateViewLeft(): void {
-        rotateViewLeft(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state, 'horizontal');
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            rotateViewLeft(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state, 'horizontal');
+            this.updateGhostEdges();
+        });
     }
 
     rotateViewRight(): void {
-        rotateViewRight(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state, 'horizontal');
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            rotateViewRight(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state, 'horizontal');
+            this.updateGhostEdges();
+        });
     }
 
     rotateViewUp(): void {
-        rotateViewUp(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state, 'vertical');
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            rotateViewUp(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state, 'vertical');
+            this.updateGhostEdges();
+        });
     }
 
     rotateViewDown(): void {
-        rotateViewDown(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state, 'vertical');
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            rotateViewDown(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state, 'vertical');
+            this.updateGhostEdges();
+        });
     }
 
     resetView(): void {
-        resetView(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state);
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            resetView(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state);
+            this.updateGhostEdges();
+        });
     }
 
     alignCubeToView(): void {
@@ -630,6 +744,12 @@ export class BasicView implements CubeView {
         /* c8 ignore if — runtime guard for external callers */
         if (!state || typeof state !== 'object') return;
         const viewState = state as Record<string, unknown>;
+
+        // Captured before the saved orientation is applied: a saved state can
+        // record an orientation in which the current selection sits on a face
+        // behind the cube, and the re-anchor below resolves it back onto the
+        // front face rather than restoring an invisible selection.
+        const cellBefore = this.selectionVisualCell();
 
         // Migrate old format — reset to default.
         /* c8 ignore if — migration for old state format */
@@ -683,6 +803,10 @@ export class BasicView implements CubeView {
 
         updateRotation(this.state, true);
         updateFaceLabels(this.state);
+
+        // The saved orientation is now in effect, so resolve the selection's
+        // cell against it.
+        this.reanchorSelection(cellBefore);
     }
 
     // -------------------------------------------------------------------------
