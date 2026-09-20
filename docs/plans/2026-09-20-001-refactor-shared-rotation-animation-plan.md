@@ -3,7 +3,7 @@ title:
   'refactor: Share one rotation-animation primitive across view rotation and
   move animation'
 type: refactor
-status: active
+status: completed
 date: 2026-09-20
 origin: docs/brainstorms/2026-09-20-shared-rotation-animation-requirements.md
 ---
