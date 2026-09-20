@@ -1,11 +1,8 @@
 // A `Ctrl+Arrow` slice move must turn in the **same sense** as the view rotation the
-// matching `Alt+Arrow` performs. Reported by the user, at 3×3:
-//
-//   "Zo zakladnej pozicie Alt+Right, Alt+Down a Ctrl+Right teraz spravi S namiesto
-//    ocakavaneho M." — from the base position, Alt+Right then Alt+Down then Ctrl+Right
-//    produced `S` where `M` was expected.
-//   "Ten tah ma byt v rovnakom smere otacania. Ak Alt+Right otoci +90, tak Ctrl+Right
-//    ma tiez otocit +90." — the turn must go the same way round as the view rotation.
+// matching `Alt+Arrow` performs. Reported by the user, at 3×3: from the base position,
+// `Alt+Right` then `Alt+Down` then `Ctrl+Right` produced `S` where `M` was expected, and
+// the requirement is that the turn goes the same way round as the view rotation — if
+// `Alt+Right` turns +90, then `Ctrl+Right` must turn +90 too.
 //
 // So the contract is about the *rotation*, not about where the sticker lands on screen.
 // That distinction matters, and an earlier revision of this file got it wrong: it asserted

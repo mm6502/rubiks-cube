@@ -48,16 +48,12 @@ disagree, and the press silently changed meaning: at the orientation reached by
 screen-down for that sticker) where the matching view rotation is a rotation
 about X, and the required move was `M`.
 
-Reported at 3×3:
-
-> Zo zakladnej pozicie Alt+Right, Alt+Down a Ctrl+Right teraz spravi S namiesto
-> ocakavaneho M.
+Reported at 3×3: from the base position, `Alt+Right` then `Alt+Down` then
+`Ctrl+Right` produced `S` where `M` was expected.
 
 The stated requirement is about the **sense of the rotation**, not about where
-the sticker lands on screen:
-
-> Ten tah ma byt v rovnakom smere otacania. Ak Alt+Right otoci +90, tak
-> Ctrl+Right ma tiez otocit +90.
+the sticker lands on screen: the turn must go the same way round as the view
+rotation — if `Alt+Right` turns +90, then `Ctrl+Right` must turn +90 too.
 
 ## Symptoms
 
