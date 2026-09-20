@@ -39,13 +39,6 @@
     outline-offset: 2px;
 }
 
-/* A pressed toggle is filled with cyan-400, which is bright enough that the
-   dark-theme ring cannot contrast against it (1.9:1). Flip the ring to the
-   colour the active-toggle style already pairs with that fill. */
-.btn[aria-pressed='true']:focus-visible {
-    outline-color: var(--color-toggle-btn-active-text);
-}
-
 .btn:hover {
     transform: translateY(-2px) translateX(-2px);
     box-shadow: 0 4px 12px var(--color-btn-primary-shadow);
