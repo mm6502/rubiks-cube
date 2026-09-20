@@ -35,12 +35,18 @@ interface Harness {
     moveEvent: (notation: string) => MoveExecutedEvent;
     /** Settles the in-flight move animation, so the `finished` handler runs. */
     finishAnimation: () => void;
+    /** Sets how far through the running ramp the cube is, as 0..1. */
+    setProgress: (value: number) => void;
     /**
      * Whether `animateMove` actually started an animation for the last move.
      * False means it fell through to the non-animated branch, so any assertion
      * about mid-turn behaviour would be testing the wrong path.
      */
     animationStarted: () => boolean;
+    /** How many animations have been started in total. */
+    animationCount: () => number;
+    /** How many animations have been cancelled in total. */
+    animationsCancelled: () => number;
     strips: () => HTMLElement[];
     release: () => void;
 }
@@ -52,28 +58,38 @@ interface Harness {
 const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'animate');
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
 
-function createHarness(): Harness {
+function createHarness(options: { reducedMotion?: boolean } = {}): Harness {
     const model = new CubeController(3);
 
-    // A controllable animation: `finished` settles only when the test asks.
+    // A controllable animation: `finished` settles only when the test asks, and
+    // `progress` reports how far through the ramp the cube is (which is what one
+    // rotation reads to know where to continue from when it interrupts another).
     let settle: () => void = () => {};
     let started = 0;
+    let cancelled = 0;
+    let progress = 0;
     const finished = new Promise<void>(resolve => (settle = resolve));
     Object.defineProperty(HTMLElement.prototype, 'animate', {
         configurable: true,
         writable: true,
         value: () => {
             started++;
-            return { cancel: () => {}, finished };
+            return {
+                cancel: () => {
+                    cancelled++;
+                },
+                finished,
+                effect: { getComputedTiming: () => ({ progress }) },
+            };
         },
     });
     Object.defineProperty(window, 'matchMedia', {
         configurable: true,
         writable: true,
-        // `matches: false` keeps the animated branch — a truthy value is the
-        // prefers-reduced-motion signal, which makes animateMove return null.
+        // A truthy `matches` is the prefers-reduced-motion signal, which makes
+        // both `animateMove` and `updateRotation` decline to animate.
         value: () => ({
-            matches: false,
+            matches: options.reducedMotion === true,
             media: '(prefers-reduced-motion: reduce)',
             addEventListener: () => {},
             removeEventListener: () => {},
@@ -123,8 +139,16 @@ function createHarness(): Harness {
                 postState: model.getCurrentState(),
             } as never;
         },
-        finishAnimation: () => settle(),
+        finishAnimation: () => {
+            progress = 1;
+            settle();
+        },
+        setProgress: (value: number) => {
+            progress = value;
+        },
         animationStarted: () => started > 0,
+        animationCount: () => started,
+        animationsCancelled: () => cancelled,
         strips: () =>
             Array.from(view.getCubeElement()!.querySelectorAll<HTMLElement>('[data-host-face]')),
         release: () => {
@@ -191,7 +215,7 @@ describe('ghost strips across the orientation-changing paths', () => {
 
     // PATH 1 — the reported defect. Arrow 1 stays on the front face; arrow 2
     // crosses onto a neighbouring face and rotates the view.
-    it('PATH 1: a plain arrow crossing an edge leaves the strips matching the NEW orientation', () => {
+    it('PATH 1: a plain arrow crossing an edge leaves the strips matching the NEW orientation', async () => {
         const h = createHarness();
         try {
             enableGhosts(h);
@@ -200,7 +224,11 @@ describe('ghost strips across the orientation-changing paths', () => {
             expect(shownIds(h), 'step 1 does not rotate, so nothing changes').toEqual(shouldIds(h));
 
             pressArrow(h, 'ArrowRight');
-            vi.advanceTimersByTime(300);
+            // The rotation now animates, so the strips come back when the turn
+            // actually settles rather than after the old fixed 250ms.
+            expect(shownIds(h), 'off screen while the turn runs').toEqual([]);
+            h.finishAnimation();
+            await vi.advanceTimersByTimeAsync(300);
             expect(shownIds(h), 'step 2 rotated the view, so the strips must follow').toEqual(
                 shouldIds(h)
             );
@@ -228,7 +256,7 @@ describe('ghost strips across the orientation-changing paths', () => {
     });
 
     // PATH 2 — the Alt+Arrow view rotation. Hide during the turn, restore after.
-    it('PATH 2: a view rotation hides the strips during the turn, then restores them', () => {
+    it('PATH 2: a view rotation hides the strips during the turn, then restores them', async () => {
         const h = createHarness();
         try {
             enableGhosts(h);
@@ -237,14 +265,15 @@ describe('ghost strips across the orientation-changing paths', () => {
             h.view.rotateViewRight();
             expect(shownIds(h), 'hidden immediately, for the duration of the turn').toEqual([]);
 
-            vi.advanceTimersByTime(300);
+            h.finishAnimation();
+            await vi.advanceTimersByTimeAsync(300);
             expect(shownIds(h), 'restored once the turn settles').toEqual(shouldIds(h));
         } finally {
             h.release();
         }
     });
 
-    it('PATH 2: every view rotation entry point keeps the strips matching the orientation', () => {
+    it('PATH 2: every view rotation entry point keeps the strips matching the orientation', async () => {
         const h = createHarness();
         try {
             enableGhosts(h);
@@ -256,7 +285,8 @@ describe('ghost strips across the orientation-changing paths', () => {
             ];
             for (const [name, run] of entryPoints) {
                 run();
-                vi.advanceTimersByTime(300);
+                h.finishAnimation();
+                await vi.advanceTimersByTimeAsync(300);
                 expect(shownIds(h), `after ${name}`).toEqual(shouldIds(h));
             }
         } finally {
@@ -358,6 +388,212 @@ describe('ghost strips across the orientation-changing paths', () => {
             h.finishAnimation();
             await vi.advanceTimersByTimeAsync(400);
             expect(shownIds(h), 'restored once the interrupting move lands').toEqual(shouldIds(h));
+        } finally {
+            h.release();
+        }
+    });
+
+    // R7 — the strips must stay hidden for a whole *sequence* of turns, not
+    // reappear between steps. This is the visible half of "the cube has settled":
+    // a rapid burst of rotations is one continuous turn, so the strips belong to
+    // the sequence rather than to each step.
+    it('R7: the strips stay hidden across a multi-step sequence and return once', async () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+            expect(shownIds(h).length, 'visible before the sequence').toBe(6);
+
+            h.view.rotateViewRight();
+            expect(shownIds(h), 'hidden from the first step').toEqual([]);
+
+            // A second and third rotation arrive before the first settles. They
+            // extend the same sweep, so nothing may be revealed in between.
+            h.setProgress(0.4);
+            h.view.rotateViewRight();
+            h.setProgress(0.7);
+            h.view.rotateViewRight();
+            expect(shownIds(h), 'still hidden once the sequence has grown').toEqual([]);
+
+            // Let the last animation settle; the strips come back exactly once.
+            h.finishAnimation();
+            await vi.advanceTimersByTimeAsync(300);
+            expect(shownIds(h), 'returned once the cube settled').toEqual(shouldIds(h));
+        } finally {
+            h.release();
+        }
+    });
+
+    // R1 / the reported defect — interrupting a view rotation mid-flight must not
+    // adopt a sheared starting state. The old scheme wrote a new `matrix3d` and let
+    // a CSS transition blend it; interrupting blended the half-way matrix again,
+    // and because matrix blending is component-wise the geometry sheared and the
+    // cube visibly unwound the wrong way.
+    //
+    // The animation now ramps one angle, so this asserts the mechanism that makes
+    // the defect impossible: an interruption cancels the outgoing animation and
+    // starts a new one from the interrupted angle, and the two never both hold the
+    // element.
+    it('R1: an interrupted rotation hands over cleanly instead of blending', async () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+
+            h.view.rotateViewRight();
+            expect(h.animationCount(), 'a first animation really started').toBeGreaterThan(0);
+
+            // Interrupt 40% of the way through. The direction is chosen to land on
+            // a different world axis, so the ramp cannot simply be extended and the
+            // hand-over has to re-base onto the interrupted pose.
+            h.setProgress(0.4);
+            h.view.rotateViewUp();
+
+            // The outgoing animation was cancelled rather than left running under
+            // the new one, so only one transform is ever driving the element —
+            // which is what makes the old component-wise blending impossible.
+            expect(
+                h.animationsCancelled(),
+                'the superseded animation was cancelled'
+            ).toBeGreaterThan(0);
+
+            h.finishAnimation();
+            await vi.advanceTimersByTimeAsync(300);
+            expect(shownIds(h), 'the sequence still settles').toEqual(shouldIds(h));
+        } finally {
+            h.release();
+        }
+    });
+
+    // R3 — bounded pending queue: past the threshold a rotation applies its
+    // orientation without animating, so rapid input cannot grow an unbounded
+    // backlog. The orientation must still land.
+    it('R3: past the pending threshold a rotation skips its animation but still lands', async () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+
+            // Four rotations with none of them settling. Four right turns return
+            // the front face to F, so the orientation lands even though the last
+            // step was not animated.
+            const midSequence: Array<{ x: number; y: number; z: number }> = [];
+            for (let i = 0; i < 4; i++) {
+                if (i > 0) h.setProgress(0.2 + i * 0.1);
+                h.view.rotateViewRight();
+                midSequence.push({ ...h.view.getState().viewForward });
+            }
+
+            const animationsBeforeLastStep = h.animationCount();
+            h.setProgress(0.9);
+            h.view.rotateViewRight();
+            expect(
+                h.animationCount(),
+                'a rotation past the threshold starts no further animation'
+            ).toBe(animationsBeforeLastStep);
+
+            // The orientation still advanced: it is not left where the threshold
+            // caught it.
+            expect({ ...h.view.getState().viewForward }).not.toEqual(
+                midSequence[midSequence.length - 1]
+            );
+        } finally {
+            h.release();
+        }
+    });
+
+    // R4 — reduced motion. Currently unrequired and untested; the orientation must
+    // be applied without animating.
+    it('R4: under prefers-reduced-motion a view rotation applies directly and does not animate', () => {
+        const h = createHarness({ reducedMotion: true });
+        try {
+            enableGhosts(h);
+
+            const before = { ...h.view.getState().viewForward };
+            h.view.rotateViewRight();
+
+            expect(h.animationCount(), 'no animation was started').toBe(0);
+            expect(
+                { ...h.view.getState().viewForward },
+                'the orientation still changed'
+            ).not.toEqual(before);
+            // With nothing to wait for, the strips return in the same tick.
+            expect(shownIds(h), 'strips restored immediately').toEqual(shouldIds(h));
+        } finally {
+            h.release();
+        }
+    });
+
+    // R8 — the orientation, STATE_CHANGED and the re-anchor all apply immediately;
+    // the animation is only a visual layer. `getState()` must never report an
+    // orientation the cube has not visibly reached *because* it is animating, and a
+    // caller reading it mid-flight must see the destination.
+    it('R8: getState reports the new orientation while the rotation is still animating', () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+
+            h.view.rotateViewRight();
+            // Deliberately not settled. `rotateViewRight` sets viewForward = −vR,
+            // so from the default front orientation the front direction becomes −X.
+            expect({ ...h.view.getState().viewForward }, 'front is now the left face').toEqual({
+                x: -1,
+                y: 0,
+                z: 0,
+            });
+            expect(shownIds(h), 'still mid-turn').toEqual([]);
+        } finally {
+            h.release();
+        }
+    });
+
+    // A cancelled turn must not leak the pending count — if it did, the strips
+    // would stay hidden for the rest of the session and no later rotation would
+    // animate. This is the shape the Circular view's counter has (its decrement
+    // sits outside `try/finally`, so an `AbortError` from `cancel()` strands it).
+    it('a cancelled rotation does not leak the count, and a later rotation still animates', async () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+
+            h.view.rotateViewRight();
+            // Interrupt, then settle the interrupting turn.
+            h.setProgress(0.5);
+            h.view.rotateViewLeft();
+            h.finishAnimation();
+            await vi.advanceTimersByTimeAsync(300);
+            expect(shownIds(h), 'the interrupted sequence still restored the strips').toEqual(
+                shouldIds(h)
+            );
+
+            // A fresh rotation must still animate — proof the counter did not latch.
+            const animationsBefore = h.animationCount();
+            h.view.rotateViewRight();
+            expect(h.animationCount(), 'a later rotation still animates').toBeGreaterThan(
+                animationsBefore
+            );
+            h.finishAnimation();
+            await vi.advanceTimersByTimeAsync(300);
+            expect(shownIds(h)).toEqual(shouldIds(h));
+        } finally {
+            h.release();
+        }
+    });
+
+    // Tilt and pitch are the call sites most likely to be silently missed: the
+    // view-rotation commands go through the view's methods, but these used to call
+    // `rendering.updateRotation` directly from `commands.ts`. They swap which CSS
+    // slots are visible, so the silhouette edges the strips sit on change with them
+    // and the strips have to follow.
+    it('tilt and pitch keep the strips matching the orientation', async () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+
+            for (const id of ['tilt-view', 'pitch-view']) {
+                const command = h.view.getCommands().find(c => c.id === id);
+                expect(command, `${id} exists`).toBeDefined();
+                command!.action();
+                await vi.advanceTimersByTimeAsync(300);
+                expect(shownIds(h), `after ${id}`).toEqual(shouldIds(h));
+            }
         } finally {
             h.release();
         }

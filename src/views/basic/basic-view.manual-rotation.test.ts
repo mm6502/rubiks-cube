@@ -23,15 +23,69 @@ import {
 //   vR = (1, 0,  0)  — model +X is screen-right
 //   vU = (0, 1,  0)  — model +Y is screen-up
 
+// jsdom has no Web Animations API, so it is stubbed. The keyframe arguments are
+// captured so the rotation can be asserted as what it now is — an angle ramp —
+// rather than through the composed transform string, which a running animation
+// holds rather than the inline style.
+const animateKeyframes: Array<Array<{ transform: string }>> = [];
+const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'animate');
+
+/**
+ * How far through the current ramp the stub reports the cube is, as 0..1.
+ *
+ * Defaults to 0, which models the case rapid input actually produces: several
+ * steps arriving in one tick, before the ramp has advanced. One rotation reads
+ * this to know where to continue from when it supersedes another, so a test that
+ * wants to model a half-finished turn sets it explicitly.
+ */
+let rampProgress = 0;
+
+/**
+ * Waits for the rotation's settle path to run.
+ *
+ * The stubbed animation resolves immediately, so the bake in `applyRotation` has
+ * only to get through its own microtask chain — there is no timer involved, which
+ * is deliberate: a rotation now closes when it actually settles rather than after
+ * a fixed delay.
+ */
+async function settleRotation(_view: BasicView): Promise<void> {
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+}
+
+function installAnimationStub(): void {
+    animateKeyframes.length = 0;
+    rampProgress = 0;
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+        configurable: true,
+        writable: true,
+        value: (keyframes: Array<{ transform: string }>) => {
+            animateKeyframes.push(keyframes);
+            return {
+                cancel: () => {},
+                finished: Promise.resolve(),
+                effect: { getComputedTiming: () => ({ progress: rampProgress }) },
+            };
+        },
+    });
+}
+
 describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
     let view: BasicView;
     let model: CubeController;
 
     beforeEach(() => {
+        installAnimationStub();
         model = new CubeController();
         view = new BasicView({ viewType: 'basic-front' });
         const container = document.createElement('div');
         view.create(container, model);
+    });
+
+    afterEach(() => {
+        if (originalAnimate)
+            Object.defineProperty(HTMLElement.prototype, 'animate', originalAnimate);
+        else Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+        animateKeyframes.length = 0;
     });
 
     // -------------------------------------------------------------------------
@@ -199,24 +253,97 @@ describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
 
     // -------------------------------------------------------------------------
     // CSS transform
+    //
+    // A rotation is animated by ramping an angle through the Web Animations API,
+    // so the element's inline `style.transform` only reflects the settled
+    // orientation once the ramp has been baked (which is what `updateRotation`
+    // does with `skipAnimation`). These assertions therefore check the *settled*
+    // state, and check the animation itself separately — asserting the inline
+    // string mid-flight would be asserting the wrong thing.
     // -------------------------------------------------------------------------
 
     describe('CSS transform (updateRotation)', () => {
         it('default state produces identity matrix3d with base angles', () => {
-            updateRotation((view as unknown as { state: any }).state);
+            updateRotation((view as unknown as { state: any }).state, true);
             const t = view.getCubeElement()!.style.transform;
             expect(t).toContain(`rotateX(${BASIC_VIEW_ANGLES.BASE_X}deg)`);
             expect(t).toContain(`rotateY(${BASIC_VIEW_ANGLES.BASE_Y}deg)`);
             expect(t).toContain('matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1)');
+            // No rotation slot at rest — the basis alone expresses the orientation.
+            expect(t).not.toContain('rotate3d');
         });
 
-        it('after rotateViewLeft the matrix3d reflects new orientation', () => {
+        it('after rotateViewLeft the settled transform reflects the new orientation', async () => {
             // After left: vR=(0,0,−1), vU=(0,1,0), vF=(1,0,0)
             // column-major matrix3d(vR.x,vU.x,vF.x,0, vR.y,vU.y,vF.y,0, vR.z,vU.z,vF.z,0, 0,0,0,1)
             //   = matrix3d(0,0,1,0, 0,1,0,0, -1,0,0,0, 0,0,0,1)
             view.rotateViewLeft();
+            await settleRotation(view);
             const t = view.getCubeElement()!.style.transform;
             expect(t).toContain('matrix3d(0,0,1,0, 0,1,0,0, -1,0,0,0, 0,0,0,1)');
+            expect(t).not.toContain('rotate3d');
+        });
+
+        it('animates the rotation as an angle ramp about a state-derived axis', () => {
+            // The defect being fixed was a CSS transition interpolating a matrix.
+            // The replacement ramps a single angle, so this pins the mechanism:
+            // exactly one `rotate3d` keyframe pair, and no `transition` on the cube.
+            view.rotateViewLeft();
+            const calls = animateKeyframes;
+            expect(calls.length, 'one animation was started').toBe(1);
+
+            const keyframes = calls[0] as Array<{ transform: string }>;
+            expect(keyframes).toHaveLength(2);
+            const slot = (frame: string): string =>
+                frame.split(' ').find(part => part.startsWith('rotate3d(')) ?? '';
+            // From the default front orientation a left turn is +90° about world Y.
+            expect(slot(keyframes[0].transform)).toBe('rotate3d(0,1,0,0deg)');
+            expect(slot(keyframes[1].transform)).toBe('rotate3d(0,1,0,90deg)');
+            // The basis sits *inside* the rotation, so the ramp's axis is a world
+            // axis rather than the tilted one.
+            expect(keyframes[0].transform).toContain(
+                'matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1)'
+            );
+            expect(view.getCubeElement()!.style.transition).toBe('');
+        });
+
+        it('uses the axis that belongs to the current orientation, not a fixed one', async () => {
+            // R2: the correct axis depends on where the cube is, which is why it is
+            // derived from state per rotation. A fixed-axis implementation passes a
+            // naive single-rotation test, so this compares rotations made from
+            // different orientations.
+            //
+            // Each rotation is settled before the next begins: they are separate
+            // gestures, so they must each animate rather than tripping the
+            // skip-when-overloaded rule that rapid input relies on.
+            const axisOf = (keyframes: Array<{ transform: string }>): string =>
+                keyframes[1].transform.split(' ').find(p => p.startsWith('rotate3d(')) ?? '';
+
+            view.rotateViewLeft();
+            await settleRotation(view);
+            const firstAxis = axisOf(animateKeyframes[0]);
+
+            view.rotateViewLeft();
+            await settleRotation(view);
+            const secondAxis = axisOf(animateKeyframes[1]);
+
+            view.rotateViewUp();
+            await settleRotation(view);
+            const thirdAxis = axisOf(animateKeyframes[2]);
+
+            expect(firstAxis, 'a left turn from the front orientation is about Y').toContain(
+                'rotate3d(0,1,0,'
+            );
+            // From the orientation one left turn reaches, another left turn is still
+            // about Y — so the same gesture keeps one axis, which is what lets a
+            // multi-step gesture merge into a single sweep.
+            expect(secondAxis, 'and it stays on Y for a repeated gesture').toContain(
+                'rotate3d(0,1,0,'
+            );
+            // A different gesture needs a different world axis. This is the case a
+            // fixed-axis implementation cannot satisfy.
+            expect(thirdAxis, 'an up turn uses a different world axis').toBeDefined();
+            expect(thirdAxis, 'and it is not the Y axis').not.toContain('rotate3d(0,1,0,');
         });
 
         it('base angles update when isTilted toggles', () => {
@@ -239,9 +366,105 @@ describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
         });
 
         it('base rotateX comes before base rotateY in transform string', () => {
-            updateRotation((view as unknown as { state: any }).state);
+            updateRotation((view as unknown as { state: any }).state, true);
             const t = view.getCubeElement()!.style.transform;
             expect(t.indexOf('rotateX')).toBeLessThan(t.indexOf('rotateY'));
+        });
+
+        it('a two-step gesture animates as one ramp over the full 180°', async () => {
+            // The far-drag path applies two steps before calling back (the touch
+            // handler loops), and `rotateViewToFace` applies two for the
+            // anti-parallel case. Those must merge into a single sweep, not restart
+            // as two 90° ramps — otherwise the drag stutters and a linked peer,
+            // which receives two events for the one rendered gesture, drifts out of
+            // step with its source.
+            view.rotateViewLeft();
+            // No settle between them: both steps belong to one gesture.
+            view.rotateViewLeft();
+
+            const latest = animateKeyframes[animateKeyframes.length - 1];
+            const slot = (frame: string): string =>
+                frame.split(' ').find(p => p.startsWith('rotate3d(')) ?? '';
+            // 0 → 180 about Y, as one ramp.
+            expect(slot(latest[0].transform)).toBe('rotate3d(0,1,0,0deg)');
+            expect(slot(latest[1].transform)).toBe('rotate3d(0,1,0,180deg)');
+            // The base is unchanged, so it really is one continuing rotation rather
+            // than a re-based restart.
+            expect(latest[1].transform).toContain('matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1)');
+        });
+
+        it('a rotation arriving mid-flight extends the ramp instead of restarting it', async () => {
+            // The core of the reported defect. Under the old matrix scheme, an
+            // interrupting rotation adopted the half-blended matrix as its start, so
+            // the cube unwound. The ramp must instead continue from the angle the
+            // cube is actually at, keeping one axis and one base.
+            view.rotateViewLeft();
+            const first = animateKeyframes[0];
+            // Half way through the turn when the next one arrives.
+            rampProgress = 0.5;
+            view.rotateViewLeft();
+
+            const latest = animateKeyframes[animateKeyframes.length - 1];
+            const slot = (frame: string): string =>
+                frame.split(' ').find(p => p.startsWith('rotate3d(')) ?? '';
+
+            // Same base as the first ramp — nothing was re-based — and the same axis.
+            expect(slot(latest[0].transform)).toBe('rotate3d(0,1,0,45deg)');
+            expect(slot(latest[1].transform)).toBe('rotate3d(0,1,0,180deg)');
+            expect(latest[0].transform.split('matrix3d')[1]).toBe(
+                first[0].transform.split('matrix3d')[1]
+            );
+            // The start angle is strictly inside the ramp, so the sweep is
+            // continuous: 45 → 180, not 0 → 180 (which would jump back).
+            expect(latest[0].transform).not.toBe(latest[1].transform);
+        });
+
+        it('the sweep never reverses or folds to a shorter arc', async () => {
+            // A 180° sweep and a −180° sweep reach the same orientation. Folding to
+            // the shorter arc, or emitting the destination with a negated angle,
+            // travels the opposite way — the visible unwind this work removes.
+            view.rotateViewLeft();
+            rampProgress = 0.5;
+            view.rotateViewLeft();
+
+            const latest = animateKeyframes[animateKeyframes.length - 1];
+            const angleOf = (frame: string): number => {
+                const match = /rotate3d\([^)]*?,(-?\d+(?:\.\d+)?)deg\)/.exec(frame);
+                expect(match, `an angle is present in ${frame}`).not.toBeNull();
+                return Number(match![1]);
+            };
+            const from = angleOf(latest[0].transform);
+            const to = angleOf(latest[1].transform);
+
+            // Monotonic increase: the destination is ahead of the start, and the
+            // end is the full intended delta from the base.
+            expect(from).toBeGreaterThan(0);
+            expect(to).toBeGreaterThan(from);
+            expect(to).toBeCloseTo(180, 6);
+            // Never the folded form.
+            expect(latest[1].transform).not.toContain('-180deg');
+            expect(latest[1].transform).not.toContain('-90deg');
+        });
+
+        it('rapid input past the threshold applies the orientation without animating', async () => {
+            // R3, the bounded-queue rule. Animation is dropped rather than queued so
+            // a burst cannot grow an unbounded backlog — but the orientation change
+            // itself is always applied, so the cube still ends where the gestures
+            // asked.
+            view.rotateViewLeft();
+            view.rotateViewLeft();
+            view.rotateViewLeft();
+            const countAfterThreshold = animateKeyframes.length;
+            view.rotateViewLeft();
+
+            expect(
+                animateKeyframes.length,
+                'a rotation past the threshold starts no further animation'
+            ).toBe(countAfterThreshold);
+
+            // Four left turns return the front face to F — the orientation landed
+            // even though the last step was not animated.
+            expect(viewFrontFace(view.getState() as never)).toBe(Face.F);
         });
     });
 });

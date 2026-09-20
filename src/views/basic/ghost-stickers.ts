@@ -33,13 +33,17 @@ const GHOST_OPACITY_LEVELS = [0, 0.75, 1.0] as const;
 let ghostOpacityIndex = 0; // starts off
 
 /**
- * Default delay before a fade-in starts when the caller's own rotation is still
- * animating underneath.
+ * Default delay before a fade-in starts.
  *
- * The cube's transform runs for 250ms (`.cube { transition: transform 0.25s }`),
- * so revealing near the end of that lands the strips as the turn settles rather
- * than at its start. Callers that have already awaited their turn pass 0 instead
- * — see {@link GhostStickers.updateVisibleEdges}.
+ * Applies to callers that are *not* closing a cube turn — showing the strips for
+ * the first time, or changing their opacity. A turn's own callers pass 0, because
+ * they have already waited for the cube to settle: see
+ * {@link GhostStickers.updateVisibleEdges}.
+ *
+ * This was previously justified as matching the cube's 250ms
+ * `transition: transform`. That transition is gone — view rotation now ramps an
+ * angle through the Web Animations API — so the constant no longer stands in for
+ * a turn's length and must not be read as doing so.
  */
 const DEFAULT_FADE_DELAY_MS = 200;
 
@@ -182,26 +186,21 @@ export class GhostStickers {
      * Strips are categorised by depth: near (front face), far (back face),
      * or mid (everything else).
      *
-     * **When the caller has already waited for the turn, this must not wait
-     * again.** The fade-in is normally delayed to land near the end of a rotate
-     * gesture rather than at its start, which is what `fadeDelayMs` is for. The
-     * two kinds of caller need different values:
-     *
-     * - `rotateViewLeft/Right/Up/Down` are synchronous: they change the
-     *   orientation and return immediately, while the cube's own CSS transform
-     *   animates for 250ms underneath. Passing 0 would reveal the strips at the
-     *   start of that transform, so they pass the gesture length.
-     * - The move paths (`handleMoveExecuted`) await the move animation first.
-     *   The turn has already finished by the time they get here, so a delay is a
-     *   second, phantom turn — measured as a 233ms dead pause between the cube
-     *   stopping and the strips coming back.
+     * **The turn paths pass 0.** Every rotation and move entry point in the view
+     * now closes through a single settled path that runs only once the cube has
+     * actually stopped, so a fade-in delay there would be a second, phantom turn —
+     * measured as a 233ms dead pause between the cube stopping and the strips
+     * returning. The delay has another job, though: a *fade transition* between
+     * opacity levels looks better eased in, and that is what
+     * {@link DEFAULT_FADE_DELAY_MS} still exists for. Those callers take the
+     * default.
      *
      * @param visibleFaces Faces currently facing the viewer
      * @param hiddenFaces Faces currently turned away
      * @param isTilted Whether the view is tilted
      * @param isPitched Whether the view is pitched
      * @param fadeDelayMs Delay before the fade-in starts. Defaults to
-     *   {@link DEFAULT_FADE_DELAY_MS} for callers whose turn is still running.
+     *   {@link DEFAULT_FADE_DELAY_MS}; pass 0 when the cube has already settled.
      */
     updateVisibleEdges(
         visibleFaces: Array<{ face: Face; position?: string }>,

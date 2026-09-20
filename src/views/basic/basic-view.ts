@@ -82,6 +82,16 @@ type ActiveAnimation = {
     event: MoveExecutedEvent;
 };
 
+/**
+ * How many turns may be in flight before further ones skip their animation.
+ *
+ * Matches the Circular view's `_pendingTotal > 2` rule, which is a count of
+ * *already queued* moves rather than a duration: animation is dropped so rapid
+ * input cannot grow an unbounded backlog, while the orientation change itself is
+ * always applied.
+ */
+const SKIP_ANIMATION_THRESHOLD = 3;
+
 export class BasicView implements CubeView {
     private state: BasicViewInternalData;
     private touchHandler: BasicTouchHandler | null = null;
@@ -90,6 +100,21 @@ export class BasicView implements CubeView {
     private linkedResetListener: ((e: BasicViewResetLinkedEvent) => void) | null = null;
     private ghostToggledListener: ((e: BasicViewGhostToggledEvent) => void) | null = null;
     private activeAnimation: ActiveAnimation | null = null;
+    /**
+     * How many rotations are currently turning the cube.
+     *
+     * Held here rather than in `rendering.ts` because it spans *both* kinds of
+     * turn — view rotations and move animations — and the ghost strips must stay
+     * hidden across a whole rapid sequence, not just one step of it (R7).
+     *
+     * Decremented in one place that runs on fulfilment and cancellation alike, so
+     * an interrupt cannot leak the count and latch the strips off permanently.
+     * That is the failure mode the Circular view's counter has (its decrement
+     * sits outside `try/finally`, so an `AbortError` from `cancel()` strands it);
+     * interruption is exactly the case being fixed here, so cancel-safety is
+     * required rather than nice to have.
+     */
+    private turnsInFlight = 0;
 
     constructor(config?: { viewType?: string }) {
         const viewType = config?.viewType === 'basic-back' ? 'basic-back' : 'basic-front';
@@ -136,6 +161,8 @@ export class BasicView implements CubeView {
             rotateViewRight: () => this.rotateViewRight(),
             rotateViewUp: () => this.rotateViewUp(),
             rotateViewDown: () => this.rotateViewDown(),
+            toggleTilt: () => this.toggleTilt(),
+            togglePitch: () => this.togglePitch(),
             toggleGhosts: () => this.toggleGhosts(),
             updateGhostEdges: () => this.updateGhostEdges(),
             emitStateChanged: () => this.emitStateChanged(),
@@ -162,7 +189,6 @@ export class BasicView implements CubeView {
         resetView(this.state);
         updateRotation(this.state, true);
         updateFaceLabels(this.state);
-
         // Wire up touch/pointer interaction.
         const adapter = createBasicInteractionAdapter(
             () => this.state.viewRight,
@@ -189,9 +215,13 @@ export class BasicView implements CubeView {
             //   means narrowing the touch handler's declaration.
             onStickerSelected: id => this.updateSelected(id as StickerId),
             onViewRotated: (_direction: 'horizontal' | 'vertical', rotation, steps) => {
-                updateRotation(this.state);
+                // The gesture has already applied `steps` rotations to the
+                // orientation (the touch handler loops over them), so this is one
+                // rotation of the cube whose ramp merges those steps into a single
+                // continuous sweep — not `steps` separate turns.
+                this.beginRotation();
                 updateFaceLabels(this.state, _direction);
-                this.endRotation();
+                this.applyRotation(this.shouldSkipRotationAnimation());
                 this.emitStateChanged();
                 if (isLinked(this.state.viewType)) {
                     for (let i = 0; i < steps; i++) {
@@ -340,7 +370,8 @@ export class BasicView implements CubeView {
     }
 
     /**
-     * Open a rotation: take the ghost strips off screen for its duration.
+     * Open a rotation: take the ghost strips off screen until the last turn in the
+     * sequence settles.
      *
      * A ghost strip borrows its colour from a hidden face, so while the cube is
      * turning it would show a mapping that is about to be wrong — during a
@@ -348,9 +379,11 @@ export class BasicView implements CubeView {
      * recolour at the end. Hiding first means a strip is either correct or
      * absent, never confidently wrong.
      *
-     * Must be paired with {@link endRotation}. Every rotation and move entry
-     * point goes through this pair so the treatment is the same whichever way
-     * the cube is turned.
+     * Every rotation and move entry point goes through this, and pairing is
+     * enforced by {@link turnsInFlight} rather than by each caller remembering to
+     * close what it opened: the strips come back when the counter reaches zero,
+     * so a rapid sequence hides them once and restores them once (R7) instead of
+     * flickering between steps.
      *
      * The hide is immediate (`animate = false`), not the animated fade-out: the
      * fade leaves each strip on screen for the length of its opacity transition
@@ -360,27 +393,79 @@ export class BasicView implements CubeView {
      * `hideAllStrips` only touches strips still flagged as showing.
      */
     private beginRotation(): void {
+        this.turnsInFlight++;
         this.ghostStickers?.setVisible(false, false);
     }
 
     /**
-     * Close a rotation whose turn is still animating underneath: the strips come
-     * back after the fade-in delay, landing as the cube's transform settles.
+     * Close a rotation and reveal the strips if this was the last turn in flight.
+     *
+     * Must be called for **both** outcomes of a turn — completed and cancelled —
+     * because a leaked count would hide the strips for the rest of the session.
+     * The counter lives with the view, which owns every animation, so a stale
+     * animation resolving after a resize or a model update cannot strand it: the
+     * guard in {@link closeRotation} refuses to touch replaced DOM.
+     *
+     * The reveal is immediate. The cube's own motion has already been awaited by
+     * whoever held the turn, so a fade-in delay would be a second, phantom turn:
+     * the same 233ms pause the user reported after a whole-cube move.
      */
     private endRotation(): void {
-        this.updateGhostEdges();
+        this.turnsInFlight = Math.max(0, this.turnsInFlight - 1);
+        if (this.turnsInFlight === 0) this.updateGhostEdges();
     }
 
     /**
-     * Close a rotation whose turn has already finished: the strips come back
-     * immediately, with no fade-in delay.
+     * Run a rotation and close it exactly once, whichever way it settles.
      *
-     * Used by the move paths, which await the move animation before reaching
-     * here. Waiting a second time is what produced the pause the user reported
-     * after a whole-cube turn.
+     * `updateRotation` reports whether the orientation settled immediately or is
+     * still animating, and this is the only place that decides what to do about
+     * it. Both branches end in {@link endRotation}, so a cancelled or superseded
+     * ramp cannot leak the counter.
+     *
+     * A rotation that resolves after the view was rebuilt (resize, model update)
+     * or destroyed must not write to removed DOM — hence the `isConnected` guard
+     * rather than a generation counter, since the element is what would break.
      */
-    private endFinishedRotation(): void {
-        this.updateGhostEdges(true);
+    private applyRotation(skipAnimation?: boolean): void {
+        const result = updateRotation(this.state, skipAnimation);
+        if (result.kind === 'settled') {
+            this.endRotation();
+            return;
+        }
+        const cubeElement = this.state.cubeElement;
+        void result.finished.then(() => {
+            // Guard against a stale completion. Identity, not `isConnected`: a view
+            // can legitimately live detached from the document (a harness, or a panel
+            // that has not been attached yet), and rejecting those would silently skip
+            // the bake. `destroy()` sets `cubeElement` to null and a resize replaces
+            // it, so identity catches every case that actually matters.
+            if (this.state.cubeElement !== cubeElement) return;
+            // Bake the settled transform and drop the animation. While a ramp is
+            // running, the animation is what holds the element's transform with
+            // `fill: forwards`, so the inline style is still the pre-rotation value
+            // — leaving it there would make the DOM disagree with the cube the user
+            // is looking at, and anything reading the style would see stale geometry.
+            // `skipAnimation` performs exactly that settle, so there is one code
+            // path for it.
+            updateRotation(this.state, true);
+            this.endRotation();
+        });
+    }
+
+    /**
+     * Skip the animation for this rotation when four or more are already in
+     * flight, matching the Circular view's skip-when-overloaded precedent.
+     *
+     * Animation is dropped rather than queued so rapid input cannot grow an
+     * unbounded backlog; the orientation change itself is always applied, so the
+     * cube still ends where the user's gestures asked. The threshold is higher
+     * than one because a two-step gesture is a single continuous turn — merging
+     * is what handles that, and skipping it would stutter the very case the
+     * shared primitive exists to smooth.
+     */
+    private shouldSkipRotationAnimation(): boolean {
+        return this.turnsInFlight >= SKIP_ANIMATION_THRESHOLD;
     }
 
     /**
@@ -491,7 +576,7 @@ export class BasicView implements CubeView {
             /* c8 ignore else if */ else if (r === ViewRotation.Right) rotateViewRight(this.state);
             /* c8 ignore else if */ else if (r === ViewRotation.Up) rotateViewUp(this.state);
             /* c8 ignore else if */ else if (r === ViewRotation.Down) rotateViewDown(this.state);
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
             /* c8 ignore if — guard when not linked */
             if (isLinked(this.state.viewType)) {
                 Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
@@ -508,8 +593,8 @@ export class BasicView implements CubeView {
             id => this.updateSelected(id),
             onRotated
         );
+        /* c8 ignore if — the rotation path renders itself */
         if (handled && !preview) {
-            updateRotation(this.state);
             updateFaceLabels(this.state);
         }
         return handled;
@@ -631,7 +716,7 @@ export class BasicView implements CubeView {
             // No-cubie path (e.g. whole-cube rotation with no tracked cubies)
             // still needs the label refresh.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
-            this.endFinishedRotation();
+            this.endRotation();
             return;
         }
 
@@ -653,7 +738,7 @@ export class BasicView implements CubeView {
             // Reduced-motion / non-animated whole-cube path. There is no turn to
             // wait for, so the strips return immediately.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
-            this.endFinishedRotation();
+            this.endRotation();
             return;
         }
 
@@ -678,7 +763,7 @@ export class BasicView implements CubeView {
                     this.refreshFaceLabelsAfterWholeCubeMove(event);
                     // The move animation has just finished, so there is nothing
                     // left to wait for.
-                    this.endFinishedRotation();
+                    this.endRotation();
                 }
             })
             .catch(() => {
@@ -689,7 +774,7 @@ export class BasicView implements CubeView {
                 // one we opened it for. Re-closing a rotation that is already shut
                 // is harmless: it recomputes the same set of strips.
                 if (this.activeAnimation?.event === event) {
-                    this.endFinishedRotation();
+                    this.endRotation();
                 }
             });
     }
@@ -728,7 +813,7 @@ export class BasicView implements CubeView {
         // its post-move positions, so this rotation is over — there is nothing
         // left to wait for.
         this.restoreSelection();
-        this.endFinishedRotation();
+        this.endRotation();
     }
 
     // -------------------------------------------------------------------------
@@ -737,46 +822,46 @@ export class BasicView implements CubeView {
 
     rotateViewLeft(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             rotateViewLeft(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state, 'horizontal');
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
     rotateViewRight(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             rotateViewRight(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state, 'horizontal');
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
     rotateViewUp(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             rotateViewUp(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state, 'vertical');
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
     rotateViewDown(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             rotateViewDown(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state, 'vertical');
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
     resetView(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             resetView(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state);
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
@@ -792,11 +877,41 @@ export class BasicView implements CubeView {
         // than fixing a live defect. It also protects the invariant if that
         // move-emission path ever stops reconciling.
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             alignCubeToView(this.state);
-            updateRotation(this.state, true);
             updateFaceLabels(this.state);
-            this.endRotation();
+            // Snapping is the intent here — the cube is being aligned to the view,
+            // not turned towards it — so the write is deliberately non-animating.
+            this.applyRotation(true);
         });
+    }
+
+    /**
+     * Toggle the view's tilt (a cosmetically rotated presentation of the same
+     * orientation).
+     *
+     * Routed through the view rather than letting the command call
+     * `rendering.updateRotation` directly, because a tilt swaps which CSS slots
+     * are visible and therefore which silhouette edges the ghost strips belong
+     * on — so it needs the same strips-off/refresh treatment as a rotation, and
+     * the command context has no way to express that. The base tilt is not the
+     * orientation, so there is no rotation to animate: the write is non-animating.
+     */
+    toggleTilt(): void {
+        this.beginRotation();
+        this.state.isTilted = !this.state.isTilted;
+        this.applyRotation(true);
+        updateFaceLabels(this.state);
+    }
+
+    /**
+     * Toggle the view's pitch. Same reasoning as {@link toggleTilt}.
+     */
+    togglePitch(): void {
+        this.beginRotation();
+        this.state.isPitched = !this.state.isPitched;
+        this.applyRotation(true);
+        updateFaceLabels(this.state);
     }
 
     // -------------------------------------------------------------------------
@@ -884,6 +999,10 @@ export class BasicView implements CubeView {
             );
         }
 
+        // Restoring a saved orientation is not a turn the user asked for: there is
+        // no travel to show, so the write is settled and no rotation is opened.
+        // Going through `updateRotation` directly keeps the ramp bookkeeping
+        // consistent without touching `turnsInFlight`.
         updateRotation(this.state, true);
         updateFaceLabels(this.state);
 
@@ -951,14 +1070,14 @@ export class BasicView implements CubeView {
     /**
      * Recompute which ghost strips belong on screen for the current orientation.
      *
-     * @param turnAlreadyFinished Whether the caller has already waited for its
-     *   own rotation to finish. The move paths have — they await the move
-     *   animation before calling this — so for them the fade-in delay would be a
-     *   second, phantom turn, measured as a 233ms pause between the cube stopping
-     *   and the strips returning. The synchronous rotation entry points still
-     *   have their turn running, so they keep the delay.
+     * The reveal is immediate. Every caller has already waited for its own turn —
+     * view rotations and move animations alike settle through
+     * {@link endRotation} — so the fade-in delay that used to live here would be a
+     * second, phantom turn. It was tuned against the CSS `transition: transform`
+     * that no longer exists, and it measured as a 233ms dead pause between the
+     * cube stopping and the strips returning.
      */
-    private updateGhostEdges(turnAlreadyFinished = false): void {
+    private updateGhostEdges(): void {
         if (!isGhostVisible()) return;
         const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(this.state);
         this.ghostStickers?.updateVisibleEdges(
@@ -966,7 +1085,7 @@ export class BasicView implements CubeView {
             hiddenFaces,
             this.state.isTilted,
             this.state.isPitched,
-            turnAlreadyFinished ? 0 : undefined
+            0
         );
     }
 }

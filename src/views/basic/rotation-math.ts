@@ -281,6 +281,8 @@ export function mergeSameAxis(prev: AxisAngle, next: AxisAngle): AxisAngle | nul
 export type RotationPlan = {
     /** The basis baked into the matrix below the animated slot. */
     base: Orientation;
+    /** The orientation this ramp is heading for. */
+    target: Orientation;
     /** The slot's rotation axis. */
     axis: Vector3;
     /** The slot's angle at the start of the ramp, in degrees. */
@@ -307,8 +309,8 @@ export type RotationPlan = {
  *   cannot be merged.)
  *
  * @param args.plan - The plan currently running, if any.
- * @param args.previousTarget - The orientation `plan` was aiming at, or the
- *   currently rendered orientation when there is no plan.
+ * @param args.rendered - The orientation the cube is showing when no plan is
+ *   running, i.e. the basis currently rendered.
  * @param args.target - The newly requested orientation.
  * @param args.currentAngleDeg - Where the running ramp is right now. Only read
  *   when `plan` is present; the caller obtains it from the animation itself.
@@ -317,11 +319,14 @@ export type RotationPlan = {
  */
 export function planRotation(args: {
     plan: RotationPlan | null;
-    previousTarget: Orientation;
+    rendered: Orientation;
     target: Orientation;
     currentAngleDeg: number;
 }): RotationPlan | null {
-    const step = rotationBetween(args.previousTarget, args.target);
+    // What the rotation has to travel from: the running ramp's goal, or what is
+    // rendered when nothing is in flight.
+    const from = args.plan ? args.plan.target : args.rendered;
+    const step = rotationBetween(from, args.target);
     if (!step) return args.plan;
 
     if (args.plan) {
@@ -329,7 +334,13 @@ export function planRotation(args: {
         if (merged) {
             // Resuming from the current angle keeps the motion continuous: that
             // angle already lies on the extended path, so nothing has to jump.
-            return { ...args.plan, fromDeg: args.currentAngleDeg, toDeg: merged.angle };
+            return {
+                base: args.plan.base,
+                target: args.target,
+                axis: args.plan.axis,
+                fromDeg: args.currentAngleDeg,
+                toDeg: merged.angle,
+            };
         }
 
         // Different axis: bake the pose on screen and start again from there.
@@ -341,10 +352,22 @@ export function planRotation(args: {
         // `fresh` is null only when the pose already equals the target, which can
         // happen if the interrupted ramp had in fact reached it.
         if (!fresh) return null;
-        return { base: shown, axis: fresh.axis, fromDeg: 0, toDeg: fresh.angle };
+        return {
+            base: shown,
+            target: args.target,
+            axis: fresh.axis,
+            fromDeg: 0,
+            toDeg: fresh.angle,
+        };
     }
 
-    return { base: args.previousTarget, axis: step.axis, fromDeg: 0, toDeg: step.angle };
+    return {
+        base: args.rendered,
+        target: args.target,
+        axis: step.axis,
+        fromDeg: 0,
+        toDeg: step.angle,
+    };
 }
 
 /** Mirrors `rotateViewLeft` in `navigation.ts`. */

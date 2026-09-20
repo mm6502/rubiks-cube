@@ -314,7 +314,7 @@ describe('rotation-math', () => {
             let target = stepLeft(previousTarget);
             let plan = planRotation({
                 plan: null,
-                previousTarget,
+                rendered: IDENTITY_ORIENTATION,
                 target,
                 currentAngleDeg: 0,
             });
@@ -324,7 +324,7 @@ describe('rotation-math', () => {
                 target = stepLeft(target);
                 plan = planRotation({
                     plan,
-                    previousTarget,
+                    rendered: IDENTITY_ORIENTATION,
                     target,
                     // Half way through the ramp that is already running — the
                     // realistic case, and the one where a restart would visibly
@@ -414,7 +414,7 @@ describe('rotation-math', () => {
         it('starts a fresh ramp when nothing is in flight', () => {
             const plan = planRotation({
                 plan: null,
-                previousTarget: IDENTITY_ORIENTATION,
+                rendered: IDENTITY_ORIENTATION,
                 target: stepLeft(IDENTITY_ORIENTATION),
                 currentAngleDeg: 0,
             });
@@ -428,7 +428,7 @@ describe('rotation-math', () => {
             const first = stepLeft(IDENTITY_ORIENTATION);
             const start = planRotation({
                 plan: null,
-                previousTarget: IDENTITY_ORIENTATION,
+                rendered: IDENTITY_ORIENTATION,
                 target: first,
                 currentAngleDeg: 0,
             })!;
@@ -436,7 +436,7 @@ describe('rotation-math', () => {
             const second = stepLeft(first);
             const extended = planRotation({
                 plan: start,
-                previousTarget: first,
+                rendered: first,
                 target: second,
                 currentAngleDeg: 45,
             })!;
@@ -458,7 +458,7 @@ describe('rotation-math', () => {
             const first = stepLeft(IDENTITY_ORIENTATION);
             const start = planRotation({
                 plan: null,
-                previousTarget: IDENTITY_ORIENTATION,
+                rendered: IDENTITY_ORIENTATION,
                 target: first,
                 currentAngleDeg: 0,
             })!;
@@ -467,7 +467,7 @@ describe('rotation-math', () => {
             const second = stepUp(first);
             const resumed = planRotation({
                 plan: start,
-                previousTarget: first,
+                rendered: first,
                 target: second,
                 currentAngleDeg: 30,
             })!;
@@ -495,7 +495,7 @@ describe('rotation-math', () => {
             expect(
                 planRotation({
                     plan: null,
-                    previousTarget: IDENTITY_ORIENTATION,
+                    rendered: IDENTITY_ORIENTATION,
                     target: landed,
                     currentAngleDeg: 0,
                 })
@@ -518,7 +518,7 @@ describe('rotation-math', () => {
         let target = stepLeft(previousTarget);
         let wide = planRotation({
             plan: null,
-            previousTarget,
+            rendered: IDENTITY_ORIENTATION,
             target,
             currentAngleDeg: 0,
         });
@@ -527,7 +527,7 @@ describe('rotation-math', () => {
             target = stepLeft(target);
             wide = planRotation({
                 plan: wide,
-                previousTarget,
+                rendered: IDENTITY_ORIENTATION,
                 target,
                 // Synchronous burst: no time has passed, so the ramp has not
                 // advanced from its start.

@@ -64,7 +64,12 @@ describe('BasicView core API', () => {
     it('getCommands returns a full command list and running actions updates state', () => {
         // Arrange
         const spyEmit = vi.spyOn(Application.eventBus, 'emit');
-        vi.spyOn(rendering as any, 'updateRotation').mockImplementation(() => {});
+        // These stubs must return the shape the real functions do: `updateRotation`
+        // now reports whether the rotation settled or is still ramping, and the
+        // view closes its rotation on that answer.
+        vi.spyOn(rendering as any, 'updateRotation').mockImplementation(() => ({
+            kind: 'settled',
+        }));
         vi.spyOn(rendering as any, 'updateFaceLabels').mockImplementation(() => {});
 
         // Act

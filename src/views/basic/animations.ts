@@ -65,6 +65,22 @@ export type RotationAnimation = {
 };
 
 /**
+ * Whether the user has asked for reduced motion.
+ *
+ * Every animation in this view consults this, so it is read in one place: both
+ * rotation animations decline to animate and the caller applies the result
+ * directly. `matchMedia` is absent in a bare jsdom, so it is guarded rather than
+ * assumed.
+ */
+export function prefersReducedMotion(): boolean {
+    return (
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches === true
+    );
+}
+
+/**
  * Animate a rotation as an angle ramped about a known axis.
  *
  * This is the one primitive behind both rotation animations in the Basic view.
@@ -254,7 +270,7 @@ export function animateMove(
     config?: BasicAnimationConfig
 ): AnimateMoveResult | null {
     // Check reduced motion preference
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (prefersReducedMotion()) {
         return null;
     }
 

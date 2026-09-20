@@ -30,7 +30,11 @@
     height: 1px;
     position: relative;
     transform-style: preserve-3d;
-    transition: transform 0.25s;
+    /* No `transition: transform` here, deliberately. View rotation is animated by
+       ramping an angle through the Web Animations API (see
+       `src/views/basic/rendering.ts`), and a CSS transition on the same property
+       would start a second, competing animation — interpolating the composed
+       transform component-wise, which is the shearing defect this replaced. */
     background: transparent;
     overflow: visible;
     transform-origin: 50% 50% 0;

@@ -1,5 +1,7 @@
 import { LayoutMode, ReadOnlyCubeModel, StickerId, Vector3 } from '@/cube/types';
 
+import type { Orientation, RotationPlan } from './rotation-math';
+
 /**
  * Variant type for basic view (front or back).
  */
@@ -63,4 +65,26 @@ export type BasicViewInternalData = {
     selectedFace?: string;
     selectedCubiePosition?: Vector3;
     cubieSize?: number;
+    /**
+     * The rotation ramp currently animating the cube element, if any.
+     *
+     * Held on state because an animation is a visual layer over an orientation
+     * that has already changed (R8): the model-side orientation moves
+     * immediately, so a second rotation arriving mid-flight has to consult what
+     * is *rendered* — this plan — to work out what to animate from, not what the
+     * stored orientation currently says.
+     */
+    rotationPlan?: RotationPlan | null;
+    /** The animation currently driving {@link rotationPlan}, if any. */
+    rotationAnimation?: Animation;
+    /**
+     * The orientation the cube element displays when no ramp is running.
+     *
+     * Distinct from the view's orientation, and that distinction is the point:
+     * the orientation changes the instant a rotation is requested (R8), so a
+     * second rotation arriving mid-flight cannot use it to work out what to
+     * animate *from*. This records what is actually on screen at rest, which is
+     * what a fresh ramp starts from.
+     */
+    renderedBasis?: Orientation;
 };
