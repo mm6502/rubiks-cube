@@ -8,7 +8,7 @@
 
     "[typescript]": {
         "editor.defaultFormatter": "TypeScriptTeam.native-preview",
-        "editor.formatOnSave": true
+        "editor.formatOnSave": false
     },
     "[json]": {
         "editor.defaultFormatter": "vscode.json-language-features"
