@@ -1,0 +1,24 @@
+{
+    // Scopes `scripts/` as its own TypeScript project.
+    //
+    // This file is deliberately named `tsconfig.json`: an editor's language
+    // service assigns a file to the NEAREST `tsconfig.json` walking up from it,
+    // and does not discover other filenames. With only a root
+    // `tsconfig.scripts.json` the scripts were matched to the root project —
+    // whose `include` is `src/**` and whose `rootDir` is `src` — so `@/...`
+    // resolved against nothing and the editor reported "Cannot find module".
+    // `npm run type-check` can point at any filename, but the editor cannot, so
+    // the scoping has to live here.
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        // `scripts/` sits outside `rootDir: "src"`, so the root moves up to cover
+        // both trees. Overridden here so the app build keeps its own root.
+        "rootDir": "..",
+        // Node builtins (`node:fs`, `node:path`, `node:url`) and their globals.
+        "types": ["node"],
+        // The scripts run through tsx and are never emitted.
+        "noEmit": true
+    },
+    "include": ["**/*.ts"],
+    "exclude": ["node_modules", "dist"]
+}

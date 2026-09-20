@@ -303,63 +303,6 @@ interface Metrics {
     extent: number;
 }
 
-interface LabelBox {
-    kind: string;
-    tag: string;
-    x0: number;
-    y0: number;
-    x1: number;
-    y1: number;
-}
-
-/**
- * Bounding boxes of the label elements in an emitted asset.
- *
- * Needed when sizing the canvas: labels sit outside the rings and outside the
- * face ellipses, so a canvas built from stickers and ellipses alone clips them.
- */
-function elementsOf(svg: string): LabelBox[] {
-    const out: LabelBox[] = [];
-
-    // Ring notation labels: a <g> keyed by data-label-id with a translate, and a
-    // labelWidth x labelHeight rect at that origin.
-    for (const m of svg.matchAll(
-        /<g data-label-id="([^"]*)"[^>]*transform="translate\(([-\d.]+),\s*([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
-    )) {
-        const x = Number(m[2]);
-        const y = Number(m[3]);
-        const w = Number(/width="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
-        const h = Number(/height="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
-        if (!Number.isFinite(w) || !Number.isFinite(h)) continue;
-        out.push({ kind: 'ring label', tag: m[1], x0: x, y0: y, x1: x + w, y1: y + h });
-    }
-
-    // Face labels: a <g> keyed by face-label id with a translate, and a rect
-    // centred on that anchor (x=-10, y=-10, w x h).
-    for (const m of svg.matchAll(
-        /<g data-face="[A-Z]" id="face-label-([A-Z])"[^>]*transform="translate\(([-\d.]+),([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
-    )) {
-        const x = Number(m[2]);
-        const y = Number(m[3]);
-        const body = m[4];
-        const rx = Number(/<rect x="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        const ry = Number(/<rect x="[-\d.]+" y="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        const w = Number(/width="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        const h = Number(/height="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        if (!Number.isFinite(rx) || !Number.isFinite(w)) continue;
-        out.push({
-            kind: 'face label',
-            tag: m[1],
-            x0: x + rx,
-            y0: y + ry,
-            x1: x + rx + w,
-            y1: y + ry + h,
-        });
-    }
-
-    return out;
-}
-
 /**
  * Measures the asset that was actually emitted, not recomputed geometry, so a
  * mismatch between the two shows up as a failure rather than being averaged away.
@@ -368,7 +311,7 @@ function elementsOf(svg: string): LabelBox[] {
  * trio's. It falls naturally with N and sits near 2.2-2.5x across the set; N=2
  * was the outlier and is the reason its ring step differs.
  */
-function measure(size: number, p: CircularSvgParameters, emitted: Emitted): Metrics {
+function measure(_size: number, p: CircularSvgParameters, emitted: Emitted): Metrics {
     let ellipseGapMin = Infinity;
     for (let i = 0; i < emitted.ellipses.length; i++) {
         for (let j = i + 1; j < emitted.ellipses.length; j++) {

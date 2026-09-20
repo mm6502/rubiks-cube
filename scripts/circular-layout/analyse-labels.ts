@@ -108,14 +108,6 @@ function paramsFor(size: number): CircularSvgParameters {
     return resolveParameters(size, file);
 }
 
-/** The ellipse's extent along a unit direction, from its support function. */
-function support(e: Ell, ux: number, uy: number): number {
-    const th = (e.rotation * Math.PI) / 180;
-    const cos = Math.cos(th);
-    const sin = Math.sin(th);
-    return Math.hypot(e.rx * (ux * cos + uy * sin), e.ry * (ux * -sin + uy * cos));
-}
-
 /** The square's extent along a unit direction, from its support function. */
 function squareSupport(ux: number, uy: number, half = LABEL_HALF): number {
     return half * Math.abs(ux) + half * Math.abs(uy);
