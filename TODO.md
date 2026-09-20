@@ -7,7 +7,4 @@ not repeat each other's content, so they cannot drift apart.
 
 ## Current tasks
 
-- Basic View - when walking the cube via arrow keys, and selection goes over an
-  edge or corner, ghost stickers are rotated with the cube (bad).
-
 (nothing atm)
