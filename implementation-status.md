@@ -14,6 +14,10 @@ apart.
 
 ✅ **Complete (100%)**
 
+- [x] (Sep 2026) Share one rotation-animation primitive between view rotation
+      and move animation, so every frame of a rotation is a valid rotation —
+      this replaced the `matrix3d` + CSS-transition scheme whose component-wise
+      interpolation sheared the cube and unwound on interruption
 - [x] (Sep 2026) Selection behaves identically in all three views — clearing a
       face highlight (tapping the background, the halo, or the same sticker
       again) keeps the sticker selected, so keyboard navigation continues from
@@ -37,10 +41,6 @@ apart.
       notation renders as an icon, with numbered slices and wide moves reusing
       the family glyph plus a full-notation label (zero new SVG assets). See
       [docs/plans/2026-09-06-001-feat-moves-view-icon-fallback-plan.md](docs/plans/2026-09-06-001-feat-moves-view-icon-fallback-plan.md)
-- [x] (Sep 2026) Share one rotation-animation primitive between view rotation
-      and move animation, so every frame of a rotation is a valid rotation —
-      this replaced the `matrix3d` + CSS-transition scheme whose component-wise
-      interpolation sheared the cube and unwound on interruption
 - [x] (Sep 2026) Cut over Basic 2 to replace the Basic view — the animated
       per-cubie engine is now the single Basic view (see
       [docs/brainstorms/2026-09-05-basic2-cutover-requirements.md](docs/brainstorms/2026-09-05-basic2-cutover-requirements.md))

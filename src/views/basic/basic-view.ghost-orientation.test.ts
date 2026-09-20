@@ -47,6 +47,8 @@ interface Harness {
     animationCount: () => number;
     /** How many animations have been cancelled in total. */
     animationsCancelled: () => number;
+    /** The angle the most recently started ramp travels, in degrees. */
+    lastSweepDegrees: () => number;
     strips: () => HTMLElement[];
     release: () => void;
 }
@@ -58,37 +60,88 @@ interface Harness {
 const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'animate');
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
 
-function createHarness(options: { reducedMotion?: boolean } = {}): Harness {
-    const model = new CubeController(3);
+/**
+ * Per-view animation bookkeeping, keyed by the cube element that owns the animation.
+ *
+ * Module-scoped rather than per-harness: two harnesses in one test (the linked-rotation
+ * case) each install the same prototype stub, so a per-harness closure would let the
+ * second installation capture the first view's animations and leave the first view's
+ * counters reading zero.
+ */
+const animationCounters = new WeakMap<
+    Element,
+    { started: number; cancelled: number; sweep: number }
+>();
 
-    // A controllable animation: `finished` settles only when the test asks, and
-    // `progress` reports how far through the ramp the cube is (which is what one
-    // rotation reads to know where to continue from when it interrupts another).
-    //
-    // Every call returns a *distinct* object, because the view guards a rotation's
-    // completion by animation identity: a shared stub would make a superseded
-    // animation indistinguishable from its replacement and hide the very
-    // flicker that guard exists to prevent.
+/** How far through the current ramp the stub reports the cube is, as 0..1. */
+let rampProgress = 0;
+
+/** Resolves the animation to the view that owns it, and bumps its counters. */
+function recordAnimation(
+    element: HTMLElement,
+    keyframes: Array<{ transform: string }>
+): { started: number; cancelled: number; sweep: number } {
+    // Attribute the animation to the view that owns it. Move animations run on a pivot
+    // created inside the cube element, so the animated element is not always the cube
+    // itself — resolving the enclosing `[data-view-type]` is what lets a test measure
+    // moves and rotations with one counter, and keeps two views' counts separate.
+    const owner = element.closest('[data-view-type]') ?? element;
+    const counter = animationCounters.get(owner) ?? { started: 0, cancelled: 0, sweep: 0 };
+    counter.started++;
+
+    // Record how far this ramp travels, so a test can compare the angle a linked peer
+    // swept against its source's.
+    const angleOf = (frame: string): number => {
+        const match = /rotate3d\([^)]*?,(-?[\d.]+)deg\)/.exec(frame);
+        return match ? Number(match[1]) : 0;
+    };
+    if (keyframes && keyframes.length === 2) {
+        counter.sweep = Math.abs(angleOf(keyframes[1].transform) - angleOf(keyframes[0].transform));
+    }
+
+    animationCounters.set(owner, counter);
+    return counter;
+}
+
+/**
+ * Installs the shared animation stub on the prototype.
+ *
+ * Every call returns a *distinct* object, because the view guards a rotation's
+ * completion by animation identity: a shared stub would make a superseded animation
+ * indistinguishable from its replacement and hide the very flicker that guard exists
+ * to prevent. `finished` settles only when the test asks, which is what lets a test
+ * inspect the mid-turn window.
+ */
+function installAnimationStub(): () => void {
     let settle: () => void = () => {};
-    let started = 0;
-    let cancelled = 0;
-    let progress = 0;
     const finished = new Promise<void>(resolve => (settle = resolve));
     Object.defineProperty(HTMLElement.prototype, 'animate', {
         configurable: true,
         writable: true,
-        value: () => {
-            started++;
-            const handle = {
+        value: function (this: HTMLElement, keyframes: Array<{ transform: string }>) {
+            const counter = recordAnimation(this, keyframes);
+            return {
                 cancel: () => {
-                    cancelled++;
+                    counter.cancelled++;
                 },
                 finished,
-                effect: { getComputedTiming: () => ({ progress }) },
+                effect: { getComputedTiming: () => ({ progress: rampProgress }) },
             };
-            return handle;
         },
     });
+    return () => {
+        rampProgress = 1;
+        settle();
+    };
+}
+
+function createHarness(options: { reducedMotion?: boolean; viewType?: string } = {}): Harness {
+    const model = new CubeController(3);
+
+    // Install the shared stub. It is module-scoped so two harnesses in one test (the
+    // linked-rotation case) measure the same counters rather than the second
+    // installation stealing the first view's animations.
+    const settleAnimation = installAnimationStub();
     Object.defineProperty(window, 'matchMedia', {
         configurable: true,
         writable: true,
@@ -107,9 +160,13 @@ function createHarness(options: { reducedMotion?: boolean } = {}): Harness {
     Object.defineProperty(container, 'clientHeight', { value: 600 });
     document.body.appendChild(container);
 
-    const view = new BasicView({ viewType: 'basic-front' });
+    const view = new BasicView({ viewType: options.viewType ?? 'basic-front' });
     view.create(container, model);
     view.resize();
+
+    /** This view's own animation counters, read through its cube element. */
+    const counters = (v: BasicView) =>
+        animationCounters.get(v.getCubeElement()!) ?? { started: 0, cancelled: 0, sweep: 0 };
 
     return {
         view,
@@ -146,15 +203,15 @@ function createHarness(options: { reducedMotion?: boolean } = {}): Harness {
             } as never;
         },
         finishAnimation: () => {
-            progress = 1;
-            settle();
+            settleAnimation();
         },
         setProgress: (value: number) => {
-            progress = value;
+            rampProgress = value;
         },
-        animationStarted: () => started > 0,
-        animationCount: () => started,
-        animationsCancelled: () => cancelled,
+        animationStarted: () => counters(view).started > 0,
+        animationCount: () => counters(view).started,
+        animationsCancelled: () => counters(view).cancelled,
+        lastSweepDegrees: () => counters(view).sweep,
         strips: () =>
             Array.from(view.getCubeElement()!.querySelectorAll<HTMLElement>('[data-host-face]')),
         release: () => {
@@ -206,6 +263,7 @@ describe('ghost strips across the orientation-changing paths', () => {
         // later test's toggle starts from 100% and lands back on "off", so no
         // strips appear and the assertions fail for the wrong reason.
         setGhostOpacityIndex(0);
+        rampProgress = 0;
         vi.useFakeTimers();
     });
 
@@ -582,6 +640,69 @@ describe('ghost strips across the orientation-changing paths', () => {
             expect(shownIds(h)).toEqual(shouldIds(h));
         } finally {
             h.release();
+        }
+    });
+
+    // Linked rotations are the sharpest constraint on this design. The source view
+    // emits one event per *step* while rendering once per *gesture*, and the peer
+    // calls its own `rotateViewRight()` and friends once per received event. Under
+    // the old matrix scheme the peer's N writes were overwritten within one tick,
+    // leaving a single CSS transition over the net delta, so the two views stayed
+    // accidentally symmetric. Once the animation ramps an angle from the last
+    // rendered value, that symmetry has to be deliberate: the peer's N synchronous
+    // calls must coalesce into the same single sweep the source renders, and its
+    // strips must not stay hidden N times longer than the source's.
+    it('a linked peer coalesces N synchronous steps into one sweep matching the source', async () => {
+        const source = createHarness();
+        const peer = createHarness({ viewType: 'basic-back' });
+        try {
+            enableGhosts(source);
+            enableGhosts(peer);
+
+            // A two-step background drag: the touch handler applies both steps to the
+            // source, then emits one event per step.
+            source.view.rotateViewRight();
+            source.view.rotateViewRight();
+
+            // The peer receives them synchronously, as the real bus would deliver them.
+            peer.view.rotateViewRight();
+            peer.view.rotateViewRight();
+
+            // The peer swept the same angle the source rendered, from its own default
+            // orientation — the two variants start from different bases (front is
+            // `+Z`, back is `−Z`), so the *rotation* is what must match, not the
+            // absolute orientation.
+            const peerSweep = peer.lastSweepDegrees();
+            const sourceSweep = source.lastSweepDegrees();
+            expect(peerSweep, 'the peer swept the full two-step delta').toBeCloseTo(180, 0);
+            expect(peerSweep, 'source and peer swept the same angle').toBeCloseTo(sourceSweep, 0);
+
+            // And each view's own two steps took effect, so neither dropped a step.
+            // Worked through: two `rotateViewRight` turns from the front default
+            // (viewForward +Z) give −Z, and from the back default (viewForward −Z)
+            // give +Z.
+            expect(source.view.getState().viewForward, 'the source applied both steps').toEqual({
+                x: 0,
+                y: 0,
+                z: -1,
+            });
+            expect(peer.view.getState().viewForward, 'the peer applied both steps').toEqual({
+                x: 0,
+                y: 0,
+                z: 1,
+            });
+
+            source.finishAnimation();
+            peer.finishAnimation();
+            await vi.advanceTimersByTimeAsync(400);
+
+            // Neither view's strips are left hidden, and neither waited longer than
+            // the other — the two settle in the same tick.
+            expect(shownIds(source), 'source strips restored').toEqual(shouldIds(source));
+            expect(shownIds(peer), 'peer strips restored').toEqual(shouldIds(peer));
+        } finally {
+            source.release();
+            peer.release();
         }
     });
 
