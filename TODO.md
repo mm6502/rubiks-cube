@@ -7,6 +7,8 @@ not repeat each other's content, so they cannot drift apart.
 
 ## Current tasks
 
+- Keyboard focus highlight has wrong color after latest change.
+
 - Basic View - when walking the cube via arrow keys, and selection goes over an
   edge or corner, ghost stickers are rotated with the cube (bad).
 
