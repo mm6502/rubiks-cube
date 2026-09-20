@@ -83,14 +83,15 @@ type ActiveAnimation = {
 };
 
 /**
- * How many turns may be in flight before further ones skip their animation.
+ * How many rotations may coalesce into one gesture before further ones stop
+ * animating.
  *
- * Matches the Circular view's `_pendingTotal > 2` rule, which is a count of
- * *already queued* moves rather than a duration: animation is dropped so rapid
- * input cannot grow an unbounded backlog, while the orientation change itself is
- * always applied.
+ * Expressed as "after two", matching the Circular view's `pending > 2` rule so the
+ * two views agree on what "rapid input" means. A two-step gesture is one continuous
+ * turn, so the first two are always animated; from the third on, the orientation is
+ * applied directly.
  */
-const SKIP_ANIMATION_THRESHOLD = 3;
+const SKIP_ANIMATION_AFTER = 2;
 
 export class BasicView implements CubeView {
     private state: BasicViewInternalData;
@@ -115,6 +116,23 @@ export class BasicView implements CubeView {
      * required rather than nice to have.
      */
     private turnsInFlight = 0;
+    /**
+     * The rotation animation the view currently considers open, if any.
+     *
+     * Needed in addition to the plan on the state object, because a rotation that is
+     * superseded has already been forgotten there. This is what lets the settle guard
+     * tell an obsolete completion from the live one, and what lets a superseding
+     * rotation close its predecessor's turn so the count cannot leak.
+     */
+    private rotationAnimation: Animation | null = null;
+    /**
+     * How many rotations have coalesced into the gesture currently being shown.
+     *
+     * Reset when the sequence settles. Distinct from {@link turnsInFlight}, which
+     * counts open turns for the ghost strips: a superseded rotation is closed at once, so
+     * `turnsInFlight` stays at one throughout a burst and cannot express its length.
+     */
+    private rotationsInSequence = 0;
 
     constructor(config?: { viewType?: string }) {
         const viewType = config?.viewType === 'basic-back' ? 'basic-back' : 'basic-front';
@@ -394,6 +412,7 @@ export class BasicView implements CubeView {
      */
     private beginRotation(): void {
         this.turnsInFlight++;
+        this.rotationsInSequence++;
         this.ghostStickers?.setVisible(false, false);
     }
 
@@ -412,60 +431,93 @@ export class BasicView implements CubeView {
      */
     private endRotation(): void {
         this.turnsInFlight = Math.max(0, this.turnsInFlight - 1);
-        if (this.turnsInFlight === 0) this.updateGhostEdges();
+        if (this.turnsInFlight === 0) {
+            // The sequence is over, so the next gesture starts its count afresh.
+            this.rotationsInSequence = 0;
+            this.updateGhostEdges();
+        }
     }
 
     /**
      * Run a rotation and close it exactly once, whichever way it settles.
      *
      * `updateRotation` reports whether the orientation settled immediately or is
-     * still animating, and this is the only place that decides what to do about
-     * it. Both branches end in {@link endRotation}, so a cancelled or superseded
-     * ramp cannot leak the counter.
+     * still animating, and this is the only place that decides what to do about it.
+     * Every branch ends in {@link endRotation}, so a cancelled or superseded ramp
+     * cannot leak the counter.
      *
-     * A rotation that resolves after the view was rebuilt (resize, model update)
-     * or destroyed must not write to removed DOM — hence the `isConnected` guard
-     * rather than a generation counter, since the element is what would break.
+     * A rotation resolving after the element was replaced (resize, model update) still
+     * closes its turn, but does not bake a transform onto whatever replaced it.
      */
     private applyRotation(skipAnimation?: boolean): void {
+        const element = this.state.cubeElement;
+        const previous = this.rotationAnimation;
         const result = updateRotation(this.state, skipAnimation);
-        if (result.kind === 'settled') {
+        const opened = result.kind === 'animating' ? result.animation : null;
+        const finished = result.kind === 'animating' ? result.finished : null;
+
+        // A rotation that supersedes another closes it here. The superseded one will
+        // never settle on its own — its completion is refused by the identity guard
+        // below — so leaving it open would leak the count and strand the strips
+        // hidden for the rest of the session.
+        if (previous !== null && previous !== opened) {
+            this.rotationAnimation = null;
+            this.endRotation();
+        }
+        this.rotationAnimation = opened;
+
+        if (!opened || !finished) {
             this.endRotation();
             return;
         }
-        const cubeElement = this.state.cubeElement;
-        void result.finished.then(() => {
-            // Guard against a stale completion. Identity, not `isConnected`: a view
-            // can legitimately live detached from the document (a harness, or a panel
-            // that has not been attached yet), and rejecting those would silently skip
-            // the bake. `destroy()` sets `cubeElement` to null and a resize replaces
-            // it, so identity catches every case that actually matters.
-            if (this.state.cubeElement !== cubeElement) return;
-            // Bake the settled transform and drop the animation. While a ramp is
-            // running, the animation is what holds the element's transform with
-            // `fill: forwards`, so the inline style is still the pre-rotation value
-            // — leaving it there would make the DOM disagree with the cube the user
-            // is looking at, and anything reading the style would see stale geometry.
-            // `skipAnimation` performs exactly that settle, so there is one code
-            // path for it.
-            updateRotation(this.state, true);
+
+        void finished.then(() => {
+            // Guard by *animation identity*. A superseded rotation's `finished` settles
+            // when it is cancelled, and if it were allowed to close the turn it would
+            // settle the rotation that replaced it — revealing the strips mid-sequence,
+            // which is exactly the flicker R7 forbids. Measured in a real browser before
+            // this guard existed: `0 → shown → 0 → shown`, two reveals for one gesture.
+            // The move path below guards the same hazard by event identity.
+            if (this.rotationAnimation !== opened) return;
+            this.rotationAnimation = null;
+
+            // Nothing to bake if the element this rotation was animating is gone.
+            if (this.state.cubeElement === element) {
+                // Bake the settled transform and drop the animation. While a ramp is
+                // running, the animation is what holds the element's transform with
+                // `fill: forwards`, so the inline style is still the pre-rotation value
+                // — leaving it there would make the DOM disagree with the cube the user
+                // is looking at, and anything reading the style would see stale geometry.
+                // `skipAnimation` performs exactly that settle, so there is one code
+                // path for it.
+                updateRotation(this.state, true);
+            }
             this.endRotation();
         });
     }
 
     /**
-     * Skip the animation for this rotation when four or more are already in
-     * flight, matching the Circular view's skip-when-overloaded precedent.
+     * Skip the animation for this rotation when enough of them have already coalesced
+     * into the current gesture.
      *
-     * Animation is dropped rather than queued so rapid input cannot grow an
-     * unbounded backlog; the orientation change itself is always applied, so the
-     * cube still ends where the user's gestures asked. The threshold is higher
-     * than one because a two-step gesture is a single continuous turn — merging
-     * is what handles that, and skipping it would stutter the very case the
-     * shared primitive exists to smooth.
+     * Follows the Circular view's skip-when-overloaded intent — the *pattern*, not the
+     * code, which is not cancel-safe. The reason differs slightly in this view: rapid
+     * input is not queued, so there is no unbounded backlog to prevent. What it bounds
+     * is animation restarts — each rotation retargets the ramp, and continuing to
+     * restart it for a long burst costs work while showing less than a steady sweep
+     * would. Dropping the animation while still applying the orientation keeps the cube
+     * where the gestures asked and keeps the trailing end of a burst cheap.
+     *
+     * Counted per gesture rather than per in-flight animation, because a superseded
+     * rotation is closed immediately: the in-flight count stays at one throughout a
+     * burst, so it can never express "this gesture is getting long".
+     *
+     * The threshold is two rather than one, because a two-step gesture designates a
+     * single continuous turn (a far-drag, or the anti-parallel case of `rotateViewToFace`)
+     * and skipping it would stutter the very case the shared primitive smooths.
      */
     private shouldSkipRotationAnimation(): boolean {
-        return this.turnsInFlight >= SKIP_ANIMATION_THRESHOLD;
+        return this.rotationsInSequence > SKIP_ANIMATION_AFTER;
     }
 
     /**
@@ -1019,6 +1071,12 @@ export class BasicView implements CubeView {
     destroy(): void {
         // Stop being addressable: a destroyed view must not be activatable.
         unregisterViewContainer(this.getViewType());
+
+        // Drop any rotation still in flight. Its completion is refused by the identity
+        // guard in `applyRotation`, so the view must not leave it holding a turn.
+        this.rotationAnimation = null;
+        this.turnsInFlight = 0;
+        this.rotationsInSequence = 0;
 
         // Finalize any running animation
         this.finalizeAnimation();

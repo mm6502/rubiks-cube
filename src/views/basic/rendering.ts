@@ -41,7 +41,7 @@ function faceFromCSSDir(v: Vector3): Face {
  */
 export type RotationResult =
     | { kind: 'settled' }
-    | { kind: 'animating'; finished: Promise<boolean> };
+    | { kind: 'animating'; animation: Animation; finished: Promise<boolean> };
 
 /**
  * Reads the cube's current orientation as the shape the rotation maths expects.
@@ -240,7 +240,7 @@ export function updateRotation(
     state.rotationAnimation = animation;
     // What the element will display once this ramp settles.
     state.renderedBasis = next.target;
-    return { kind: 'animating', finished };
+    return { kind: 'animating', animation, finished };
 }
 
 /**
