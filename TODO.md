@@ -9,7 +9,7 @@ not repeat each other's content, so they cannot drift apart.
 
 - Basic View - In Firefox resizing the view panel produces unexpected visual
   issues. Screenshot in
-  [./tmp/firefox-resize-issue.png](./tmp/firefox-resize-issue.png) Investigate
-  and fix.
+  [docs/visuals/firefox-resize-issue.png](./docs/visuals/firefox-resize-issue.png)
+  Investigate and fix.
 
 (nothing atm)
