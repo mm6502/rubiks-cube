@@ -12,11 +12,38 @@
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    /* Property list, not `all`. `all` also animates `outline-color` and
+       `outline-width`, which turns the focus ring into a ~200ms sweep: the UA
+       ring's initial colour is `currentColor` (the button's own light text
+       colour) and its initial width is `medium`, so Tab made the ring flash pale
+       and thick and then fade to near-black and thin — read as "the highlight is
+       the wrong colour". */
+    transition:
+        background-color 0.2s,
+        border-color 0.2s,
+        box-shadow 0.2s,
+        color 0.2s,
+        transform 0.2s,
+        filter 0.2s;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     min-height: 44px;
     min-width: 44px;
+}
+
+/* Keyboard focus ring. Without this the ring is the browser default, whose
+   settled colour measures rgb(16,16,16) — only 2:1 against a dark button, far
+   below the 3:1 WCAG 2.2 SC 1.4.11 requires of a focus indicator. */
+.btn:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}
+
+/* A pressed toggle is filled with cyan-400, which is bright enough that the
+   dark-theme ring cannot contrast against it (1.9:1). Flip the ring to the
+   colour the active-toggle style already pairs with that fill. */
+.btn[aria-pressed='true']:focus-visible {
+    outline-color: var(--color-toggle-btn-active-text);
 }
 
 .btn:hover {
