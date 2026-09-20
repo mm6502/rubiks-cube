@@ -1,24 +1,28 @@
 // How each orientation-changing path treats the ghost hint strips.
 //
-// The user observed THREE different behaviours:
+// A ghost strip borrows its colour from a hidden face, so for as long as the cube
+// is turning that mapping is about to be wrong. The rule is therefore the same
+// whichever way the cube is turned: take the strips off screen for the duration,
+// then recompute them for the orientation that is now in effect.
 //
-//   PATH 1  plain arrow crossing an edge/corner — strips go stale and stay stale
-//   PATH 2  Alt+Arrow view rotation            — strips hide, then restore
-//   PATH 3  whole-cube move (x/y/z)            — strips stay up during the turn
-//                                                and only recolour
+// That rule is applied through one pair — `beginRotation()` / `endRotation()` —
+// because the paths previously disagreed three ways:
 //
-// Paths 2 and 3 are deliberate but different; path 1 is a defect. This suite
-// pins all three down by measurement so the divergence is visible and so any
-// future unification has a baseline to change.
+//   plain arrow crossing an edge   strips went stale and stayed stale (README'd)
+//   view rotation (Alt+Arrow)      strips hid, then restored
+//   whole-cube move (x/y/z)        strips stayed up and only recoloured
 //
-// Cause of PATH 1: `handleKeyPress`'s `onRotated` mutates the orientation in
-// place, then refreshes rotation and face labels only. It is the one rotation
-// entry point that never refreshes the ghost edges — `rotateViewLeft/Right/Up/
-// Down`, `resetView`, `alignCubeToView`, the tilt/pitch commands and the touch
-// callback all do.
+// Only the middle one was intentional, and only by accident: it hid because
+// `updateVisibleEdges` begins with `hideAllStrips`. The other two simply never
+// called it. This suite pins the unified behaviour down, and separately asserts
+// that the hide is synchronous — the animated fade-out leaves the strips on
+// screen for the length of the opacity transition, i.e. exactly the stale window
+// the hide exists to remove.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CubeController } from '@/cube-controller';
+import { Axis, QuarterTurn } from '@/cube/types';
+import type { MoveExecutedEvent } from '@/types';
 import { setGhostOpacityIndex } from '@/views/basic/ghost-stickers';
 
 import { BasicView } from './basic-view';
@@ -27,12 +31,45 @@ import { getVisibleFacesWithPositions } from './rendering';
 interface Harness {
     view: BasicView;
     model: CubeController;
+    /** Builds a MOVE_EXECUTED event of the shape the controller emits. */
+    moveEvent: (notation: string) => MoveExecutedEvent;
+    /** Settles the in-flight move animation, so the `finished` handler runs. */
+    finishAnimation: () => void;
     strips: () => HTMLElement[];
     release: () => void;
 }
 
+// `Element.prototype.animate` and `window.matchMedia` are patched below with raw
+// `Object.defineProperty` writes, which `vi.restoreAllMocks()` does not unwind — a
+// stub left behind would silently affect a later test in the same worker. jsdom
+// provides no `matchMedia` at all, so it is restored by deletion.
+const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'animate');
+const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
 function createHarness(): Harness {
     const model = new CubeController(3);
+
+    // A controllable animation: `finished` settles only when the test asks.
+    let settle: () => void = () => {};
+    const finished = new Promise<void>(resolve => (settle = resolve));
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+        configurable: true,
+        writable: true,
+        value: () => ({ cancel: () => {}, finished }),
+    });
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        // `matches: false` keeps the animated branch — a truthy value is the
+        // prefers-reduced-motion signal, which makes animateMove return null.
+        value: () => ({
+            matches: false,
+            media: '(prefers-reduced-motion: reduce)',
+            addEventListener: () => {},
+            removeEventListener: () => {},
+        }),
+    });
+
     const container = document.createElement('div');
     Object.defineProperty(container, 'clientWidth', { value: 600 });
     Object.defineProperty(container, 'clientHeight', { value: 600 });
@@ -45,6 +82,29 @@ function createHarness(): Harness {
     return {
         view,
         model,
+        moveEvent: notation => {
+            const axis =
+                notation.charAt(0) === 'x' ? Axis.X : notation.charAt(0) === 'y' ? Axis.Y : Axis.Z;
+            const isWholeCube = /^[xyz]/.test(notation);
+            return {
+                moveDetails: {
+                    notation,
+                    definition: {
+                        name: notation.replace(/['2]/g, ''),
+                        axis,
+                        layerIndices: isWholeCube ? [0, 1, 2] : [2],
+                        angle: notation.includes('2') ? QuarterTurn.HALF : QuarterTurn.QUARTER,
+                    },
+                    movedCubies: {
+                        before: [{ id: 'cubie-a', position: { x: 0, y: 0, z: 0 } }] as never,
+                        after: [] as never,
+                    },
+                },
+                preState: model.getCurrentState(),
+                postState: model.getCurrentState(),
+            };
+        },
+        finishAnimation: () => settle(),
         strips: () =>
             Array.from(view.getCubeElement()!.querySelectorAll<HTMLElement>('[data-host-face]')),
         release: () => {
@@ -102,6 +162,11 @@ describe('ghost strips across the orientation-changing paths', () => {
     afterEach(() => {
         setGhostOpacityIndex(0);
         vi.useRealTimers();
+        if (originalAnimate)
+            Object.defineProperty(HTMLElement.prototype, 'animate', originalAnimate);
+        else Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+        if (originalMatchMedia) Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+        else Reflect.deleteProperty(window, 'matchMedia');
     });
 
     // PATH 1 — the reported defect. Arrow 1 stays on the front face; arrow 2
@@ -143,7 +208,7 @@ describe('ghost strips across the orientation-changing paths', () => {
     });
 
     // PATH 2 — the Alt+Arrow view rotation. Hide during the turn, restore after.
-    it('PATH 2: an Alt+Arrow view rotation hides the strips during the turn, then restores them', () => {
+    it('PATH 2: a view rotation hides the strips during the turn, then restores them', () => {
         const h = createHarness();
         try {
             enableGhosts(h);
@@ -179,23 +244,92 @@ describe('ghost strips across the orientation-changing paths', () => {
         }
     });
 
-    // PATH 3 — a whole-cube move turns the cube itself, so the set of visible
-    // faces (from the view's point of view) does not change; only the colours do.
-    // The strips therefore stay up for the whole turn and are recoloured when the
-    // move lands.
-    it('PATH 3: a whole-cube move leaves the set alone and recolours once the move lands', () => {
+    // PATH 3 — a whole-cube move, driven through the real MOVE_EXECUTED path with
+    // a controllable animation so the mid-turn window can be inspected. (Calling
+    // `view.update()` instead would take the full-repaint branch and never reach
+    // `handleMoveExecuted` at all, so it would prove nothing about this path.)
+    it('PATH 3: a whole-cube move hides the strips for the turn and restores them', async () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+            const before = shownIds(h);
+            expect(before.length).toBe(6);
+
+            const event = h.moveEvent('x');
+            h.view.handleMoveExecuted(event);
+
+            expect(shownIds(h), 'off screen while the cube turns').toEqual([]);
+
+            h.finishAnimation();
+            await vi.advanceTimersByTimeAsync(400);
+            expect(shownIds(h), 'and back once the move lands').toEqual(before);
+        } finally {
+            h.release();
+        }
+    });
+
+    // A layer move rotates only part of the cube. The visible-face set does not
+    // change, but every move is expected to treat the strips the same way.
+    it('PATH 3: a layer move hides the strips for the turn and restores them', async () => {
         const h = createHarness();
         try {
             enableGhosts(h);
             const before = shownIds(h);
 
-            h.model.applyMove('x');
-            h.view.update(h.model);
+            h.view.handleMoveExecuted(h.moveEvent('R'));
 
-            expect(shownIds(h), 'the visible-face set is unchanged by the turn').toEqual(before);
+            expect(shownIds(h), 'off screen while the layer turns').toEqual([]);
 
-            vi.advanceTimersByTime(400);
-            expect(shownIds(h), 'and still matches the orientation').toEqual(shouldIds(h));
+            h.finishAnimation();
+            await vi.advanceTimersByTimeAsync(400);
+            expect(shownIds(h), 'and back once the move lands').toEqual(before);
+        } finally {
+            h.release();
+        }
+    });
+
+    // The hide must be immediate, not the animated fade-out: `setVisible(false,
+    // true)` leaves each strip in the DOM until its opacity transition ends, which
+    // would keep the stale strips on screen for the length of the turn — the exact
+    // thing this hides them for.
+    it('strips are removed synchronously, not left mid-fade', () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+            expect(
+                h.strips().filter(s => s.style.display !== 'none').length,
+                'strips on screen before the turn'
+            ).toBe(6);
+
+            h.view.rotateViewRight();
+            expect(
+                h.strips().filter(s => s.style.display !== 'none').length,
+                'no strip is still displayed in the same tick as the rotation'
+            ).toBe(0);
+        } finally {
+            h.release();
+        }
+    });
+
+    // A move that is interrupted by the next move must not leave the strips
+    // hidden. `handleMoveExecuted` finalises the running animation first, so the
+    // second move re-opens the rotation; the strips have to come back when the
+    // second one lands rather than staying off screen for the rest of the session.
+    it('interrupting a move with a second move still restores the strips', async () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+
+            h.view.handleMoveExecuted(h.moveEvent('x'));
+            expect(shownIds(h), 'hidden for the first turn').toEqual([]);
+
+            // A second move arrives before the first animation settles.
+            h.view.handleMoveExecuted(h.moveEvent('y'));
+            expect(shownIds(h), 'still hidden, now for the second turn').toEqual([]);
+
+            h.finishAnimation();
+            await vi.advanceTimersByTimeAsync(400);
+            expect(shownIds(h), 'restored once the interrupting move lands').toEqual(shouldIds(h));
         } finally {
             h.release();
         }

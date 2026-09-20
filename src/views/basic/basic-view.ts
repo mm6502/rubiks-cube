@@ -191,7 +191,7 @@ export class BasicView implements CubeView {
             onViewRotated: (_direction: 'horizontal' | 'vertical', rotation, steps) => {
                 updateRotation(this.state);
                 updateFaceLabels(this.state, _direction);
-                this.updateGhostEdges();
+                this.endRotation();
                 this.emitStateChanged();
                 if (isLinked(this.state.viewType)) {
                     for (let i = 0; i < steps; i++) {
@@ -332,9 +332,43 @@ export class BasicView implements CubeView {
         }
     }
 
-    /** The view orientation, in the shape the visual-cell rule expects. */
+    /**
+     * The view orientation, in the shape the visual-cell rule expects.
+     */
     private orientation(): ViewOrientation {
         return { viewRight: this.state.viewRight, viewUp: this.state.viewUp };
+    }
+
+    /**
+     * Open a rotation: take the ghost strips off screen for its duration.
+     *
+     * A ghost strip borrows its colour from a hidden face, so while the cube is
+     * turning it would show a mapping that is about to be wrong — during a
+     * whole-cube move the strips would sit visibly on stale geometry and only
+     * recolour at the end. Hiding first means a strip is either correct or
+     * absent, never confidently wrong.
+     *
+     * Must be paired with {@link endRotation}. Every rotation and move entry
+     * point goes through this pair so the treatment is the same whichever way
+     * the cube is turned.
+     *
+     * The hide is immediate (`animate = false`), not the animated fade-out: the
+     * fade leaves each strip on screen for the length of its opacity transition
+     * and only sets `display: none` from a later `transitionend`/timeout. A strip
+     * still in the DOM during the turn is exactly the stale geometry this exists
+     * to avoid, and it also stops `updateVisibleEdges` from tidying up, because
+     * `hideAllStrips` only touches strips still flagged as showing.
+     */
+    private beginRotation(): void {
+        this.ghostStickers?.setVisible(false, false);
+    }
+
+    /**
+     * Close a rotation: recompute which strips belong on screen for the
+     * orientation that is now in effect, and bring them back.
+     */
+    private endRotation(): void {
+        this.updateGhostEdges();
     }
 
     /**
@@ -437,16 +471,15 @@ export class BasicView implements CubeView {
         // the rendering instead; the linked-view event still fires so a peer Basic
         // view stays in sync.
         const onRotated = (r: ViewRotation): void => {
+            // Which faces are "visible" just changed, so the silhouette edges the
+            // ghost strips sit on changed with it. Hide them for the turn and
+            // recompute on the way out, exactly as every other rotation path does.
+            this.beginRotation();
             if (r === ViewRotation.Left) rotateViewLeft(this.state);
             /* c8 ignore else if */ else if (r === ViewRotation.Right) rotateViewRight(this.state);
             /* c8 ignore else if */ else if (r === ViewRotation.Up) rotateViewUp(this.state);
             /* c8 ignore else if */ else if (r === ViewRotation.Down) rotateViewDown(this.state);
-            // Which faces are "visible" has just changed, so the silhouette edges
-            // the ghost strips sit on have changed with it. Without this the
-            // strips keep the set computed for the previous orientation, and the
-            // ghosts appear to turn with the cube. Every other rotation entry
-            // point already refreshes them; this path was the one that did not.
-            this.updateGhostEdges();
+            this.endRotation();
             /* c8 ignore if — guard when not linked */
             if (isLinked(this.state.viewType)) {
                 Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
@@ -563,6 +596,13 @@ export class BasicView implements CubeView {
         // Finalize any running animation (interrupt)
         this.finalizeAnimation();
 
+        // A move turns part of the cube, and a whole-cube move turns all of it.
+        // Either way a ghost strip — which borrows a hidden face's colour — is
+        // only meaningful once the move has landed, so take the strips off screen
+        // for the duration and recompute them at the end. Both the animated and
+        // the non-animated branch below call `endRotation`.
+        this.beginRotation();
+
         // Reconcile the selection anchor now, while the model already reflects
         // this move. The animation is purely cosmetic — the model is updated
         // before MOVE_EXECUTED fires — so waiting for it left the anchor pointing
@@ -579,6 +619,7 @@ export class BasicView implements CubeView {
             // No-cubie path (e.g. whole-cube rotation with no tracked cubies)
             // still needs the label refresh.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
+            this.endRotation();
             return;
         }
 
@@ -599,6 +640,7 @@ export class BasicView implements CubeView {
             this.restoreSelection();
             // Reduced-motion / non-animated whole-cube path.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
+            this.endRotation();
             return;
         }
 
@@ -617,15 +659,23 @@ export class BasicView implements CubeView {
                         this.state.onStickerSelected
                     );
                     result.animation.cancel(); // remove fill effect after DOM is updated
-                    this.ghostStickers?.updateColors();
                     // Markup only: the anchor was reconciled when the move landed.
                     this.restoreSelection();
                     // Animated whole-cube path — refresh labels post-move.
                     this.refreshFaceLabelsAfterWholeCubeMove(event);
+                    this.endRotation();
                 }
             })
             .catch(() => {
-                // Cancelled via finalizeAnimation() — do nothing
+                // Cancelled via `finalizeAnimation()`, which already closed the
+                // rotation as part of its own teardown. Anything else rejecting
+                // here would otherwise leave the strips hidden for the rest of the
+                // session, so close the rotation whenever this event is still the
+                // one we opened it for. Re-closing a rotation that is already shut
+                // is harmless: it recomputes the same set of strips.
+                if (this.activeAnimation?.event === event) {
+                    this.endRotation();
+                }
             });
     }
 
@@ -660,8 +710,8 @@ export class BasicView implements CubeView {
         this.refreshFaceLabelsAfterWholeCubeMove(event);
 
         // Update ghost stickers and selection
-        this.ghostStickers?.updateColors();
         this.restoreSelection();
+        this.endRotation();
     }
 
     // -------------------------------------------------------------------------
@@ -673,7 +723,7 @@ export class BasicView implements CubeView {
             rotateViewLeft(this.state);
             updateRotation(this.state);
             updateFaceLabels(this.state, 'horizontal');
-            this.updateGhostEdges();
+            this.endRotation();
         });
     }
 
@@ -682,7 +732,7 @@ export class BasicView implements CubeView {
             rotateViewRight(this.state);
             updateRotation(this.state);
             updateFaceLabels(this.state, 'horizontal');
-            this.updateGhostEdges();
+            this.endRotation();
         });
     }
 
@@ -691,7 +741,7 @@ export class BasicView implements CubeView {
             rotateViewUp(this.state);
             updateRotation(this.state);
             updateFaceLabels(this.state, 'vertical');
-            this.updateGhostEdges();
+            this.endRotation();
         });
     }
 
@@ -700,7 +750,7 @@ export class BasicView implements CubeView {
             rotateViewDown(this.state);
             updateRotation(this.state);
             updateFaceLabels(this.state, 'vertical');
-            this.updateGhostEdges();
+            this.endRotation();
         });
     }
 
@@ -709,7 +759,7 @@ export class BasicView implements CubeView {
             resetView(this.state);
             updateRotation(this.state);
             updateFaceLabels(this.state);
-            this.updateGhostEdges();
+            this.endRotation();
         });
     }
 
@@ -728,7 +778,7 @@ export class BasicView implements CubeView {
             alignCubeToView(this.state);
             updateRotation(this.state, true);
             updateFaceLabels(this.state);
-            this.updateGhostEdges();
+            this.endRotation();
         });
     }
 
