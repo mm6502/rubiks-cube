@@ -270,3 +270,72 @@ describe.each(Object.keys(harnesses))('%s view claims DOM focus on contact', vie
         expect(interactions).toHaveLength(1);
     });
 });
+
+// ─── the activation region is the panel, not just its content ────────────────
+//
+// Reported defect: with several views open, tabbing through a panel's header
+// buttons activated the view late — only once focus reached the content below
+// them. So while focus moved through the header the app still described the
+// previous view, and the active-view styling jumped a step behind the tab order.
+//
+// Cause: a panel is `[data-view-panel]` and owns two siblings, the header and the
+// content container. Only the content is registered, so its `focusin` listener
+// never sees focus land in the header. These build the real panel structure —
+// header included — so the region is exercised end to end for every view.
+describe.each(Object.keys(harnesses))(
+    '%s view activates when focus lands anywhere in its panel',
+    viewName => {
+        let panel: HTMLElement;
+        let content: HTMLElement;
+        let headerButton: HTMLButtonElement;
+        let destroyView: () => void;
+
+        beforeEach(() => {
+            panel = document.createElement('div');
+            panel.setAttribute('data-view-panel', viewIds[viewName]);
+
+            const header = document.createElement('div');
+            header.setAttribute('data-view-header', '');
+            headerButton = document.createElement('button');
+            header.appendChild(headerButton);
+
+            content = document.createElement('div');
+
+            panel.appendChild(header);
+            panel.appendChild(content);
+            document.body.appendChild(panel);
+
+            destroyView = builders[viewName](content);
+        });
+
+        afterEach(() => {
+            destroyView();
+            panel.remove();
+            Application.eventBus.removeAllListeners();
+            vi.restoreAllMocks();
+        });
+
+        it('activates the view when focus lands on a header control', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+            headerButton.focus();
+
+            expect(document.activeElement).toBe(headerButton);
+            expect(
+                emitSpy.mock.calls.filter(([event]) => event === EventName.VIEW_INTERACTED),
+                'the view announced the interaction'
+            ).toEqual([[EventName.VIEW_INTERACTED, { viewId: viewIds[viewName] }]]);
+        });
+
+        it('still activates the view when focus lands on the content', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+            content.focus();
+
+            expect(
+                emitSpy.mock.calls.filter(([event]) => event === EventName.VIEW_INTERACTED),
+                'the view announced the interaction'
+            ).toEqual([[EventName.VIEW_INTERACTED, { viewId: viewIds[viewName] }]]);
+        });
+    }
+);

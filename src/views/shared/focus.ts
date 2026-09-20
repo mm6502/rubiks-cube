@@ -199,7 +199,34 @@ export function registerViewContainer(viewId: string, container: HTMLElement): v
         { signal: controller.signal }
     );
 
-    container.addEventListener(
+    // Focus is observed across the whole PANEL, not just the content container.
+    //
+    // A panel is `[data-view-panel]` and owns two siblings: a header holding the
+    // view's action buttons, and the content container the view is created into.
+    // Only the content is registered — but the user tabbing through a panel
+    // reaches the header buttons first, and `focusin` bubbles from the target, so
+    // a listener on the content never sees them. Focus in the header therefore
+    // went unreported, and the app kept describing the *previous* view while the
+    // keystrokes already reached this one: the active-view styling and the View
+    // Actions panel lagged a step behind the tab order.
+    //
+    // The region that counts as "in this view" has to match what the user sees as
+    // the view, which is the whole panel. Resolved from the container rather than
+    // passed in, because the view is created into the content and never sees its
+    // own panel.
+    //
+    // Falls back to the container when there is no panel ancestor: registration
+    // is also used with a bare container (every test in `focus.test.ts` does
+    // exactly that), so the panel must widen the observed region, not become a
+    // requirement for registering at all.
+    //
+    // `pointerdown` deliberately stays on the content. The header path already
+    // activates the view through `PanelInteractionHandler`, and widening the
+    // pointer listener would make a header click claim focus onto the content —
+    // pulling it off the button the user just pressed.
+    const focusRegion = container.closest('[data-view-panel]') ?? container;
+
+    focusRegion.addEventListener(
         'focusin',
         () => {
             // `contactView` claims focus itself and announces the interaction

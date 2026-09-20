@@ -248,3 +248,99 @@ describe('activateView', () => {
         expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
     });
 });
+
+describe('registerViewContainer: the region that counts as \"in this view\"', () => {
+    // A panel is `[data-view-panel]` and holds TWO siblings: a header carrying
+    // the view's action buttons, and the content container the view is created
+    // into. Only the content is registered, so a listener bound to it never sees
+    // focus land in the header — and the user tabbing through a panel reaches
+    // the header buttons first.
+    //
+    // Reported defect: tabbing through the header buttons left the app's focus
+    // model on the PREVIOUS view, so the active-view styling and the View Actions
+    // panel described a different view than the one the keystrokes reached. The
+    // region that counts as \"in this view\" has to match what the user sees as
+    // the view, which is the whole panel.
+    const registered: string[] = [];
+
+    /** Builds a panel holding a header button and a content container. */
+    function registerInPanel(viewId: string): {
+        panel: HTMLElement;
+        headerButton: HTMLButtonElement;
+        content: HTMLElement;
+    } {
+        const panel = document.createElement('div');
+        panel.setAttribute('data-view-panel', viewId);
+
+        const header = document.createElement('div');
+        header.setAttribute('data-view-header', '');
+        const headerButton = document.createElement('button');
+        header.appendChild(headerButton);
+
+        const content = document.createElement('div');
+        content.tabIndex = 0;
+
+        panel.appendChild(header);
+        panel.appendChild(content);
+        document.body.appendChild(panel);
+
+        registerViewContainer(viewId, content);
+        registered.push(viewId);
+        return { panel, headerButton, content };
+    }
+
+    afterEach(() => {
+        registered.splice(0).forEach(unregisterViewContainer);
+        document.body.innerHTML = '';
+        Application.eventBus.removeAllListeners();
+        vi.restoreAllMocks();
+    });
+
+    it('reports the interaction when focus lands in the header, not only the content', () => {
+        const { headerButton } = registerInPanel('flat');
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        headerButton.focus();
+
+        expect(document.activeElement).toBe(headerButton);
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+    });
+
+    it('still reports the interaction when focus lands on the content itself', () => {
+        // Contrast case: a fix that moved the listener to the panel must not stop
+        // observing the content, which is the element the pointer path focuses.
+        const { content } = registerInPanel('flat');
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        content.focus();
+
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+    });
+
+    it('reports nothing when focus lands outside the panel', () => {
+        registerInPanel('flat');
+        const outside = document.createElement('input');
+        document.body.appendChild(outside);
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        outside.focus();
+
+        expect(emitSpy).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the container when it has no panel ancestor', () => {
+        // Registration is also used with a bare container — every existing test in
+        // this file does exactly that, and a view could be created outside a panel.
+        // The panel must widen the observed region, not become a requirement.
+        const container = document.createElement('div');
+        container.tabIndex = 0;
+        document.body.appendChild(container);
+        registerViewContainer('flat', container);
+        registered.push('flat');
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        container.focus();
+
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+    });
+});
