@@ -22,7 +22,7 @@
 // This module is deliberately free of DOM and of the view's state object: the
 // vectors in, a rotation out. That makes the claim above testable exhaustively
 // over all 24 reachable orientations × 4 rotations instead of spot-checked.
-import type { Vector3 } from '@/cube/types';
+import { Axis, type Vector3 } from '@/cube/types';
 import { negate3 } from '@/cube/utils/math';
 
 /** A rotation: a unit axis rounded to exact components, and a signed angle. */
@@ -91,6 +91,24 @@ const orientationFromCssMatrix = (m: number[][]): Orientation => ({
 
 const multiply = (a: number[][], b: number[][]): number[][] =>
     a.map(row => [0, 1, 2].map(j => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j]));
+
+const transpose = (m: number[][]): number[][] => [
+    [m[0][0], m[1][0], m[2][0]],
+    [m[0][1], m[1][1], m[2][1]],
+    [m[0][2], m[1][2], m[2][2]],
+];
+
+/**
+ * The model→CSS flip, `A = diag(1, −1, −1)`.
+ *
+ * CSS negates model Y and Z (`screen_y = −model_y`, `screen_z = −model_z`), so the
+ * basis that reaches the screen is `M · A`. `A` is its own inverse.
+ */
+const CSS_FLIP: number[][] = [
+    [1, 0, 0],
+    [0, -1, 0],
+    [0, 0, -1],
+];
 
 /**
  * Compute `M' · Mᵀ` for two orientations, where `M` is the matrix the app's
@@ -249,6 +267,65 @@ export function axisAngleToMatrix({ axis, angle }: AxisAngle): number[][] {
  */
 export function rotateBasis(basis: Orientation, rotation: AxisAngle): Orientation {
     return orientationFromCssMatrix(multiply(axisAngleToMatrix(rotation), cssMatrix(basis)));
+}
+
+/**
+ * A turn of one layer, signed about the **positive** unit axis.
+ *
+ * Kept separate from {@link AxisAngle} because the two carry the sign differently:
+ * a rotation of −Y by +90 and one of +Y by −90 are the same matrix, so `AxisAngle`
+ * folds the sign into a negated axis and reports a principal angle in [0, 180]. The
+ * notation convention needs the opposite spelling — which *one* of `E`/`E'` was
+ * meant — so the sign has to survive as a sign rather than as an axis.
+ */
+export type LayerTurn = {
+    /** The cube axis the layer turns about. */
+    axis: Axis;
+    /** Degrees, clockwise-positive about the positive axis: +90, −90, or 180. */
+    angle: number;
+};
+
+/**
+ * The layer turn that turns the cube the **same way as a view rotation** does.
+ *
+ * A view rotation replaces the orientation basis `M` with `M'`. The cube is rendered
+ * as `M · A`, so on screen that turn is `(M'·A)·(M·A)ᵀ`, and the layer turn that
+ * produces the same visible motion about the cube's own axes is that same rotation
+ * expressed in model space, i.e. conjugated back by `A` on both sides:
+ *
+ *   Q = A · Mᵀ · M' · A
+ *
+ * (derived by requiring `Q·p` and the view turn to move a point `p` identically once
+ * projected to the screen; equivalently `Q = (M·A)ᵀ · (M'·A)`, which is the form
+ * computed below).
+ *
+ * This is deliberately *not* "the drag a user would make on the face that happens to
+ * be showing". A view rotation is a motion of the whole cube, and the requirement is
+ * that `Ctrl+Arrow` turn a layer the same way the matching view rotation turns the
+ * cube — so a screen-right press and a screen-right view turn must agree in **sense**, at
+ * every orientation, whatever face the selection sits on. Reading the turn off the
+ * face instead makes the meaning of the key depend on which face is under the cursor:
+ * measured at the orientation reached by `Alt+Right, Alt+Down`, that spelling turned
+ * `S` (screen-down) where the view turn required `M`.
+ *
+ * Anchored against the four shipped base-orientation behaviours (`Ctrl+Right` → `E`,
+ * `Ctrl+Left` → `E'`, `Ctrl+Up` → `M'`, `Ctrl+Down` → `M`) and against the layer and
+ * prime choices the existing top-row/bottom-row tests pin down.
+ */
+export function sliceRotationForViewTurn(current: Orientation, turned: Orientation): LayerTurn {
+    const screen = multiply(cssMatrix(current), CSS_FLIP);
+    const screenTurned = multiply(cssMatrix(turned), CSS_FLIP);
+    const { axis, angle } = axisAngleFromMatrix(multiply(transpose(screen), screenTurned));
+
+    const name = axis.x !== 0 ? Axis.X : axis.y !== 0 ? Axis.Y : Axis.Z;
+    const unit = axis.x !== 0 ? axis.x : axis.y !== 0 ? axis.y : axis.z;
+
+    // `axisAngleFromMatrix` reports the principal angle in [0, 180] and puts the sign
+    // in the axis, so a turn about −Y by +90 arrives as axis −Y, angle 90. Multiplying
+    // the principal angle by the axis component recovers the signed turn.
+    const principal = Math.round(angle / 90) * 90;
+    if (principal === 180) return { axis: name, angle: 180 };
+    return { axis: name, angle: principal * unit };
 }
 
 /**

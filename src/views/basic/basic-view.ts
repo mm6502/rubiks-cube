@@ -2,22 +2,26 @@
 // Basic View — per-cubie 3D architecture with move animations
 import { Application } from '@/application';
 import {
+    Axis,
     CubeView,
     Face,
     LayoutMode,
+    QuarterTurn,
     ReadOnlyCubeModel,
     Size2D,
     StickerId,
     Vector3,
 } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
-import { centerFacePosition } from '@/cube/utils/sticker-position';
+import { centerFacePosition, facePositionTo3D } from '@/cube/utils/sticker-position';
 import {
     inferKeyboardMove,
     isFaceSelectKey,
     isKeyboardMoveKey,
     mapArrowToDirection,
 } from '@/interaction/keyboard-moves';
+import { notationForSignedAngle } from '@/interaction/move-inference';
+import { DragDirection } from '@/interaction/types';
 import {
     BasicViewGhostToggledEvent,
     BasicViewResetLinkedEvent,
@@ -66,6 +70,8 @@ import {
     updateFaceLabels,
     updateRotation,
 } from './rendering';
+import { sliceRotationForViewTurn, stepDown, stepLeft, stepRight, stepUp } from './rotation-math';
+import type { Orientation } from './rotation-math';
 import { BasicVariant } from './types';
 import type { BasicViewInternalData, BasicViewState } from './types';
 import type { ViewOrientation, VisualCell } from './visual-cell';
@@ -668,21 +674,131 @@ export class BasicView implements CubeView {
         this.touchHandler.selectFace(current === face ? undefined : face);
     }
 
+    /**
+     * The layer turn a `Ctrl+Arrow` asks for when no face is selected.
+     *
+     * The arrow names a direction on screen, and the matching `Alt+Arrow` view
+     * rotation is the reference for how a turn in that direction goes. Working from
+     * that view rotation — rather than from the face the sticker sits on — is what
+     * makes the answer independent of which face the selection happens to be on.
+     *
+     * The layer comes from the selected sticker's coordinate along the turn's axis, so
+     * the press turns the layer the sticker is in: a centre sticker turns the middle
+     * slice, an edge sticker on the outer layer turns a face, and so on. That falls out
+     * of the sticker's own position, so a rotated view needs no special case.
+     */
+    private inferViewRelativeSlice(
+        event: KeyboardEvent,
+        direction: DragDirection
+    ): string | undefined {
+        const model = this.state.model;
+        /* c8 ignore if — guarded by the caller */
+        if (!model || !this.state.currentSelected) return undefined;
+
+        const sticker = CubeStateUtils.getStickerById(
+            model.getCurrentState(),
+            this.state.currentSelected
+        );
+        /* c8 ignore if — sticker always found for a valid selection */
+        if (!sticker) return undefined;
+
+        // Which view rotation does this arrow correspond to? The keyboard's arrow and
+        // the view rotation are the same physical motion: screen-right is
+        // `rotateViewRight`, and so on through the four directions.
+        const step =
+            direction === DragDirection.RIGHT
+                ? stepRight
+                : direction === DragDirection.LEFT
+                  ? stepLeft
+                  : direction === DragDirection.UP
+                    ? stepUp
+                    : stepDown;
+
+        const current: Orientation = {
+            viewRight: this.state.viewRight,
+            viewUp: this.state.viewUp,
+            viewForward: this.state.viewForward,
+        };
+        const turn = sliceRotationForViewTurn(current, step(current));
+
+        const cubeSize = model.getCurrentState().cubeSize;
+
+        // The sticker's coordinate along the turn's axis selects the layer. This is
+        // the same integer the drag inference uses, so `M` names the middle layer on a
+        // 3×3 and the numbered slices follow for larger cubes.
+        const position = facePositionTo3D(sticker.facePosition, sticker.currentFace, cubeSize);
+        const layerIndex =
+            turn.axis === Axis.X ? position.x : turn.axis === Axis.Y ? position.y : position.z;
+
+        const angle = event.shiftKey
+            ? ((turn.angle > 0 ? 180 : -180) as QuarterTurn)
+            : (turn.angle as QuarterTurn);
+
+        return notationForSignedAngle(turn.axis, layerIndex, angle, cubeSize);
+    }
+
+    /**
+     * Handle a `Ctrl+Arrow` layer move.
+     *
+     * Two cases, and they mean different things:
+     *
+     * - **A face is effectively selected** (explicitly, or via face-direct mode).
+     *   The key names a turn of *that face*, so "clockwise" is read on the face
+     *   itself and the arrow is a direction within the face's own frame. This is
+     *   what `inferKeyboardMove` already does, and the screen orientation is
+     *   deliberately irrelevant — a user turning the F face means `F`/`F'` however
+     *   the view is rotated.
+     * - **No face selected.** The arrow names a direction *on screen*, and the
+     *   selected sticker only chooses which layer is involved: the slice must turn
+     *   the same way the matching view rotation turns the whole cube. That turn is
+     *   derived by {@link sliceRotationForViewTurn} rather than read off the face
+     *   under the sticker — doing the latter made the key's meaning depend on which
+     *   face the selection happened to be on, so the same press turned different
+     *   ways before and after a rotation.
+     *
+     * `Ctrl+Shift+Arrow` doubles the derived turn. Because the derived angle is
+     * signed about a positive axis, the 180° variant keeps the sense: a doubled
+     * clockwise turn is `2` and a doubled anticlockwise turn is `2'`. That is why
+     * the slice path does not route through `toDoubleTurn` — that helper collapses
+     * the prime, which is right for a face turn but would lose the sense here.
+     */
     private handleKeyboardMove(event: KeyboardEvent): void {
+        const model = this.state.model;
         /* c8 ignore if — same invariant as handleFaceSelectKey */
-        if (!this.state.currentSelected || !this.state.model || !this.touchHandler) return;
+        if (!this.state.currentSelected || !model || !this.touchHandler) return;
 
         const direction = mapArrowToDirection(event);
         /* c8 ignore if — mapArrowToDirection can return undefined on unexpected key */
         if (!direction) return;
 
+        // A face is effectively selected when it was picked explicitly or when
+        // face-direct mode is on. That case is a face turn, and `inferKeyboardMove`
+        // already reads it correctly in the face's own frame — clockwise means
+        // clockwise *on that face*, whatever the view is doing. Only the no-face case
+        // below needs the view-relative treatment, so the two are kept apart here
+        // rather than folded into one path that would have to un-learn the distinction.
+        const selectedFace = this.touchHandler.getSelectedFace();
+        const faceDirectMode = this.touchHandler.isFaceDirectMode();
+
+        if (selectedFace === undefined && !faceDirectMode) {
+            const notation = this.inferViewRelativeSlice(event, direction);
+            /* c8 ignore if — only a cube too small to have a slice resolves to none */
+            if (!notation) return;
+            Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                moveNotation: notation,
+                viewId: this.state.viewType,
+                tentative: false,
+            });
+            return;
+        }
+
         const notation = inferKeyboardMove({
             stickerId: this.state.currentSelected,
-            selectedFace: this.touchHandler.getSelectedFace(),
-            faceDirectMode: this.touchHandler.isFaceDirectMode(),
+            selectedFace,
+            faceDirectMode,
             direction,
             doubleTurn: event.shiftKey,
-            model: this.state.model,
+            model,
         });
         /* c8 ignore if — inferKeyboardMove returns undefined on some keys */
         if (!notation) return;

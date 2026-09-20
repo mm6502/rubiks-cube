@@ -25,11 +25,21 @@ import {
     relativeRotation,
     rotateBasis,
     rotationBetween,
+    sliceRotationForViewTurn,
     stepDown,
     stepLeft,
     stepRight,
     stepUp,
 } from './rotation-math';
+
+/** An axis name as the unit vector `axisAngleToMatrix` expects. */
+function axisVector(axis: string): { x: number; y: number; z: number } {
+    return axis === 'X'
+        ? { x: 1, y: 0, z: 0 }
+        : axis === 'Y'
+          ? { x: 0, y: 1, z: 0 }
+          : { x: 0, y: 0, z: 1 };
+}
 
 /** The four view-rotation steps, as `navigation.ts` defines them. */
 const STEPS: Array<[string, (o: Orientation) => Orientation]> = [
@@ -595,5 +605,108 @@ describe('rotation-math', () => {
                 expect(a[i][j], `[${i}][${j}]`).toBeCloseTo(b[i][j], 12);
             }
         }
+    });
+
+    describe('sliceRotationForViewTurn', () => {
+        it('reports a quarter turn for every step from every orientation', () => {
+            // The turn a `Ctrl+Arrow` performs is always a single quarter turn, so the
+            // keyboard never asks for a half turn by accident and the axis is always one
+            // of the three cube axes.
+            for (const o of reachableOrientations()) {
+                for (const [name, step] of STEPS) {
+                    const turn = sliceRotationForViewTurn(o, step(o));
+                    expect(Math.abs(turn.angle), `${name}`).toBe(90);
+                    expect(['X', 'Y', 'Z']).toContain(turn.axis);
+                }
+            }
+        });
+
+        it('its rotation is the conjugate of the view turn, on every step', () => {
+            // Builds the expected turn from the definition — `Q = A · Mᵀ · M' · A` — using
+            // this file's own matrix construction, and compares it to the reported axis
+            // and angle. An independent re-derivation, so the function cannot vouch for
+            // itself.
+            //
+            // Note the conjugation settles as `A·Q·A = Mᵀ·M'`, which is the *transpose* of
+            // the view turn `R = M'·Mᵀ` (the inverse, since both are rotations). Asserting
+            // `A·Q·A = R` looks just as plausible and fails — which is why the expected
+            // matrix is constructed here rather than reasoned about.
+            const FLIP = [
+                [1, 0, 0],
+                [0, -1, 0],
+                [0, 0, -1],
+            ];
+            const multiply = (a: number[][], b: number[][]): number[][] =>
+                a.map(row =>
+                    [0, 1, 2].map(j => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j])
+                );
+            const transpose = (m: number[][]): number[][] => [
+                [m[0][0], m[1][0], m[2][0]],
+                [m[0][1], m[1][1], m[2][1]],
+                [m[0][2], m[1][2], m[2][2]],
+            ];
+
+            for (const o of reachableOrientations()) {
+                for (const [name, step] of STEPS) {
+                    const next = step(o);
+                    const turn = sliceRotationForViewTurn(o, next);
+                    const actual = axisAngleToMatrix({
+                        axis: axisVector(turn.axis),
+                        angle: turn.angle,
+                    });
+
+                    const expected = multiply(
+                        FLIP,
+                        multiply(transpose(toMatrix(o)), multiply(toMatrix(next), FLIP))
+                    );
+                    for (let i = 0; i < 3; i++) {
+                        for (let j = 0; j < 3; j++) {
+                            expect(actual[i][j], `${name} [${i}][${j}]`).toBeCloseTo(
+                                expected[i][j],
+                                9
+                            );
+                        }
+                    }
+                }
+            }
+        });
+
+        it('keeps the sign as a sign rather than folding it into the axis', () => {
+            // `AxisAngle` spells a rotation about −Y by +90 as axis −Y, angle 90, and
+            // `axisAngleToMatrix` treats those as equivalent. The notation cannot: `E`
+            // and `E'` are different moves. So the axis here is always the POSITIVE one
+            // and the direction lives in the angle's sign. If this ever regressed, both
+            // spellings would still describe the same matrix and only the notation tests
+            // would notice — hence pinning it at the primitive level too.
+            for (const o of reachableOrientations()) {
+                for (const [name, step] of STEPS) {
+                    const turn = sliceRotationForViewTurn(o, step(o));
+                    const unit = axisVector(turn.axis);
+                    const positive = unit.x === 1 || unit.y === 1 || unit.z === 1;
+                    expect(positive, `${name}: axis should be the positive one`).toBe(true);
+                }
+            }
+
+            // And there really are both senses among the reachable steps, so the check
+            // above is not vacuous.
+            const signs = new Set<number>();
+            for (const o of reachableOrientations()) {
+                for (const [, step] of STEPS) {
+                    signs.add(Math.sign(sliceRotationForViewTurn(o, step(o)).angle));
+                }
+            }
+            expect([...signs].sort()).toEqual([-1, 1]);
+        });
+
+        it('a step and its inverse are opposite turns', () => {
+            // `stepLeft` then `stepRight` is the identity, so the two turns must cancel
+            // as rotations. Catches an axis that is right while the sense is wrong.
+            for (const o of reachableOrientations()) {
+                const there = sliceRotationForViewTurn(o, stepLeft(o));
+                const back = sliceRotationForViewTurn(stepLeft(o), o);
+                expect(there.axis, 'same axis').toBe(back.axis);
+                expect(there.angle + back.angle, 'opposite senses').toBe(0);
+            }
+        });
     });
 });

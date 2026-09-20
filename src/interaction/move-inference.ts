@@ -92,6 +92,30 @@ export function axisLayerToNotation(
 }
 
 /**
+ * Spell a layer turn as WCA notation from an explicit **signed** angle about the
+ * positive axis.
+ *
+ * Exported because the convention it encodes — which of the two spellings of a
+ * quarter turn is bare and which takes the prime — belongs to the notation, not to
+ * the drag inference that first needed it. A caller holding a signed angle (a view
+ * rotation, say) can reuse this rather than restating the rule and risking a second,
+ * divergent copy.
+ *
+ * @param axis - The cube axis the layer turns about.
+ * @param layerIndex - The layer's index along that axis.
+ * @param angle - Signed degrees about the positive axis: ±90, or ±180 for a half turn.
+ * @param cubeSize - Cube size, for the layer's name.
+ */
+export function notationForSignedAngle(
+    axis: Axis,
+    layerIndex: number,
+    angle: QuarterTurn,
+    cubeSize: number
+): string {
+    return buildMoveNotation(axis, layerIndex, angle, cubeSize);
+}
+
+/**
  * Default whole-cube move policy for drag gestures.
  */
 function defaultWholeCubeNotationPolicy(deltaX: number, deltaY: number): string {
