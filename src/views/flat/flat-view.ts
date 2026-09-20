@@ -2,7 +2,9 @@ import { Application } from '@/application';
 import { CubeView, Face, FaceGrid, ReadOnlyCubeModel, Size2D, StickerId } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils, createFlatView } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
+import { registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
 
 import * as commands from './commands';
 import * as legendDrag from './legend-drag';
@@ -127,6 +129,12 @@ export class FlatView implements CubeView {
         // Make focusable for keyboard navigation
         this.state.container.tabIndex = 0;
 
+        // Pointer contact (`pointerdown` → claim focus + announce the
+        // interaction) is wired by `registerViewContainer`, which also owns the
+        // teardown path for it. Registration is also what makes this view
+        // addressable without a pointer (see `shared/focus`).
+        registerViewContainer(this.getViewType(), this.state.container);
+
         // Create the flat view container
         const flatContainer = document.createElement('div');
         flatContainer.className = this.state.styles['flat-container'];
@@ -219,9 +227,14 @@ export class FlatView implements CubeView {
         // Subscribe to move executed events for selective updates
         Application.eventBus.on(EventName.MOVE_EXECUTED, this.handleMoveExecuted.bind(this));
 
-        // Default selection: F4 sticker.
-        const f4 = CubeStateUtils.getStickerAt(_model.getCurrentState(), Face.F, 4);
-        if (f4) this.updateSelected(f4.id);
+        // Default selection: center sticker of the front face. The position comes
+        // from the shared helper rather than a literal, which only existed at 3×3.
+        const center = CubeStateUtils.getStickerAt(
+            _model.getCurrentState(),
+            Face.F,
+            centerFacePosition(_model.getCurrentState().cubeSize)
+        );
+        if (center) this.updateSelected(center.id);
     }
 
     /**
@@ -369,6 +382,9 @@ export class FlatView implements CubeView {
 
     /** Tears down all event listeners, nulls the touch handler, and clears the container DOM. */
     destroy(): void {
+        // Stop being addressable: a destroyed view must not be activatable.
+        unregisterViewContainer(this.getViewType());
+
         if (this.legendHandlers) {
             document.removeEventListener('pointermove', this.legendHandlers.move);
             document.removeEventListener('pointerup', this.legendHandlers.up);

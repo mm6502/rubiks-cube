@@ -1040,4 +1040,107 @@ describe('rendering utilities', () => {
         // Assert — renderState was called: fill attribute set on the circle
         expect(circle.getAttribute('fill')).toBe(ColorMap[Color.WHITE]);
     });
+
+    // ─── the settle paint must not overwrite a superseded model ───────────────
+
+    /**
+     * `_latestPostState` is captured when a move is *registered*. A non-move
+     * model change landing mid-flight — `resetCube()` and `scrambleCube()` both
+     * call `updateViews(undefined)` — is therefore superseded by that snapshot
+     * when the animation settles. The live model is correct; only the paint is
+     * stale. These tests pin the paint to the model as it stands at settle time.
+     */
+    describe('a non-move model change mid-flight is not overwritten', () => {
+        /** Minimal animated-move fixture whose postState paints the U sticker WHITE. */
+        const setupAnimatedMove = (settledColor: Color) => {
+            vi.spyOn(highlights, 'removeSelectionHighlight').mockImplementation(() => {});
+            vi.spyOn(highlights, 'updateSelected').mockImplementation(() => {});
+
+            const svgRoot = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as any;
+            state.svgRoot = svgRoot;
+            state.svgReady = true;
+            state.stickerLookupMap = new Map();
+            state.showGhosts = false;
+            state.ghostOpacityIndex = 1;
+
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            state.svgElementCache.set('svg1', circle);
+
+            const position: Position3D = { x: 0, y: 1, z: 0 } as any;
+            const cubieWith = (color: Color): any => ({
+                type: CubieType.CORNER,
+                position,
+                stickers: new Map([
+                    [Face.U, { id: 'st1', currentFace: Face.U, facePosition: 0, color }],
+                ]),
+            });
+
+            const cubie = cubieWith(Color.WHITE);
+            state.stickerLookupMap!.set(getPositionKey(position, 3), new Map([[Face.U, 'svg1']]));
+
+            const snapshotState: CubeState = {
+                cubeSize: 3,
+                cubiesById: IMap().set('c1', cubie) as any,
+                cubiesByPosition: IMap() as any,
+                timestamp: 0,
+            } as any;
+
+            // The model as it stands *after* the mid-flight change.
+            const liveState: CubeState = {
+                cubeSize: 3,
+                cubiesById: IMap().set('c1', cubieWith(settledColor)) as any,
+                cubiesByPosition: IMap() as any,
+                timestamp: 0,
+            } as any;
+
+            state.model = { getCurrentState: () => liveState } as any;
+
+            const event: any = {
+                moveDetails: {
+                    movedCubies: { before: [], after: [cubie] },
+                    notation: 'R',
+                    definition: { axis: 'X', layerIndices: [2], angle: QuarterTurn.QUARTER },
+                },
+                preState: snapshotState,
+                postState: snapshotState,
+            };
+
+            return { circle, event };
+        };
+
+        it('paints the live model state, not the snapshot captured at registration', async () => {
+            // The animation resolves only after the test releases it, so the
+            // mid-flight change lands while the move is still in flight.
+            let releaseAnimation!: () => void;
+            const pending = new Promise<void>(resolve => {
+                releaseAnimation = resolve;
+            });
+            vi.spyOn(animations, 'animateMove').mockReturnValue(pending);
+
+            const { circle, event } = setupAnimatedMove(Color.RED);
+
+            // Act — register the move, then let a non-move change land mid-flight.
+            const chain = rendering.updateSelective(state, event);
+            releaseAnimation();
+            await chain;
+
+            // Assert — the settled paint reflects the live model (RED), not the
+            // move's own snapshot (WHITE).
+            expect(circle.getAttribute('fill')).toBe(ColorMap[Color.RED]);
+        });
+
+        it('falls back to the move postState when no model is attached', async () => {
+            // Control: with no model there is nothing newer to paint, so the
+            // move's own postState is still the correct target. Guards against
+            // the fix painting nothing (or an empty state) instead.
+            vi.spyOn(animations, 'animateMove').mockResolvedValue(undefined as any);
+
+            const { circle, event } = setupAnimatedMove(Color.RED);
+            state.model = undefined;
+
+            await rendering.updateSelective(state, event);
+
+            expect(circle.getAttribute('fill')).toBe(ColorMap[Color.WHITE]);
+        });
+    });
 });

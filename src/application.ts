@@ -66,7 +66,10 @@ export class Application {
             this.restoreSavedState();
 
             this.viewManager.initialize();
-            // Note: Default selected sticker is now set by ViewManager when first view is created.
+            // Each view sets its own default selection at the end of its create()
+            // call, deriving the position from the active cube size. The ViewManager
+            // only *reads* it (via CubeView.getSelectedSticker) to build the
+            // selection-dependent commands.
             this.setupEventListeners();
 
             // Set up the cube-size selector (radio group) and the size-switch path.
@@ -371,16 +374,51 @@ export class Application {
 
         if (!toggle || !controls || !overlay || !closeBtn) return;
 
+        /**
+         * Whether the panel is currently hidden, by either mechanism:
+         * the mobile slide-in drawer or the desktop collapse.
+         */
+        const isPanelHidden = (): boolean =>
+            desktopQuery?.matches
+                ? controls.classList.contains(desktopCollapsedClass)
+                : !controls.classList.contains('controls--open');
+
+        /**
+         * Keeps the panel's accessibility state in sync with its visual state.
+         *
+         * The panel is hidden by moving it off-screen (mobile) or by translating
+         * and fading it (desktop). Neither removes its contents from the tab order
+         * or from the accessibility tree, which left ~63 of the panel's ~69
+         * controls reachable by Tab while invisible. `inert` plus `aria-hidden`
+         * supply what CSS positioning does not.
+         *
+         * Must run after every change to the panel's visibility.
+         */
+        const syncPanelAccessibility = (): void => {
+            if (isPanelHidden()) {
+                // An element cannot be focused and `aria-hidden` at once; move
+                // focus out of the subtree before hiding it.
+                if (controls.contains(document.activeElement)) toggle.focus();
+                controls.setAttribute('inert', '');
+                controls.setAttribute('aria-hidden', 'true');
+            } else {
+                controls.removeAttribute('inert');
+                controls.removeAttribute('aria-hidden');
+            }
+        };
+
         const openPanel = (): void => {
             controls.classList.add('controls--open');
             overlay.classList.add('controls-overlay--visible');
             toggle.setAttribute('aria-expanded', 'true');
+            syncPanelAccessibility();
         };
 
         const closePanel = (): void => {
             controls.classList.remove('controls--open');
             overlay.classList.remove('controls-overlay--visible');
             toggle.setAttribute('aria-expanded', 'false');
+            syncPanelAccessibility();
         };
 
         const setDesktopCollapsed = (collapsed: boolean): void => {
@@ -388,6 +426,7 @@ export class Application {
             container?.classList.toggle(containerCollapsedClass, collapsed);
             toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
             toggle.setAttribute('aria-label', collapsed ? 'Show controls' : 'Hide controls');
+            syncPanelAccessibility();
         };
 
         const syncToggleStateToLayout = (): void => {

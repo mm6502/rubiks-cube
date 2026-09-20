@@ -1,5 +1,5 @@
 import { Axis, Face } from '@/cube/types';
-import { facePositionTo3D } from '@/cube/utils/sticker-position';
+import { calculateStickerPositionOnFace, facePositionTo3D } from '@/cube/utils/sticker-position';
 
 import {
     ALL_FACES,
@@ -94,44 +94,32 @@ function cubieStickerIds(
     const maxIndex = cubeSize - 1;
     const { x, y, z } = position;
 
+    /**
+     * Where a sticker sits on its own face, from the cubie position.
+     *
+     * Uses the shared implementation rather than a private inverse of
+     * `facePositionTo3D`. The private copy had drifted into being a byte-for-byte
+     * duplicate of `calculateStickerPositionOnFace`, so a change to one face's
+     * mapping in either place would have silently desynchronised the other —
+     * and the two are consumed by different callers (ghosts here, selection and
+     * navigation elsewhere), which is exactly the kind of split where such a
+     * divergence goes unnoticed. Verified equivalent across 834 combinations
+     * (every size 2-7 x every face x every cell) before the swap.
+     */
+    const facePositionOf = (target: Face): number =>
+        calculateStickerPositionOnFace(position, target, cubeSize);
+
     const stickers: Array<{ face: Face; facePosition: number }> = [];
 
     // A sticker exists on a face when its cubie touches that face's plane.
-    if (z === 0)
-        stickers.push({ face: Face.F, facePosition: toFacePosition(Face.F, x, y, z, cubeSize) });
-    if (z === maxIndex)
-        stickers.push({ face: Face.B, facePosition: toFacePosition(Face.B, x, y, z, cubeSize) });
-    if (y === maxIndex)
-        stickers.push({ face: Face.U, facePosition: toFacePosition(Face.U, x, y, z, cubeSize) });
-    if (y === 0)
-        stickers.push({ face: Face.D, facePosition: toFacePosition(Face.D, x, y, z, cubeSize) });
-    if (x === 0)
-        stickers.push({ face: Face.L, facePosition: toFacePosition(Face.L, x, y, z, cubeSize) });
-    if (x === maxIndex)
-        stickers.push({ face: Face.R, facePosition: toFacePosition(Face.R, x, y, z, cubeSize) });
+    if (z === 0) stickers.push({ face: Face.F, facePosition: facePositionOf(Face.F) });
+    if (z === maxIndex) stickers.push({ face: Face.B, facePosition: facePositionOf(Face.B) });
+    if (y === maxIndex) stickers.push({ face: Face.U, facePosition: facePositionOf(Face.U) });
+    if (y === 0) stickers.push({ face: Face.D, facePosition: facePositionOf(Face.D) });
+    if (x === 0) stickers.push({ face: Face.L, facePosition: facePositionOf(Face.L) });
+    if (x === maxIndex) stickers.push({ face: Face.R, facePosition: facePositionOf(Face.R) });
 
     return stickers.map(s => ({ ...s, id: stickerId(s.face, s.facePosition) }));
-}
-
-/** Inverse of `facePositionTo3D` for a known cubie. */
-function toFacePosition(face: Face, x: number, y: number, z: number, cubeSize: number): number {
-    const maxIndex = cubeSize - 1;
-    switch (face) {
-        case Face.F:
-            return (maxIndex - y) * cubeSize + x;
-        case Face.B:
-            return (maxIndex - y) * cubeSize + (maxIndex - x);
-        case Face.U:
-            return (maxIndex - z) * cubeSize + x;
-        case Face.D:
-            return z * cubeSize + x;
-        case Face.L:
-            return (maxIndex - y) * cubeSize + (maxIndex - z);
-        case Face.R:
-            return (maxIndex - y) * cubeSize + z;
-        default:
-            return 0;
-    }
 }
 
 /**

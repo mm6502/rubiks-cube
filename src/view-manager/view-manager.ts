@@ -12,6 +12,7 @@ import {
     KeyBinding,
     MoveExecutedEvent,
     StickerSelectedEvent,
+    ViewInteractedEvent,
 } from '@/types';
 
 import { CommandManager } from './command-manager';
@@ -111,6 +112,7 @@ export class ViewManager implements CommandManager {
     private readonly boundCommandStatesRefresh: () => void;
     private readonly boundHighlightChanged: (event: HighlightChangedEvent) => void;
     private readonly boundStickerSelected: (event: StickerSelectedEvent) => void;
+    private readonly boundViewInteracted: (event: ViewInteractedEvent) => void;
     private readonly boundWindowResize: () => void;
     private mediaQueryList: MediaQueryList | null = null;
     private boundMediaQueryChange: ((e: MediaQueryListEvent) => void) | null = null;
@@ -130,6 +132,7 @@ export class ViewManager implements CommandManager {
         this.boundCommandStatesRefresh = this.handleCommandStatesRefresh.bind(this);
         this.boundHighlightChanged = this.handleHighlightChanged.bind(this);
         this.boundStickerSelected = this.handleStickerSelected.bind(this);
+        this.boundViewInteracted = this.handleViewInteracted.bind(this);
         this.boundWindowResize = () => {
             if (this.resizeDebounceTimer !== null) {
                 clearTimeout(this.resizeDebounceTimer);
@@ -153,6 +156,7 @@ export class ViewManager implements CommandManager {
         getEventBus().off(EventName.MOVE_EXECUTED, this.boundCommandStatesRefresh);
         getEventBus().off(EventName.STICKER_SELECTED, this.boundStickerSelected);
         getEventBus().off(EventName.HIGHLIGHT_CHANGED, this.boundHighlightChanged);
+        getEventBus().off(EventName.VIEW_INTERACTED, this.boundViewInteracted);
 
         // The lifecycle manager registers its own VIEW_STATE_CHANGED listener.
         this.viewLifecycleManager?.dispose();
@@ -284,6 +288,11 @@ export class ViewManager implements CommandManager {
         // Also subscribe to highlight change events so external emitters can update views
         getEventBus().on(EventName.HIGHLIGHT_CHANGED, this.boundHighlightChanged);
 
+        // Content-level contact inside a view updates the focus model. Views emit
+        // this when their content is touched; the panel-chrome route already covers
+        // container-level contact, and this adds the content contact that was missing.
+        getEventBus().on(EventName.VIEW_INTERACTED, this.boundViewInteracted);
+
         // Re-scale view content whenever the viewport size changes (debounced).
         if (typeof window !== 'undefined') {
             window.addEventListener('resize', this.boundWindowResize);
@@ -337,16 +346,32 @@ export class ViewManager implements CommandManager {
     }
 
     /**
+     * Handles a view reporting that the user contacted its content by making that
+     * view the active one.
+     *
+     * Everything that follows from activation — the focus stack, visual focus and
+     * the command rebuild — already hangs off {@link updateFocus}, so the event needs
+     * no separate derivation. An unknown view id is ignored rather than thrown on:
+     * a view can be destroyed while an interaction report is in flight.
+     */
+    private handleViewInteracted(event: ViewInteractedEvent): void {
+        if (!this.activeViews.has(event.viewId)) {
+            return;
+        }
+        this.updateFocus(event.viewId);
+    }
+
+    /**
      * Handles keyboard down events by delegating to active views
      * @param e - The keyboard event
      * @returns True if the event was handled, false otherwise
      */
     public handleKeyDown(e: KeyboardEvent): boolean {
-        // Offer the active view a chance to handle the keydown event
+        // Offer the focused view a chance to handle the keydown event
         // This allows views to prevent default behavior (e.g., button navigation)
-        if (this.focusStack.length > 0) {
-            const activeViewId = this.focusStack[this.focusStack.length - 1];
-            const activeViewEntry = this.activeViews.get(activeViewId);
+        const focusedViewId = this.viewIdHoldingFocus();
+        if (focusedViewId) {
+            const activeViewEntry = this.activeViews.get(focusedViewId);
             if (activeViewEntry?.view.handleKeyDown) {
                 const handled = activeViewEntry.view.handleKeyDown(e);
                 if (handled) {
@@ -357,7 +382,7 @@ export class ViewManager implements CommandManager {
             // Check view-specific command bindings: return true to suppress the
             // browser default (e.g. Ctrl+Arrow moving the text cursor) even though
             // the command action itself fires on keyUp.
-            const viewCommands = this.commandRegistry.get(activeViewId);
+            const viewCommands = this.commandRegistry.get(focusedViewId);
             if (viewCommands?.some(cmd => this.isCommandActivatable(cmd, e))) {
                 return true;
             }
@@ -373,16 +398,54 @@ export class ViewManager implements CommandManager {
     }
 
     /**
+     * Which view should act on a key press, decided by where focus actually is.
+     *
+     * Delegating to the top of the focus stack unconditionally is what let an
+     * arrow key reach both the focused control and a view at once: the cube-size
+     * radio group sits in the controls sidebar, so focusing it left the stack
+     * pointing at whichever view was used last. The key then resized the cube
+     * while also walking the view's selection.
+     *
+     * The fallback to the stack top is therefore **conditional**. It fires only
+     * when focus is on the document body — nowhere in particular, which is the
+     * state a command-driven key press arrives in. Focus on any real control
+     * outside every view delegates to no view at all, so that control acts alone.
+     */
+    private viewIdHoldingFocus(): string | undefined {
+        const active = document.activeElement;
+
+        // Focus on a body (or nothing focusable at all) is "nowhere in
+        // particular", so keep the historical stack behaviour.
+        if (!active || active === document.body || active === document.documentElement) {
+            return this.getActiveViewId();
+        }
+
+        for (const [viewId, { container }] of this.activeViews) {
+            if (container.contains(active)) {
+                return viewId;
+            }
+        }
+
+        // Focus is on a real control that belongs to no view — for example the
+        // size selector. Returning undefined hands the key to that control; an
+        // unconditional fallback here would re-create the reported defect.
+        return undefined;
+    }
+
+    /**
      * Handles keyboard up events by checking command bindings and delegating to active views
      * @param e - The keyboard event
      * @returns True if the event was handled, false otherwise
      */
     public handleKeyUp(e: KeyboardEvent): boolean {
-        // First, offer the active view a chance to handle the key event
-        // This allows views to override command bindings (e.g., for text input)
-        if (this.focusStack.length > 0) {
-            const activeViewId = this.focusStack[this.focusStack.length - 1];
-            const activeViewEntry = this.activeViews.get(activeViewId);
+        // Offer the focused view a chance to handle the key event
+        // This allows views to override command bindings (e.g., for text input).
+        // Uses the same focus-derived choice as `handleKeyDown`: bound commands
+        // fire here, so delegating on keyup to a view that does not hold focus
+        // would let a view act on a key it was never given.
+        const focusedViewId = this.viewIdHoldingFocus();
+        if (focusedViewId) {
+            const activeViewEntry = this.activeViews.get(focusedViewId);
             if (activeViewEntry?.view.handleKeyUp) {
                 const handled = activeViewEntry.view.handleKeyUp(e);
                 if (handled) {
@@ -392,7 +455,7 @@ export class ViewManager implements CommandManager {
             }
 
             // If view didn't handle it, check view-specific commands
-            const commands = this.commandRegistry.get(activeViewId);
+            const commands = this.commandRegistry.get(focusedViewId);
             const matchingCommand = commands?.find(cmd => this.isCommandActivatable(cmd, e));
             if (matchingCommand) {
                 // Handled by view command
@@ -534,9 +597,19 @@ export class ViewManager implements CommandManager {
     }
 
     /**
-     * Compact description of what the M/E/S slices currently target: the cube
-     * size plus the layer each axis would turn. Two states with the same
-     * signature produce identical slice commands, so a rebuild is unnecessary.
+     * Compact description of everything the command panel's contents depend on:
+     * the cube size, the layer each M/E/S axis would turn, **and which view is
+     * active**.
+     *
+     * The active view id is part of this deliberately. `renderGlobalCommands`
+     * renders `#view-actions` from `getActiveViewId()`, so two views showing the
+     * same layer at the same size produce identical slice commands but different
+     * panels. Without the id, switching between such views compared equal and the
+     * gate skipped the render, leaving the previous view's actions on screen.
+     *
+     * A selection *report* during arrow-key navigation does not change the active
+     * view, so it still short-circuits — which is the behaviour the gate exists
+     * to provide.
      */
     private sliceSelectionSignature(): string {
         const state = this.cubeModel.getReadOnlyModel().getCurrentState();
@@ -544,7 +617,7 @@ export class ViewManager implements CommandManager {
         const layers = [Axis.X, Axis.Y, Axis.Z].map(
             axis => selectedLayerOnAxis(state, stickerId, axis) ?? '-'
         );
-        return `${state.cubeSize}:${layers.join(',')}`;
+        return `${this.getActiveViewId() ?? '-'}:${state.cubeSize}:${layers.join(',')}`;
     }
 
     /**
@@ -579,6 +652,25 @@ export class ViewManager implements CommandManager {
      */
     public getActiveViewId(): string | undefined {
         return this.focusStack.length > 0 ? this.focusStack[this.focusStack.length - 1] : undefined;
+    }
+
+    /**
+     * Gets the view that owns keyboard input right now, derived from where DOM
+     * focus actually is.
+     *
+     * Distinct from {@link getActiveViewId}, and the distinction is deliberate:
+     * `getActiveViewId` reports the focus *stack*, which drives panel styling and
+     * command rendering and keeps pointing at the last-used view after focus
+     * leaves the views entirely. This accessor reports which view a keystroke
+     * would reach — `undefined` when focus sits on a control outside every view.
+     *
+     * Exposed because routing is otherwise not observable from outside, and a
+     * caller cannot tell the two apart by reading the stack alone.
+     *
+     * @returns The view id holding DOM focus, or undefined when none does
+     */
+    public getViewIdHoldingFocus(): string | undefined {
+        return this.viewIdHoldingFocus();
     }
 
     /**

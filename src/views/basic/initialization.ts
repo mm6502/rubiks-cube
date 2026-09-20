@@ -3,6 +3,7 @@ import { Application } from '@/application';
 import { ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { EventName } from '@/types';
 import { getDefaultVectors } from '@/views/basic/navigation';
+import { registerViewContainer } from '@/views/shared/focus';
 
 import * as cubieRendering from './cubie-rendering';
 import { initializeGhostAnchors, updateSize } from './rendering';
@@ -64,7 +65,6 @@ export function initialize(
         viewForward: defaultVectors.viewForward,
         isTilted: false,
         isPitched: false,
-        isHovered: false,
         layoutMode: 'floating' as const,
         currentSelected: undefined,
     };
@@ -136,10 +136,23 @@ function handleStickerMouseOut(viewType: string): void {
  * Attaches mouse/touch event listeners to the container and cube element.
  */
 function attachContainerListeners(
-    _container: HTMLElement,
+    container: HTMLElement,
     cubeElement: HTMLElement,
     state: BasicViewInternalData
 ): void {
+    // Contact (`pointerdown`) is wired by `registerViewContainer`, which also
+    // owns the teardown path for it — so this function deliberately does not
+    // attach a second listener here. Claiming keyboard focus on contact matters
+    // because an arrow key pressed while the user's focus is still on a
+    // controls-sidebar widget would otherwise reach both the view (through the
+    // document-level capture handler) and that widget, resizing the cube while
+    // the user tried to move the selection.
+    //
+    // Registration is also what makes this view addressable without a pointer,
+    // so an actor that can only move DOM focus directly still completes the
+    // whole interaction.
+    registerViewContainer(state.viewType, container);
+
     // Mouseover/out for highlighting
     cubeElement.addEventListener('mouseover', (event: MouseEvent) => {
         const target = event.target as HTMLElement;

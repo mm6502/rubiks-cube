@@ -3,8 +3,11 @@ import { CubeView, Face, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { Size2D } from '@/cube/types/cubie';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
+import { logger } from '@/diagnostics/logger';
 import { getEventBus } from '@/event-bus-accessor';
 import { Command, EventName, MoveExecutedEvent } from '@/types';
+import { registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
 
 import * as highlights from './highlights';
 import * as initialization from './initialization';
@@ -64,6 +67,12 @@ export class CircularCubeView implements CubeView {
             this.updateSelected(id)
         );
 
+        // Pointer contact (`pointerdown` → claim focus + announce the
+        // interaction) is wired by `registerViewContainer`, which also owns the
+        // teardown path for it. Registration is also what makes this view
+        // addressable without a pointer (see `shared/focus`).
+        registerViewContainer(this.getViewType(), container);
+
         // Wire up zoom/pan on the scaffold elements added by initialization.
         const clipEl = container.querySelector<HTMLElement>('[data-role="clip-container"]');
         const transformEl = container.querySelector<HTMLElement>('[data-role="transform-target"]');
@@ -108,11 +117,11 @@ export class CircularCubeView implements CubeView {
         // the cube size rather than a fixed face position, which only exists at
         // 3×3 (position 4) — at 2×2 that lookup silently matched nothing and the
         // view opened with no sticker selected.
-        const cubeSize = model.getCurrentState().cubeSize;
-        const centreRow = Math.floor((cubeSize - 1) / 2);
-        const centreCol = Math.floor((cubeSize - 1) / 2);
-        const centrePosition = centreRow * cubeSize + centreCol;
-        const centre = CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, centrePosition);
+        const centre = CubeStateUtils.getStickerAt(
+            model.getCurrentState(),
+            Face.F,
+            centerFacePosition(model.getCurrentState().cubeSize)
+        );
         if (centre) this.updateSelected(centre.id);
     }
 
@@ -129,13 +138,26 @@ export class CircularCubeView implements CubeView {
     }
 
     updateSelective(event?: MoveExecutedEvent): void {
+        // Reconcile the selection anchor with the new model state *now*: the
+        // model already reflects this move, and the animation that follows is
+        // purely cosmetic. Doing it inside the promise callback below left the
+        // anchor pointing at the pre-move frame for the duration of the
+        // animation, so a key pressed then inferred its move from stale geometry
+        // and produced a different notation than the same key produced once the
+        // animation had finished.
+        this.restoreSelection();
+
         // Delegate to shared updateSelective which handles animation and state updates.
-        rendering
-            .updateSelective(this.state, event as MoveExecutedEvent)
-            .then(() => this.restoreSelection())
-            .catch(() => {
-                // swallow errors to preserve existing behavior (no-throw on update)
-            });
+        //
+        // A failure here is reported rather than swallowed. The empty catch this
+        // replaced claimed to "preserve existing behavior", but that stopped being
+        // true once the post-promise reconcile was removed: with nothing left to
+        // run after a rejection, a silent failure is now a permanently skipped
+        // paint, not a redundant one. The view still does not throw — a rendering
+        // error must not take the app down — but it is no longer invisible.
+        rendering.updateSelective(this.state, event as MoveExecutedEvent).catch(error => {
+            logger.error('Circular view failed to apply an animated update:', error);
+        });
     }
 
     private restoreSelection(): void {
@@ -222,6 +244,9 @@ export class CircularCubeView implements CubeView {
     }
 
     destroy(): void {
+        // Stop being addressable: a destroyed view must not be activatable.
+        unregisterViewContainer(this.getViewType());
+
         this.faceLabelTilt.destroy();
         this.state.zoomPan?.destroy();
         this.state.zoomPan = null;

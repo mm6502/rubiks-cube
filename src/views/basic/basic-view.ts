@@ -11,6 +11,7 @@ import {
     Vector3,
 } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import {
     inferKeyboardMove,
     isFaceSelectKey,
@@ -41,14 +42,22 @@ import {
     rotateViewLeft,
     rotateViewRight,
     rotateViewUp,
+    viewFrontFace,
 } from '@/views/basic/navigation';
 import { updateHighlight, updateSelected } from '@/views/basic/selection';
 import { BasicTouchHandler } from '@/views/basic/touch-handler';
+import { unregisterViewContainer } from '@/views/shared/focus';
 
 import * as animations from './animations';
 import * as cubieRendering from './cubie-rendering';
 import * as initialization from './initialization';
 import styles from './basic-view.module.css';
+import {
+    ReanchorTarget,
+    selectionVisualCell as policySelectionVisualCell,
+    preserveSelectionAcrossOrientationChange as preserveSelection,
+    reanchorSelection as reanchor,
+} from './reanchor';
 import {
     getMinimumSize,
     getVisibleFacesWithPositions,
@@ -59,6 +68,7 @@ import {
 } from './rendering';
 import { BasicVariant } from './types';
 import type { BasicViewInternalData, BasicViewState } from './types';
+import type { ViewOrientation, VisualCell } from './visual-cell';
 
 export type { BasicVariant, BasicViewInternalData, BasicViewState } from './types';
 
@@ -102,7 +112,6 @@ export class BasicView implements CubeView {
             viewForward: defaultVectors.viewForward,
             isTilted: false,
             isPitched: false,
-            isHovered: false,
             layoutMode: 'floating',
             currentSelected: undefined,
         };
@@ -164,11 +173,25 @@ export class BasicView implements CubeView {
             styles: this.state.styles,
             getCubeSize: () => this.state.model?.getCurrentState().cubeSize ?? 3,
             getState: () => this.state,
-            onStickerSelected: id => this.updateSelected(id as StickerId | undefined),
+            // Two halves used to make up this cast, and only one of them was
+            // real:
+            //
+            // - `| undefined` advertised a cleared selection as a gesture
+            //   outcome. No gesture can produce one — every rendered sticker
+            //   carries `data-sticker-id`, so the touch handler's `?? undefined`
+            //   fallback is unreachable (verified) — so that half was a widening
+            //   with no runtime path behind it, and it is gone. Clearing remains
+            //   supported through `clearSelection` and an explicit
+            //   `updateSelected(state)` call.
+            // - `as StickerId` bridges the touch handler's deliberately loose
+            //   `(stickerId?: string) => void` to the branded id `updateSelected`
+            //   expects. That mismatch is real, so this half stays; narrowing it
+            //   means narrowing the touch handler's declaration.
+            onStickerSelected: id => this.updateSelected(id as StickerId),
             onViewRotated: (_direction: 'horizontal' | 'vertical', rotation, steps) => {
                 updateRotation(this.state);
                 updateFaceLabels(this.state, _direction);
-                this.updateGhostEdges();
+                this.endRotation();
                 this.emitStateChanged();
                 if (isLinked(this.state.viewType)) {
                     for (let i = 0; i < steps; i++) {
@@ -262,9 +285,15 @@ export class BasicView implements CubeView {
             }
         }
 
-        // Default selection: center sticker of the variant's front face.
+        // Default selection: center sticker of the variant's front face. The
+        // position comes from the shared helper rather than a literal, which only
+        // existed at 3×3 — at 2×2 the lookup silently matched nothing.
         const defaultFace = this.state.variant === BasicVariant.Back ? Face.B : Face.F;
-        const center = CubeStateUtils.getStickerAt(model.getCurrentState(), defaultFace, 4);
+        const center = CubeStateUtils.getStickerAt(
+            model.getCurrentState(),
+            defaultFace,
+            centerFacePosition(model.getCurrentState().cubeSize)
+        );
         if (center) this.updateSelected(center.id);
     }
 
@@ -277,7 +306,6 @@ export class BasicView implements CubeView {
 
     // Called by ViewManager via the CubeView interface (updateSelective?); fallow
     // cannot see interface-member calls, so this is suppressed as a known pattern.
-    // fallow-ignore-next-line unused-class-member
     updateSelective(event?: MoveExecutedEvent): void {
         if (event && this.state.model) {
             this.handleMoveExecuted(event);
@@ -304,6 +332,101 @@ export class BasicView implements CubeView {
         }
     }
 
+    /**
+     * The view orientation, in the shape the visual-cell rule expects.
+     */
+    private orientation(): ViewOrientation {
+        return { viewRight: this.state.viewRight, viewUp: this.state.viewUp };
+    }
+
+    /**
+     * Open a rotation: take the ghost strips off screen for its duration.
+     *
+     * A ghost strip borrows its colour from a hidden face, so while the cube is
+     * turning it would show a mapping that is about to be wrong — during a
+     * whole-cube move the strips would sit visibly on stale geometry and only
+     * recolour at the end. Hiding first means a strip is either correct or
+     * absent, never confidently wrong.
+     *
+     * Must be paired with {@link endRotation}. Every rotation and move entry
+     * point goes through this pair so the treatment is the same whichever way
+     * the cube is turned.
+     *
+     * The hide is immediate (`animate = false`), not the animated fade-out: the
+     * fade leaves each strip on screen for the length of its opacity transition
+     * and only sets `display: none` from a later `transitionend`/timeout. A strip
+     * still in the DOM during the turn is exactly the stale geometry this exists
+     * to avoid, and it also stops `updateVisibleEdges` from tidying up, because
+     * `hideAllStrips` only touches strips still flagged as showing.
+     */
+    private beginRotation(): void {
+        this.ghostStickers?.setVisible(false, false);
+    }
+
+    /**
+     * Close a rotation whose turn is still animating underneath: the strips come
+     * back after the fade-in delay, landing as the cube's transform settles.
+     */
+    private endRotation(): void {
+        this.updateGhostEdges();
+    }
+
+    /**
+     * Close a rotation whose turn has already finished: the strips come back
+     * immediately, with no fade-in delay.
+     *
+     * Used by the move paths, which await the move animation before reaching
+     * here. Waiting a second time is what produced the pause the user reported
+     * after a whole-cube turn.
+     */
+    private endFinishedRotation(): void {
+        this.updateGhostEdges(true);
+    }
+
+    /**
+     * The view-side contract the re-anchor policy needs.
+     *
+     * The policy itself lives in `./reanchor` so Circular and Flat can reuse it.
+     * This adapter is what keeps it view-agnostic: the policy decides *which*
+     * sticker should be selected and hands the id back, and the view decides what
+     * selecting it means — its own markup, its own state fields, and its own
+     * `STICKER_SELECTED` emission.
+     */
+    private reanchorTarget(): ReanchorTarget {
+        return {
+            // Accessors, not values: the policy reads these both before and after
+            // the orientation changes, so a snapshot would resolve the captured
+            // cell against a stale front face.
+            getModel: () => this.state.model,
+            getCurrentSelected: () => this.state.currentSelected,
+            getOrientation: () => this.orientation(),
+            getFrontFace: () => viewFrontFace(this.state),
+            applySelection: id => this.updateSelected(id),
+        };
+    }
+
+    /**
+     * Keep the selection on screen after the view's orientation changed.
+     *
+     * Delegates to the extracted policy, passing this view as the target. The
+     * cell is captured before the orientation moves and resolved after it lands,
+     * so the selection follows the screen position the user was looking at rather
+     * than the face that used to be front.
+     */
+    private preserveSelectionAcrossOrientationChange(applyOrientation: () => void): void {
+        preserveSelection(this.reanchorTarget(), applyOrientation);
+    }
+
+    /**
+     * Re-anchor a previously captured cell, without changing the orientation.
+     *
+     * Used by `setState`, where the orientation is restored first and the anchor
+     * is reconciled against it afterwards.
+     */
+    private reanchorSelection(cell: VisualCell | undefined): void {
+        reanchor(cell, this.reanchorTarget());
+    }
+
     resize(): void {
         resize(this.state);
         this.touchHandler?.resize();
@@ -311,7 +434,6 @@ export class BasicView implements CubeView {
 
     // Called by ViewManager via the CubeView interface (setLayoutMode?); fallow
     // cannot see interface-member calls, so this is suppressed as a known pattern.
-    // fallow-ignore-next-line unused-class-member
     setLayoutMode(mode: LayoutMode): void {
         this.state.layoutMode = mode;
         this.touchHandler?.setLayoutMode(mode);
@@ -351,11 +473,25 @@ export class BasicView implements CubeView {
         /* c8 ignore if — guard for non-navigation keys */
         if (!isNavigationKey(event)) return false;
 
+        // A rotation the arrow key triggers is *not* a view rotation the user
+        // asked for: it exists to bring the selected sticker's face forward, and
+        // the selection must survive it unchanged. Routing it through
+        // `rotateViewLeft()` and friends would apply the user-rotation rule
+        // (preserve the screen cell, not the sticker), which slides the selection
+        // onto whichever sticker now occupies that cell — off a face centre onto
+        // an edge cubie at column 0. Mutate the orientation directly and refresh
+        // the rendering instead; the linked-view event still fires so a peer Basic
+        // view stays in sync.
         const onRotated = (r: ViewRotation): void => {
-            if (r === ViewRotation.Left) this.rotateViewLeft();
-            /* c8 ignore else if */ else if (r === ViewRotation.Right) this.rotateViewRight();
-            /* c8 ignore else if */ else if (r === ViewRotation.Up) this.rotateViewUp();
-            /* c8 ignore else if */ else if (r === ViewRotation.Down) this.rotateViewDown();
+            // Which faces are "visible" just changed, so the silhouette edges the
+            // ghost strips sit on changed with it. Hide them for the turn and
+            // recompute on the way out, exactly as every other rotation path does.
+            this.beginRotation();
+            if (r === ViewRotation.Left) rotateViewLeft(this.state);
+            /* c8 ignore else if */ else if (r === ViewRotation.Right) rotateViewRight(this.state);
+            /* c8 ignore else if */ else if (r === ViewRotation.Up) rotateViewUp(this.state);
+            /* c8 ignore else if */ else if (r === ViewRotation.Down) rotateViewDown(this.state);
+            this.endRotation();
             /* c8 ignore if — guard when not linked */
             if (isLinked(this.state.viewType)) {
                 Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
@@ -390,7 +526,7 @@ export class BasicView implements CubeView {
         /* c8 ignore if — sticker always found for valid currentSelected */
         if (!sticker) return;
 
-        const face = sticker.currentFace as Face;
+        const face = sticker.currentFace;
         const current = this.touchHandler.getSelectedFace();
         this.touchHandler.selectFace(current === face ? undefined : face);
     }
@@ -472,11 +608,30 @@ export class BasicView implements CubeView {
         // Finalize any running animation (interrupt)
         this.finalizeAnimation();
 
+        // A move turns part of the cube, and a whole-cube move turns all of it.
+        // Either way a ghost strip — which borrows a hidden face's colour — is
+        // only meaningful once the move has landed, so take the strips off screen
+        // for the duration and recompute them at the end. Both the animated and
+        // the non-animated branch below call `endRotation`.
+        this.beginRotation();
+
+        // Reconcile the selection anchor now, while the model already reflects
+        // this move. The animation is purely cosmetic — the model is updated
+        // before MOVE_EXECUTED fires — so waiting for it left the anchor pointing
+        // at the pre-move frame. A key pressed during the animation then inferred
+        // its move from stale geometry and produced a different notation than the
+        // same key produced once the animation had finished.
+        //
+        // The markup (the `selected` class) is re-applied after each DOM rebuild
+        // below, because those rebuilds replace the sticker elements that carry it.
+        this.restoreSelection();
+
         if (!event.moveDetails?.movedCubies) {
             this.update(this.state.model);
             // No-cubie path (e.g. whole-cube rotation with no tracked cubies)
             // still needs the label refresh.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
+            this.endFinishedRotation();
             return;
         }
 
@@ -491,8 +646,14 @@ export class BasicView implements CubeView {
                 this.state.styles,
                 this.state.onStickerSelected
             );
-            // Reduced-motion / non-animated whole-cube path.
+            // The rebuild above replaced the sticker elements, dropping the
+            // markup, so re-apply it — without this the selection stays reported
+            // by the app but is invisible on the non-animated path.
+            this.restoreSelection();
+            // Reduced-motion / non-animated whole-cube path. There is no turn to
+            // wait for, so the strips return immediately.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
+            this.endFinishedRotation();
             return;
         }
 
@@ -511,14 +672,25 @@ export class BasicView implements CubeView {
                         this.state.onStickerSelected
                     );
                     result.animation.cancel(); // remove fill effect after DOM is updated
-                    this.ghostStickers?.updateColors();
+                    // Markup only: the anchor was reconciled when the move landed.
                     this.restoreSelection();
                     // Animated whole-cube path — refresh labels post-move.
                     this.refreshFaceLabelsAfterWholeCubeMove(event);
+                    // The move animation has just finished, so there is nothing
+                    // left to wait for.
+                    this.endFinishedRotation();
                 }
             })
             .catch(() => {
-                // Cancelled via finalizeAnimation() — do nothing
+                // Cancelled via `finalizeAnimation()`, which already closed the
+                // rotation as part of its own teardown. Anything else rejecting
+                // here would otherwise leave the strips hidden for the rest of the
+                // session, so close the rotation whenever this event is still the
+                // one we opened it for. Re-closing a rotation that is already shut
+                // is harmless: it recomputes the same set of strips.
+                if (this.activeAnimation?.event === event) {
+                    this.endFinishedRotation();
+                }
             });
     }
 
@@ -552,9 +724,11 @@ export class BasicView implements CubeView {
         // the corner-face mapping matches before the next move proceeds.
         this.refreshFaceLabelsAfterWholeCubeMove(event);
 
-        // Update ghost stickers and selection
-        this.ghostStickers?.updateColors();
+        // Update ghost stickers and selection. The cube has just been snapped to
+        // its post-move positions, so this rotation is over — there is nothing
+        // left to wait for.
         this.restoreSelection();
+        this.endFinishedRotation();
     }
 
     // -------------------------------------------------------------------------
@@ -562,45 +736,67 @@ export class BasicView implements CubeView {
     // -------------------------------------------------------------------------
 
     rotateViewLeft(): void {
-        rotateViewLeft(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state, 'horizontal');
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            rotateViewLeft(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state, 'horizontal');
+            this.endRotation();
+        });
     }
 
     rotateViewRight(): void {
-        rotateViewRight(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state, 'horizontal');
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            rotateViewRight(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state, 'horizontal');
+            this.endRotation();
+        });
     }
 
     rotateViewUp(): void {
-        rotateViewUp(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state, 'vertical');
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            rotateViewUp(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state, 'vertical');
+            this.endRotation();
+        });
     }
 
     rotateViewDown(): void {
-        rotateViewDown(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state, 'vertical');
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            rotateViewDown(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state, 'vertical');
+            this.endRotation();
+        });
     }
 
     resetView(): void {
-        resetView(this.state);
-        updateRotation(this.state);
-        updateFaceLabels(this.state);
-        this.updateGhostEdges();
+        this.preserveSelectionAcrossOrientationChange(() => {
+            resetView(this.state);
+            updateRotation(this.state);
+            updateFaceLabels(this.state);
+            this.endRotation();
+        });
     }
 
     alignCubeToView(): void {
-        alignCubeToView(this.state);
-        updateRotation(this.state, true);
-        updateFaceLabels(this.state);
-        this.updateGhostEdges();
+        // The sixth orientation entry point, wrapped for the same reason as the
+        // five above. Measured: this one changes the front face (a rotate-left
+        // then align goes R -> F), so the contract applies.
+        //
+        // Unlike its siblings, though, its selection survives unwrapped — it
+        // emits whole-cube moves, so the model changes and the MOVE_EXECUTED
+        // path re-resolves the selection by position. The wrapper here is
+        // therefore defence in depth, keeping the entry points uniform rather
+        // than fixing a live defect. It also protects the invariant if that
+        // move-emission path ever stops reconciling.
+        this.preserveSelectionAcrossOrientationChange(() => {
+            alignCubeToView(this.state);
+            updateRotation(this.state, true);
+            updateFaceLabels(this.state);
+            this.endRotation();
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -624,6 +820,19 @@ export class BasicView implements CubeView {
         /* c8 ignore if — runtime guard for external callers */
         if (!state || typeof state !== 'object') return;
         const viewState = state as Record<string, unknown>;
+
+        // Captured before the saved orientation is applied: a saved state can
+        // record an orientation in which the current selection sits on a face
+        // behind the cube, and the re-anchor below resolves it back onto the
+        // front face rather than restoring an invisible selection.
+        //
+        // Measured, because the ordering looks wrong at a glance: `reanchorSelection`
+        // resolves against the front face *at call time*, so the invariant holds
+        // whether the cell is captured here or after the branch below. The two
+        // orderings differ in intent, not in visibility — capturing here is
+        // "keep this visual cell across the restore", capturing later would be a
+        // no-op for a centre selection. Left as intended.
+        const cellBefore = policySelectionVisualCell(this.reanchorTarget());
 
         // Migrate old format — reset to default.
         /* c8 ignore if — migration for old state format */
@@ -677,6 +886,11 @@ export class BasicView implements CubeView {
 
         updateRotation(this.state, true);
         updateFaceLabels(this.state);
+
+        // Resolve the captured cell against the orientation now in effect.
+        // Unchanged from the reviewed code — see the capture site for why the
+        // ordering is deliberate rather than a defect.
+        this.reanchorSelection(cellBefore);
     }
 
     // -------------------------------------------------------------------------
@@ -684,6 +898,9 @@ export class BasicView implements CubeView {
     // -------------------------------------------------------------------------
 
     destroy(): void {
+        // Stop being addressable: a destroyed view must not be activatable.
+        unregisterViewContainer(this.getViewType());
+
         // Finalize any running animation
         this.finalizeAnimation();
 
@@ -731,14 +948,25 @@ export class BasicView implements CubeView {
         });
     }
 
-    private updateGhostEdges(): void {
+    /**
+     * Recompute which ghost strips belong on screen for the current orientation.
+     *
+     * @param turnAlreadyFinished Whether the caller has already waited for its
+     *   own rotation to finish. The move paths have — they await the move
+     *   animation before calling this — so for them the fade-in delay would be a
+     *   second, phantom turn, measured as a 233ms pause between the cube stopping
+     *   and the strips returning. The synchronous rotation entry points still
+     *   have their turn running, so they keep the delay.
+     */
+    private updateGhostEdges(turnAlreadyFinished = false): void {
         if (!isGhostVisible()) return;
         const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(this.state);
         this.ghostStickers?.updateVisibleEdges(
             visibleFaces,
             hiddenFaces,
             this.state.isTilted,
-            this.state.isPitched
+            this.state.isPitched,
+            turnAlreadyFinished ? 0 : undefined
         );
     }
 }

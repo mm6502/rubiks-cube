@@ -3,6 +3,7 @@ import { Face, resolveCubeColor } from '@/cube/types';
 import type { Position3D, ReadonlyCubie, StickerId } from '@/cube/types';
 import { getPositionKey } from '@/cube/utils/coordinates';
 
+import { reapplyHighlightMarkup, reapplySelectionMarkup } from './selection';
 import type { BasicViewInternalData } from './types';
 
 /**
@@ -180,6 +181,19 @@ export function initializeCubies(state: BasicViewInternalData, size: number): vo
     const cubeElementWithSize = state.cubeElement as HTMLElement & { cubieSize?: number };
     cubeElementWithSize.cubieSize = cubieSize;
     (state as BasicViewInternalData & { cubieSize?: number }).cubieSize = cubieSize;
+
+    // The rebuild above replaced every cubie element, so any derived markup —
+    // notably the `selected` class — is gone while `state.currentSelected`
+    // survives. Re-apply it here, at the rebuild boundary, so every caller is
+    // covered: this function is reached from both `rendering.update` and the
+    // resize path, and a per-caller fix would leave one of them broken.
+    //
+    // The highlight is the same class of derived state and is re-derived in the
+    // same place, for the same reason: a rebuild while a sticker is hovered used
+    // to drop its highlight, leaving this view disagreeing with the app (and
+    // with the other views) about which sticker was highlighted.
+    reapplySelectionMarkup(state);
+    reapplyHighlightMarkup(state);
 }
 
 /**

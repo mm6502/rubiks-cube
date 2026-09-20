@@ -47,6 +47,11 @@ Where to look
 
 Related plan
 
-- Origin:
-  docs/plans/2026-05-02-001-fix-selective-ghost-hiding-during-animation-plan.md
-- Related learning: ../logic-errors/directional-180-move-hardening-2026-05-09.md
+- Origin plan (dated 2026-05-02, "selective ghost hiding during animation") —
+  **no longer in the repo.** The reasoning it carried is preserved in the
+  Summary and Why this matters sections above.
+- Related learning:
+  [`../logic-errors/directional-180-moves.md`](../logic-errors/directional-180-moves.md)
+  — the signed half-turn hardening this entry originally pointed at. The file it
+  named (`directional-180-move-hardening-2026-05-09`) no longer exists; this is
+  its surviving replacement.

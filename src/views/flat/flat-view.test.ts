@@ -2,8 +2,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
-import { Axis, Face, QuarterTurn, StickerId } from '@/cube/types';
+import { Axis, Face, QuarterTurn, SUPPORTED_SIZES, StickerId } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { EventName, MoveExecutedEvent } from '@/types';
 
 import { FlatView } from './flat-view';
@@ -114,6 +115,59 @@ describe('FlatView', () => {
             );
         });
 
+        it('opens with the F-face center sticker, not merely some sticker', () => {
+            // Arrange
+            view.create(container, controller);
+
+            // Act
+            const selected = view.getSelectedSticker();
+
+            // Assert — the exact identity, so a wrong-but-defined default fails.
+            // The previous assertion here only checked definedness, which is why
+            // the hardcoded 3×3 position went unnoticed at other sizes.
+            const expected = CubeStateUtils.getStickerAt(
+                controller.getCurrentState(),
+                Face.F,
+                centerFacePosition(controller.getCurrentState().cubeSize)
+            );
+
+            expect(centerFacePosition(3)).toBe(4);
+            expect(selected).toBe(expected?.id);
+        });
+
+        describe('default selection across sizes', () => {
+            // The default used to hardcode position 4, which only exists at 3×3.
+            it.each(SUPPORTED_SIZES)('opens with a sticker selected at size %i', cubeSize => {
+                const sizeController = new CubeController(cubeSize);
+                const sizeView = new FlatView(styles);
+                const sizeContainer = document.createElement('div');
+
+                sizeView.create(sizeContainer, sizeController);
+
+                expect(sizeView.getSelectedSticker()).toBeDefined();
+
+                sizeView.destroy();
+            });
+
+            it.each(SUPPORTED_SIZES)('selects the F-face center sticker at size %i', cubeSize => {
+                const sizeController = new CubeController(cubeSize);
+                const sizeView = new FlatView(styles);
+                const sizeContainer = document.createElement('div');
+
+                sizeView.create(sizeContainer, sizeController);
+
+                const expected = CubeStateUtils.getStickerAt(
+                    sizeController.getCurrentState(),
+                    Face.F,
+                    centerFacePosition(cubeSize)
+                );
+
+                expect(sizeView.getSelectedSticker()).toBe(expected?.id);
+
+                sizeView.destroy();
+            });
+        });
+
         it('should create view with T-shaped layout', () => {
             // Act
             view.create(container, controller);
@@ -145,6 +199,25 @@ describe('FlatView', () => {
 
             // Assert
             expect(container.tabIndex).toBe(0);
+        });
+
+        it('claims DOM focus when the container is contacted (U4)', () => {
+            // Arrange — focus on a control outside the view is the state the
+            // reported defect occurred in.
+            const outside = document.createElement('input');
+            document.body.appendChild(outside);
+            outside.focus();
+            expect(document.activeElement).toBe(outside);
+
+            view.create(container, controller);
+
+            // Act
+            container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+
+            // Assert — tabIndex alone is not enough for the container to hold
+            // focus, so the arrow key would otherwise also reach the outside control.
+            expect(document.activeElement).toBe(container);
+            outside.remove();
         });
 
         it('should create all six faces', () => {

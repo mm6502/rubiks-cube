@@ -40,7 +40,6 @@ describe('BasicCubeSelector', () => {
             viewRight: { x: 1, y: 0, z: 0 },
             viewUp: { x: 0, y: 1, z: 0 },
             viewForward: { x: 0, y: 0, z: 1 },
-            isHovered: false,
             layoutMode: LayoutMode.Floating,
         };
     });

@@ -8,6 +8,51 @@ origin: docs/brainstorms/2026-09-17-circular-view-svg-generator-2x2-requirements
 
 # feat: Circular View per-N SVG generator with 2×2 support
 
+> **Post-completion amendment (2026-09-19).** Two of this plan's load-bearing
+> requirements were inverted by work that followed it. The plan is marked
+> `completed`, which is true of the generator — but the requirements below no
+> longer describe the shipped system, so read them as the historical decision
+> record rather than as a description of the current code.
+>
+> **Committed assets became optional (R7/R12/R14).** The plan required a
+> conforming `src/views/circular/view-<n>.svg` to be committed per size. Today
+> **no** per-size asset is committed: `src/views/circular/svg-loader.ts`
+> resolves every size through one glob and, when a file is absent, builds that
+> size in the browser from `parameters.json` on first request and caches it.
+> Committing an asset is now a build-time optimisation rather than the mechanism
+> — with all six committed the bundle inlines them (~154 KB gzip), with none
+> committed it inlines no SVG at all (~111 KB gzip, a ~43 KB saving) while still
+> serving every size. R12's "re-running reproduces the tuned result" survives in
+> a stronger form: the built markup is content-identical to what a committed
+> file would contain, and `svg-loader.test.ts` asserts that so the two paths
+> cannot drift. The 3×3 hand-authored original is still preserved, now at
+> `src/views/circular/fixtures/reference-3x3.svg`, one directory below the
+> assets so neither glob reaches it.
+>
+> **N=5 is now a shipped size (R16).** The plan required N=5 to be validated and
+> then discarded — "not shipped, not added to `getSupportedSizes()`, not
+> selectable". That constraint no longer holds: sizes 2–7 are all served, N=5
+> included. Its role changed from a falsification-only target to an ordinary
+> size. `parameters.json` keeps the record of how it started.
+>
+> Everything else the plan specified still describes the shipped generator: the
+> logic lives under `src/views/circular/svg-generator/` with a thin CLI shim in
+> `scripts/circular-svg/`, the ghost layer is emitted from the derived rule, the
+> canvas is derived by measuring emitted bounds rather than configured, and
+> validation gates the conformance contract and the ellipse/ghost layers in
+> addition to I1–I5.
+>
+> **One decision is worth flagging as superseded rather than inverted.** The
+> plan's "Key Technical Decisions" chose a _glob import_ over runtime
+> generation; that choice was revisited after the plan completed, when runtime
+> generation turned out to be viable and asset-free. The trade-off the plan
+> named (losing the ability to open and adjust an SVG in an editor) still
+> applies to sizes with no committed file.
+>
+> See also
+> `docs/plans/2026-09-19-001-fix-default-selection-and-doc-truth-up-plan.md`
+> (U4), which is where this amendment was requested.
+
 ## Summary
 
 Build a standalone generator under `scripts/circular-svg/` that emits a complete

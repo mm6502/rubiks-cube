@@ -53,15 +53,52 @@ from view-specific controls, and managing animations coherently.
 **Proposed Solutions (Implemented):**
 
 - **Event System:** Implemented a pub/sub event system using EventBus for
-  communication between views, controller, and ViewManager. Events include:
-  - `stickerSelected`: Emitted by views on mouse click, payload: {stickerId,
-    viewId}.
-  - `moveRequested`: Emitted by views to request moves, payload: {notation,
-    viewId}.
+  communication between views, controller, and ViewManager. The catalogue below
+  is the complete set of 16 events declared in `src/types/events.ts`; payload
+  field names are the implemented ones, so they can be used verbatim.
+  - `stickerSelected`: Emitted by views on mouse click. Payload:
+    `{stickerId?, viewId}`.
+  - `highlightChanged`: For sticker highlighting (hover in/out). Payload:
+    `{stickerId?, viewId?}`; `stickerId` is absent when the highlight is
+    cleared.
+  - `moveRequested`: Emitted by views to request moves. Payload:
+    `{moveNotation: string, viewId: string, tentative: boolean}`. All three
+    fields are required: `moveNotation` is the notation string (e.g. `'F'`,
+    `'R2'`, `"U'"`, `'3Rw'`), and `tentative` distinguishes a drag-start preview
+    (validated only) from a committed move.
   - `moveExecuted`: Emitted after moves, with comprehensive state change
-    information.
-  - `highlightChanged`: For sticker highlighting.
-  - `viewInteracted`: For focus management.
+    information (`moveDetails`, `preState`, `postState`; see below).
+  - `undoRequested`: Emitted to request an undo of the last move. No payload.
+  - `redoRequested`: Emitted to request a redo of the last undone move. No
+    payload.
+  - `viewInteracted`: For focus management. Emitted by a view when the user
+    contacts its content (pointer-down anywhere in the view). Payload:
+    `{viewId}`.
+  - `viewStateChanged`: Emitted when a view's own state changed and should be
+    persisted. Payload: `{viewType}`.
+  - `cubeResetRequested`: Emitted to request a reset to the solved state. No
+    payload.
+  - `cubeScrambleRequested`: Emitted to request a scramble. No payload.
+  - `storageClearRequested`: Emitted to request clearing persisted state (and
+    view storage keys). No payload.
+  - `stateExportRequested`: Emitted to request downloading the current state and
+    move history. No payload.
+  - `stateImportRequested`: Emitted to request importing a state file. No
+    payload.
+  - `basicViewRotationLinked`: Emitted by a Basic view when linked rotations are
+    enabled, so the peer view applies the same rotation. Payload:
+    `{rotation, sourceViewType}`.
+  - `basicViewResetLinked`: Emitted by a Basic view to reset its linked peer.
+    Payload: `{sourceViewType}`.
+  - `basicViewGhostToggled`: Emitted when a Basic view toggles ghost-hint
+    visibility. Payload: `{sourceViewType, visible, opacityIndex}`.
+
+  **Retired members.** `COMMAND_EXECUTED` (`CommandExecutedEvent`) was removed
+  from this catalogue: it was declared from the first commit with neither an
+  emitter nor a subscriber, so it documented a mechanism the app never had. Its
+  removal is now enforced rather than remembered - see
+  `src/types/event-catalogue.test.ts`, which fails if any declared member has no
+  production emitter (origin R13).
 
 **Enhanced MoveExecutedEvent Benefits (Implemented):**
 
@@ -112,11 +149,33 @@ Views implement different update strategies:
 **Implementation Notes:**
 
 1. **Focus Determination:** Stack-based system where last interacted view has
-   priority. Views emit `viewInteracted` on mouse enter/click. ViewManager
-   maintains stack.
+   priority. ViewManager maintains the stack and is subscribed to
+   `viewInteracted`, which views emit when the user contacts their content. Two
+   independent routes reach the same call, and they are not redundant:
+   - **Panel chrome.** `PanelInteractionHandler` listens for `pointerdown` on
+     the `#visualizations` ancestor and resolves the panel with
+     `target.closest('.view-panel')`. Because the listener is on an ancestor, a
+     pointer-down anywhere inside a panel already reaches it — including a
+     pointer-down on the view's content, not just its header or resize handles.
+     This is why the stack is _not_ driven by panel chrome alone.
+   - **View content.** Views additionally emit `viewInteracted` with their own
+     id when their content is contacted. This is the documented contract, and it
+     is what makes the mechanism inspectable rather than implicit.
 
-2. **Event Granularity:** Core events implemented: `stickerSelected`,
-   `moveRequested`, `moveExecuted`, `highlightChanged`, `viewInteracted`.
+   Contact also claims DOM focus for the view's container, so the element that
+   receives keyboard events and the view the app considers active cannot
+   disagree.
+
+2. **Event Granularity:** The catalogue in **Proposed Solutions** is the full
+   set — 16 events. Not all are equal in scope: the five interaction events
+   (`stickerSelected`, `moveRequested`, `moveExecuted`, `highlightChanged`,
+   `viewInteracted`) carry the core cube and focus behaviour, while
+   `undoRequested`/`redoRequested`, the five request-style events
+   (`cubeResetRequested`, `cubeScrambleRequested`, `storageClearRequested`,
+   `stateExportRequested`, `stateImportRequested`), the `viewStateChanged`
+   persistence signal and the three `basicView*` linked-view notifications are
+   narrower. Reading this list as the whole contract was the drift this section
+   used to cause; the catalogue above is authoritative.
 
 3. **Animation Synchronization:** On mouse drag begin, query controller if
    intended move is allowed. If not, provide feedback (e.g., change cursor, show

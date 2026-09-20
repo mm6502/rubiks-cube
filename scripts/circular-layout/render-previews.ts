@@ -46,6 +46,28 @@ import { validateInvariants } from '@/views/circular/svg-generator/validate';
 //   B  : pre-tangency layouts
 //   A  : the first per-size tuning, N=4+ left at densest-feasible
 //
+// **`PROPOSALS` is an experiment surface, not a mirror of the shipped values.**
+// It is duplicated against `src/views/circular/svg-generator/parameters.json`
+// on purpose, and the two are deliberately not wired together:
+//
+//   * `parameters.json` is what the app renders. It is append-only in practice
+//     and every change to it ships.
+//   * `PROPOSALS` is where a *candidate* layout is tried out before anything
+//     ships — the shape it holds (`d`/`rMin`/`step`/`margin`/`oN`/`oF`/`aspect`)
+//     is the same one `analyse-*` solves in, so a solved configuration can be
+//     pasted straight in and looked at.
+//
+// Do not "fix" the duplication by pointing this at `loadParameters()`. That
+// would delete the ability to preview a layout that is not yet shipped, which is
+// the only reason this block exists. (The same reasoning is why `analyse-tangency`'s
+// configuration `B` is kept rather than folded in: it is the baseline those
+// analyses compare against.)
+//
+// The values currently agree with `parameters.json` for every size; that is a
+// snapshot of what was promoted, not an invariant anyone maintains. `note` is
+// the one field that exists only here — it renders into the preview index, so it
+// describes the proposal rather than the shipped layout.
+//
 // Sticker radius is 7 everywhere: stickers are never resized between sizes.
 // Ring step is 15 everywhere except N=2, which takes a larger step so its two
 // rings spread far enough to stop reading as sparse — the one documented
@@ -61,7 +83,7 @@ import { validateInvariants } from '@/views/circular/svg-generator/validate';
 //   ellipseMargin, ellipseOffsetNear, ellipseOffsetFar, ellipseAspect
 // ---------------------------------------------------------------------------
 
-/** Identifies the frozen configuration below; referenced by the brainstorm doc. */
+/** Labels the configuration this block currently holds, for the emitted index. */
 const CONFIG_ID = 'D';
 
 interface Proposal {
@@ -136,7 +158,7 @@ const PROPOSALS: Record<number, Proposal> = {
         oN: 0.07,
         oF: 0.07,
         aspect: 1,
-        note: 'Beyond the sizes the app ships; included to show the progression still holds.',
+        note: 'Served like every other size. Carries its own ring geometry for the same reason as N=5.',
     },
     7: {
         d: 198.229,
@@ -146,7 +168,7 @@ const PROPOSALS: Record<number, Proposal> = {
         oN: 0.02,
         oF: 0.02,
         aspect: 0.95,
-        note: 'Beyond the sizes the app ships; included to show the progression still holds.',
+        note: 'Served like every other size. Carries its own ring geometry for the same reason as N=5.',
     },
 };
 
@@ -281,63 +303,6 @@ interface Metrics {
     extent: number;
 }
 
-interface LabelBox {
-    kind: string;
-    tag: string;
-    x0: number;
-    y0: number;
-    x1: number;
-    y1: number;
-}
-
-/**
- * Bounding boxes of the label elements in an emitted asset.
- *
- * Needed when sizing the canvas: labels sit outside the rings and outside the
- * face ellipses, so a canvas built from stickers and ellipses alone clips them.
- */
-function elementsOf(svg: string): LabelBox[] {
-    const out: LabelBox[] = [];
-
-    // Ring notation labels: a <g> keyed by data-label-id with a translate, and a
-    // labelWidth x labelHeight rect at that origin.
-    for (const m of svg.matchAll(
-        /<g data-label-id="([^"]*)"[^>]*transform="translate\(([-\d.]+),\s*([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
-    )) {
-        const x = Number(m[2]);
-        const y = Number(m[3]);
-        const w = Number(/width="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
-        const h = Number(/height="([-\d.]+)"/.exec(m[4])?.[1] ?? NaN);
-        if (!Number.isFinite(w) || !Number.isFinite(h)) continue;
-        out.push({ kind: 'ring label', tag: m[1], x0: x, y0: y, x1: x + w, y1: y + h });
-    }
-
-    // Face labels: a <g> keyed by face-label id with a translate, and a rect
-    // centred on that anchor (x=-10, y=-10, w x h).
-    for (const m of svg.matchAll(
-        /<g data-face="[A-Z]" id="face-label-([A-Z])"[^>]*transform="translate\(([-\d.]+),([-\d.]+)\)"[^>]*>([\s\S]*?)<\/g>/g
-    )) {
-        const x = Number(m[2]);
-        const y = Number(m[3]);
-        const body = m[4];
-        const rx = Number(/<rect x="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        const ry = Number(/<rect x="[-\d.]+" y="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        const w = Number(/width="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        const h = Number(/height="([-\d.]+)"/.exec(body)?.[1] ?? NaN);
-        if (!Number.isFinite(rx) || !Number.isFinite(w)) continue;
-        out.push({
-            kind: 'face label',
-            tag: m[1],
-            x0: x + rx,
-            y0: y + ry,
-            x1: x + rx + w,
-            y1: y + ry + h,
-        });
-    }
-
-    return out;
-}
-
 /**
  * Measures the asset that was actually emitted, not recomputed geometry, so a
  * mismatch between the two shows up as a failure rather than being averaged away.
@@ -346,7 +311,7 @@ function elementsOf(svg: string): LabelBox[] {
  * trio's. It falls naturally with N and sits near 2.2-2.5x across the set; N=2
  * was the outlier and is the reason its ring step differs.
  */
-function measure(size: number, p: CircularSvgParameters, emitted: Emitted): Metrics {
+function measure(_size: number, p: CircularSvgParameters, emitted: Emitted): Metrics {
     let ellipseGapMin = Infinity;
     for (let i = 0; i < emitted.ellipses.length; i++) {
         for (let j = i + 1; j < emitted.ellipses.length; j++) {

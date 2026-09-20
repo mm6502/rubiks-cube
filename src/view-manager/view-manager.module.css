@@ -88,6 +88,8 @@
     position: relative;
     flex: 1;
     overflow: hidden;
+    border-bottom-left-radius: var(--border-radius);
+    border-bottom-right-radius: var(--border-radius);
     /* Remove default focus outline; we use a custom box-shadow on the panel instead */
     outline: none;
 }
@@ -417,7 +419,18 @@
     font-size: 12px;
     font-weight: 500;
     line-height: 1;
-    transition: all 0.2s;
+    /* Property list, not `all`. `all` also animates `outline-color` and
+       `outline-width`, which turns the focus ring into a ~200ms sweep: the UA
+       ring's initial colour is `currentColor` — this button's own light text
+       colour — and its initial width is `medium`, so the first Tab made the ring
+       flash pale and thick, then fade to near-black and thin. That read as the
+       keyboard focus highlight having the wrong colour. */
+    transition:
+        background-color 0.2s,
+        border-color 0.2s,
+        box-shadow 0.2s,
+        color 0.2s,
+        transform 0.2s;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin: 0;
@@ -426,6 +439,26 @@
     justify-content: center;
     box-sizing: border-box;
     flex-shrink: 0;
+}
+
+/* Keyboard focus ring. Without this the ring is the browser default, whose
+   settled colour measures rgb(16,16,16) — about 2:1 against the dark header,
+   below the 3:1 that WCAG 2.2 SC 1.4.11 requires of a focus indicator.
+
+   The ring is drawn 2px OUTSIDE the button, so it sits on the view header, not
+   on the button's own fill — which is why one colour works for both the plain
+   and the pressed (cyan) state. */
+.view-command-btn:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}
+
+/* The overflow toggle (⋯) is a span carrying role="button", not a real button,
+   so it never matched any :focus-visible rule and fell back to the browser
+   default ring — 1px near-black, effectively invisible on the dark header. */
+.view-commands-toggle:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
 }
 
 .view-command-btn:hover {

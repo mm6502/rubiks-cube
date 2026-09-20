@@ -1,0 +1,341 @@
+// Integration tests proving every view actually claims DOM focus on contact
+// (U4 / AE11).
+//
+// `focus.test.ts` proves the helper works in isolation. These tests prove each
+// view *wires* it — a distinction that matters because the shared helper could
+// be perfect while one view never calls it. One parametrised suite covers all
+// three views so a fourth view added later cannot quietly skip the behaviour
+// without a single place failing.
+import { Map as IMap } from 'immutable';
+
+import { Application } from '@/application';
+import { CubeController } from '@/cube-controller';
+import { CubeState, Cubie, CubieId, PositionKey } from '@/cube/types';
+import { EventName } from '@/types';
+import { BasicView } from '@/views/basic/basic-view';
+import { circularViewFactory } from '@/views/circular';
+import { FlatView } from '@/views/flat/flat-view';
+import flatStyles from '@/views/flat/flat-view.module.css';
+
+import { activateView } from './focus';
+
+// Minimal model for the circular view. The circular view reads `cubiesById`
+// through Immutable's collection API, so a native Map would fail with
+// "state.cubiesById.filter is not a function".
+const circularState = {
+    cubeSize: 3,
+    cubiesById: IMap<CubieId, Cubie>(),
+    cubiesByPosition: IMap<PositionKey, Cubie>(),
+    timestamp: 0,
+} satisfies CubeState;
+
+const circularModel = {
+    isSolved: () => false,
+    getState: () => circularState,
+    getCurrentState: () => circularState,
+    getMoveHistory: () => ({ canUndo: () => false, canRedo: () => false }),
+} as any;
+
+interface ViewHarness {
+    name: string;
+    /** The id the view registers itself under, as emitted in `viewInteracted`. */
+    expectViewId: string;
+    container: HTMLElement;
+    destroy: () => void;
+}
+
+/**
+ * Builds a view into the given container. Split from the `harnesses` map below so
+ * a test can re-create a view on a container that already hosted one — the
+ * re-init case where a stale listener would otherwise stack.
+ */
+const builders: Record<string, (container: HTMLElement) => () => void> = {
+    basic: container => {
+        const view = new BasicView({ viewType: 'basic-front' });
+        view.create(container, new CubeController());
+        return () => view.destroy();
+    },
+    circular: container => {
+        const view = circularViewFactory.create();
+        view.create(container, circularModel);
+        return () => view.destroy();
+    },
+    flat: container => {
+        const view = new FlatView(flatStyles);
+        view.create(container, new CubeController());
+        return () => view.destroy();
+    },
+};
+
+const viewIds: Record<string, string> = {
+    basic: 'basic-front',
+    circular: 'circular',
+    flat: 'flat',
+};
+
+/** Builds each view into a mounted container, returning a teardown. */
+const harnesses: Record<string, () => ViewHarness> = Object.fromEntries(
+    Object.entries(builders).map(([name, build]) => [
+        name,
+        () => {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const destroyView = build(container);
+            return {
+                name,
+                expectViewId: viewIds[name],
+                container,
+                destroy: () => {
+                    destroyView();
+                    container.remove();
+                },
+            };
+        },
+    ])
+);
+
+describe.each(Object.keys(harnesses))('%s view claims DOM focus on contact', viewName => {
+    let harness: ViewHarness;
+    let priorFocus: HTMLInputElement;
+
+    beforeEach(() => {
+        // Focus starts on a control *outside* the view — this is the reported
+        // defect's precondition: the user last touched a sidebar widget (the
+        // cube-size radios) and their keyboard focus is still there.
+        priorFocus = document.createElement('input');
+        document.body.appendChild(priorFocus);
+        priorFocus.focus();
+
+        harness = harnesses[viewName]();
+    });
+
+    afterEach(() => {
+        harness.destroy();
+        priorFocus.remove();
+        Application.eventBus.removeAllListeners();
+        vi.restoreAllMocks();
+    });
+
+    it('is not focused before any contact (control test)', () => {
+        // Guards against a trivially-passing suite: if the view grabbed focus
+        // at construction the real assertion below would prove nothing.
+        expect(document.activeElement).not.toBe(harness.container);
+        expect(document.activeElement).toBe(priorFocus);
+    });
+
+    it('moves focus to the view container on pointerdown', () => {
+        harness.container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        expect(document.activeElement).toBe(harness.container);
+        expect(document.activeElement).not.toBe(priorFocus);
+    });
+
+    it('makes the container focusable so it can hold focus at all', () => {
+        // If tabIndex were left at -1 the container could not become
+        // activeElement, so the assertion above would be impossible to satisfy.
+        expect(harness.container.tabIndex).toBe(0);
+    });
+
+    it('announces the interaction with this view id', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        harness.container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, {
+            viewId: harness.expectViewId,
+        });
+    });
+
+    it('can be activated programmatically, with no pointer event at all', () => {
+        // The actor-facing path. `activateView` must produce the same three
+        // effects as a real contact, so a caller that can only move DOM focus
+        // directly (a script, a driver) still completes the whole interaction
+        // rather than moving focus while the app's model stays put.
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        // Note: deliberately no `.focus()` call and no PointerEvent — if the
+        // production path required either, this assertion would fail.
+        expect(activateView(harness.expectViewId)).toBe(true);
+
+        expect(document.activeElement).toBe(harness.container);
+        expect(document.activeElement).not.toBe(priorFocus);
+        expect(emitSpy).toHaveBeenCalledWith(EventName.VIEW_INTERACTED, {
+            viewId: harness.expectViewId,
+        });
+    });
+
+    it('is no longer activatable after destroy', () => {
+        harness.destroy();
+
+        // A destroyed view must not be reachable — otherwise a stale id can take
+        // focus and announce itself as interactive.
+        expect(activateView(harness.expectViewId)).toBe(false);
+    });
+
+    // ─── teardown: one listener per contact, silence after destroy ────────────
+
+    it('counts exactly one interaction per contact', () => {
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        harness.container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        // Guards every shape below: a view that registers twice would report two.
+        const interactions = emitSpy.mock.calls.filter(
+            ([event]) => event === EventName.VIEW_INTERACTED
+        );
+        expect(interactions).toHaveLength(1);
+    });
+
+    it('does not stack a second handler when the view is re-created on the same container', () => {
+        // The container survives a view's destroy+re-create (the shape a future
+        // view-reuse or re-init path would have). The teardown happens FIRST, as
+        // it would on a real re-init; registering a second view on a live id
+        // would legitimately replace the first registration instead.
+        harness.destroy();
+        const container = harness.container;
+        document.body.appendChild(container);
+        const destroyRecreated = builders[viewName](container);
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        const interactions = emitSpy.mock.calls.filter(
+            ([event]) => event === EventName.VIEW_INTERACTED
+        );
+        // One listener, so one emission. Before registration owned the listener,
+        // the stale closure was still attached and this reported two.
+        expect(interactions).toHaveLength(1);
+
+        destroyRecreated();
+        container.remove();
+    });
+
+    it('stays silent on contact after destroy', () => {
+        harness.destroy();
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        // The container may outlive the view; a torn-down view must not keep
+        // claiming focus or announce itself as interactive.
+        harness.container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        const interactions = emitSpy.mock.calls.filter(
+            ([event]) => event === EventName.VIEW_INTERACTED
+        );
+        expect(interactions).toHaveLength(0);
+        expect(document.activeElement).not.toBe(harness.container);
+    });
+
+    // ─── focus arriving without a pointer (tabbing in) ────────────────────────
+
+    it('activates the view when focus lands in it without a pointer', () => {
+        // The container is `tabIndex = 0`, so a keyboard user can Tab into it.
+        // That moves DOM focus without a pointerdown, and before this was wired
+        // the app's focus stack stayed on the previous view: keystrokes went to
+        // the view the user tabbed into while the active-view styling and the
+        // actions panel still described the one they left.
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        harness.container.focus();
+
+        expect(document.activeElement, 'the container took DOM focus').toBe(harness.container);
+        expect(
+            emitSpy.mock.calls.filter(([event]) => event === EventName.VIEW_INTERACTED),
+            'the view announced the interaction'
+        ).toEqual([[EventName.VIEW_INTERACTED, { viewId: harness.expectViewId }]]);
+    });
+
+    it('still reports exactly one interaction per pointer contact', () => {
+        // Guards the new focusin listener against double-reporting: claiming
+        // focus inside `contactView` fires focusin too, so without the guard one
+        // pointerdown would emit twice.
+        const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+        harness.container.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+        );
+
+        const interactions = emitSpy.mock.calls.filter(
+            ([event]) => event === EventName.VIEW_INTERACTED
+        );
+        expect(interactions).toHaveLength(1);
+    });
+});
+
+// ─── the activation region is the panel, not just its content ────────────────
+//
+// Reported defect: with several views open, tabbing through a panel's header
+// buttons activated the view late — only once focus reached the content below
+// them. So while focus moved through the header the app still described the
+// previous view, and the active-view styling jumped a step behind the tab order.
+//
+// Cause: a panel is `[data-view-panel]` and owns two siblings, the header and the
+// content container. Only the content is registered, so its `focusin` listener
+// never sees focus land in the header. These build the real panel structure —
+// header included — so the region is exercised end to end for every view.
+describe.each(Object.keys(harnesses))(
+    '%s view activates when focus lands anywhere in its panel',
+    viewName => {
+        let panel: HTMLElement;
+        let content: HTMLElement;
+        let headerButton: HTMLButtonElement;
+        let destroyView: () => void;
+
+        beforeEach(() => {
+            panel = document.createElement('div');
+            panel.setAttribute('data-view-panel', viewIds[viewName]);
+
+            const header = document.createElement('div');
+            header.setAttribute('data-view-header', '');
+            headerButton = document.createElement('button');
+            header.appendChild(headerButton);
+
+            content = document.createElement('div');
+
+            panel.appendChild(header);
+            panel.appendChild(content);
+            document.body.appendChild(panel);
+
+            destroyView = builders[viewName](content);
+        });
+
+        afterEach(() => {
+            destroyView();
+            panel.remove();
+            Application.eventBus.removeAllListeners();
+            vi.restoreAllMocks();
+        });
+
+        it('activates the view when focus lands on a header control', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+            headerButton.focus();
+
+            expect(document.activeElement).toBe(headerButton);
+            expect(
+                emitSpy.mock.calls.filter(([event]) => event === EventName.VIEW_INTERACTED),
+                'the view announced the interaction'
+            ).toEqual([[EventName.VIEW_INTERACTED, { viewId: viewIds[viewName] }]]);
+        });
+
+        it('still activates the view when focus lands on the content', () => {
+            const emitSpy = vi.spyOn(Application.eventBus, 'emit');
+
+            content.focus();
+
+            expect(
+                emitSpy.mock.calls.filter(([event]) => event === EventName.VIEW_INTERACTED),
+                'the view announced the interaction'
+            ).toEqual([[EventName.VIEW_INTERACTED, { viewId: viewIds[viewName] }]]);
+        });
+    }
+);

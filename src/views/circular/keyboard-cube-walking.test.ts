@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
 import { Face, StickerId } from '@/cube/types';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { logger } from '@/diagnostics/logger';
 import { NavDirection } from '@/types';
 
@@ -12,7 +14,6 @@ import {
     isNavigationKey,
     mapKeyToNavDirection,
     navigate,
-    recoverSelection,
 } from './keyboard-cube-walking';
 import { AxisCircle } from './svg-tools';
 
@@ -173,6 +174,69 @@ describe('keyboard-cube-walking', () => {
 
             // Assert
             expect(result).toBe(false);
+        });
+
+        it('reports the unhandled state once rather than silently returning false (U15)', () => {
+            // "Nothing selected" is unreachable through navigation itself, but it
+            // is a state the view could be driven into. Returning a bare `false`
+            // left it invisible; the warning makes it observable while staying
+            // once-per-view, so a held arrow key cannot flood the log.
+            const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+            const state = {
+                model: {} as never,
+                currentSelected: undefined,
+            } as unknown as CircularCubeViewInternalData;
+
+            // Act — three presses, one report.
+            expect(navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, state)).toBe(
+                false
+            );
+            expect(navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, state)).toBe(
+                false
+            );
+            expect(navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, state)).toBe(
+                false
+            );
+
+            // Assert
+            expect(warnSpy).toHaveBeenCalledTimes(1);
+            expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('no sticker is selected'));
+        });
+
+        it('warns per view, not once for the whole app', () => {
+            // The latch lives on the view's state, so a second view must be able to
+            // report the same condition. A module-level flag would let the first
+            // view silence every later one — which is what this pins.
+            const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+            const first = {
+                model: {} as never,
+                currentSelected: undefined,
+            } as unknown as CircularCubeViewInternalData;
+            const second = {
+                model: {} as never,
+                currentSelected: undefined,
+            } as unknown as CircularCubeViewInternalData;
+
+            navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, first);
+            expect(warnSpy).toHaveBeenCalledTimes(1);
+
+            navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), false, second);
+
+            expect(warnSpy, 'the second view reports it too').toHaveBeenCalledTimes(2);
+        });
+
+        it('does not warn when the key is not a navigation key (U15)', () => {
+            // The guard must stay scoped to the navigation path: a non-navigation
+            // key is not an unhandled navigation request.
+            const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+            const state = {
+                model: {} as never,
+                currentSelected: undefined,
+            } as unknown as CircularCubeViewInternalData;
+
+            expect(navigate(new KeyboardEvent('keydown', { key: 'a' }), false, state)).toBe(false);
+
+            expect(warnSpy).not.toHaveBeenCalled();
         });
 
         it('should return false when model is unavailable', () => {
@@ -689,7 +753,7 @@ describe('keyboard-cube-walking', () => {
         });
     });
 
-    describe('recoverSelection', () => {
+    describe('navigate with nothing selected', () => {
         let model: CubeController;
 
         beforeEach(() => {
@@ -720,134 +784,64 @@ describe('keyboard-cube-walking', () => {
             } as CircularCubeViewInternalData;
         }
 
-        it('should recover from exact spatial anchor (face + position)', () => {
+        // Navigation no longer invents a selection. It used to attempt a recovery
+        // from saved spatial anchors, which existed only because tapping the halo
+        // or the same sticker again cleared the selection. Those paths are gone,
+        // so an absent selection is now reported as "not handled" — the same
+        // answer Basic and Flat give.
+        it('returns false and selects nothing when no sticker is selected', () => {
             const onSelected = vi.fn();
-            const state = makeState({ selectedFace: Face.U, selectedPosition: 4 });
+            const state = makeState({ currentSelected: undefined });
 
-            const result = recoverSelection(state, onSelected);
+            for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
+                const result = navigate(
+                    new KeyboardEvent('keydown', { key }),
+                    false,
+                    state,
+                    onSelected
+                );
+                expect(result, key).toBe(false);
+            }
 
-            expect(result).toBe(true);
-            expect(onSelected).toHaveBeenCalledOnce();
-            // The selected sticker should be the center of U face
-            const stickerId = onSelected.mock.calls[0][0] as string;
-            expect(stickerId).toContain('U');
-        });
-
-        it('should recover from face-only anchor (center of that face)', () => {
-            const onSelected = vi.fn();
-            const state = makeState({ selectedFace: Face.R });
-
-            const result = recoverSelection(state, onSelected);
-
-            expect(result).toBe(true);
-            expect(onSelected).toHaveBeenCalledOnce();
-        });
-
-        it('should fall back to F-center when no spatial anchors exist', () => {
-            const onSelected = vi.fn();
-            const state = makeState();
-
-            const result = recoverSelection(state, onSelected);
-
-            expect(result).toBe(true);
-            expect(onSelected).toHaveBeenCalledOnce();
-        });
-
-        it('should return false when model is unavailable', () => {
-            const onSelected = vi.fn();
-            const state = makeState({ model: undefined });
-
-            const result = recoverSelection(state, onSelected);
-
-            expect(result).toBe(false);
             expect(onSelected).not.toHaveBeenCalled();
+            expect(state.currentSelected).toBeUndefined();
         });
 
-        it('should return false when model has no getCurrentState', () => {
-            const onSelected = vi.fn();
-            const state = makeState({ model: {} as any });
+        it('does not report the key as handled in preview mode either', () => {
+            // The old recovery claimed the key during preview even though only a
+            // recovery would have made it work, so the view advertised handling a
+            // navigation it could not perform.
+            const state = makeState({ currentSelected: undefined });
 
-            const result = recoverSelection(state, onSelected);
+            const result = navigate(new KeyboardEvent('keydown', { key: 'ArrowUp' }), true, state);
 
             expect(result).toBe(false);
-            expect(onSelected).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('navigate recovery', () => {
-        let model: CubeController;
-
-        beforeEach(() => {
-            vi.spyOn(logger, 'error').mockImplementation(() => {});
-            model = new CubeController();
         });
 
-        afterEach(() => {
-            vi.restoreAllMocks();
-        });
-
-        function makeState(
-            overrides: Partial<CircularCubeViewInternalData> = {}
-        ): CircularCubeViewInternalData {
-            return {
-                model,
-                container: null,
-                styles: {},
-                svgRoot: null,
-                svgReady: false,
-                svgElementCache: new Map(),
-                stickerIdToSvgId: new Map(),
-                svgIdToStickerId: new Map(),
-                axisCircles: [],
-                animationChain: Promise.resolve(),
-                axisAnimationChains: {
-                    X: Promise.resolve(),
-                    Y: Promise.resolve(),
-                    Z: Promise.resolve(),
-                },
-                cubeWalk: false,
-                ...overrides,
-            } as CircularCubeViewInternalData;
-        }
-
-        it('should recover selection when currentSelected is lost but spatial anchors exist', () => {
+        it('still navigates normally when something is selected', () => {
+            // Guards against the guard above swallowing the working path.
+            // `cubeWalk: true` because the cube-walk branch resolves the next
+            // sticker from the model alone; the spatial branch would need a
+            // populated SVG cache, which this fixture deliberately does not have.
+            const state = makeState({
+                cubeWalk: true,
+                currentSelected: CubeStateUtils.getStickerAt(
+                    model.getCurrentState(),
+                    Face.F,
+                    centerFacePosition(3)
+                )?.id,
+            });
             const onSelected = vi.fn();
-            const state = makeState({ selectedFace: Face.F, selectedPosition: 4 });
-            const event = new KeyboardEvent('keydown', { key: 'ArrowUp' });
 
-            const result = navigate(event, false, state, onSelected);
+            const result = navigate(
+                new KeyboardEvent('keydown', { key: 'ArrowRight' }),
+                false,
+                state,
+                onSelected
+            );
 
             expect(result).toBe(true);
             expect(onSelected).toHaveBeenCalledOnce();
-        });
-
-        it('should recover to F-center when no anchors and no selection', () => {
-            const onSelected = vi.fn();
-            const state = makeState();
-            const event = new KeyboardEvent('keydown', { key: 'ArrowDown' });
-
-            const result = navigate(event, false, state, onSelected);
-
-            expect(result).toBe(true);
-            expect(onSelected).toHaveBeenCalledOnce();
-        });
-
-        it('should return true in preview mode when recovery is possible', () => {
-            const state = makeState({ selectedFace: Face.U, selectedPosition: 0 });
-            const event = new KeyboardEvent('keydown', { key: 'ArrowLeft' });
-
-            const result = navigate(event, true, state);
-
-            expect(result).toBe(true);
-        });
-
-        it('should return false in preview mode for non-navigation keys even without selection', () => {
-            const state = makeState();
-            const event = new KeyboardEvent('keydown', { key: 'Enter' });
-
-            const result = navigate(event, true, state);
-
-            expect(result).toBe(false);
         });
     });
 

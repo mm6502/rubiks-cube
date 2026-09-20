@@ -5,8 +5,19 @@ import { Map as IMap } from 'immutable';
 import * as keyboardMoves from '@/interaction/keyboard-moves';
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
-import { CubeState, Cubie, CubieId, LayoutMode, PositionKey, StickerId } from '@/cube/types';
+import {
+    CubeState,
+    Cubie,
+    CubieId,
+    Face,
+    LayoutMode,
+    PositionKey,
+    SUPPORTED_SIZES,
+    StickerId,
+} from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
+import { logger } from '@/diagnostics/logger';
 import { EventName } from '@/types';
 
 import * as highlights from './highlights';
@@ -14,6 +25,7 @@ import * as initialization from './initialization';
 import * as keyboard from './keyboard-cube-walking';
 import * as rendering from './rendering';
 import { CircularCubeView } from './circular-view';
+import styles from './circular.module.css';
 import { circularViewFactory } from './index';
 import { CircularTouchHandler } from './touch-handler';
 import { ZoomPanController } from './zoom-pan';
@@ -265,20 +277,28 @@ describe('CircularCubeView (unit)', () => {
         expect(res).toBe(false);
     });
 
-    it('updateSelective swallows errors from rendering.updateSelective', async () => {
+    it('reports an error from rendering.updateSelective without throwing', async () => {
         // Arrange
         const fakeState: any = { svgReady: true };
         (view as any).state = fakeState;
         const updateSpy = vi
             .spyOn(rendering, 'updateSelective')
             .mockRejectedValue(new Error('boom'));
+        const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
 
-        // Act
+        // Act — a rendering failure must not escape as a throw.
         view.updateSelective({} as any);
         await Promise.resolve();
+        await Promise.resolve();
 
-        // Assert
+        // Assert — the failure is delegated *and* made visible in the logs. It
+        // used to be swallowed silently, which turned a rejected paint into an
+        // invisible one once the post-promise reconcile was removed.
         expect(updateSpy).toHaveBeenCalledWith(fakeState, {});
+        expect(errorSpy).toHaveBeenCalledWith(
+            'Circular view failed to apply an animated update:',
+            expect.any(Error)
+        );
     });
 
     it('getViewType and size/commands return expected values', () => {
@@ -376,9 +396,9 @@ describe('CircularCubeView (unit)', () => {
         expect((view as any).state.touchHandler).toBeNull();
     });
 
-    // ─── create: if (f4) branch ───────────────────────────────────────────────
+    // ─── create: if (center) branch ───────────────────────────────────────────
 
-    it('create calls updateSelected with found f4 sticker id', () => {
+    it('create selects the size-correct center sticker of the F face', () => {
         // Arrange
         const fakeState: any = {
             svgRoot: document.createElement('svg') as unknown as SVGSVGElement,
@@ -392,17 +412,111 @@ describe('CircularCubeView (unit)', () => {
         vi.spyOn(initialization, 'initialize').mockReturnValue(fakeState);
         vi.spyOn(initialization, 'attachStickerEventListeners').mockImplementation(() => {});
         vi.spyOn(rendering, 'renderState').mockImplementation(() => {});
-        vi.spyOn(CubeStateUtils, 'getStickerAt').mockReturnValue({ id: 'sticker-f4' } as any);
+        const getStickerAtSpy = vi
+            .spyOn(CubeStateUtils, 'getStickerAt')
+            .mockReturnValue({ id: 'sticker-center' } as any);
         const updateSelectedSpy = vi.spyOn(view, 'updateSelected');
 
         // Act
         view.create(container, mockModel);
 
-        // Assert
-        expect(updateSelectedSpy).toHaveBeenCalledWith('sticker-f4');
+        // Assert the *position requested*, not just the mock's return value. The
+        // previous version of this test asserted only the returned id, which the
+        // mock supplied regardless of the position — so it would have passed under
+        // any formula, including the hardcoded 3×3-only one.
+        const requestedPosition = getStickerAtSpy.mock.calls[0]?.[2];
+        expect(requestedPosition).toBe(centerFacePosition(3));
+        expect(updateSelectedSpy).toHaveBeenCalledWith('sticker-center');
+    });
+
+    // ─── create: default selection at every supported size ────────────────────
+
+    describe('default selection across sizes', () => {
+        // Exercises the real path end to end, unlike the mocked test above: a
+        // genuine CubeController, the loader's SVG for that size, and the closest
+        // circle that actually carries the selected class. The mocked test can
+        // only show the *requested position* is size-derived, because a mocked
+        // `getStickerAt` returns its id whatever the position — it would stay
+        // green even if the SVG had no circle for that position and no highlight
+        // ever appeared. Basic (`basic-view.core.test.ts`) and Flat
+        // (`flat-view.test.ts`) already pin identity this way; this closes the
+        // same gap for Circular.
+        it.each(SUPPORTED_SIZES)('opens on the front-face centre sticker at size %i', cubeSize => {
+            const sizeController = new CubeController(cubeSize);
+            const sizeView = new CircularCubeView();
+            const sizeContainer = document.createElement('div');
+            document.body.appendChild(sizeContainer);
+
+            try {
+                sizeView.create(sizeContainer, sizeController);
+
+                // The centre position is derived per size, so a hardcoded
+                // 3×3-only position fails here rather than passing quietly.
+                const expected = CubeStateUtils.getStickerAt(
+                    sizeController.getCurrentState(),
+                    Face.F,
+                    centerFacePosition(cubeSize)
+                );
+
+                expect(expected, `size ${cubeSize} has a front-face centre`).toBeDefined();
+                // Exact identity, not mere definedness: a definedness-only
+                // assertion stays green if the selection drifts to another sticker.
+                expect(sizeView.getSelectedSticker()).toBe(expected!.id);
+
+                // The reported sticker and the visible highlight must agree; the
+                // user only ever sees the latter.
+                const highlighted = [...sizeContainer.querySelectorAll('circle')].filter(circle =>
+                    circle.classList.contains(styles['selected'])
+                );
+                expect(highlighted, `size ${cubeSize} highlights exactly one circle`).toHaveLength(
+                    1
+                );
+                expect(highlighted[0].getAttribute('data-face')).toBe(Face.F);
+            } finally {
+                // Must run even when an assertion above fails. Both objects hold
+                // global event-bus subscriptions: `CircularCubeView.create()`
+                // registers view listeners and `CubeController`'s constructor
+                // subscribes to MOVE_REQUESTED. A leaked subscriber keeps
+                // reacting to every later move in this file — parsing a notation
+                // that may not exist at that size and throwing from an unrelated
+                // test, which is exactly the cascade a failing assertion causes.
+                sizeView.destroy();
+                sizeController.dispose();
+                sizeContainer.remove();
+            }
+        });
     });
 
     // ─── setLayoutMode ────────────────────────────────────────────────────────
+
+    it('claims DOM focus when its content is contacted (U4)', () => {
+        // Arrange — the focus wiring lives in `create()`, not in `initialize()`,
+        // because the emitted event carries the view id and `initialize` does not
+        // receive one. A test driving `initialize` alone therefore cannot observe it.
+        //
+        // `initialize` is used for real (not mocked) because it is what sets
+        // `tabIndex`, and a container that is not focusable cannot hold focus.
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const outside = document.createElement('input');
+        document.body.appendChild(outside);
+        outside.focus();
+        expect(document.activeElement).toBe(outside);
+
+        const fresh = new CircularCubeView();
+        fresh.create(container, mockModel);
+        expect(container.tabIndex).toBe(0);
+
+        // Act
+        container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+
+        // Assert
+        expect(document.activeElement).toBe(container);
+
+        fresh.destroy();
+        outside.remove();
+        container.remove();
+    });
 
     it('setLayoutMode delegates to touchHandler', () => {
         // Arrange

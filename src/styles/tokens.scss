@@ -113,6 +113,10 @@
     --color-border-strong: lime;
     // Subtle outline for inactive floating panels.
     --color-border-subtle: lime;
+    // Keyboard focus ring for buttons. Must stay legible against the button fills
+    // in both themes, which are theme-specific — so it is assigned in Layer 3
+    // rather than derived from a footer token.
+    --color-focus-ring: lime;
 
     // § Shadows
     --color-shadow-primary: var(--color-overlay-positive-20);
@@ -246,6 +250,13 @@
     --color-border-strong: var(--palette-indigo-600);
     --color-border-subtle: var(--palette-indigo-500);
 
+    // Keyboard focus ring. The ring is drawn OUTSIDE the control it marks
+    // (outline-offset: 2px), so it is judged against what is behind the control.
+    // Light theme puts buttons on the focused header, which repaints to
+    // indigo-600, and on the gray-100 command groups; absolute black is the only
+    // value that clears 3:1 on both (worst 3.34:1).
+    --color-focus-ring: var(--palette-gray-1000);
+
     // § View title bar
     --color-view-title-bar-bg: var(--palette-indigo-500);
     --color-view-title-bar-bg-hover: var(--palette-indigo-600);
@@ -294,6 +305,12 @@
     // § Borders
     --color-border-strong: var(--palette-navy-500);
     --color-border-subtle: var(--palette-navy-700);
+
+    // Keyboard focus ring. The ring is drawn OUTSIDE the control it marks
+    // (outline-offset: 2px), so it is judged against what is behind the control.
+    // Dark theme puts buttons on a navy header and on the gray-900 panel; this
+    // clears 3:1 on both (worst 8.87:1).
+    --color-focus-ring: var(--palette-slate-50);
 
     // § View title bar
     --color-view-title-bar-bg: var(--palette-navy-800);

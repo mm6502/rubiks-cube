@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
-import { QuarterTurn } from '@/cube/types';
+import { Face, QuarterTurn, SUPPORTED_SIZES } from '@/cube/types';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import { centerFacePosition } from '@/cube/utils/sticker-position';
 import { EventName } from '@/types';
 
 import * as rendering from './rendering';
@@ -33,6 +35,30 @@ describe('BasicView core API', () => {
         // Assert
         expect(type).toBe('basic-back');
         expect(elt).toBeInstanceOf(HTMLElement);
+    });
+
+    it('makes the container focusable and claims focus when contacted (U4)', () => {
+        // Arrange — focus on a control outside the view is the state the reported
+        // defect occurred in. Basic had no coverage for this at all.
+        //
+        // The container must be in the document: a detached element cannot hold
+        // focus, and `focusViewContainer` deliberately declines to try.
+        document.body.appendChild(container);
+        const outside = document.createElement('input');
+        document.body.appendChild(outside);
+        outside.focus();
+        expect(document.activeElement).toBe(outside);
+
+        // Act
+        container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+
+        // Assert — the container is focusable *and* actually takes focus, which is
+        // what stops an arrow key also reaching the outside control.
+        expect(container.tabIndex).toBe(0);
+        expect(document.activeElement).toBe(container);
+
+        outside.remove();
+        container.remove();
     });
 
     it('getCommands returns a full command list and running actions updates state', () => {
@@ -161,5 +187,71 @@ describe('BasicView core API', () => {
         expect(view.getCubeElement()).toBeNull();
         expect((view as any).state.container).toBeNull();
         expect((view as any).state.model).toBeUndefined();
+    });
+});
+
+// The default selection used to hardcode face position 4, which only exists at
+// 3×3. `getStickerAt` returns undefined rather than throwing when nothing
+// matches, and every call site guarded with `if (sticker)`, so at other sizes the
+// view opened with nothing selected — and at 4×4+ with an off-center sticker.
+// These tests pin the size-correct behavior for every supported size.
+describe('BasicView default selection', () => {
+    const createView = (viewType: string, cubeSize: number) => {
+        const model = new CubeController(cubeSize);
+        const container = document.createElement('div');
+        const view = new BasicView({ viewType });
+        view.create(container, model);
+        return { view, model, container };
+    };
+
+    it.each(SUPPORTED_SIZES)('opens with a sticker selected at size %i', cubeSize => {
+        const { view } = createView('basic-front', cubeSize);
+
+        // The defect: this was undefined at 2×2 and every other non-3 size.
+        expect(view.getSelectedSticker()).toBeDefined();
+    });
+
+    it.each(SUPPORTED_SIZES)('selects the center of the variant face at size %i', cubeSize => {
+        const front = createView('basic-front', cubeSize);
+        const back = createView('basic-back', cubeSize);
+
+        // Assert exact identity, not merely definedness: a definedness-only
+        // assertion would stay green if the helper were "simplified" to
+        // floor(cubeSize/2), which yields an edge sticker at 3×3.
+        const expectedPosition = centerFacePosition(cubeSize);
+
+        const expectedFront = CubeStateUtils.getStickerAt(
+            front.model.getCurrentState(),
+            Face.F,
+            expectedPosition
+        );
+        const expectedBack = CubeStateUtils.getStickerAt(
+            back.model.getCurrentState(),
+            Face.B,
+            expectedPosition
+        );
+
+        expect(front.view.getSelectedSticker()).toBe(expectedFront?.id);
+        expect(back.view.getSelectedSticker()).toBe(expectedBack?.id);
+    });
+
+    it.each([2, 4, 6])('back variant selects a B-face sticker at size %i', cubeSize => {
+        const { view, model } = createView('basic-back', cubeSize);
+        const selectedId = view.getSelectedSticker();
+
+        expect(selectedId).toBeDefined();
+
+        const sticker = CubeStateUtils.getStickerById(model.getCurrentState(), selectedId!);
+        expect(sticker?.currentFace).toBe(Face.B);
+    });
+
+    it('keeps 3×3 on the F-centre at position 4', () => {
+        // 3×3 is the size the old literal happened to be correct for, so this is
+        // the regression guard for "the fix changed 3×3 too".
+        const { view, model } = createView('basic-front', 3);
+        const expected = CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, 4);
+
+        expect(centerFacePosition(3)).toBe(4);
+        expect(view.getSelectedSticker()).toBe(expected?.id);
     });
 });

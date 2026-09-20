@@ -11,7 +11,7 @@ describe('events', () => {
         expect(EventName.MOVE_REQUESTED).toBe('moveRequested');
         expect(EventName.MOVE_EXECUTED).toBe('moveExecuted');
         expect(EventName.VIEW_INTERACTED).toBe('viewInteracted');
-        expect(EventName.COMMAND_EXECUTED).toBe('commandExecuted');
+        expect(EventName.HIGHLIGHT_CHANGED).toBe('highlightChanged');
     });
 
     it('should validate StickerSelectedEvent payload', () => {

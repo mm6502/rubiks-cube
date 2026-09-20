@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { Axis, Face, QuarterTurn } from '@/cube/types';
+import { CubeController } from '@/cube-controller';
+import { Axis, Face, QuarterTurn, SUPPORTED_SIZES } from '@/cube/types';
+import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import {
     calculateStickerPositionOnFace,
+    centerFacePosition,
     facePositionTo3D,
     getFaceRotationAxis,
 } from '@/cube/utils/sticker-position';
@@ -332,5 +335,94 @@ describe('getFaceRotationAxis', () => {
         expect(() => getFaceRotationAxis('unknown' as any, QuarterTurn.QUARTER)).toThrow(
             'Unknown face: unknown'
         );
+    });
+});
+
+describe('centerFacePosition', () => {
+    it('returns a position inside the face for every supported size', () => {
+        for (const cubeSize of SUPPORTED_SIZES) {
+            const position = centerFacePosition(cubeSize);
+
+            expect(position, `size ${cubeSize}`).toBeGreaterThanOrEqual(0);
+            expect(position, `size ${cubeSize}`).toBeLessThan(cubeSize * cubeSize);
+            expect(Number.isInteger(position), `size ${cubeSize}`).toBe(true);
+        }
+    });
+
+    it('returns the unique center cell on odd sizes', () => {
+        // 3×3, 5×5, 7×7 each have exactly one central cell, so the answer is forced.
+        for (const cubeSize of [3, 5, 7]) {
+            const centerIndex = Math.floor((cubeSize - 1) / 2);
+            const expected = centerIndex * cubeSize + centerIndex;
+
+            expect(centerFacePosition(cubeSize), `size ${cubeSize}`).toBe(expected);
+
+            // The returned cell really is the center: its 3D coordinates sit on
+            // the cube's middle plane on both in-face axes.
+            const midpoint = (cubeSize - 1) / 2;
+            const position3D = facePositionTo3D(centerFacePosition(cubeSize), Face.F, cubeSize);
+            expect(position3D.x, `size ${cubeSize}`).toBe(midpoint);
+            expect(position3D.y, `size ${cubeSize}`).toBe(midpoint);
+        }
+    });
+
+    it('picks the lowest-indexed cell of the center block on even sizes', () => {
+        // Even sizes have a 2×2 block of central cells, so the rule picks the one
+        // at the lowest row and column. These values are pinned because the choice
+        // is product-visible: it decides which layer the M and E buttons turn.
+        expect(centerFacePosition(2)).toBe(0);
+        expect(centerFacePosition(4)).toBe(5);
+        expect(centerFacePosition(6)).toBe(14);
+    });
+
+    it('does not return the naive floor(n²/2) cell on even sizes', () => {
+        // `floor(n²/2)` is the tempting shortcut and is correct only on odd sizes;
+        // on even sizes it lands on column 0 — an outer layer, which disables the
+        // M slice. This is the regression guard for that mistake.
+        for (const cubeSize of [2, 4, 6]) {
+            const naive = Math.floor((cubeSize * cubeSize) / 2);
+
+            expect(centerFacePosition(cubeSize), `size ${cubeSize}`).not.toBe(naive);
+        }
+
+        // On odd sizes the two formulas agree, which is exactly why the bug was
+        // invisible during 3×3-only development.
+        for (const cubeSize of [3, 5, 7]) {
+            expect(centerFacePosition(cubeSize), `size ${cubeSize}`).toBe(
+                Math.floor((cubeSize * cubeSize) / 2)
+            );
+        }
+    });
+
+    it('resolves to a real sticker on the F face at every supported size', () => {
+        // The property Basic and Flat used to violate: a hardcoded 3×3 position
+        // silently matched nothing at other sizes, because getStickerAt returns
+        // undefined rather than throwing.
+        for (const cubeSize of SUPPORTED_SIZES) {
+            const state = new CubeController(cubeSize).getCurrentState();
+            const sticker = CubeStateUtils.getStickerAt(
+                state,
+                Face.F,
+                centerFacePosition(cubeSize)
+            );
+
+            expect(sticker, `size ${cubeSize}`).toBeDefined();
+            expect(sticker?.currentFace, `size ${cubeSize}`).toBe(Face.F);
+        }
+    });
+
+    it('resolves to a real sticker on the B face at every supported size', () => {
+        // Basic's back variant uses Face.B, so the position must be face-agnostic.
+        for (const cubeSize of SUPPORTED_SIZES) {
+            const state = new CubeController(cubeSize).getCurrentState();
+            const sticker = CubeStateUtils.getStickerAt(
+                state,
+                Face.B,
+                centerFacePosition(cubeSize)
+            );
+
+            expect(sticker, `size ${cubeSize}`).toBeDefined();
+            expect(sticker?.currentFace, `size ${cubeSize}`).toBe(Face.B);
+        }
     });
 });

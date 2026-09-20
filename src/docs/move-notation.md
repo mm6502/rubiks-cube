@@ -153,8 +153,33 @@ selected in the active view**:
   at most two of the three slices are available at any time. Turning an outer
   layer is a face move, not a slice — selecting an R-face sticker disables M,
   and the R/L buttons already cover that turn.
-- With nothing selected, M/E/S are unavailable. On 3×3 they keep their fixed
-  conventional meaning (layer 1, spelled `M`/`E`/`S`) and are always available.
+- A slice needs a selection to know which layer it turns, so with nothing
+  selected none of the three is available. That case no longer arises in the
+  app: every view establishes a selection on load and clearing a face highlight
+  keeps the sticker selected, so the no-selection guard is no longer reached
+  from the UI. It remains for callers driving the command system directly.
+  "Available" here means only that the guard does not disable them — **which
+  layer each one turns still depends on the selected sticker**, so on load
+  exactly one of the three is unavailable (see the next section).
+- On 3×3 the three keep their fixed conventional meaning (layer 1, spelled
+  `M`/`E`/`S`) and are always available, selection or not.
+
+#### On load, exactly one slice is unavailable (n≥4)
+
+Every view opens with a sticker already selected — the centre of a face (F for
+Flat and Circular, the variant's face for Basic). A sticker on its own face is
+by definition on that axis's **outer** layer, so the slice for that axis is
+always unavailable on load: an F- or B-face default leaves **S** disabled, a U-
+or D-face default leaves E disabled, and an L- or R-face default leaves M
+disabled.
+
+At n≥4 that means exactly one of the three is unavailable when the app opens,
+and it stays unavailable until the user selects a sticker on another face. This
+is a consequence of the outer-layer rule above, not a bug — turning that axis
+would be a face move, which the face buttons already cover. At n=2 all three are
+unavailable, since a 2×2 has no interior layer at all. At n=3 all three are
+available regardless of the selection, because 3×3 keeps the fixed conventional
+meaning described above.
 
 ### Alternative Layer Notation
 

@@ -869,7 +869,7 @@ describe('CircularTouchHandler', () => {
         handler.destroy();
     });
 
-    it('tapping the halo deselects the face', () => {
+    it('tapping the halo clears the face highlight but keeps the sticker selected', () => {
         // Arrange
         const onStickerSelected = vi.fn();
         const handler = new CircularTouchHandler({
@@ -892,9 +892,11 @@ describe('CircularTouchHandler', () => {
         handler.onPointerDown(pointer('pointerdown', 62, 165, 210), halo);
         handler.onPointerUp(pointer('pointerup', 62, 165, 210), halo);
 
-        // Assert
+        // Assert — the face highlight goes, the selection does not. Basic and Flat
+        // behave the same way: their background tap clears the face and leaves the
+        // sticker, and `onStickerSelected` is never called to clear.
         expect(handler.getSelectedFace()).toBeUndefined();
-        expect(onStickerSelected).toHaveBeenCalledWith(undefined);
+        expect(onStickerSelected).not.toHaveBeenCalled();
 
         handler.destroy();
     });

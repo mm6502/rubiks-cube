@@ -123,6 +123,111 @@ describe('Application', () => {
         });
     });
 
+    // ─── The reported defect, end to end ─────────────────────────────────────
+
+    describe('arrow keys do not change cube size while a view is in use', () => {
+        /** The real controls structure, so `.size-options` sits outside any view. */
+        function realControlsDom(): void {
+            document.body.innerHTML = `
+                <div id="app">
+                    <div class="controls">
+                        <details class="control-section" data-persist open>
+                            <div class="control-section-body">
+                                <div class="size-options" role="radiogroup"></div>
+                            </div>
+                        </details>
+                    </div>
+                    <div class="visualizations" id="visualizations"></div>
+                </div>
+            `;
+        }
+
+        /**
+         * Opens a view through the real lifecycle path and returns the panel
+         * element plus the content element the view actually receives.
+         *
+         * The distinction matters: the view's container is the `view-content`
+         * element, and the `.view-panel` is its *ancestor*. A pointer-down
+         * dispatched on the ancestor does not reach a listener on the content
+         * (events bubble up, not down), so contacting "the view" must target the
+         * content element.
+         */
+        function openView(
+            application: Application,
+            viewType: string
+        ): { panel: HTMLElement; content: HTMLElement } {
+            const lifecycle = (application as any).viewManager?.viewLifecycleManager;
+            if (lifecycle) {
+                lifecycle.showView(viewType);
+            }
+            const panel = document.querySelector<HTMLElement>(`[data-view-panel="${viewType}"]`);
+            const content = panel?.querySelector<HTMLElement>('[data-view-content]') ?? null;
+            expect(panel).not.toBeNull();
+            expect(content).not.toBeNull();
+            return { panel: panel!, content: content! };
+        }
+
+        it('keeps the size unchanged when an arrow key arrives with the view focused (AE8/AE9)', () => {
+            // Arrange — the reported sequence: the user has the size control
+            // focused, then contacts the view, then presses an arrow key.
+            realControlsDom();
+            const application = new Application();
+            application.initialize();
+            (StatePersistence.saveState as any).mockReturnValue(true);
+
+            const sizeBefore = application.getCurrentSize();
+            const { content } = openView(application, 'basic-front');
+
+            // Contact the view: this is what claims focus (U4) and reports the
+            // interaction (U5).
+            content.dispatchEvent(
+                new PointerEvent('pointerdown', { bubbles: true, cancelable: true })
+            );
+            expect(document.activeElement).toBe(content);
+
+            // Act — the key that previously resized the cube.
+            const down = new KeyboardEvent('keydown', {
+                key: 'ArrowRight',
+                bubbles: true,
+                cancelable: true,
+            });
+            document.dispatchEvent(down);
+
+            // Assert — the view acted, the cube size did not change.
+            expect(application.getCurrentSize()).toBe(sizeBefore);
+        });
+
+        it('leaves the size control responsive when it holds focus (AE8)', () => {
+            // Arrange — the reverse order: the user returns to the size control.
+            realControlsDom();
+            const application = new Application();
+            application.initialize();
+            (StatePersistence.saveState as any).mockReturnValue(true);
+            openView(application, 'basic-front');
+
+            const radio = document.querySelector<HTMLInputElement>('.size-options input');
+            expect(radio).not.toBeNull();
+            radio!.focus();
+            expect(document.activeElement).toBe(radio);
+
+            const viewManager = (application as any).viewManager;
+            const stackTop = viewManager.getActiveViewId();
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowRight' })
+            );
+
+            // Assert — the stack still points somewhere, but no view is delegated
+            // to, so the radio group's own handler stays in charge.
+            expect(handled).toBe(false);
+            if (stackTop) {
+                const staleView = viewManager['activeViews'].get(stackTop);
+                expect(staleView).toBeTruthy();
+            }
+        });
+    });
+
     describe('event handlers', () => {
         beforeEach(() => {
             app.initialize();
@@ -495,6 +600,103 @@ describe('Application', () => {
             // Assert
             expect(controls.classList.contains('controls--open')).toBe(false);
             expect(toggle.getAttribute('aria-expanded')).toBe('false');
+        });
+
+        it('should hide the closed panel from the tab order with inert', () => {
+            // Arrange — the panel is hidden by CSS (off-screen on mobile), and
+            // CSS positioning alone does not remove it from the tab order.
+            const controls = document.querySelector<HTMLElement>('.controls')!;
+
+            // Assert — closed on load, and therefore unreachable by Tab
+            expect(controls.classList.contains('controls--open')).toBe(false);
+            expect(controls.hasAttribute('inert')).toBe(true);
+            expect(controls.getAttribute('aria-hidden')).toBe('true');
+        });
+
+        it('should make the panel reachable when opened and unreachable again when closed', () => {
+            // Arrange
+            const controls = document.querySelector<HTMLElement>('.controls')!;
+            const toggle = document.querySelector<HTMLButtonElement>('.menu-toggle')!;
+
+            // Act — open
+            toggle.click();
+
+            // Assert — open panels must stay fully reachable
+            expect(controls.hasAttribute('inert')).toBe(false);
+            expect(controls.hasAttribute('aria-hidden')).toBe(false);
+
+            // Act — close
+            toggle.click();
+
+            // Assert — hidden again
+            expect(controls.hasAttribute('inert')).toBe(true);
+            expect(controls.getAttribute('aria-hidden')).toBe('true');
+        });
+
+        it('should mark the desktop-collapsed panel inert and clear it when expanded', () => {
+            // Arrange
+            mockMatchMedia(true);
+            document.body.innerHTML = `
+                <div class="container">
+                    <div id="visualizations"></div>
+                    <button class="menu-toggle" aria-expanded="false"></button>
+                    <button class="controls-close"></button>
+                    <div class="controls"></div>
+                    <div class="controls-overlay"></div>
+                </div>
+            `;
+            const app2 = new Application();
+            app2.initialize();
+            const controls = document.querySelector<HTMLElement>('.controls')!;
+            const toggle = document.querySelector<HTMLButtonElement>('.menu-toggle')!;
+
+            // Act — collapse
+            toggle.click();
+
+            // Assert — the collapsed sidebar is translated off-screen but still
+            // occupies the DOM, so it must be declared unreachable explicitly
+            expect(controls.hasAttribute('inert')).toBe(true);
+            expect(controls.getAttribute('aria-hidden')).toBe('true');
+
+            // Act — expand
+            toggle.click();
+
+            // Assert — reachable again
+            expect(controls.hasAttribute('inert')).toBe(false);
+            expect(controls.hasAttribute('aria-hidden')).toBe(false);
+        });
+
+        it('should move focus out of the panel when it is closed while focus is inside', () => {
+            // Arrange — the panel contains focusable controls, so a keyboard user
+            // can be inside it when it closes.
+            document.body.innerHTML = `
+                <div id="visualizations"></div>
+                <button class="menu-toggle" aria-expanded="false"></button>
+                <button class="controls-close"></button>
+                <div class="controls">
+                    <button class="option">Option</button>
+                </div>
+                <div class="controls-overlay"></div>
+            `;
+            const app2 = new Application();
+            app2.initialize();
+
+            const controls = document.querySelector<HTMLElement>('.controls')!;
+            const toggle = document.querySelector<HTMLButtonElement>('.menu-toggle')!;
+            const closeBtn = document.querySelector<HTMLButtonElement>('.controls-close')!;
+            const option = document.querySelector<HTMLButtonElement>('.option')!;
+
+            toggle.click();
+            option.focus();
+            expect(document.activeElement).toBe(option);
+
+            // Act — close the panel while focus sits inside it
+            closeBtn.click();
+
+            // Assert — focus must not stay inside a subtree that is now both
+            // `inert` and `aria-hidden`; it moves to the toggle that owns the panel.
+            expect(controls.hasAttribute('inert')).toBe(true);
+            expect(document.activeElement).toBe(toggle);
         });
 
         it('should close the panel when overlay is clicked', () => {

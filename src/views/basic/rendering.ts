@@ -14,7 +14,6 @@ export const BASIC_VIEW_ANGLES = {
     BASE_Y: -35,
     PITCHED_BASE_X: 25,
     TILTED_BASE_Y: 35,
-    HOVER: 1.05,
 } as const;
 
 /**
@@ -43,10 +42,6 @@ export function updateRotation(state: BasicViewInternalData, skipAnimation?: boo
     const m = `matrix3d(${vR.x},${vU.x},${vF.x},0, ${vR.y},${vU.y},${vF.y},0, ${vR.z},${vU.z},${vF.z},0, 0,0,0,1)`;
 
     const transforms = [`rotateX(${baseX}deg)`, `rotateY(${baseY}deg)`, m];
-
-    if (state.isHovered && state.layoutMode !== LayoutMode.Tabbed) {
-        transforms.push(`scale(${BASIC_VIEW_ANGLES.HOVER})`);
-    }
 
     const transition = state.cubeElement.style.transition;
 

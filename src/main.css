@@ -221,6 +221,17 @@ h2 {
     accent-color: var(--color-view-title-bar-button-bg);
 }
 
+/* Focus rings for the native radios and checkboxes in the controls panel.
+   They had none, so they kept the browser default ring — 1px rgb(16,16,16),
+   about 1:1 against the dark panel. `accent-color` styles the control's own fill,
+   not its focus ring. */
+.size-option input:focus-visible,
+.theme-option input:focus-visible,
+.view-checkbox input:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}
+
 /* Larger touch targets for checkboxes on coarse-pointer devices */
 @media (pointer: coarse) {
     .view-checkbox {
@@ -364,6 +375,16 @@ h2 {
 
 .about-button:active {
     background: var(--color-title-panel-menu-toggle-active);
+}
+
+/* Focus rings for the chrome buttons in the title panel. These had no
+   :focus-visible rule either, so they fell back to the browser default —
+   1px rgb(16,16,16), about 2:1 against the dark title panel. The ring is drawn
+   outside the button, so it is judged against the panel behind it. */
+.menu-toggle:focus-visible,
+.about-button:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
 }
 
 /* Controls panel header with close button (mobile only) */

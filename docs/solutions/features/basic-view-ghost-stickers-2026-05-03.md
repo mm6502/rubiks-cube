@@ -61,9 +61,18 @@ Where to look
 
 Related docs
 
-- Origin: docs/brainstorms/basic-view-ghost-stickers-requirements.md
-- Plan: docs/plans/2026-05-01-001-feat-basic-view-ghost-stickers-plan.md
-- Ideation: docs/ideation/base-view-ghost-stickers-2026-05-01.md
+- Origin requirements (title: "Basic View — Ghost stickers") — **no longer in
+  the repo.** The design intent it carried is summarised in the Summary and Why
+  sections above, which were written from it.
+- Implementation plan (dated 2026-05-01, same feature) — **no longer in the
+  repo.**
+- Ideation note (dated 2026-05-01, "base view ghost stickers") — **no longer in
+  the repo.**
+
+All three upstream documents were removed in a later docs cleanup rather than
+moved, and nothing else references them. This entry is therefore now the
+surviving record for the feature, which is why the Summary and Why sections are
+written to stand alone.
 
 Recommended next steps
 

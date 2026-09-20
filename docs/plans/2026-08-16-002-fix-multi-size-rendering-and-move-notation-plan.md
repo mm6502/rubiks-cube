@@ -1,12 +1,40 @@
 ---
 title: 'fix: Multi-size rendering and move notation defects'
 type: fix
-status: active
+status: superseded
 date: 2026-08-16
 origin: docs/brainstorms/2026-08-16-multi-size-2-7-support-requirements.md
 ---
 
 # fix: Multi-size rendering and move notation defects
+
+> **Superseded (2026-09-19).** Every implementation unit in this plan targets
+> `src/views/basic-2/`, a directory that no longer exists — the Basic 2 cutover
+> (`4eea507`, "refactor(basic): cut over Basic 2 to replace the Basic view")
+> absorbed that engine into `src/views/basic/` and deleted the folder. The plan
+> cannot be executed as written, and its `status: active` was stale.
+>
+> Its work was not abandoned, though. Reconciled unit by unit against the
+> shipped code:
+>
+> | Unit                                                   | Outcome                               | Evidence                                                                                                                                                                                                                                                                                                                                              |
+> | ------------------------------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | U1. Ghost sticker sizing and anchor geometry           | **Landed**                            | `src/views/basic/ghost-stickers.ts` — `getEdgePositions(edgeDir, cubeSize)` derives positions from the active size rather than a fixed 3×3 lattice.                                                                                                                                                                                                   |
+> | U2. Basic 2 layer transform stability                  | **Landed**                            | `src/views/basic/cubie-rendering.ts` — `const cubieSize = size / cubeSize`; `src/views/basic/layer-stability.test.ts` pins the behaviour, which is what the unit was really defending.                                                                                                                                                                |
+> | U3. Basic 2 visual parity and blocker rounding         | **Partly landed, remainder obsolete** | The background/glow half shipped (the `--color-basic2-cube-glow` token is live in `src/styles/tokens.scss`). The blocker-rounding half has no target: the `blocker` concept was removed repo-wide in favour of per-cubie interior faces, so R4 describes something that no longer exists (0 occurrences of `cube-blocker`/`blockerRadius` in `src/`). |
+> | U4. Source sticker inference in Basic and Flat         | **Landed**                            | `src/views/flat/rendering.ts` sets `gridTemplateColumns`/`Rows` to `repeat(${cubeSize}, 1fr)`, deriving the face grid from the active size instead of assuming 3.                                                                                                                                                                                     |
+> | U5. Moves view fallback mapping                        | **Landed, separately planned**        | Shipped via `5316c7c` (#12) under its own plan, `docs/plans/2026-09-06-001-feat-moves-view-icon-fallback-plan.md`, which carries a post-completion amendment. `resolveMoveIcon` is exported from `src/icons/move-icon-generator.ts`.                                                                                                                  |
+> | U6. Cross-view regression pass and visual verification | **landed: unknown**                   | A full 2–7 matrix is exercised in places (`cube-invariants.moves.test.ts`, `move-inference.test.ts`, `sticker-position.test.ts`, and the view core suites), but this unit's acceptance criteria were visual and browser-based, so coverage cannot be established from the test suite alone. Recorded as unknown rather than claimed.                  |
+>
+> Two consequences worth noting for a future reader. First, U3's remaining half
+> should not be revived — the visual treatment it asked for was replaced by a
+> different architecture, not deferred. Second, the ghost-sizing and
+> layer-stability units had the durable insight (derive geometry from the active
+> size rather than trusting a fixed lattice); that insight is what
+> `centerFacePosition` applies to the default selection in
+> `docs/plans/2026-09-19-001-…`.
+>
+> Body below is the historical decision record, unchanged apart from this note.
 
 ## Summary
 

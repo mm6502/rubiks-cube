@@ -29,8 +29,8 @@ export type CircularTouchHandlerOptions = {
     getCubeSize: () => number;
     /** Returns the current immutable cube state, if available. */
     getCubeState?: () => CubeState;
-    /** Callback invoked when a sticker is selected or deselected (tap). */
-    onStickerSelected: (stickerId?: string) => void;
+    /** Callback invoked when a sticker is selected (tap). Never called to clear. */
+    onStickerSelected: (stickerId: string) => void;
     /** Optional adapter that overrides drag-direction mapping and move-notation inference. */
     adapter?: ViewInteractionAdapter;
 };
@@ -45,8 +45,15 @@ export type StickerHit = {
     row: number;
     /** Zero-based column within the face grid. */
     col: number;
-    /** DOM data-sticker-id attribute, if present. */
-    stickerId?: string;
+    /**
+     * DOM `data-sticker-id` of the hit sticker.
+     *
+     * Required, not optional: `resolveStickerHit` returns `undefined` rather than
+     * a `StickerHit` when the id is absent, so every hit that exists has one.
+     * Marking it optional made callers defend against a state that cannot occur
+     * and let the "no sticker" case leak into a callback that no longer accepts it.
+     */
+    stickerId: string;
 };
 
 /** Result of resolving a pointer-down target to an axis circle (concentric ring). */
@@ -143,8 +150,8 @@ export type TouchHandlerState = {
     readonly getCubeSize: () => number;
     /** Returns the current immutable cube state for sticker resolution. */
     readonly getCubeState: CircularTouchHandlerOptions['getCubeState'];
-    /** Callback invoked when a sticker is selected/deselected via tap. */
-    readonly onStickerSelected: (stickerId?: string) => void;
+    /** Callback invoked when a sticker is selected via tap. Never called to clear. */
+    readonly onStickerSelected: (stickerId: string) => void;
     /** View-specific adapter that maps gestures to move notations. */
     readonly adapter: ViewInteractionAdapter;
     /** Tracks pointer drag lifecycle (threshold, direction, angular displacement). */

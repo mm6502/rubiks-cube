@@ -214,7 +214,14 @@ function getAxisHit(
 
 /**
  * Process a tap (pointer-up without drag) on the given hit target.
- * Toggles face selection, axis-circle selection, or clears both.
+ *
+ * Tapping never clears the sticker selection. Basic and Flat both keep it — they
+ * only toggle the *face* highlight — and Circular matching them is what lets the
+ * `undefined` branch disappear from `onStickerSelected` entirely.
+ *
+ * Toggling the face highlight off is still a real gesture (tap the halo, the same
+ * face's sticker again, or its leaf), it just no longer implies "forget which
+ * sticker I was on".
  */
 export function handleTap(state: TouchHandlerState, hit: InteractionStart): void {
     if (hit.kind === HitKind.AXIS_CIRCLE) {
@@ -225,15 +232,15 @@ export function handleTap(state: TouchHandlerState, hit: InteractionStart): void
     clearAxisSelections(state);
 
     if (hit.kind === HitKind.HALO) {
+        // Tapping the halo turns the face highlight off, leaving the selection.
         state.selectedFace = undefined;
-        state.onStickerSelected(undefined);
         hideHalo(state);
         return;
     }
 
     if (hit.kind === HitKind.STICKER) {
         state.selectedFace = state.selectedFace === hit.sticker.face ? undefined : hit.sticker.face;
-        state.onStickerSelected(state.selectedFace ? hit.sticker.stickerId : undefined);
+        state.onStickerSelected(hit.sticker.stickerId);
 
         if (!state.selectedFace) {
             hideHalo(state);

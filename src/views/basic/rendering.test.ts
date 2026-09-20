@@ -40,7 +40,6 @@ function makeState(cubeElement: HTMLElement): BasicViewInternalData {
         viewForward: { x: 0, y: 0, z: 1 },
         isTilted: false,
         isPitched: false,
-        isHovered: false,
         layoutMode: 'floating',
         currentSelected: undefined,
     };

@@ -84,6 +84,17 @@ export type CircularCubeViewInternalData = {
     selectedPosition?: number;
 
     /**
+     * Whether this view has already warned that arrow navigation was ignored
+     * because nothing was selected.
+     *
+     * Per-instance on purpose. The warned state is unreachable in production, so
+     * the log exists to make it observable rather than to describe normal input —
+     * and a shared flag would let the first view to hit it silence every later
+     * one. Reset for free: a new view gets a new state object.
+     */
+    warnedMissingSelection?: boolean;
+
+    /**
      * Serializes move animations so they never run concurrently.
      * Each updateSelective call chains onto this promise.
      */

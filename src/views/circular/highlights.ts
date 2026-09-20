@@ -60,8 +60,13 @@ export function updateSelected(
             state.selectedPosition = stickerObj.facePosition;
         }
     }
-    // When deselecting, intentionally preserve selectedFace and selectedPosition
-    // as spatial anchors so keyboard navigation can recover from them.
+    // `selectedFace` and `selectedPosition` are spatial anchors, read by
+    // `restoreSelection` to re-resolve the selection after a model update or a
+    // restored orientation. They are deliberately *not* cleared when
+    // `selectedSticker` is absent: keeping them lets the selection be re-derived
+    // rather than lost. (They used to feed `recoverSelection` as well, which is
+    // gone — nothing clears the sticker selection any more, so that path had no
+    // state left to recover from.)
 
     // Remove previous selections.
     removeSelectionHighlight(state, styles);

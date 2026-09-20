@@ -423,6 +423,48 @@ describe('ViewManager', () => {
         expect(containerB.style.display).toBe('');
     });
 
+    it('keeps every non-active panel out of the tab order in tabbed mode', () => {
+        // Arrange — panels contain focusable controls, so *how* they are hidden
+        // determines whether Tab can reach them.
+        //
+        // This guards a real bug: the controls menu hid its contents by moving
+        // the panel off-screen, which left 63 of its 69 focusable elements
+        // reachable by Tab while invisible.
+        //
+        // `display: none` removes a subtree from the tab order and from the
+        // accessibility tree outright. The other hiding mechanisms used in this
+        // codebase (`visibility: hidden`, `opacity: 0`) exist to make CSS
+        // transitions possible and do NOT remove anything from the tab order —
+        // a panel hidden that way stays fully tab-reachable.
+        //
+        // So the invariant asserted here is the property that matters, not the
+        // styling. If panel hiding is ever swapped for an animatable mechanism,
+        // this fails, and that mechanism must declare `inert` on the hidden
+        // panels instead.
+        const containers = ['a', 'b', 'c'].map(id => {
+            const container = document.createElement('div');
+            container.innerHTML = `<button>${id}</button>`;
+            viewManager['activeViews'].set(id, {
+                view: { resize: vi.fn() } as any,
+                container,
+            });
+            return container;
+        });
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
+        viewManager['focusStack'] = ['b'];
+        viewManager['tabBar'] = { show: vi.fn(), hide: vi.fn(), updateTabs: vi.fn() } as any;
+        viewManager['panelInteractionHandler'] = {
+            setLayoutMode: vi.fn(),
+            setInitialPanelPosition: vi.fn(),
+        } as any;
+
+        // Act
+        (viewManager as any).applyLayoutMode();
+
+        // Assert — exactly the active panel stays reachable
+        expect(containers.map(container => container.style.display)).toEqual(['none', '', 'none']);
+    });
+
     it('showOnlyActivePanel calls resize synchronously when panel was hidden', () => {
         // Arrange — panel starts hidden (display: none) so it gets the sync resize treatment
         viewManager['layoutMode'] = LayoutMode.Tabbed;
@@ -645,7 +687,6 @@ describe('ViewManager', () => {
         // Act & Assert
         expect(viewManager.handleKeyDown(new KeyboardEvent('keydown', { key: 'a' }))).toBe(false);
     });
-
     it('handleKeyDown returns true for a matching view command binding (suppresses default on keydown)', () => {
         // Arrange: register a Ctrl+ArrowLeft view command
         const action = vi.fn();
@@ -1230,6 +1271,109 @@ describe('ViewManager', () => {
         });
     });
 
+    // ─── the View Actions panel follows the active view ────────────────────────
+
+    /**
+     * `#view-actions` is rendered by `renderGlobalCommands`, reached through
+     * `refreshControllerCommands` — which suppresses redundant renders by
+     * comparing `sliceSelectionSignature()`. That signature is the cube size plus
+     * the active view's M/E/S layers and, before this suite existed, contained no
+     * view id. Two views showing the same layer for the same size therefore
+     * collided, the gate returned early, and the panel kept showing the previous
+     * view's actions.
+     */
+    describe('the View Actions panel follows the active view', () => {
+        let model: CubeController;
+
+        /** Command ids currently rendered into the panel. */
+        const renderedCommandIds = (): string[] =>
+            Array.from(document.querySelectorAll<HTMLButtonElement>('#view-actions [data-cmd-id]'))
+                .map(button => button.getAttribute('data-cmd-id')!)
+                .sort();
+
+        /** The F-face centre sticker — the view default selection. */
+        const frontCentre = (): StickerId => {
+            const size = model.getCubeSize();
+            const offset = Math.floor((size - 1) / 2) * size + Math.floor((size - 1) / 2);
+            return CubeStateUtils.getStickerAt(model.getCurrentState(), Face.F, offset)!.id;
+        };
+
+        /**
+         * Register two stub views on the same cube. Both report the same
+         * selection, which is the collision the gate did not distinguish.
+         */
+        const openTwoViews = (selection: StickerId): void => {
+            for (const viewId of ['view-a', 'view-b']) {
+                viewManager['activeViews'].set(viewId, {
+                    view: { getSelectedSticker: () => selection } as any,
+                    container: document.createElement('div'),
+                });
+                viewManager['registerCommands'](viewId, [
+                    {
+                        id: `${viewId}-only`,
+                        label: `${viewId} only`,
+                        category: CommandCategory.VIEW,
+                        action: vi.fn(),
+                    } as Command,
+                ]);
+            }
+        };
+
+        beforeEach(() => {
+            document.body.innerHTML =
+                '<div id="visualizations"></div><div id="view-actions"></div>';
+            model = new CubeController(3);
+            viewManager = new ViewManager(model);
+            viewManager.initialize();
+        });
+
+        afterEach(() => {
+            Application.eventBus.removeAllListeners();
+        });
+
+        it('replaces the panel contents when the active view changes', () => {
+            openTwoViews(frontCentre());
+
+            // The reported sequence: view A is active and its actions render.
+            viewManager['updateFocus']('view-a');
+            expect(renderedCommandIds()).toEqual(['view-a-only']);
+
+            // Switching to B must replace them. Before the fix the gate compared
+            // an unchanged signature and the panel still read `view-a-only`.
+            viewManager['updateFocus']('view-b');
+            expect(renderedCommandIds()).toEqual(['view-b-only']);
+        });
+
+        it('restores the first view actions when switching back', () => {
+            openTwoViews(frontCentre());
+
+            viewManager['updateFocus']('view-a');
+            viewManager['updateFocus']('view-b');
+            viewManager['updateFocus']('view-a');
+
+            // The gate must not latch on the first comparison in either direction.
+            expect(renderedCommandIds()).toEqual(['view-a-only']);
+        });
+
+        it('still skips a selection report that does not change the active view', () => {
+            const selection = frontCentre();
+            openTwoViews(selection);
+
+            viewManager['updateFocus']('view-a');
+            const renderSpy = vi.spyOn(viewManager['commandRenderer'], 'renderGlobalCommands');
+
+            // A re-report of the same selection in the same view changes nothing the
+            // panel displays, so the gate must still short-circuit. Asserted so the
+            // fix cannot quietly degrade into "always render".
+            Application.eventBus.emit(EventName.STICKER_SELECTED, {
+                stickerId: selection,
+                viewId: 'view-a',
+            });
+
+            expect(renderSpy).not.toHaveBeenCalled();
+        });
+    });
+
     // ─── disabled commands and keyboard routing ────────────────────────────────
 
     describe('keyboard routing honours command availability', () => {
@@ -1306,6 +1450,348 @@ describe('ViewManager', () => {
 
             expect(viewManager.handleKeyUp(new KeyboardEvent('keyup', { key: 'q' }))).toBe(true);
             expect(action).toHaveBeenCalled();
+        });
+    });
+
+    // ─── VIEW_INTERACTED: content-level contact drives the focus model ───────
+
+    describe('viewInteracted updates the focus model', () => {
+        /** Registers an open view under `id` so it can become active. */
+        function registerView(id: string): void {
+            viewManager['activeViews'].set(id, {
+                view: { getViewType: () => id } as any,
+                container: document.createElement('div'),
+            });
+        }
+
+        it('makes the named view active when it is emitted', () => {
+            // Arrange
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            viewManager.initialize();
+            registerView('basic-front');
+            registerView('flat');
+
+            // Act
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+
+            // Assert
+            expect(viewManager.getActiveViewId()).toBe('flat');
+        });
+
+        it('ignores an unknown view id without throwing', () => {
+            // Arrange — a view can be destroyed while a report is in flight.
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            viewManager.initialize();
+            registerView('flat');
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+
+            // Act & Assert
+            expect(() =>
+                Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'ghost-view' })
+            ).not.toThrow();
+            expect(viewManager.getActiveViewId()).toBe('flat');
+        });
+
+        it('reaches the same active view as the panel-chrome route', () => {
+            // Arrange — the two routes to activation must agree, or the app has
+            // two conflicting notions of which view is in use.
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            viewManager.initialize();
+            registerView('basic-front');
+            registerView('circular');
+
+            // Act — content route.
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'circular' });
+            const viaContent = viewManager.getActiveViewId();
+
+            // Act — panel-chrome route.
+            viewManager.updateFocus('circular');
+
+            // Assert
+            expect(viaContent).toBe('circular');
+            expect(viewManager.getActiveViewId()).toBe(viaContent);
+        });
+
+        it('does not leave a disposed manager reacting to the event', () => {
+            // Arrange — this is the accumulating-listener failure the fifth
+            // subscription is most likely to introduce, since switching cube size
+            // disposes and recreates the ViewManager.
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            viewManager.initialize();
+            registerView('flat');
+
+            const updateFocusSpy = vi.spyOn(viewManager, 'updateFocus');
+
+            // Act
+            viewManager.dispose();
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+
+            // Assert
+            expect(updateFocusSpy).not.toHaveBeenCalled();
+        });
+
+        it('keeps exactly one subscription after dispose and re-initialise', () => {
+            // Arrange — measure deltas rather than absolute counts, because other
+            // tests in this file leave managers un-disposed.
+            document.body.innerHTML = '<div id="visualizations"></div>';
+            const baseline = Application.eventBus.listenerCount(EventName.VIEW_INTERACTED);
+
+            viewManager.initialize();
+            const addedByFirst =
+                Application.eventBus.listenerCount(EventName.VIEW_INTERACTED) - baseline;
+
+            viewManager.dispose();
+            const remainingAfterDispose =
+                Application.eventBus.listenerCount(EventName.VIEW_INTERACTED) - baseline;
+
+            const fresh = new ViewManager(mockCubeController);
+            fresh.initialize();
+            fresh['activeViews'].set('flat', {
+                view: {} as any,
+                container: document.createElement('div'),
+            });
+            const addedBySecond =
+                Application.eventBus.listenerCount(EventName.VIEW_INTERACTED) - baseline;
+
+            // Act — a single emit must move focus exactly once, not once per
+            // leftover subscription from the previous manager.
+            Application.eventBus.emit(EventName.VIEW_INTERACTED, { viewId: 'flat' });
+
+            // Assert
+            expect(addedByFirst).toBe(1);
+            expect(remainingAfterDispose).toBe(0);
+            expect(addedBySecond).toBe(1);
+            expect(fresh.getActiveViewId()).toBe('flat');
+            fresh.dispose();
+        });
+    });
+
+    // ─── `getViewIdHoldingFocus`: routing is observable from outside ─────────
+    //
+    // These pin the *distinction* between the two accessors, which is the whole
+    // reason the second one exists: `getActiveViewId` reports the focus stack
+    // (styling, command rendering) and keeps pointing at the last-used view,
+    // while this reports the view a keystroke would actually reach.
+    describe('getViewIdHoldingFocus', () => {
+        /** Registers an open view under `id` with a container in the document. */
+        function registerView(id: string): HTMLElement {
+            const container = document.createElement('div');
+            container.tabIndex = 0;
+            document.body.appendChild(container);
+            viewManager['activeViews'].set(id, {
+                view: { handleKeyDown: vi.fn(() => true) } as any,
+                container,
+            });
+            return container;
+        }
+
+        it('reports the view whose container holds focus', () => {
+            const container = registerView('flat');
+
+            container.focus();
+
+            expect(viewManager.getViewIdHoldingFocus()).toBe('flat');
+        });
+
+        it('reports the stack top when focus is on the body — the command-driven case', () => {
+            registerView('flat');
+            viewManager['focusStack'] = ['flat'];
+            document.body.focus();
+
+            expect(viewManager.getViewIdHoldingFocus()).toBe('flat');
+        });
+
+        it('reports no view when focus is on a control outside every view', () => {
+            registerView('flat');
+            viewManager['focusStack'] = ['flat'];
+            const outside = document.createElement('input');
+            document.body.appendChild(outside);
+
+            outside.focus();
+
+            // The two accessors deliberately disagree here: the stack still names
+            // the last-used view for styling, while routing resolves to nothing.
+            expect(viewManager.getViewIdHoldingFocus()).toBeUndefined();
+            expect(viewManager.getActiveViewId()).toBe('flat');
+        });
+
+        it('agrees with the stack after focus moves into a view', () => {
+            const container = registerView('circular');
+            viewManager['focusStack'] = ['circular'];
+
+            container.focus();
+
+            expect(viewManager.getViewIdHoldingFocus()).toBe(viewManager.getActiveViewId());
+            expect(viewManager.getViewIdHoldingFocus()).toBe('circular');
+        });
+    });
+
+    // ─── Keyboard delegation follows DOM focus ───────────────────────────────
+
+    describe('keyboard delegation is derived from DOM focus', () => {
+        /**
+         * Registers a view whose container is `container` and that records whether
+         * it was asked to handle a key — so a view acting without focus becomes
+         * observable rather than merely implied.
+         */
+        function registerView(id: string, container: HTMLElement): ReturnType<typeof vi.fn> {
+            const handleKeyDown = vi.fn(() => true);
+            viewManager['activeViews'].set(id, {
+                view: { handleKeyDown } as any,
+                container,
+            });
+            return handleKeyDown;
+        }
+
+        /** Adds a focusable control to the document, outside every view. */
+        function sizeControl(): HTMLElement {
+            // Mirrors the real size selector: a radio in the controls sidebar, not
+            // inside any `.view-panel`.
+            const input = document.createElement('input');
+            input.type = 'radio';
+            document.body.appendChild(input);
+            return input;
+        }
+
+        it('does not delegate to a view while focus is on a control outside every view (AE8)', () => {
+            // Arrange — the stack still points at the view the user last used, so
+            // an unconditional fallback would hand it the key. This is the case
+            // that distinguishes a conditional fallback from an unconditional one.
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const handleKeyDown = registerView('basic-front', container);
+            viewManager['focusStack'] = ['basic-front'];
+
+            const control = sizeControl();
+            control.focus();
+            expect(document.activeElement).toBe(control);
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowLeft' })
+            );
+
+            // Assert
+            expect(handleKeyDown).not.toHaveBeenCalled();
+            expect(handled).toBe(false);
+        });
+
+        it('delegates to the view holding focus (AE9)', () => {
+            // Arrange
+            const container = document.createElement('div');
+            container.tabIndex = 0;
+            document.body.appendChild(container);
+            const handleKeyDown = registerView('basic-front', container);
+            sizeControl();
+            container.focus();
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowLeft' })
+            );
+
+            // Assert
+            expect(handleKeyDown).toHaveBeenCalledTimes(1);
+            expect(handled).toBe(true);
+        });
+
+        it('delegates to the view whose container holds focus, not the stack top', () => {
+            // Arrange — two views, focus on the one that is *not* the stack top.
+            const focused = document.createElement('div');
+            focused.tabIndex = 0;
+            document.body.appendChild(focused);
+            const other = document.createElement('div');
+            document.body.appendChild(other);
+
+            const focusedHandler = registerView('flat', focused);
+            const otherHandler = registerView('basic-front', other);
+            viewManager['focusStack'] = ['basic-front'];
+
+            focused.focus();
+
+            // Act
+            viewManager.handleKeyDown(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+
+            // Assert
+            expect(focusedHandler).toHaveBeenCalledTimes(1);
+            expect(otherHandler).not.toHaveBeenCalled();
+        });
+
+        it('falls back to the stack top when focus is on the document body', () => {
+            // Arrange — "nowhere in particular" is the state a command-driven key
+            // press arrives in, so the historical behaviour must be preserved.
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const handleKeyDown = registerView('basic-front', container);
+            viewManager['focusStack'] = ['basic-front'];
+
+            (document.activeElement as HTMLElement | null)?.blur?.();
+            expect(document.activeElement).toBe(document.body);
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowLeft' })
+            );
+
+            // Assert
+            expect(handleKeyDown).toHaveBeenCalledTimes(1);
+            expect(handled).toBe(true);
+        });
+
+        it('matches only controller commands when no view holds focus and the stack is empty', () => {
+            // Arrange
+            const action = vi.fn();
+            viewManager['focusStack'] = [];
+            viewManager['commandRegistry'].set('controller', [
+                {
+                    id: 'global-cmd',
+                    label: 'Global',
+                    category: CommandCategory.CUBE,
+                    action,
+                    keyBindings: [{ key: 'ArrowLeft' }],
+                } as Command,
+            ]);
+            const control = sizeControl();
+            control.focus();
+
+            // Act
+            const handled = viewManager.handleKeyDown(
+                new KeyboardEvent('keydown', { key: 'ArrowLeft' })
+            );
+
+            // Assert — controller commands still suppress the default, because they
+            // are global and have no focused control to yield to.
+            expect(handled).toBe(true);
+        });
+
+        it('does not let a view act on keyup when it does not hold focus', () => {
+            // Arrange — bound commands fire on keyup, so delegating there to an
+            // unfocused view would let it act on a key it was never given (R10).
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const action = vi.fn();
+            viewManager['activeViews'].set('basic-front', {
+                view: { handleKeyUp: vi.fn(() => false) } as any,
+                container,
+            });
+            viewManager['focusStack'] = ['basic-front'];
+            viewManager['commandRegistry'].set('basic-front', [
+                {
+                    id: 'rotate-left',
+                    label: 'Rotate Left',
+                    category: CommandCategory.VIEW,
+                    action,
+                    keyBindings: [{ key: 'ArrowLeft' }],
+                } as Command,
+            ]);
+            const control = sizeControl();
+            control.focus();
+
+            // Act
+            viewManager.handleKeyUp(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+
+            // Assert
+            expect(action).not.toHaveBeenCalled();
         });
     });
 });

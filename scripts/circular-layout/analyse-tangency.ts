@@ -134,7 +134,7 @@ const B: Record<number, Base> = {
 };
 
 function build(
-    size: number,
+    _size: number,
     b: Base,
     margin: number,
     oN: number,
@@ -154,6 +154,10 @@ function build(
         ellipseAspect: b.aspect,
         labelWidth: 20,
         labelHeight: 16,
+        // Not read by faceEllipseGeometry or faceStickerPositions, so it cannot
+        // affect this script's measurements — present only because the type
+        // requires it. 1 matches parameters.json.
+        faceLabelGap: 1,
     };
 }
 
