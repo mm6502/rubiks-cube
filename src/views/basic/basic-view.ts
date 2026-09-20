@@ -441,6 +441,12 @@ export class BasicView implements CubeView {
             /* c8 ignore else if */ else if (r === ViewRotation.Right) rotateViewRight(this.state);
             /* c8 ignore else if */ else if (r === ViewRotation.Up) rotateViewUp(this.state);
             /* c8 ignore else if */ else if (r === ViewRotation.Down) rotateViewDown(this.state);
+            // Which faces are "visible" has just changed, so the silhouette edges
+            // the ghost strips sit on have changed with it. Without this the
+            // strips keep the set computed for the previous orientation, and the
+            // ghosts appear to turn with the cube. Every other rotation entry
+            // point already refreshes them; this path was the one that did not.
+            this.updateGhostEdges();
             /* c8 ignore if — guard when not linked */
             if (isLinked(this.state.viewType)) {
                 Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
