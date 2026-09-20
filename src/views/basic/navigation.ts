@@ -21,7 +21,7 @@ import type { BasicViewInternalData } from './types';
 // viewForward / viewRight / viewUp
 // ---------------------------------------------------------------------------
 // Axis-aligned unit vectors on BasicViewInternalData that describe the virtual
-// camera orientation. They rotate on whole-cube Ctrl+Arrow moves.
+// camera orientation. They rotate on whole-cube Alt+Arrow moves.
 //
 //   viewForward — model-space axis that currently points toward the viewer
 //   viewRight   — model-space axis that currently points screen-right
@@ -361,11 +361,18 @@ export function getDefaultVectors(variant: BasicVariant): {
 // View rotation actions — mutate state via vector swaps (no Euler angles).
 // Callers are responsible for re-rendering.
 //
-// Definitions (from viewer's perspective):
-//   Ctrl+Left  — front goes left,   right  becomes front
-//   Ctrl+Right — front goes right,  left   becomes front
-//   Ctrl+Up    — front goes up,     bottom becomes front
-//   Ctrl+Down  — front goes down,   top    becomes front
+// Bound to Alt+Arrow (see `commands.ts`); Ctrl+Arrow is a layer/slice move, not
+// a view rotation.
+//
+// Definitions are stated in terms of where the FRONT FACE GOES, which is the
+// opposite of which face arrives. From the default orientation (F front):
+//   Alt+Left  — front goes left,   so R  arrives at the front
+//   Alt+Right — front goes right,  so L  arrives at the front
+//   Alt+Up    — front goes up,     so D  arrives at the front
+//   Alt+Down  — front goes down,   so U  arrives at the front
+//
+// Read the incoming face rather than the name and the L/R pair look inverted;
+// `rotateViewLeft` really does surface the R face.
 // ---------------------------------------------------------------------------
 
 export function rotateViewLeft(state: BasicViewInternalData): void {

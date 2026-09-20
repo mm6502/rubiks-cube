@@ -98,25 +98,6 @@ apart.
 
 (nothing atm)
 
-> **Correction (2026-09-20).** An entry used to sit here describing view
-> rotations that "unwind rapidly in the opposite direction" as a
-> Firefox-specific limitation of the `matrix3d` + `transition: transform`
-> scheme, and filing it as not planned to fix. Both claims were wrong, and the
-> entry suppressed the fix for as long as it stood:
->
-> - The defect had nothing to do with Firefox. A CSS transition interpolates a
->   `matrix3d` component-wise, so every intermediate frame left the rotation
->   group and sheared the cube's geometry; interrupting a transition adopted the
->   already-sheared matrix as the next start, which is the visible unwind. It
->   reproduced in Chromium too.
-> - It is now fixed: view rotation ramps an angle about a state-derived axis
->   through the Web Animations API, so every frame is a genuine rotation. The
->   transform no longer uses a CSS transition at all.
->
-> Verified in a real browser — 90° sweeps with no reversal, and an interrupted
-> rotation continuing a single 180° sweep instead of unwinding. See
-> `docs/plans/2026-09-20-001-refactor-shared-rotation-animation-plan.md`.
-
 ### Long Term (almost certainly not, aka NOT planned)
 
 - [-] Solver algorithms (solving a scrambled cube programmatically)

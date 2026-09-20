@@ -127,23 +127,42 @@ Each view maintains its own independent selected sticker state:
 
 ### Manual View Rotation (Basic View)
 
-The Basic 3D view supports manual rotation controls to adjust the viewing angle:
+The Basic 3D view supports manual rotation controls to adjust the viewing angle.
+These are bound to **Alt+Arrow**, not Ctrl+Arrow:
 
-- **Ctrl+Left Arrow**: Rotates the cube counterclockwise around the Y-axis (when
-  viewed from above), bringing the L (Left) face toward the viewer
-- **Ctrl+Right Arrow**: Rotates the cube clockwise around the Y-axis, bringing
-  the R (Right) face toward the viewer
-- **Ctrl+Up Arrow**: Rotates the cube to bring the D (Down) face toward the
+- **Alt+Left Arrow**: Rotates the cube so the R (Right) face comes toward the
+  viewer (`rotateViewLeft` — front goes left, so the right face swings round to
+  the front)
+- **Alt+Right Arrow**: Rotates the cube so the L (Left) face comes toward the
+  viewer (`rotateViewRight` — front goes right, so the left face swings round to
+  the front)
+- **Alt+Up Arrow**: Rotates the cube to bring the D (Down) face toward the
   viewer
-- **Ctrl+Down Arrow**: Rotates the cube to bring the U (Up) face toward the
+- **Alt+Down Arrow**: Rotates the cube to bring the U (Up) face toward the
   viewer
+
+> **Name vs effect:** the function names in `navigation.ts` describe _where the
+> front face goes_, not which face arrives. `rotateViewLeft` therefore brings
+> **R** to the front and `rotateViewRight` brings **L** — the two are the
+> opposite of what the names suggest to a reader thinking about the incoming
+> face.
+
+The `tilt-view` and `pitch-view` commands change the presentation angle without
+rotating the cube (`|` / `\` and `PageUp` / `PageDown`): tilt toggles the Y base
+angle between -35° and 35°, pitch toggles the X base angle between -25° and 25°.
 
 **Technical Details**:
 
 - Rotations are cumulative and increment in 90° steps
-- The viewing angle (-25° X, -35° Y for normal; 155° X, -35° Y when flipped)
-  remains constant
+- The viewing angle remains constant while the orientation changes — the base
+  tilt/pitch (`BASE_X` -25°, `BASE_Y` -35°) sits outside the rotation slot
 - Only the cube rotates in its own coordinate space, not the camera
+
+> **Note**: `Ctrl+Arrow` is **not** a view rotation. It performs a layer/slice
+> move of the selected sticker's layer; `Ctrl+Shift+Arrow` is the 180° variant.
+> See
+> [Ctrl+Arrow slice direction](../../docs/solutions/logic-errors/ctrl-arrow-slice-direction-rotated-view.md)
+> for how the slice's direction is derived from the view rotation.
 
 ## Pointer-Based Move Input (Flat and Circular Views)
 
