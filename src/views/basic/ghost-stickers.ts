@@ -32,6 +32,17 @@ function getEdgePositions(edgeDir: FaceEdge, cubeSize: number = 3): number[] {
 const GHOST_OPACITY_LEVELS = [0, 0.75, 1.0] as const;
 let ghostOpacityIndex = 0; // starts off
 
+/**
+ * Default delay before a fade-in starts when the caller's own rotation is still
+ * animating underneath.
+ *
+ * The cube's transform runs for 250ms (`.cube { transition: transform 0.25s }`),
+ * so revealing near the end of that lands the strips as the turn settles rather
+ * than at its start. Callers that have already awaited their turn pass 0 instead
+ * — see {@link GhostStickers.updateVisibleEdges}.
+ */
+const DEFAULT_FADE_DELAY_MS = 200;
+
 export function isGhostVisible(): boolean {
     return ghostOpacityIndex > 0;
 }
@@ -169,14 +180,35 @@ export class GhostStickers {
      * Update which ghost strips are visible based on current face visibility.
      * Shows strips only on silhouette edges (one face visible, other hidden).
      * Strips are categorised by depth: near (front face), far (back face),
-     * or mid (everything else). A 200ms delayed fade-in is applied to
-     * synchronise with the cube rotation animation.
+     * or mid (everything else).
+     *
+     * **When the caller has already waited for the turn, this must not wait
+     * again.** The fade-in is normally delayed to land near the end of a rotate
+     * gesture rather than at its start, which is what `fadeDelayMs` is for. The
+     * two kinds of caller need different values:
+     *
+     * - `rotateViewLeft/Right/Up/Down` are synchronous: they change the
+     *   orientation and return immediately, while the cube's own CSS transform
+     *   animates for 250ms underneath. Passing 0 would reveal the strips at the
+     *   start of that transform, so they pass the gesture length.
+     * - The move paths (`handleMoveExecuted`) await the move animation first.
+     *   The turn has already finished by the time they get here, so a delay is a
+     *   second, phantom turn — measured as a 233ms dead pause between the cube
+     *   stopping and the strips coming back.
+     *
+     * @param visibleFaces Faces currently facing the viewer
+     * @param hiddenFaces Faces currently turned away
+     * @param isTilted Whether the view is tilted
+     * @param isPitched Whether the view is pitched
+     * @param fadeDelayMs Delay before the fade-in starts. Defaults to
+     *   {@link DEFAULT_FADE_DELAY_MS} for callers whose turn is still running.
      */
     updateVisibleEdges(
         visibleFaces: Array<{ face: Face; position?: string }>,
         hiddenFaces: Array<{ face: Face; position?: string }>,
         isTilted = false,
-        isPitched = false
+        isPitched = false,
+        fadeDelayMs: number = DEFAULT_FADE_DELAY_MS
     ): void {
         if (!isGhostVisible()) return;
 
@@ -195,15 +227,22 @@ export class GhostStickers {
 
         const toShow = this.computeStripsToShow(visibleSet, hiddenSet, nearFace, farSourceFace);
 
-        if (toShow.length > 0) {
-            this.pendingFadeTimer = window.setTimeout(() => {
-                this.pendingFadeTimer = null;
-                for (const stripState of toShow) {
-                    this.fadeInStrip(stripState);
-                }
-                this.updateColors();
-            }, 200);
+        if (toShow.length === 0) return;
+
+        const reveal = (): void => {
+            this.pendingFadeTimer = null;
+            for (const stripState of toShow) {
+                this.fadeInStrip(stripState);
+            }
+            this.updateColors();
+        };
+
+        if (fadeDelayMs <= 0) {
+            reveal();
+            return;
         }
+
+        this.pendingFadeTimer = window.setTimeout(reveal, fadeDelayMs);
     }
 
     /**

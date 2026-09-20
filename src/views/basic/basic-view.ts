@@ -364,11 +364,23 @@ export class BasicView implements CubeView {
     }
 
     /**
-     * Close a rotation: recompute which strips belong on screen for the
-     * orientation that is now in effect, and bring them back.
+     * Close a rotation whose turn is still animating underneath: the strips come
+     * back after the fade-in delay, landing as the cube's transform settles.
      */
     private endRotation(): void {
         this.updateGhostEdges();
+    }
+
+    /**
+     * Close a rotation whose turn has already finished: the strips come back
+     * immediately, with no fade-in delay.
+     *
+     * Used by the move paths, which await the move animation before reaching
+     * here. Waiting a second time is what produced the pause the user reported
+     * after a whole-cube turn.
+     */
+    private endFinishedRotation(): void {
+        this.updateGhostEdges(true);
     }
 
     /**
@@ -619,7 +631,7 @@ export class BasicView implements CubeView {
             // No-cubie path (e.g. whole-cube rotation with no tracked cubies)
             // still needs the label refresh.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
-            this.endRotation();
+            this.endFinishedRotation();
             return;
         }
 
@@ -638,9 +650,10 @@ export class BasicView implements CubeView {
             // markup, so re-apply it — without this the selection stays reported
             // by the app but is invisible on the non-animated path.
             this.restoreSelection();
-            // Reduced-motion / non-animated whole-cube path.
+            // Reduced-motion / non-animated whole-cube path. There is no turn to
+            // wait for, so the strips return immediately.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
-            this.endRotation();
+            this.endFinishedRotation();
             return;
         }
 
@@ -663,7 +676,9 @@ export class BasicView implements CubeView {
                     this.restoreSelection();
                     // Animated whole-cube path — refresh labels post-move.
                     this.refreshFaceLabelsAfterWholeCubeMove(event);
-                    this.endRotation();
+                    // The move animation has just finished, so there is nothing
+                    // left to wait for.
+                    this.endFinishedRotation();
                 }
             })
             .catch(() => {
@@ -674,7 +689,7 @@ export class BasicView implements CubeView {
                 // one we opened it for. Re-closing a rotation that is already shut
                 // is harmless: it recomputes the same set of strips.
                 if (this.activeAnimation?.event === event) {
-                    this.endRotation();
+                    this.endFinishedRotation();
                 }
             });
     }
@@ -709,9 +724,11 @@ export class BasicView implements CubeView {
         // the corner-face mapping matches before the next move proceeds.
         this.refreshFaceLabelsAfterWholeCubeMove(event);
 
-        // Update ghost stickers and selection
+        // Update ghost stickers and selection. The cube has just been snapped to
+        // its post-move positions, so this rotation is over — there is nothing
+        // left to wait for.
         this.restoreSelection();
-        this.endRotation();
+        this.endFinishedRotation();
     }
 
     // -------------------------------------------------------------------------
@@ -931,14 +948,25 @@ export class BasicView implements CubeView {
         });
     }
 
-    private updateGhostEdges(): void {
+    /**
+     * Recompute which ghost strips belong on screen for the current orientation.
+     *
+     * @param turnAlreadyFinished Whether the caller has already waited for its
+     *   own rotation to finish. The move paths have — they await the move
+     *   animation before calling this — so for them the fade-in delay would be a
+     *   second, phantom turn, measured as a 233ms pause between the cube stopping
+     *   and the strips returning. The synchronous rotation entry points still
+     *   have their turn running, so they keep the delay.
+     */
+    private updateGhostEdges(turnAlreadyFinished = false): void {
         if (!isGhostVisible()) return;
         const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(this.state);
         this.ghostStickers?.updateVisibleEdges(
             visibleFaces,
             hiddenFaces,
             this.state.isTilted,
-            this.state.isPitched
+            this.state.isPitched,
+            turnAlreadyFinished ? 0 : undefined
         );
     }
 }

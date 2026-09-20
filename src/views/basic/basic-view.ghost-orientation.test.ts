@@ -35,6 +35,12 @@ interface Harness {
     moveEvent: (notation: string) => MoveExecutedEvent;
     /** Settles the in-flight move animation, so the `finished` handler runs. */
     finishAnimation: () => void;
+    /**
+     * Whether `animateMove` actually started an animation for the last move.
+     * False means it fell through to the non-animated branch, so any assertion
+     * about mid-turn behaviour would be testing the wrong path.
+     */
+    animationStarted: () => boolean;
     strips: () => HTMLElement[];
     release: () => void;
 }
@@ -51,11 +57,15 @@ function createHarness(): Harness {
 
     // A controllable animation: `finished` settles only when the test asks.
     let settle: () => void = () => {};
+    let started = 0;
     const finished = new Promise<void>(resolve => (settle = resolve));
     Object.defineProperty(HTMLElement.prototype, 'animate', {
         configurable: true,
         writable: true,
-        value: () => ({ cancel: () => {}, finished }),
+        value: () => {
+            started++;
+            return { cancel: () => {}, finished };
+        },
     });
     Object.defineProperty(window, 'matchMedia', {
         configurable: true,
@@ -86,6 +96,15 @@ function createHarness(): Harness {
             const axis =
                 notation.charAt(0) === 'x' ? Axis.X : notation.charAt(0) === 'y' ? Axis.Y : Axis.Z;
             const isWholeCube = /^[xyz]/.test(notation);
+            // Real cubie ids, read from the rendered cube. `animateMove` resolves
+            // its layer by looking these up in the DOM, so a synthetic id makes it
+            // return null and silently takes the NON-animated branch — which is a
+            // different code path from the one this suite is about.
+            const cubieIds = Array.from(
+                view.getCubeElement()!.querySelectorAll<HTMLElement>('[data-cubie-id]')
+            )
+                .slice(0, 9)
+                .map(el => el.getAttribute('data-cubie-id')!);
             return {
                 moveDetails: {
                     notation,
@@ -96,15 +115,16 @@ function createHarness(): Harness {
                         angle: notation.includes('2') ? QuarterTurn.HALF : QuarterTurn.QUARTER,
                     },
                     movedCubies: {
-                        before: [{ id: 'cubie-a', position: { x: 0, y: 0, z: 0 } }] as never,
-                        after: [] as never,
+                        before: cubieIds.map(id => ({ id, position: { x: 0, y: 0, z: 0 } })),
+                        after: [],
                     },
                 },
                 preState: model.getCurrentState(),
                 postState: model.getCurrentState(),
-            };
+            } as never;
         },
         finishAnimation: () => settle(),
+        animationStarted: () => started > 0,
         strips: () =>
             Array.from(view.getCubeElement()!.querySelectorAll<HTMLElement>('[data-host-face]')),
         release: () => {
@@ -258,6 +278,12 @@ describe('ghost strips across the orientation-changing paths', () => {
             const event = h.moveEvent('x');
             h.view.handleMoveExecuted(event);
 
+            // This must be the ANIMATED branch, or the test proves nothing about
+            // the path it names: `animateMove` returns null when it cannot resolve
+            // the layer in the DOM, and the fallback branch never starts an
+            // animation at all.
+            expect(h.animationStarted(), 'the move animation actually started').toBe(true);
+
             expect(shownIds(h), 'off screen while the cube turns').toEqual([]);
 
             h.finishAnimation();
@@ -278,6 +304,7 @@ describe('ghost strips across the orientation-changing paths', () => {
 
             h.view.handleMoveExecuted(h.moveEvent('R'));
 
+            expect(h.animationStarted(), 'the move animation actually started').toBe(true);
             expect(shownIds(h), 'off screen while the layer turns').toEqual([]);
 
             h.finishAnimation();
@@ -321,6 +348,7 @@ describe('ghost strips across the orientation-changing paths', () => {
             enableGhosts(h);
 
             h.view.handleMoveExecuted(h.moveEvent('x'));
+            expect(h.animationStarted(), 'the first move animated').toBe(true);
             expect(shownIds(h), 'hidden for the first turn').toEqual([]);
 
             // A second move arrives before the first animation settles.
