@@ -47,34 +47,64 @@ export const IDENTITY_ORIENTATION: Orientation = {
 };
 
 /**
- * The CSS matrix for an orientation: `viewRight`, `viewUp`, `viewForward` as its
- * columns, matching what the `matrix3d(...)` string in `rendering.ts` builds.
+ * The 3×3 matrix the app's `matrix3d(...)` string produces.
+ *
+ * This is the single most error-prone thing in the module, so it is spelled out.
+ * `rendering.ts` writes
+ *
+ *   matrix3d(vR.x, vU.x, vF.x, 0,  vR.y, vU.y, vF.y, 0,  vR.z, vU.z, vF.z, 0,  0,0,0,1)
+ *
+ * CSS accepts those sixteen arguments **column by column**, so the first four form the
+ * first column. That means the matrix is
+ *
+ *        ⎡ vR.x  vR.y  vR.z ⎤
+ *   M =  ⎢ vU.x  vU.y  vU.z ⎥
+ *        ⎣ vF.x  vF.y  vF.z ⎦
+ *
+ * — the orientation vectors are its ROWS.
+ *
+ * The trap: "the arguments are column-major" is true of the storage order, and it is
+ * easy to slide from that to "the vectors are the columns", which is the *transpose* of
+ * the real matrix. Since the three vectors form an orthonormal set, that transpose is
+ * also the inverse, so every construction built on it stays internally consistent and
+ * still describes the opposite rotation. That is exactly how the original bug shipped:
+ * the animation rendered the inverse of the intended turn and the settled bake then
+ * snapped to the right one, producing a half-turn flip at the end of every rotation.
+ * Confirmed against the DOM's own transform parser — see
+ * `scripts/scratch-debug/probe-need.mjs` and the "reproduces the matrix3d string" test.
  */
 const cssMatrix = (o: Orientation): number[][] => [
-    [o.viewRight.x, o.viewUp.x, o.viewForward.x],
-    [o.viewRight.y, o.viewUp.y, o.viewForward.y],
-    [o.viewRight.z, o.viewUp.z, o.viewForward.z],
+    [o.viewRight.x, o.viewRight.y, o.viewRight.z],
+    [o.viewUp.x, o.viewUp.y, o.viewUp.z],
+    [o.viewForward.x, o.viewForward.y, o.viewForward.z],
 ];
 
-/** The inverse of {@link cssMatrix}: read the columns back out. */
+/**
+ * The inverse of {@link cssMatrix}: an orientation's vectors are the matrix's rows, so
+ * they are read back out one row at a time.
+ */
 const orientationFromCssMatrix = (m: number[][]): Orientation => ({
-    viewRight: { x: m[0][0], y: m[1][0], z: m[2][0] },
-    viewUp: { x: m[0][1], y: m[1][1], z: m[2][1] },
-    viewForward: { x: m[0][2], y: m[1][2], z: m[2][2] },
+    viewRight: { x: m[0][0], y: m[0][1], z: m[0][2] },
+    viewUp: { x: m[1][0], y: m[1][1], z: m[1][2] },
+    viewForward: { x: m[2][0], y: m[2][1], z: m[2][2] },
 });
 
 const multiply = (a: number[][], b: number[][]): number[][] =>
     a.map(row => [0, 1, 2].map(j => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j]));
 
 /**
- * Compute M' · Mᵀ for two orientations, where M is the CSS matrix whose columns
- * are (viewRight, viewUp, viewForward).
+ * Compute `M' · Mᵀ` for two orientations, where `M` is the matrix the app's
+ * `matrix3d(...)` string produces (its rows are the orientation vectors).
+ *
+ * Because a transform is composed as `tilt · S · M`, the rotation the animation slot
+ * must supply is `S = M' · Mᵀ` — the target basis times the inverse of the one already
+ * on screen. Since `M` is orthogonal, `Mᵀ` is that inverse.
  */
 export function relativeRotation(prev: Orientation, next: Orientation): number[][] {
     const a = cssMatrix(next);
     const b = cssMatrix(prev);
-    // Element [i][j] is row i of M' dotted with row j of M (which are the columns
-    // of Mᵀ).
+    // Mᵀ's rows are M's columns, so element [i][j] is the dot of a's row i with b's
+    // row j.
     return a.map(rowA =>
         [0, 1, 2].map(col => rowA[0] * b[col][0] + rowA[1] * b[col][1] + rowA[2] * b[col][2])
     );

@@ -298,9 +298,13 @@ describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
             expect(keyframes).toHaveLength(2);
             const slot = (frame: string): string =>
                 frame.split(' ').find(part => part.startsWith('rotate3d(')) ?? '';
-            // From the default front orientation a left turn is +90° about world Y.
-            expect(slot(keyframes[0].transform)).toBe('rotate3d(0,1,0,0deg)');
-            expect(slot(keyframes[1].transform)).toBe('rotate3d(0,1,0,90deg)');
+            // From the default front orientation a left turn is `rotate3d(0,-1,0,90deg)`
+            // — the same matrix as `rotate3d(0,1,0,-90deg)`, and the sign the browser's
+            // own transform parser requires. Getting this backwards still lands on the
+            // right orientation while travelling there backwards, so the settle snaps
+            // ~180° to correct it; `rotation-composition.browser.test.ts` pins the sign.
+            expect(slot(keyframes[0].transform)).toBe('rotate3d(0,-1,0,0deg)');
+            expect(slot(keyframes[1].transform)).toBe('rotate3d(0,-1,0,90deg)');
             // The basis sits *inside* the rotation, so the ramp's axis is a world
             // axis rather than the tilted one.
             expect(keyframes[0].transform).toContain(
@@ -334,18 +338,19 @@ describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
             const thirdAxis = axisOf(animateKeyframes[2]);
 
             expect(firstAxis, 'a left turn from the front orientation is about Y').toContain(
-                'rotate3d(0,1,0,'
+                'rotate3d(0,-1,0,'
             );
             // From the orientation one left turn reaches, another left turn is still
             // about Y — so the same gesture keeps one axis, which is what lets a
             // multi-step gesture merge into a single sweep.
             expect(secondAxis, 'and it stays on Y for a repeated gesture').toContain(
-                'rotate3d(0,1,0,'
+                'rotate3d(0,-1,0,'
             );
             // A different gesture needs a different world axis. This is the case a
             // fixed-axis implementation cannot satisfy.
             expect(thirdAxis, 'an up turn uses a different world axis').toBeDefined();
             expect(thirdAxis, 'and it is not the Y axis').not.toContain('rotate3d(0,1,0,');
+            expect(thirdAxis, 'nor the negated Y axis').not.toContain('rotate3d(0,-1,0,');
         });
 
         it('base angles update when isTilted toggles', () => {
@@ -388,8 +393,8 @@ describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
             const slot = (frame: string): string =>
                 frame.split(' ').find(p => p.startsWith('rotate3d(')) ?? '';
             // 0 → 180 about Y, as one ramp.
-            expect(slot(latest[0].transform)).toBe('rotate3d(0,1,0,0deg)');
-            expect(slot(latest[1].transform)).toBe('rotate3d(0,1,0,180deg)');
+            expect(slot(latest[0].transform)).toBe('rotate3d(0,-1,0,0deg)');
+            expect(slot(latest[1].transform)).toBe('rotate3d(0,-1,0,180deg)');
             // The base is unchanged, so it really is one continuing rotation rather
             // than a re-based restart.
             expect(latest[1].transform).toContain('matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1)');
@@ -411,8 +416,8 @@ describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
                 frame.split(' ').find(p => p.startsWith('rotate3d(')) ?? '';
 
             // Same base as the first ramp — nothing was re-based — and the same axis.
-            expect(slot(latest[0].transform)).toBe('rotate3d(0,1,0,45deg)');
-            expect(slot(latest[1].transform)).toBe('rotate3d(0,1,0,180deg)');
+            expect(slot(latest[0].transform)).toBe('rotate3d(0,-1,0,45deg)');
+            expect(slot(latest[1].transform)).toBe('rotate3d(0,-1,0,180deg)');
             expect(latest[0].transform.split('matrix3d')[1]).toBe(
                 first[0].transform.split('matrix3d')[1]
             );

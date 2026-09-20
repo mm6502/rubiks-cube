@@ -43,13 +43,19 @@ const BASE_X = -25;
 const BASE_Y = -35;
 
 /**
- * The CSS matrix for an orientation: columns are (vR, vU, vF), which is what the
- * app's `matrix3d(vR.x, vU.x, vF.x, …)` string produces (CSS is column-major).
+ * The 3×3 matrix the app's `matrix3d(...)` string produces: its ROWS are the three
+ * orientation vectors.
+ *
+ * The app writes `matrix3d(vR.x, vU.x, vF.x, …)` — components grouped together — and
+ * CSS reads the arguments column by column, which places `vR`, `vU` and `vF` in rows 0,
+ * 1 and 2. Getting this backwards describes the inverse rotation, and because the three
+ * vectors are orthonormal the mistake stays internally consistent, so it is worth
+ * stating rather than deriving.
  */
 const toMatrix = (o: Orientation): number[][] => [
-    [o.viewRight.x, o.viewUp.x, o.viewForward.x],
-    [o.viewRight.y, o.viewUp.y, o.viewForward.y],
-    [o.viewRight.z, o.viewUp.z, o.viewForward.z],
+    [o.viewRight.x, o.viewRight.y, o.viewRight.z],
+    [o.viewUp.x, o.viewUp.y, o.viewUp.z],
+    [o.viewForward.x, o.viewForward.y, o.viewForward.z],
 ];
 
 const transpose = (m: number[][]): number[][] => [
@@ -132,17 +138,19 @@ describe('rotation-math', () => {
     });
 
     it('resolves a known step to its axis and angle', () => {
-        // Verified by hand from the app's own matrix string. `rotateViewLeft`
-        // from the default front orientation replaces
-        //   matrix3d(1,0,0, 0,1,0, 0,0,1, …)
-        // with
-        //   matrix3d(0,0,-1, 0,1,0, 1,0,0, …)
-        // whose ratio is a +90° rotation about +Y. Pinned because an axis-sign or
-        // angle-sign error here reverses the sweep without changing where the
-        // cube ends up, which is exactly the reported defect.
+        // Verified against the DOM's own transform parser, not by hand. The rotation
+        // that must occupy the animation slot for `rotateViewLeft` from the default
+        // orientation is `rotate3d(0,-1,0,90deg)` — the same matrix as
+        // `rotate3d(0,1,0,-90deg)`.
+        //
+        // Pinned explicitly because a sign error here is invisible to every
+        // orientation-level test: the cube still lands on the right orientation, it just
+        // travels there backwards and the settle then snaps ~180° to correct it. That is
+        // exactly the defect shipped by the first revision of this module, and
+        // `rotation-composition.browser.test.ts` is the check that cannot be fooled by it.
         const ramp = rotationBetween(IDENTITY_ORIENTATION, stepLeft(IDENTITY_ORIENTATION));
         expect(ramp).not.toBeNull();
-        expect(ramp!.axis).toEqual({ x: 0, y: 1, z: 0 });
+        expect(ramp!.axis).toEqual({ x: 0, y: -1, z: 0 });
         expect(ramp!.angle).toBeCloseTo(90, 6);
     });
 
