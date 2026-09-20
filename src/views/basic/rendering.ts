@@ -4,9 +4,14 @@ import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils';
 
 import * as cubieRendering from './cubie-rendering';
-import { animateRotation, prefersReducedMotion } from './animations';
+import {
+    type RotationAnimation,
+    animateRotation,
+    animateTransformPair,
+    prefersReducedMotion,
+} from './animations';
 import { type Orientation, type RotationPlan, axisToCss, planRotation } from './rotation-math';
-import type { BasicViewInternalData } from './types';
+import type { BaseAngles, BasicViewInternalData } from './types';
 
 /**
  * CSS angle constants for basic view base orientation.
@@ -102,10 +107,22 @@ function currentRampAngle(state: BasicViewInternalData, animation: Animation | u
  * the rotation slot goes inside it, so the animation turns about a world axis
  * rather than the tilted one.
  */
-function tiltPrefix(state: BasicViewInternalData): string {
-    const baseX = state.isPitched ? BASIC_VIEW_ANGLES.PITCHED_BASE_X : BASIC_VIEW_ANGLES.BASE_X;
-    const baseY = state.isTilted ? BASIC_VIEW_ANGLES.TILTED_BASE_Y : BASIC_VIEW_ANGLES.BASE_Y;
-    return `rotateX(${baseX}deg) rotateY(${baseY}deg)`;
+function tiltPrefix(state: BasicViewInternalData, angles = baseAnglesOf(state)): string {
+    return `rotateX(${angles.x}deg) rotateY(${angles.y}deg)`;
+}
+
+/**
+ * The base tilt/pitch the view is currently *asked* for, from its flags.
+ *
+ * Separate from {@link tiltPrefix} so the rendered angles can be passed in: a
+ * running presentation ramp animates between two of these, and the prefix has to
+ * carry the frame's angles rather than the flags' current ones.
+ */
+export function baseAnglesOf(state: BasicViewInternalData): BaseAngles {
+    return {
+        x: state.isPitched ? BASIC_VIEW_ANGLES.PITCHED_BASE_X : BASIC_VIEW_ANGLES.BASE_X,
+        y: state.isTilted ? BASIC_VIEW_ANGLES.TILTED_BASE_Y : BASIC_VIEW_ANGLES.BASE_Y,
+    };
 }
 
 /**
@@ -130,11 +147,12 @@ function basisMatrix(basis: Orientation): string {
 function composeTransform(
     state: BasicViewInternalData,
     plan: RotationPlan | null,
-    angleDeg: number
+    angleDeg: number,
+    base: BaseAngles = state.renderedBase ?? baseAnglesOf(state)
 ): string {
     const basis = plan ? plan.base : orientationOf(state);
-    if (!plan) return `${tiltPrefix(state)} ${basisMatrix(basis)}`;
-    return `${tiltPrefix(state)} rotate3d(${axisToCss(plan.axis)},${angleDeg}deg) ${basisMatrix(basis)}`;
+    if (!plan) return `${tiltPrefix(state, base)} ${basisMatrix(basis)}`;
+    return `${tiltPrefix(state, base)} rotate3d(${axisToCss(plan.axis)},${angleDeg}deg) ${basisMatrix(basis)}`;
 }
 
 /**
@@ -181,13 +199,31 @@ export function updateRotation(
     // there is no plan; a running ramp carries its own goal.
     const rendered = state.renderedBasis ?? target;
 
+    // The base tilt is a separate animation slot from the orientation rotation, so it
+    // is resolved before the orientation branches below. A tilt/pitch toggle changes
+    // these angles and *nothing else* — the orientation is identical before and after —
+    // so without this it falls through every orientation branch as a no-op and can only
+    // ever snap.
+    //
+    // It used to be animated implicitly by `transition: transform` on `.cube`, which
+    // commit f63f041 removed because it would run a competing second animation against
+    // the WAAPI rotation ramp. That removal silently un-animated tilt and pitch, which
+    // is the reported regression: the commands still asked to skip the orientation
+    // animation (correctly — there is no orientation to animate), leaving nothing at all
+    // to drive the change.
+    const renderedBase = state.renderedBase ?? baseAnglesOf(state);
+    const requestedBase = baseAnglesOf(state);
+    const baseChanged = renderedBase.x !== requestedBase.x || renderedBase.y !== requestedBase.y;
+
     if (skipAnimation === true) {
         state.rotationPlan = null;
         cancelRotationAnimation(state);
+        cancelBaseAnimation(state);
         // Re-basing here is deliberate: a jump means nothing is on screen that a
         // later rotation should continue from.
         state.renderedBasis = target;
-        state.cubeElement.style.transform = composeTransform(state, null, 0);
+        state.renderedBase = requestedBase;
+        state.cubeElement.style.transform = composeTransform(state, null, 0, requestedBase);
         return { kind: 'settled' };
     }
 
@@ -200,8 +236,27 @@ export function updateRotation(
         state.rotationPlan = null;
         cancelRotationAnimation(state);
         state.renderedBasis = target;
-        state.cubeElement.style.transform = composeTransform(state, null, 0);
+        state.renderedBase = requestedBase;
+        state.cubeElement.style.transform = composeTransform(state, null, 0, requestedBase);
         return { kind: 'settled' };
+    }
+
+    // A presentation-only change: animate the base angles and leave the orientation
+    // slot exactly as it is. Checked before the orientation path because a tilt/pitch
+    // request is otherwise indistinguishable from "the orientation is already correct",
+    // which is the settled no-op branch further down.
+    //
+    // Declines while a plan is in flight: the orientation ramp already owns the
+    // element's `transform` with `fill: forwards`, and starting a second animation on
+    // the same property is the competing-animation shape this view removed. A tilt in
+    // that window rides along on the orientation ramp instead, because the ramp's prefix
+    // is rebuilt from the *requested* angles below.
+    if (baseChanged && !plan) {
+        cancelBaseAnimation(state);
+        const { animation, finished } = animateBaseChange(state, renderedBase, requestedBase);
+        state.baseAnimation = animation;
+        state.renderedBase = requestedBase;
+        return { kind: 'animating', animation, finished };
     }
 
     const next = planRotation({
@@ -216,8 +271,14 @@ export function updateRotation(
     if (!next) {
         state.rotationPlan = null;
         cancelRotationAnimation(state);
+        cancelBaseAnimation(state);
         state.renderedBasis = plan ? plan.target : target;
-        state.cubeElement.style.transform = composeTransform(state, null, 0);
+        // Recorded because this branch writes `requestedBase` into the transform below:
+        // `renderedBase` is the record of what the element is displaying, so leaving it
+        // holding the previous angles would break that invariant even though nothing
+        // reads it again until the next presentation change.
+        state.renderedBase = requestedBase;
+        state.cubeElement.style.transform = composeTransform(state, null, 0, requestedBase);
         return { kind: 'settled' };
     }
 
@@ -231,11 +292,17 @@ export function updateRotation(
         next.fromDeg,
         next.toDeg,
         {
-            prefix: `${tiltPrefix(state)} `,
             suffix: ` ${basisMatrix(next.base)}`,
+            // Built from the *requested* angles rather than the recorded ones, so a tilt
+            // that arrives mid-rotation is on screen from the very next frame instead of
+            // waiting a turn for the orientation to settle.
+            prefix: `${tiltPrefix(state, requestedBase)} `,
         }
     );
 
+    // Bookkeeping to match: this ramp is displaying the requested base, so that is what
+    // a later presentation ramp should treat as the rendered state.
+    state.renderedBase = requestedBase;
     state.rotationPlan = next;
     state.rotationAnimation = animation;
     // What the element will display once this ramp settles.
@@ -255,6 +322,46 @@ export function cancelRotationAnimation(state: BasicViewInternalData): void {
 }
 
 /**
+ * Cancel and forget the running base-tilt animation, if any.
+ *
+ * The presentation slot has its own animation, so cancelling it must not disturb a
+ * rotation ramp running alongside it.
+ */
+export function cancelBaseAnimation(state: BasicViewInternalData): void {
+    state.baseAnimation?.cancel();
+    state.baseAnimation = undefined;
+}
+
+/**
+ * Ramp the base tilt/pitch from one pair of angles to another.
+ *
+ * Deliberately built on the shared animation primitive rather than reaching for a
+ * CSS transition, which is the scheme this view removed: a transition on `transform`
+ * would interpolate the *whole* composed string component-wise — shearing the cube
+ * and competing with the orientation ramp on the same property.
+ *
+ * The orientation slot is frozen into both keyframes at the angle it is currently
+ * showing, so a presentation change cannot disturb the cube's facing, and the two
+ * angles are ramped together (a toggle changes one of them, but the prefix is a
+ * pair and animating it as one keeps the composed string consistent).
+ */
+function animateBaseChange(
+    state: BasicViewInternalData,
+    from: BaseAngles,
+    to: BaseAngles
+): RotationAnimation {
+    const plan = activePlan(state);
+    // The angle the rotation slot is showing right now — mid-ramp if one is running.
+    // Frozen so this animation drives only the prefix.
+    const angle = currentRampAngle(state, state.rotationAnimation);
+    return animateTransformPair(
+        state.cubeElement!,
+        composeTransform(state, plan, angle, from),
+        composeTransform(state, plan, angle, to)
+    );
+}
+
+/**
  * Drop any running rotation and leave the cube showing its settled transform.
  *
  * The orientation itself is not touched — the model is authoritative there (R8),
@@ -267,6 +374,11 @@ function resetRotationAnimation(state: BasicViewInternalData): void {
     state.renderedBasis = state.rotationPlan?.target ?? state.renderedBasis;
     state.rotationPlan = null;
     cancelRotationAnimation(state);
+    // The presentation ramp has to go too, for the same reason: a rebuilt element
+    // must not be left holding a keyframe from an animation that belongs to the DOM
+    // that was just replaced.
+    cancelBaseAnimation(state);
+    state.renderedBase = baseAnglesOf(state);
     if (state.cubeElement) {
         state.cubeElement.style.transform = composeTransform(state, null, 0);
     }

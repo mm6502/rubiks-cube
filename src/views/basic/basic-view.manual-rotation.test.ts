@@ -353,23 +353,143 @@ describe('BasicView Manual Rotation (Ctrl+Arrow)', () => {
             expect(thirdAxis, 'nor the negated Y axis').not.toContain('rotate3d(0,-1,0,');
         });
 
-        it('base angles update when isTilted toggles', () => {
+        it('base angles update when isTilted toggles', async () => {
             // Tilt command (cosmetic only — does not affect vectors)
             const tiltCmd = view.getCommands().find(c => c.id === 'tilt-view');
             tiltCmd!.action();
+            // The change is animated now, so the inline style holds the pre-toggle
+            // value until the ramp settles and the bake writes it — the same
+            // stale-while-ramping contract the rotation tests above rely on.
+            await settleRotation(view);
             const t = view.getCubeElement()!.style.transform;
             expect(t).toContain(`rotateY(${BASIC_VIEW_ANGLES.TILTED_BASE_Y}deg)`);
             // Vectors are unchanged
             expect(view.getState().viewForward).toEqual({ x: 0, y: 0, z: 1 });
         });
 
-        it('base angles update when isPitched toggles', () => {
+        it('base angles update when isPitched toggles', async () => {
             const pitchCmd = view.getCommands().find(c => c.id === 'pitch-view');
             pitchCmd!.action();
+            await settleRotation(view);
             const t = view.getCubeElement()!.style.transform;
             expect(t).toContain(`rotateX(${BASIC_VIEW_ANGLES.PITCHED_BASE_X}deg)`);
             // Vectors are unchanged
             expect(view.getState().viewForward).toEqual({ x: 0, y: 0, z: 1 });
+        });
+
+        // Tilt and pitch change the *presentation* (the base `rotateX`/`rotateY`
+        // prefix) and leave the orientation vectors alone. They used to be animated by
+        // `transition: transform` on `.cube`, which commit f63f041 had to remove — it
+        // would have run a competing second animation against the new WAAPI rotation
+        // ramp. The transition's removal therefore silently un-animated tilt and pitch:
+        // the commands still asked for `skipAnimation`, and the only other animator was
+        // gone. These pin the behaviour the reported regression is about.
+        //
+        // The assertions above cannot catch it: they read the settled inline transform,
+        // which is written whether or not anything animates.
+        it('animates the base tilt instead of snapping', () => {
+            const tiltCmd = view.getCommands().find(c => c.id === 'tilt-view');
+            animateKeyframes.length = 0;
+            tiltCmd!.action();
+
+            expect(
+                animateKeyframes.length,
+                'toggling tilt should start an animation'
+            ).toBeGreaterThan(0);
+        });
+
+        it('animates the base pitch instead of snapping', () => {
+            const pitchCmd = view.getCommands().find(c => c.id === 'pitch-view');
+            animateKeyframes.length = 0;
+            pitchCmd!.action();
+
+            expect(
+                animateKeyframes.length,
+                'toggling pitch should start an animation'
+            ).toBeGreaterThan(0);
+        });
+
+        it('a tilt arriving mid-rotation rides along instead of competing', async () => {
+            // A tilt that lands while a rotation is still ramping does not get its own
+            // animation: the orientation ramp already owns the element's `transform` with
+            // `fill: forwards`, and a second animation on the same property is the
+            // competing-animation shape this view removed. It rides along on that ramp
+            // instead, whose prefix is rebuilt from the requested angles — so the tilt is
+            // on screen from the next frame rather than a snap or a turn later.
+            //
+            // The second half checks the presentation toggle still works afterwards, so
+            // the mid-flight path cannot leave the base angles recorded stale.
+            view.rotateViewRight();
+
+            const tiltCmd = view.getCommands().find(c => c.id === 'tilt-view');
+            tiltCmd!.action();
+
+            const midFlight = animateKeyframes[animateKeyframes.length - 1];
+            expect(midFlight[1].transform, 'the mid-flight ramp shows the tilted pose').toContain(
+                `rotateY(${BASIC_VIEW_ANGLES.TILTED_BASE_Y}deg)`
+            );
+            // The requirement is that no *presentation* animation competes for the
+            // transform. Asserting the total call count instead would be asserting an
+            // implementation detail: the orientation ramp is legitimately re-targeted here
+            // (the tilt call re-enters `applyRotation`), so the count depends on how many
+            // rotations preceded it. What must never happen is a second animation ramping
+            // the base angles on the same property.
+            expect(
+                midFlight[0].transform,
+                'the visible animation is the orientation ramp, not a presentation ramp'
+            ).toContain('rotate3d');
+            expect(
+                midFlight[1].transform,
+                'and it is the orientation slot that is animating'
+            ).toContain('rotate3d');
+
+            // Let the rotation settle, then toggle back. The settle bake starts no new
+            // animation, so the list is cleared first to make the next ramp unambiguous.
+            await settleRotation(view);
+            animateKeyframes.length = 0;
+            tiltCmd!.action();
+
+            const next = animateKeyframes[animateKeyframes.length - 1];
+            expect(next, 'the return toggle animated').toBeDefined();
+            expect(next[0].transform, 'ramps from the tilted pose').toContain(
+                `rotateY(${BASIC_VIEW_ANGLES.TILTED_BASE_Y}deg)`
+            );
+            expect(next[1].transform, '...back to the untilted one').toContain(
+                `rotateY(${BASIC_VIEW_ANGLES.BASE_Y}deg)`
+            );
+        });
+
+        it('the animated slot is the base angle, not the orientation rotation', () => {
+            // The distinction matters: the orientation rotation ramps `rotate3d(axis,
+            // angle)` and leaves `matrix3d(...)` fixed, while a presentation change ramps
+            // the `rotateX`/`rotateY` prefix and must leave the cube's orientation alone.
+            // Animating the wrong slot would either spin the cube or change nothing
+            // visible, so the mechanism is pinned rather than just the call count.
+            const tiltCmd = view.getCommands().find(c => c.id === 'tilt-view');
+            animateKeyframes.length = 0;
+            tiltCmd!.action();
+
+            const latest = animateKeyframes[animateKeyframes.length - 1];
+            expect(latest, 'an animation was started').toBeDefined();
+            expect(latest, 'a ramp has two keyframes').toHaveLength(2);
+
+            const from = latest[0].transform;
+            const to = latest[1].transform;
+
+            // The base prefix is the part that changes…
+            expect(from).toContain(`rotateY(${BASIC_VIEW_ANGLES.BASE_Y}deg)`);
+            expect(to).toContain(`rotateY(${BASIC_VIEW_ANGLES.TILTED_BASE_Y}deg)`);
+            // …and it animates as a pair, so the X angle rides along in both frames.
+            expect(from).toContain(`rotateX(${BASIC_VIEW_ANGLES.BASE_X}deg)`);
+            expect(to).toContain(`rotateX(${BASIC_VIEW_ANGLES.BASE_X}deg)`);
+
+            // The orientation slot is frozen: no `rotate3d`, and the basis matrix is
+            // identical on both frames, so the cube does not turn.
+            expect(from).not.toContain('rotate3d');
+            expect(to).not.toContain('rotate3d');
+            const basisOf = (transform: string): string =>
+                transform.slice(transform.indexOf('matrix3d'));
+            expect(basisOf(from), 'the orientation is untouched').toBe(basisOf(to));
         });
 
         it('base rotateX comes before base rotateY in transform string', () => {

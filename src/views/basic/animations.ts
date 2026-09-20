@@ -142,6 +142,42 @@ export function animateRotation(
 }
 
 /**
+ * Animate between two fully-composed transform strings.
+ *
+ * The companion to {@link animateRotation} for the one change an axis ramp cannot
+ * express: the base tilt/pitch is a *pair* of angles (`rotateX(...) rotateY(...)`),
+ * and animating it means interpolating two coupled rotations rather than one.
+ *
+ * Both strings must describe the same transform stack with only the animated part
+ * differing, because CSS interpolates matching lists function-by-function. That is
+ * what keeps the cube's orientation frozen while only the presentation angles move.
+ *
+ * @param element - The element to animate.
+ * @param fromTransform - The composed transform at the start of the ramp.
+ * @param toTransform - The composed transform at the end of the ramp.
+ * @param options - Timing overrides.
+ */
+export function animateTransformPair(
+    element: HTMLElement,
+    fromTransform: string,
+    toTransform: string,
+    options: Pick<RotationAnimationOptions, 'duration' | 'easing'> = {}
+): RotationAnimation {
+    const animation = element.animate([{ transform: fromTransform }, { transform: toTransform }], {
+        duration: options.duration ?? DEFAULT_BASIC_ANIMATION_CONFIG.duration,
+        easing: options.easing ?? DEFAULT_BASIC_ANIMATION_CONFIG.easing,
+        fill: 'forwards',
+    });
+
+    const finished = animation.finished.then(
+        () => true,
+        () => false
+    );
+
+    return { animation, finished };
+}
+
+/**
  * Result of starting a layer animation.
  */
 export type AnimateMoveResult = {

@@ -31,6 +31,22 @@ export interface BasicViewState {
  * Defined here so modules can import it as a type without creating runtime
  * circular dependencies.
  */
+/**
+ * The view's base tilt/pitch in degrees.
+ *
+ * Presentation, not orientation: these two angles sit *outside* the rotation slot
+ * in the composed transform, so changing them turns how the cube is presented
+ * without touching which way it faces. Kept as a named pair because the two are
+ * always read and applied together (they form one `rotateX(...) rotateY(...)`
+ * prefix), even though a toggle changes only one of them at a time.
+ */
+export type BaseAngles = {
+    /** The X base angle: `BASE_X` or `PITCHED_BASE_X`. */
+    x: number;
+    /** The Y base angle: `BASE_Y` or `TILTED_BASE_Y`. */
+    y: number;
+};
+
 export type BasicViewInternalData = {
     model?: ReadOnlyCubeModel;
     onStickerSelected?: (id: StickerId) => void;
@@ -87,4 +103,23 @@ export type BasicViewInternalData = {
      * what a fresh ramp starts from.
      */
     renderedBasis?: Orientation;
+    /**
+     * The base tilt/pitch the cube element currently displays.
+     *
+     * The same rendered-vs-requested split as {@link renderedBasis}, for the
+     * presentation angles. A tilt or pitch toggle changes the flag immediately,
+     * so nothing else records what the element was showing before it — without
+     * this there is no "from" angle for the ramp to start at, which is why the
+     * presentation change could only ever be a snap.
+     */
+    renderedBase?: BaseAngles;
+    /**
+     * The animation currently ramping {@link renderedBase}, if any.
+     *
+     * Separate from {@link rotationAnimation} because the two drive different
+     * slots of the same transform and can legitimately run at once: a drag that
+     * tilts the view while a rotation is still settling must be able to animate
+     * its own angles without cancelling the orientation ramp.
+     */
+    baseAnimation?: Animation;
 };

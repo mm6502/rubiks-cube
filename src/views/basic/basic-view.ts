@@ -1062,13 +1062,19 @@ export class BasicView implements CubeView {
      * `rendering.updateRotation` directly, because a tilt swaps which CSS slots
      * are visible and therefore which silhouette edges the ghost strips belong
      * on — so it needs the same strips-off/refresh treatment as a rotation, and
-     * the command context has no way to express that. The base tilt is not the
-     * orientation, so there is no rotation to animate: the write is non-animating.
+     * the command context has no way to express that.
+     *
+     * The base tilt is not the orientation, so there is no *orientation* rotation to
+     * animate — but the change itself is animated, as its own ramp on the base angles
+     * (see `updateRotation`). Asking to skip it would snap, which is the regression
+     * this restored: the skip was correct when a CSS transition on `.cube` covered the
+     * presentation change, and that transition had to be removed when the rotation
+     * primitive replaced it.
      */
     toggleTilt(): void {
         this.beginRotation();
         this.state.isTilted = !this.state.isTilted;
-        this.applyRotation(true);
+        this.applyRotation();
         updateFaceLabels(this.state);
     }
 
@@ -1078,7 +1084,7 @@ export class BasicView implements CubeView {
     togglePitch(): void {
         this.beginRotation();
         this.state.isPitched = !this.state.isPitched;
-        this.applyRotation(true);
+        this.applyRotation();
         updateFaceLabels(this.state);
     }
 

@@ -720,6 +720,11 @@ describe('ghost strips across the orientation-changing paths', () => {
                 const command = h.view.getCommands().find(c => c.id === id);
                 expect(command, `${id} exists`).toBeDefined();
                 command!.action();
+                // A tilt/pitch change is animated on its own base-angle ramp, so the
+                // strips stay hidden until it settles — the same contract as a rotation.
+                // They were not animated at all when this test was written, so no
+                // settle was needed; skipping it here would assert mid-ramp state.
+                h.finishAnimation();
                 await vi.advanceTimersByTimeAsync(300);
                 expect(shownIds(h), `after ${id}`).toEqual(shouldIds(h));
             }

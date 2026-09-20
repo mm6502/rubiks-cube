@@ -3,8 +3,13 @@
 **Not part of the app. Not imported by it. Not a permanent host for the plan's
 claims.**
 
-This folder holds the one check that cannot live in the test suite:
-`verify-rotation-fix.mjs`, which drives the **built app** in a real browser.
+This folder holds the checks that cannot live in the test suite:
+
+- `verify-rotation-fix.mjs` — drives the **built app** in a real browser and
+  checks the rotation _traversal_ (what the cube looks like at each frame).
+- `verify-tilt-animation.mjs` — drives the **dev server** and checks that a
+  tilt/pitch toggle actually starts an animation, with a mid-flight sample that
+  distinguishes an interpolated ramp from a snap.
 
 ## Why this exists at all
 
@@ -30,14 +35,22 @@ The traversal claim stays here, because it genuinely cannot be a unit test.
 ## Running it
 
 ```bash
-npm run build                                         # the script drives dist/index.html
+npm run build                                         # verify-rotation-fix.mjs drives dist/index.html
 node scripts/scratch-debug/verify-rotation-fix.mjs chromium
 node scripts/scratch-debug/verify-rotation-fix.mjs firefox
 ```
 
+`verify-tilt-animation.mjs` drives the **dev server** instead, because it needs
+the live app rather than a build:
+
+```bash
+npm run dev                                           # or any server on :5173
+node scripts/scratch-debug/verify-tilt-animation.mjs
+```
+
 Add `PW_HEADED=1` for the headed compositor path (see the traps below).
 
-It exits non-zero if any check fails, so it is usable as a gate.
+Both exit non-zero if any check fails, so they are usable as a gate.
 
 ## What it asserts, and which requirement each check covers
 
@@ -50,6 +63,18 @@ It exits non-zero if any check fails, so it is usable as a gate.
 | A burst past the threshold still lands on the requested orientation | R3     |
 | `prefers-reduced-motion` applies the rotation without animating     | R4     |
 | A rapid sequence reveals the strips exactly once, at the end        | R7     |
+
+`verify-tilt-animation.mjs` covers the presentation slot, which no unit test can
+observe because jsdom's `animate` does not interpolate:
+
+| Check                                                  | Why                                        |
+| ------------------------------------------------------ | ------------------------------------------ |
+| A view rotation starts an animation (control)          | Proves the input path is live              |
+| A tilt toggle starts an animation                      | The reported regression                    |
+| A pitch toggle starts an animation                     | The sibling path                           |
+| The mid-flight transform is neither endpoint           | Separates a ramp from a snap               |
+| Animations finish and are not left holding the element | No leaked `fill: forwards`                 |
+| A later view rotation still changes the transform      | The base ramp does not disturb orientation |
 
 ## The metric is the outcome, not a proxy
 
