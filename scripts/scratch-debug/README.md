@@ -1,95 +1,125 @@
-# scratch-debug — rotation-animation evidence
+# scratch-debug — browser-level verification for rotation animation
 
-**Status: temporary. Not part of the app and not imported by it.**
+**Not part of the app. Not imported by it. Not a permanent host for the plan's
+claims.**
 
-These files exist to support one piece of work: replacing the Basic view's
-matrix-based rotation animation with a shared angle-based primitive. They are
-the measured evidence behind
-[`docs/plans/2026-09-20-001-refactor-shared-rotation-animation-plan.md`](../../docs/plans/2026-09-20-001-refactor-shared-rotation-animation-plan.md)
-and its origin
-[`docs/brainstorms/2026-09-20-shared-rotation-animation-requirements.md`](../../docs/brainstorms/2026-09-20-shared-rotation-animation-requirements.md).
+This folder holds the one check that cannot live in the test suite:
+`verify-rotation-fix.mjs`, which drives the **built app** in a real browser.
 
-Read that plan first. This folder only records _how the claims were measured_.
+## Why this exists at all
 
-## Why this folder still exists
+The rotation-animation defect is a property of a _traversal_ — what the cube
+looks like at each frame while it is turning. Nothing in the unit suite can see
+that:
 
-The plan rests on two measured claims that no unit test currently guards:
+- jsdom has no Web Animations API, so a stubbed animation resolves instantly and
+  every frame is missing.
+- Even with a stub, `getComputedStyle` has no compositor to report from.
 
-1. **The defect is component-wise matrix interpolation, not a browser quirk.** A
-   `matrix3d → matrix3d` transition shears the geometry when interrupted, in
-   Chromium _and_ Firefox.
-2. **A fixed rotation axis cannot work.** The correct axis is derived from
-   state.
+So the two claims the work rests on are covered twice, deliberately:
 
-Those claims shaped requirements R1 and R2. Until they are promoted into real
-tests, these scripts are the only reproducible basis for them.
+| Claim                                                                    | Durable guard (preferred)               | Browser guard                         |
+| ------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------- |
+| The rotation axis must be state-derived, not fixed (6 axes, 96/96 exact) | `src/views/basic/rotation-math.test.ts` | R2 check in `verify-rotation-fix.mjs` |
+| An interrupted rotation travels the intended path and never reverses     | partially — `planRotation` unit tests   | R1 checks (the real evidence)         |
 
-## The files that matter
+The axis claim was **promoted into a real unit test**, because it is
+load-bearing for the implementation and a scratch script is not a durable guard.
+The traversal claim stays here, because it genuinely cannot be a unit test.
 
-| File                           | What it establishes                                                                                                                                                                                                                            | How to run                                                          |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `probe-css-transition.mjs`     | The **actual defect**. The only probe that drives the app's real path (CSS `transition`, the composite transform string, and transitions interrupted mid-flight). Reports per-frame sweep, net angle, minimum determinant, and reversal count. | `node scripts/scratch-debug/probe-css-transition.mjs chromium`      |
-| `analysis-pivot-structure.mjs` | The **96/96 computation** behind R2: over all 24 orientations × 4 rotations, a fixed-axis pivot is wrong in 96/96 cases and a state-derived axis is correct in 96/96.                                                                          | `node scripts/scratch-debug/analysis-pivot-structure.mjs`           |
-| `analysis-rotation-axis.mjs`   | The **6-distinct-axes** result: a given rotation gesture uses ±X/±Y/±Z depending on current orientation, which is why the axis cannot be a constant.                                                                                           | `node scripts/scratch-debug/analysis-rotation-axis.mjs`             |
-| `repro.html`                   | A **standalone side-by-side comparison** — panel A is the current `matrix3d` + CSS-transition scheme, panel B is the proposed WAAPI `rotate3d` scheme. Each panel prints its own swept angle and an OK/MISBEHAVES verdict.                     | Open the file directly in any browser (no build step)               |
-| `validate-repro.mjs`           | Drives `repro.html`'s own buttons through Playwright and prints what each panel reports.                                                                                                                                                       | `PW_HEADED=1 node scripts/scratch-debug/validate-repro.mjs firefox` |
+## Running it
 
-Both entry points take the engine as an argument (`chromium` or `firefox`).
+```bash
+npm run build                                         # the script drives dist/index.html
+node scripts/scratch-debug/verify-rotation-fix.mjs chromium
+node scripts/scratch-debug/verify-rotation-fix.mjs firefox
+```
 
-## Read this before trusting any number
+Add `PW_HEADED=1` for the headed compositor path (see the traps below).
 
-Four traps cost real time during the investigation. If you re-measure, avoid
-them.
+It exits non-zero if any check fails, so it is usable as a gate.
 
-**1. Measure headed, not headless.** The headless compositor takes a different
-path. Set `PW_HEADED=1` for the Playwright-driven scripts.
+## What it asserts, and which requirement each check covers
 
-**2. Do not use the rotation-block determinant as the assertion.** It measures
-`1.000` for the _entire_ animation **even on the broken implementation**. A
-determinant check passes on the very defect this work exists to fix. The real
-signature of the bug is:
+| Check                                                               | Covers |
+| ------------------------------------------------------------------- | ------ |
+| A view rotation animates as a ~90° sweep with no reversal           | R1     |
+| No interpolated frame leaves the rotation group                     | R1     |
+| An **interrupted** rotation never reverses direction                | R1     |
+| Different orientations use different world axes                     | R2     |
+| A burst past the threshold still lands on the requested orientation | R3     |
+| `prefers-reduced-motion` applies the rotation without animating     | R4     |
+| A rapid sequence reveals the strips exactly once, at the end        | R7     |
 
-- the swept angle is **90° where 270° was intended**, and
-- the traversal **reverses direction** mid-flight (`reversals=2`).
+## The metric is the outcome, not a proxy
 
-**3. Identity and 360° frames serialize as 2D `matrix(1,0,0,1,0,0)`, not
-`matrix3d(...)`.** A metric that only accepts 16-value matrices silently drops
-those frames and under-reports the swept angle.
+Each frame's computed matrix is `C = B · R · M`, where `B` is the base tilt, `M`
+is the basis the ramp is built on, and `R` is the rotation the animation is
+applying. The script recovers `R = B⁻¹ · C · M⁻¹` and then checks it directly:
+is it orthonormal, is its determinant +1, what is its axis, and how far has it
+swept.
 
-**4. Measure the outcome, not a proxy.** An earlier probe measured the _pivot's_
-angle rather than the _resulting cube orientation_. It reported that the
-proposed scheme worked, and it was wrong. Anything that measures a stand-in
-instead of the end state will produce a confident wrong answer.
+## Traps — read before trusting or re-deriving any number here
 
-**On Firefox specifically:** Playwright's bundled Firefox is a _patched build_
-and is not the shipped browser. It cannot settle a browser-specific question.
-For that, open `repro.html` directly in a real Firefox — that is the whole
-reason it is a standalone page rather than a script.
+Six cost real time during this work. Each produced a confident, wrong answer.
 
-## What to do when the work lands
+1. **Do not assert on the rotation-block determinant of a composed frame.** It
+   measures `1.000` for the _entire_ animation even on the broken
+   implementation, so it passes on the very defect this exists to catch. The
+   determinant is meaningful only on the **recovered rotation** (above).
 
-This folder is a means, not a deliverable. In rough order of preference:
+2. **Identity and 360° frames serialize as 2D `matrix(1,0,0,1,0,0)`, not
+   `matrix3d(...)`.** A metric that only accepts the 16-value form silently
+   drops those frames and under-reports the swept angle.
 
-1. **Promote the axis computation into a real unit test.** The 96/96 result is
-   load-bearing for the plan, and a scratch script is not a durable guard. This
-   is the strongest outcome and the one the plan recommends.
-2. **Promote the load-bearing artifacts into a tracked location** if they remain
-   useful for future animation work.
-3. **Delete the folder** once the fix ships and the claims are covered by tests.
+3. **A headless page does not run `requestAnimationFrame`.** An in-page rAF
+   sampling loop records _zero_ frames and looks like "nothing happened" rather
+   than like a broken harness. Sampling here is driven from Node, one `evaluate`
+   per frame; polling `getComputedStyle` still returns the painted value of a
+   running animation. Verify in headed mode too (`PW_HEADED=1`), since the
+   headed compositor takes a different path.
 
-Do not leave it in its current state indefinitely, and do not treat it as
-reference documentation. It is committed only so the evidence survives until the
-claims are covered by tests; it is not a permanent part of the codebase.
+4. **The app routes keys from its own focus model.** Calling `.focus()` on an
+   element is not enough — the rotation keys then reach nothing and every sweep
+   measures 0°, which reads as "the animation is broken". Focus has to be
+   claimed through the app's real contact path (a `pointerdown` on the
+   registered view container). The script asserts the focus took effect, and
+   asserts the orientation actually changed, so a vacuous pass cannot recur.
 
-> **Keep this folder out of the quality gate.** It contains no `*.test.ts` files
-> and is excluded from linting (ESLint targets `**/*.ts`), but
-> `scripts/tsconfig.json` does type-check `.ts` files under `scripts/`, so any
-> future `.ts` file added here must type-check.
+5. **`matrix3d` is COLUMN-major.** The app's `matrix3d(vR.x, vU.x, vF.x, …)`
+   therefore puts `viewRight`/`viewUp`/`viewForward` in the matrix's
+   **columns**. Reading them as rows transposes the rotation, which yields a
+   plausible-looking but wrong axis/angle. The unit test pins this against the
+   app's own string.
+
+6. **Do not round an axis to integers.** A rotation between two of the 24
+   axis-aligned orientations has an axis of exactly ±X/±Y/±Z, but an
+   _interrupted_ rotation re-bases onto a pose that is not one of the 24, and
+   `Math.round` maps a general axis like `(0.707, 0.707, 0)` to `(1, 1, 0)` —
+   not a unit vector, not the rotation. Snap per component instead.
+
+## What this folder used to hold, and why it does not any more
+
+`probe-css-transition.mjs`, `repro.html`, `validate-repro.mjs`,
+`analysis-pivot-structure.mjs` and `analysis-rotation-axis.mjs` were removed
+when the fix landed. They are deliberately **not** preserved:
+
+- The probes existed to characterise a scheme that no longer exists (a CSS
+  `transition` interpolating `matrix3d`). `probe-css-transition.mjs` was the
+  only artifact that could show the original defect, but it can only show it on
+  code that has been deleted, so keeping it invites a future reader to run it,
+  get a clean result, and conclude something false.
+- The two `analysis-*` scripts computed claims that are now enforced by
+  `rotation-math.test.ts` over the same 24 × 4 cases. Keeping a second,
+  unmaintained copy of a load-bearing computation is how the two drift.
+- Their measured conclusions live on in the commit history and in
+  `docs/plans/2026-09-20-001-refactor-shared-rotation-animation-plan.md`.
 
 ## Conventions
 
-- Plain `.mjs` run directly by `node` — no build step, no dependencies beyond
-  what the repo already has (`playwright` comes from `@playwright/test`).
+- Plain `.mjs`, run directly by `node` — no build step. `playwright` comes from
+  `@playwright/test`, which the repo already has.
 - Top-level `await`; no test framework.
-- Deliberately excluded from the app build and from linting. `repro.html` is a
-  standalone page, not a Vite entry — it is not bundled and must not be.
+- Excluded from the app build and from ESLint (which targets `**/*.ts`).
+  `scripts/tsconfig.json` type-checks only `.ts` files, so any future `.ts` file
+  added here would need to type-check.

@@ -37,6 +37,10 @@ apart.
       notation renders as an icon, with numbered slices and wide moves reusing
       the family glyph plus a full-notation label (zero new SVG assets). See
       [docs/plans/2026-09-06-001-feat-moves-view-icon-fallback-plan.md](docs/plans/2026-09-06-001-feat-moves-view-icon-fallback-plan.md)
+- [x] (Sep 2026) Share one rotation-animation primitive between view rotation
+      and move animation, so every frame of a rotation is a valid rotation —
+      this replaced the `matrix3d` + CSS-transition scheme whose component-wise
+      interpolation sheared the cube and unwound on interruption
 - [x] (Sep 2026) Cut over Basic 2 to replace the Basic view — the animated
       per-cubie engine is now the single Basic view (see
       [docs/brainstorms/2026-09-05-basic2-cutover-requirements.md](docs/brainstorms/2026-09-05-basic2-cutover-requirements.md))
@@ -92,14 +96,26 @@ apart.
 
 ### Known Issues (acknowledged, not planned to fix)
 
-- [!] Basic view (the sole 3D cube view since the Basic 2 cutover): rotations in
-  Firefox over 180° unwind rapidly in the opposite direction (matrix3d scheme)
+(nothing atm)
 
-  Kept deliberately, not carried over by default: this is a real
-  browser-specific behaviour of the `matrix3d` + `transition: transform` scheme
-  that whole-cube view rotation still uses, and move-layer animations are
-  unaffected because they take the WAAPI `rotate3d` path. Removing this entry
-  would require first confirming it still reproduces in Firefox.
+> **Correction (2026-09-20).** An entry used to sit here describing view
+> rotations that "unwind rapidly in the opposite direction" as a
+> Firefox-specific limitation of the `matrix3d` + `transition: transform`
+> scheme, and filing it as not planned to fix. Both claims were wrong, and the
+> entry suppressed the fix for as long as it stood:
+>
+> - The defect had nothing to do with Firefox. A CSS transition interpolates a
+>   `matrix3d` component-wise, so every intermediate frame left the rotation
+>   group and sheared the cube's geometry; interrupting a transition adopted the
+>   already-sheared matrix as the next start, which is the visible unwind. It
+>   reproduced in Chromium too.
+> - It is now fixed: view rotation ramps an angle about a state-derived axis
+>   through the Web Animations API, so every frame is a genuine rotation. The
+>   transform no longer uses a CSS transition at all.
+>
+> Verified in a real browser — 90° sweeps with no reversal, and an interrupted
+> rotation continuing a single 180° sweep instead of unwinding. See
+> `docs/plans/2026-09-20-001-refactor-shared-rotation-animation-plan.md`.
 
 ### Long Term (almost certainly not, aka NOT planned)
 
