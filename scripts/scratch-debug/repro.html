@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>View-rotation interpolation repro</title>
+        <style>
+            body {
+                font:
+                    14px/1.5 system-ui,
+                    sans-serif;
+                margin: 0;
+                padding: 16px;
+                background: #111;
+                color: #eee;
+            }
+            h1 {
+                font-size: 16px;
+                margin: 0 0 4px;
+            }
+            p.sub {
+                margin: 0 0 16px;
+                color: #999;
+            }
+            .row {
+                display: flex;
+                gap: 16px;
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+            .panel {
+                border: 1px solid #333;
+                border-radius: 8px;
+                padding: 12px;
+                background: #181818;
+                min-width: 340px;
+            }
+            .panel h2 {
+                font-size: 13px;
+                margin: 0 0 8px;
+                color: #f97;
+            }
+            .panel.good h2 {
+                color: #7cf;
+            }
+            .stage {
+                width: 260px;
+                height: 200px;
+                perspective: 1000px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 8px;
+            }
+            /* Panel A: the app's current scheme — one element, CSS transition */
+            .cube {
+                position: relative;
+                width: 1px;
+                height: 1px;
+                transform-style: preserve-3d;
+                transition: transform 0.25s;
+            }
+            .cube.no-transition {
+                transition: none;
+            }
+            /* Panel B: pivot (world-axis rotation) wrapping the tilted cube.
+               No CSS transition anywhere — motion is WAAPI only. */
+            .pivot {
+                width: 1px;
+                height: 1px;
+                transform-style: preserve-3d;
+                position: relative;
+            }
+            .pivot > .cube {
+                transition: none;
+            }
+            .cubie {
+                position: absolute;
+                width: 54px;
+                height: 54px;
+                transform-style: preserve-3d;
+            }
+            .f {
+                position: absolute;
+                width: 54px;
+                height: 54px;
+                border: 1px solid #000;
+                box-sizing: border-box;
+                backface-visibility: hidden;
+            }
+            button {
+                font: inherit;
+                padding: 4px 8px;
+                margin: 2px 2px 0 0;
+                border-radius: 5px;
+                border: 1px solid #444;
+                background: #2a2a2a;
+                color: #eee;
+                cursor: pointer;
+            }
+            button:hover {
+                background: #383838;
+            }
+            .readout {
+                font:
+                    11px/1.4 ui-monospace,
+                    monospace;
+                color: #9c9;
+                margin-top: 8px;
+                white-space: pre-wrap;
+                min-height: 3.4em;
+            }
+            .verdict {
+                font-weight: 600;
+            }
+            .ok {
+                color: #6d6;
+            }
+            .bad {
+                color: #f66;
+            }
+            .note {
+                color: #777;
+                font-size: 12px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>View-rotation interpolation repro</h1>
+        <p class="sub">
+            Same 90°-step rotation maths as the app; two animation schemes. The <em>burst</em>
+            buttons interrupt a rotation mid-flight — that is the reported trigger. Report browser +
+            version and which button misbehaves.
+        </p>
+
+        <div class="row">
+            <!-- ── PANEL A: what the app does today ─────────────────────────── -->
+            <div class="panel">
+                <h2>A — matrix3d + CSS transition (app today)</h2>
+                <p class="note">
+                    One element carries base tilt + basis matrix; CSS transitions it.
+                </p>
+                <div class="stage"><div class="cube" id="cubeA"></div></div>
+                <div>
+                    <button data-a="1">1 step (90°)</button>
+                    <button data-a="2">2 steps (180°)</button>
+                    <button data-a="3">3 steps (270°)</button>
+                    <button data-a="4">4 steps (360°)</button>
+                </div>
+                <div>
+                    <button data-a-burst="2">burst: 1 then 2</button>
+                    <button data-a-burst="3">burst: 1 then 3</button>
+                    <button data-a-reset>reset</button>
+                </div>
+                <div class="readout" id="outA">idle</div>
+            </div>
+
+            <!-- ── PANEL B: proposed WAAPI scheme ───────────────────────────── -->
+            <div class="panel good">
+                <h2>B — rotate3d + WAAPI on a pivot (proposed)</h2>
+                <p class="note">
+                    Pivot rotates about the <strong>world</strong> Y axis; the tilted cube sits
+                    inside it. No CSS transition at all.
+                </p>
+                <div class="stage">
+                    <div class="pivot" id="pivotB"><div class="cube" id="cubeB"></div></div>
+                </div>
+                <div>
+                    <button data-b="1">1 step (90°)</button>
+                    <button data-b="2">2 steps (180°)</button>
+                    <button data-b="3">3 steps (270°)</button>
+                    <button data-b="4">4 steps (360°)</button>
+                </div>
+                <div>
+                    <button data-b-burst="2">burst: 1 then 2</button>
+                    <button data-b-burst="3">burst: 1 then 3</button>
+                    <button data-b-reset>reset</button>
+                </div>
+                <div class="readout" id="outB">idle</div>
+            </div>
+        </div>
+
+        <script>
+            // ── cube construction (same for both panels) ──────────────────────
+            const COLORS = ['#d33', '#2a2', '#36f', '#fd4', '#fa4', '#999'];
+            function buildCube(root) {
+                root.innerHTML = '';
+                for (let z = -1; z <= 1; z++) {
+                    const c = document.createElement('div');
+                    c.className = 'cubie';
+                    c.style.transform = `translate3d(0px,0px,${z * 54}px)`;
+                    [
+                        ['translateZ(27px)', 0],
+                        ['rotateY(90deg) translateZ(27px)', 2],
+                        ['rotateY(180deg) translateZ(27px)', 1],
+                        ['rotateY(-90deg) translateZ(27px)', 3],
+                    ].forEach(([t, ci]) => {
+                        const f = document.createElement('div');
+                        f.className = 'f';
+                        f.style.transform = t;
+                        f.style.background = COLORS[ci % 6];
+                        c.appendChild(f);
+                    });
+                    root.appendChild(c);
+                }
+            }
+            const cubeA = document.getElementById('cubeA');
+            const cubeB = document.getElementById('cubeB');
+            const pivotB = document.getElementById('pivotB');
+            buildCube(cubeA);
+            buildCube(cubeB);
+
+            // ── orientation maths (mirrors src/views/basic/navigation.ts) ─────
+            const IDENTITY = {
+                vR: { x: 1, y: 0, z: 0 },
+                vU: { x: 0, y: 1, z: 0 },
+                vF: { x: 0, y: 0, z: 1 },
+            };
+            // rotateViewRight: vF_new = -vR, vR_new = vF, vU unchanged
+            const rotRight = o => ({
+                vF: { x: -o.vR.x, y: -o.vR.y, z: -o.vR.z },
+                vR: { ...o.vF },
+                vU: { ...o.vU },
+            });
+            const after = n => {
+                let o = { vR: { ...IDENTITY.vR }, vU: { ...IDENTITY.vU }, vF: { ...IDENTITY.vF } };
+                for (let i = 0; i < n; i++) o = rotRight(o);
+                return o;
+            };
+            const BASE_X = -25,
+                BASE_Y = -35;
+            const basis = o =>
+                `matrix3d(${o.vR.x},${o.vU.x},${o.vF.x},0, ${o.vR.y},${o.vU.y},${o.vF.y},0, ` +
+                `${o.vR.z},${o.vU.z},${o.vF.z},0, 0,0,0,1)`;
+            const transformFor = o => `rotateX(${BASE_X}deg) rotateY(${BASE_Y}deg) ${basis(o)}`;
+            const baseTilt = `rotateX(${BASE_X}deg) rotateY(${BASE_Y}deg) ${basis(after(0))}`;
+
+            // ── metrics ───────────────────────────────────────────────────────
+            const nums = s => {
+                if (!s || s === 'none') return null;
+                const a = s
+                    .slice(s.indexOf('(') + 1, -1)
+                    .split(',')
+                    .map(Number);
+                return a.length === 16 ? a : null;
+            };
+            // Signed world-Y angle of a matrix that is a pure rotation about Y
+            // (cos = m11, sin = -m13).
+            //
+            // A rotation of exactly 0°/360° about Y IS the identity, and browsers
+            // serialize the identity as 2D `matrix(1,0,0,1,0,0)` rather than a
+            // matrix3d. Treating that as "not a 3D matrix" would silently drop the
+            // 0° and 360° frames and make a correct animation look short, so a 2D
+            // matrix is read as angle 0.
+            const yAngleFromRaw = raw => {
+                if (!raw || raw === 'none') return null;
+                if (raw.startsWith('matrix(')) return 0; // identity in 2D
+                const a = nums(raw);
+                return a ? (Math.atan2(-a[2], a[0]) * 180) / Math.PI : null;
+            };
+            const yAngle = a => (Math.atan2(-a[2], a[0]) * 180) / Math.PI;
+
+            function measure(el, ms = 950) {
+                return new Promise(resolve => {
+                    const ang = [];
+                    const t0 = performance.now();
+                    const tick = () => {
+                        const v = yAngleFromRaw(getComputedStyle(el).transform);
+                        if (v !== null) ang.push(v);
+                        if (performance.now() - t0 < ms) requestAnimationFrame(tick);
+                        else resolve({ ang, collapsed: 0 });
+                    };
+                    requestAnimationFrame(tick);
+                });
+            }
+
+            function report({ ang, collapsed }, out, expected) {
+                if (ang.length < 3) {
+                    out.innerHTML = 'no frames captured';
+                    return;
+                }
+                // Unwrap so the total travelled angle accumulates across the ±180° wrap.
+                let sweep = 0;
+                for (let i = 1; i < ang.length; i++) {
+                    let d = ang[i] - ang[i - 1];
+                    while (d > 180) d -= 360;
+                    while (d < -180) d += 360;
+                    sweep += d;
+                }
+                const ok = Math.abs(Math.abs(sweep) - expected) < 15 && collapsed === 0;
+                out.innerHTML =
+                    `frames       ${ang.length}\n` +
+                    `collapsed2D  ${collapsed}\n` +
+                    `swept        ${sweep.toFixed(1)}°   (want ±${expected}°)\n` +
+                    `<span class="verdict ${ok ? 'ok' : 'bad'}">${ok ? 'OK' : 'MISBEHAVES'}</span>`;
+            }
+
+            // ── PANEL A: matrix3d + CSS transition ────────────────────────────
+            let stepsA = 0; // committed orientation, in 90° steps
+            const writeA = () => {
+                cubeA.style.transform = transformFor(after(stepsA));
+            };
+            const resetA = () => {
+                stepsA = 0;
+                cubeA.classList.add('no-transition');
+                writeA();
+                void cubeA.offsetHeight;
+                cubeA.classList.remove('no-transition');
+            };
+            const outA = document.getElementById('outA');
+            document.querySelectorAll('[data-a]').forEach(b =>
+                b.addEventListener('click', async () => {
+                    const steps = Number(b.dataset.a);
+                    const p = measure(cubeA);
+                    stepsA += steps;
+                    writeA();
+                    report(await p, outA, steps * 90);
+                })
+            );
+            document.querySelectorAll('[data-a-burst]').forEach(b =>
+                b.addEventListener('click', async () => {
+                    const total = Number(b.dataset.aBurst);
+                    const p = measure(cubeA);
+                    // First step, then interrupt 120ms in with the rest.
+                    stepsA += 1;
+                    writeA();
+                    setTimeout(() => {
+                        stepsA += total - 1;
+                        writeA();
+                    }, 120);
+                    report(await p, outA, total * 90);
+                })
+            );
+            document.querySelector('[data-a-reset]').addEventListener('click', () => {
+                resetA();
+                outA.textContent = 'reset';
+            });
+
+            // ── PANEL B: pivot + WAAPI rotate3d ───────────────────────────────
+            // The cube's own transform is static (base tilt); the pivot carries
+            // the world-axis rotation, so the animation is a pure angle ramp.
+            cubeB.style.transform = baseTilt;
+            let curAngleB = 0; // degrees, world Y
+            let animB = null;
+            const outB = document.getElementById('outB');
+
+            const angleOfPivot = () => {
+                const a = nums(getComputedStyle(pivotB).transform);
+                return a ? yAngle(a) : curAngleB;
+            };
+
+            const startAnimB = (deltaDeg, durationMs) => {
+                const from = curAngleB;
+                const to = from + deltaDeg;
+                if (animB) animB.cancel();
+                animB = pivotB.animate(
+                    [
+                        { transform: `rotate3d(0,1,0,${from}deg)` },
+                        { transform: `rotate3d(0,1,0,${to}deg)` },
+                    ],
+                    { duration: durationMs, easing: 'ease-out', fill: 'both' }
+                );
+                const done = animB.finished;
+                curAngleB = to;
+                return { anim: animB, done };
+            };
+
+            document.querySelectorAll('[data-b]').forEach(b =>
+                b.addEventListener('click', async () => {
+                    const steps = Number(b.dataset.b);
+                    const p = measure(pivotB);
+                    const { anim, done } = startAnimB(steps * 90, 250);
+                    await done.catch(() => {});
+                    // Bake the settled angle, then drop the fill so nothing lingers.
+                    pivotB.style.transform = `rotate3d(0,1,0,${curAngleB}deg)`;
+                    anim.cancel();
+                    report(await p, outB, steps * 90);
+                })
+            );
+            document.querySelectorAll('[data-b-burst]').forEach(b =>
+                b.addEventListener('click', async () => {
+                    const total = Number(b.dataset.bBurst);
+                    const p = measure(pivotB);
+                    startAnimB(90, 250);
+                    setTimeout(() => {
+                        // Interrupt: adopt the angle reached so far, then animate to
+                        // the ABSOLUTE target (total*90), not "current + remaining" —
+                        // the interrupted angle is already part of the total.
+                        curAngleB = angleOfPivot();
+                        startAnimB(total * 90 - curAngleB, 250);
+                    }, 120);
+                    setTimeout(async () => {
+                        pivotB.style.transform = `rotate3d(0,1,0,${curAngleB}deg)`;
+                        animB?.cancel();
+                        report(await p, outB, total * 90);
+                    }, 700);
+                })
+            );
+            document.querySelector('[data-b-reset]').addEventListener('click', () => {
+                animB?.cancel();
+                curAngleB = 0;
+                pivotB.style.transform = 'rotate3d(0,1,0,0deg)';
+                outB.textContent = 'reset';
+            });
+
+            // ── environment banner ────────────────────────────────────────────
+            document
+                .querySelector('p.sub')
+                .insertAdjacentHTML('beforeend', `<br><strong>UA:</strong> ${navigator.userAgent}`);
+
+            // Auto-run for scripted validation: ?autorun=1
+            if (new URLSearchParams(location.search).get('autorun') === '1') {
+                window.__repro = { measure, report, outA, outB };
+            }
+        </script>
+    </body>
+</html>
