@@ -12,4 +12,8 @@ not repeat each other's content, so they cannot drift apart.
   [docs/visuals/firefox-resize-issue.png](./docs/visuals/firefox-resize-issue.png)
   Investigate and fix.
 
+- Investigate possibility of simplifying move table such as key will be the
+  primary/canonical "identifier" of the move and alternative notations will be
+  placed in an alternative notation list in the value object (move descriptor?).
+
 (nothing atm)
