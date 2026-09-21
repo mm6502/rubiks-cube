@@ -15,9 +15,11 @@
 //
 //   R = M' · Mᵀ
 //
-// and R is always a 90° rotation about one of the six world axes (±X, ±Y, ±Z) —
-// never a fixed axis, which is why the animation's axis has to be derived from
-// state on every rotation rather than hard-coded.
+// and R is always a 90° rotation about one of the six signed world axes (±X, ±Y,
+// ±Z) — never a fixed axis, which is why the animation's axis has to be derived
+// from state on every rotation rather than hard-coded. Over all 24 × 24 pairs all
+// six are reachable; the four single-step gestures alone reach only ±X and ±Y,
+// because none of them rolls about the view normal.
 //
 // This module is deliberately free of DOM and of the view's state object: the
 // vectors in, a rotation out. That makes the claim above testable exhaustively
@@ -176,8 +178,10 @@ const snapAxis = (v: Vector3): Vector3 => ({
  *
  * - **180°.** The skew part is identically zero, so the axis cannot be read from
  *   it and `atan2(0, −1)` says nothing about direction (there is none to say —
- *   a half turn is the same either way). The axis is recovered from the diagonal
- *   instead.
+ *   a half turn is the same either way). The axis is recovered from the diagonal,
+ *   which gives |nᵢ| only, with the relative signs taken from the off-diagonal
+ *   products `R[i][j] = 2·nᵢ·nⱼ`; a single overall sign flip is a no-op because
+ *   `n` and `−n` are the same half turn.
  * - **0°.** The matrix is the identity and there is nothing to animate; a zero
  *   angle is reported with an arbitrary axis, which callers skip.
  *
@@ -201,13 +205,26 @@ export function axisAngleFromMatrix(r: number[][]): AxisAngle {
 
     // 180°: the skew part vanishes, so recover the axis from the diagonal.
     if (sinScale < 1e-9) {
-        const x = Math.sqrt(Math.max(0, (r[0][0] + 1) / 2));
-        const y = Math.sqrt(Math.max(0, (r[1][1] + 1) / 2));
-        const z = Math.sqrt(Math.max(0, (r[2][2] + 1) / 2));
-        // Fix the sign from a non-zero off-diagonal entry so the choice is
-        // stable rather than an arbitrary pick between n and −n.
-        const sign = r[0][1] + r[1][0] + r[2][0] + r[0][2] < 0 ? -1 : 1;
-        const axis = snapAxis({ x: sign * x, y: sign * y, z: sign * z });
+        let x = Math.sqrt(Math.max(0, (r[0][0] + 1) / 2));
+        let y = Math.sqrt(Math.max(0, (r[1][1] + 1) / 2));
+        let z = Math.sqrt(Math.max(0, (r[2][2] + 1) / 2));
+
+        // The diagonal only gives magnitudes. A single overall sign flip is a
+        // no-op (n and −n are the same 180° rotation), but a MIXED sign — e.g.
+        // (1,−1,0)/√2 versus (1,1,0)/√2 — is a genuinely different axis, and that
+        // relative sign has to come from the off-diagonal products, where
+        // R[i][j] = 2·nᵢ·nⱼ at θ = 180°. Anchor x ≥ 0 (an arbitrary but stable
+        // choice of the two equivalent signs) and read y, z relative to it; if x
+        // is ~0, anchor y instead and read z relative to that.
+        if (x > 1e-6) {
+            if (r[0][1] + r[1][0] < 0) y = -y;
+            if (r[0][2] + r[2][0] < 0) z = -z;
+        } else if (y > 1e-6) {
+            if (r[1][2] + r[2][1] < 0) z = -z;
+        }
+        // else x = y = 0 — only z survives, and n = −n is the same rotation.
+
+        const axis = snapAxis({ x, y, z });
         // A numerically degenerate input could snap to all zeros; fall back to +Y
         // rather than emitting `rotate3d(0,0,0, …)`.
         if (axis.x === 0 && axis.y === 0 && axis.z === 0)

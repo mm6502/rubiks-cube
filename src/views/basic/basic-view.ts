@@ -99,6 +99,18 @@ type ActiveAnimation = {
  */
 const SKIP_ANIMATION_AFTER = 2;
 
+/**
+ * How long a throttled rotation sequence must stay quiet before it is considered
+ * settled.
+ *
+ * Past {@link SKIP_ANIMATION_AFTER} the rotations apply directly and start no
+ * animation, so there is no completion to await and nothing else can mark the end of
+ * the burst — the quiet period is the signal. Matches the shared animation duration
+ * (`animations.ts`), so an animated sequence and a throttled one restore the ghost
+ * strips after the same pause.
+ */
+const SEQUENCE_SETTLE_DELAY_MS = 300;
+
 export class BasicView implements CubeView {
     private state: BasicViewInternalData;
     private touchHandler: BasicTouchHandler | null = null;
@@ -139,6 +151,13 @@ export class BasicView implements CubeView {
      * `turnsInFlight` stays at one throughout a burst and cannot express its length.
      */
     private rotationsInSequence = 0;
+    /**
+     * Pending settle for a skip-throttled sequence.
+     *
+     * Restarted by every rotation in the burst, so it only fires once the burst has
+     * stopped — see {@link scheduleSequenceSettle}.
+     */
+    private sequenceSettleTimer: number | null = null;
 
     constructor(config?: { viewType?: string }) {
         const viewType = config?.viewType === 'basic-back' ? 'basic-back' : 'basic-front';
@@ -417,6 +436,9 @@ export class BasicView implements CubeView {
      * `hideAllStrips` only touches strips still flagged as showing.
      */
     private beginRotation(): void {
+        // A new rotation means the burst is still going, so a pending sequence settle
+        // is premature and must not be allowed to reveal the strips mid-burst.
+        this.clearSequenceSettleTimer();
         this.turnsInFlight++;
         this.rotationsInSequence++;
         this.ghostStickers?.setVisible(false, false);
@@ -434,14 +456,62 @@ export class BasicView implements CubeView {
      * The reveal is immediate. The cube's own motion has already been awaited by
      * whoever held the turn, so a fade-in delay would be a second, phantom turn:
      * the same 233ms pause the user reported after a whole-cube move.
+     *
+     * R7 needs a *sequence-level* boundary, not just this per-animation count. Once a
+     * burst has crossed {@link SKIP_ANIMATION_AFTER} its later steps apply the
+     * orientation directly, so no animation is left to await and this count reaches
+     * zero between two keystrokes of the same gesture — revealing the strips mid-burst
+     * and hiding them again on the next key. A skipped step must therefore not settle
+     * the sequence; see {@link scheduleSequenceSettle}.
      */
     private endRotation(): void {
         this.turnsInFlight = Math.max(0, this.turnsInFlight - 1);
-        if (this.turnsInFlight === 0) {
-            // The sequence is over, so the next gesture starts its count afresh.
-            this.rotationsInSequence = 0;
-            this.updateGhostEdges();
+        if (this.turnsInFlight !== 0) return;
+        // Past the threshold the sequence has no animation left to await, so "the cube
+        // has settled" can only mean "no further rotation arrived" — a quiet period.
+        if (this.rotationsInSequence > SKIP_ANIMATION_AFTER) {
+            this.scheduleSequenceSettle();
+            return;
         }
+        this.settleSequence();
+    }
+
+    /**
+     * End the sequence: let the next gesture start its count afresh, and put the
+     * strips back for the orientation now in effect.
+     */
+    private settleSequence(): void {
+        this.clearSequenceSettleTimer();
+        this.rotationsInSequence = 0;
+        this.updateGhostEdges();
+    }
+
+    /**
+     * Close a skip-throttled sequence after it goes quiet.
+     *
+     * A skipped rotation writes the settled transform and starts no animation, so
+     * there is nothing whose completion can mark the end of the sequence. Waiting for
+     * a short quiet period is the only honest signal available: every rotation restarts
+     * this timer (see {@link beginRotation}), so it can only fire once the burst has
+     * actually stopped, and the strips stay hidden for the whole of it (R7).
+     *
+     * The delay matches the shared animation duration, so a throttled burst and an
+     * animated one restore the strips after the same pause.
+     */
+    private scheduleSequenceSettle(): void {
+        this.clearSequenceSettleTimer();
+        this.sequenceSettleTimer = window.setTimeout(() => {
+            this.sequenceSettleTimer = null;
+            if (this.turnsInFlight !== 0) return;
+            this.settleSequence();
+        }, SEQUENCE_SETTLE_DELAY_MS);
+    }
+
+    /** Cancel a pending sequence settle, because the sequence is continuing. */
+    private clearSequenceSettleTimer(): void {
+        if (this.sequenceSettleTimer === null) return;
+        clearTimeout(this.sequenceSettleTimer);
+        this.sequenceSettleTimer = null;
     }
 
     /**
@@ -461,6 +531,7 @@ export class BasicView implements CubeView {
         const result = updateRotation(this.state, skipAnimation);
         const opened = result.kind === 'animating' ? result.animation : null;
         const finished = result.kind === 'animating' ? result.finished : null;
+        const settlesImmediately = !opened || !finished;
 
         // A rotation that supersedes another closes it here. The superseded one will
         // never settle on its own — its completion is refused by the identity guard
@@ -472,7 +543,7 @@ export class BasicView implements CubeView {
         }
         this.rotationAnimation = opened;
 
-        if (!opened || !finished) {
+        if (settlesImmediately) {
             this.endRotation();
             return;
         }
@@ -1199,6 +1270,7 @@ export class BasicView implements CubeView {
         this.rotationAnimation = null;
         this.turnsInFlight = 0;
         this.rotationsInSequence = 0;
+        this.clearSequenceSettleTimer();
 
         // Finalize any running animation
         this.finalizeAnimation();

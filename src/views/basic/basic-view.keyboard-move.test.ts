@@ -29,6 +29,7 @@ import { describe, expect, it } from 'vitest';
 import { Application } from '@/application';
 import { CubeController } from '@/cube-controller';
 import { getCubeInvariants } from '@/cube/core/cube-invariants';
+import { parseStringMove } from '@/cube/core/move-parser';
 import { Axis, Face, SUPPORTED_SIZES, type Vector3 } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { facePositionTo3D } from '@/cube/utils/sticker-position';
@@ -161,10 +162,21 @@ const AXIS_VECTOR: Record<string, Vector3> = {
     [Axis.Z]: { x: 0, y: 0, z: 1 },
 };
 
-/** The rotation matrix the engine's own definition of a notation performs. */
+/**
+ * The rotation matrix the engine's own definition of a notation performs.
+ *
+ * Resolved through the app's own parser rather than by a raw table lookup: the
+ * table stores one half-turn entry per base (`E2`), and the parser is what turns
+ * the `2'` spelling into that entry with a negated angle. Looking the notation up
+ * directly would report a valid `E2'` as undefined.
+ */
 function rotationOfNotation(notation: string, cubeSize: number): M3 | undefined {
-    const definition = getCubeInvariants(cubeSize).moveDefinitions.get(notation);
-    /* c8 ignore next — callers assert the notation is defined first */
+    let definition;
+    try {
+        definition = parseStringMove(notation, cubeSize)[0];
+    } catch {
+        return undefined;
+    }
     if (!definition) return undefined;
     return rodrigues(AXIS_VECTOR[definition.axis], definition.angle);
 }
@@ -356,16 +368,21 @@ describe('the reported sequence', () => {
 });
 
 describe('Ctrl+Shift+Arrow (180°) in a rotated view', () => {
-    it.each(ARROWS)('%s doubles the derived quarter turn, keeping its sense', () => {
+    it.each(ARROWS)('%s doubles the derived quarter turn, keeping its sense', key => {
         // A half turn keeps the sense it was doubled from: a doubled clockwise turn is `2`
         // and a doubled anticlockwise turn is `2'`. Checked by composing the quarter turn
         // with itself, which catches a normalisation that collapses the prime — the failure
         // mode of reusing the face-turn double helper on a signed slice turn.
+        //
+        // Both presses use the arrow under test, after the matching view rotation: the
+        // slice the key turns, and therefore the sense it turns it, depends on where the
+        // view is. Hardcoding ArrowRight here would make the three non-right cases
+        // duplicates and never check their signed 180° notation.
         const quarter = createFixture(3);
         let quarterNotation: string | undefined;
         try {
-            quarter.view.rotateViewRight();
-            quarterNotation = ctrlArrow(quarter, 'ArrowRight');
+            VIEW_STEP[key](quarter.view);
+            quarterNotation = ctrlArrow(quarter, key);
         } finally {
             quarter.dispose();
         }
@@ -373,8 +390,8 @@ describe('Ctrl+Shift+Arrow (180°) in a rotated view', () => {
         const half = createFixture(3);
         let halfNotation: string | undefined;
         try {
-            half.view.rotateViewRight();
-            halfNotation = ctrlArrow(half, 'ArrowRight', true);
+            VIEW_STEP[key](half.view);
+            halfNotation = ctrlArrow(half, key, true);
         } finally {
             half.dispose();
         }
@@ -382,10 +399,14 @@ describe('Ctrl+Shift+Arrow (180°) in a rotated view', () => {
         expect(halfNotation, 'Shift should infer a move').toBeDefined();
         expect(halfNotation, `${halfNotation} should be a 180° move`).toMatch(/2'?$/);
 
-        const quarterRotation = rotationOfNotation(quarterNotation!, 3)!;
+        const quarterRotation = rotationOfNotation(quarterNotation!, 3);
+        expect(quarterRotation, `quarter notation ${quarterNotation} is defined`).toBeDefined();
+        const halfRotation = rotationOfNotation(halfNotation!, 3);
+        expect(halfRotation, `half notation ${halfNotation} is defined`).toBeDefined();
+
         expectSameRotation(
-            rotationOfNotation(halfNotation!, 3)!,
-            multiply(quarterRotation, quarterRotation),
+            halfRotation!,
+            multiply(quarterRotation!, quarterRotation!),
             'half turn should be the quarter turn applied twice'
         );
     });

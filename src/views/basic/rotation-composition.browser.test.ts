@@ -60,18 +60,21 @@ let page: Page | null = null;
 let unavailable = false;
 
 beforeAll(async () => {
+    const { chromium } = await import('playwright');
+    // Only a failed LAUNCH is skippable (no browser binary installed). Page creation and
+    // navigation are pure setup that must work once Chromium exists; catching them too
+    // would let any harness bug masquerade as "unavailable" and pass the suite without
+    // ever running the assertion.
     try {
-        const { chromium } = await import('playwright');
-        const launched = await chromium.launch({ headless: true });
-        browser = launched;
-        page = await launched.newPage();
-        // A blank page is enough: this is pure CSS transform algebra.
-        await page.goto('data:text/html,<div id="h" style="position:absolute"></div>');
+        browser = await chromium.launch({ headless: true });
     } catch {
         unavailable = true;
         browser = null;
-        page = null;
+        return;
     }
+    page = await browser.newPage();
+    // A blank page is enough: this is pure CSS transform algebra.
+    await page.goto('data:text/html,<div id="h" style="position:absolute"></div>');
 }, 60_000);
 
 afterAll(async () => {

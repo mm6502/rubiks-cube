@@ -244,7 +244,52 @@ describe('rotation-math', () => {
         expect(axis.z).toBe(0);
     });
 
-    it('uses six distinct axes across the rotations', () => {
+    it('recovers a MIXED-sign 180° axis, not just a uniformly-signed one', () => {
+        // 180° about (1,−1,0)/√2. The diagonal alone only gives |x|,|y|,|z|, so a
+        // recovery that applies one overall sign to every component can only ever
+        // land on (1,1,0)/√2 or (−1,−1,0)/√2 — both a different axis from this one.
+        // The off-diagonal products are what carry the relative sign between x and y.
+        const r = [
+            [0, -1, 0],
+            [-1, 0, 0],
+            [0, 0, -1],
+        ];
+        const { axis, angle } = axisAngleFromMatrix(r);
+        expect(angle).toBeCloseTo(180, 6);
+        const norm = Math.SQRT1_2;
+        // x and y must have opposite sign and equal magnitude; an overall flip
+        // (both negated) is the same rotation and also acceptable.
+        expect(Math.abs(axis.x)).toBeCloseTo(norm, 6);
+        expect(Math.abs(axis.y)).toBeCloseTo(norm, 6);
+        expect(axis.x).toBeCloseTo(-axis.y, 6);
+        expect(axis.z).toBeCloseTo(0, 6);
+    });
+
+    it('uses six distinct signed world axes across every relative rotation', () => {
+        // Requirement R2: the axis is derived from state, never fixed. Measured over all
+        // 24 × 24 orientation pairs, the 90° rotations use exactly the six signed world
+        // axes (±X, ±Y, ±Z), so a fixed axis (1 distinct) or any partial scheme fails.
+        //
+        // The four arrow *steps* are deliberately not the population here: none of them
+        // rolls about the view normal, so across all 24 orientations they reach only
+        // ±X and ±Y — four axes. A test built from them could not tell six from four,
+        // which is what this assertion exists to do.
+        const axes = new Set<string>();
+        for (const a of reachableOrientations()) {
+            for (const b of reachableOrientations()) {
+                const ramp = rotationBetween(a, b);
+                if (!ramp || Math.abs(ramp.angle - 90) > 1e-6) continue;
+                axes.add(axisToCss(ramp.axis));
+            }
+        }
+        expect(axes.size).toBe(6);
+    });
+
+    it('reaches only the two tilt axes from the four arrow steps', () => {
+        // The complement of the test above, pinned so the four-axis figure is not
+        // mistaken for a regression to a partially state-derived scheme. It is a
+        // property of the gestures: left/right keep `viewUp` fixed and up/down keep
+        // `viewRight` fixed, so no arrow can turn about the view normal.
         const axes = new Set<string>();
         for (const o of reachableOrientations()) {
             for (const [, step] of STEPS) {
@@ -253,9 +298,7 @@ describe('rotation-math', () => {
                 axes.add(axisToCss(ramp!.axis));
             }
         }
-        // A fixed axis would leave this at 1; six distinct signed axes is what
-        // confirms the axis is state-derived, which is requirement R2.
-        expect(axes.size).toBeGreaterThanOrEqual(4);
+        expect([...axes].sort()).toEqual(['-1,0,0', '0,-1,0', '0,1,0', '1,0,0']);
     });
 
     it('every one of the 24 orientations × 4 rotations lands exactly (96/96)', () => {

@@ -565,6 +565,48 @@ describe('ghost strips across the orientation-changing paths', () => {
         }
     });
 
+    // R7, second half — a skipped rotation must not settle the sequence it belongs to.
+    // Reported by review: when the third rapid rotation crosses the skip threshold,
+    // `applyRotation` closes the superseded turn *and* the skipped turn in one
+    // synchronous call, so `turnsInFlight` reaches zero and the strips are revealed
+    // even though the burst is still producing rotations. Checked per step rather
+    // than only at the end, because the defect is a transient flash: by the time the
+    // burst finishes the strips are hidden again and a final-state assertion sees
+    // nothing wrong.
+    it('R7: a skip-throttled rotation does not reveal the strips mid-burst', async () => {
+        const h = createHarness();
+        try {
+            enableGhosts(h);
+            expect(shownIds(h).length, 'visible before the sequence').toBe(6);
+
+            // Walk past the threshold (SKIP_ANIMATION_AFTER = 2) with realistic
+            // key-repeat gaps. Rotations 3+ land on the skip branch: each supersedes
+            // the previous turn and settles itself, taking the count to zero while the
+            // burst is still going.
+            for (let i = 0; i < 6; i++) {
+                if (i > 0) h.setProgress(0.1 * i);
+                h.view.rotateViewRight();
+
+                // Shorter than the sequence-settle delay, so this models a held-down
+                // key rather than a finished gesture. Any timer a premature reveal
+                // rides on has to survive being restarted here.
+                await vi.advanceTimersByTimeAsync(50);
+
+                expect(
+                    shownIds(h),
+                    `strips must stay hidden after rotation ${i + 1} of the burst`
+                ).toEqual([]);
+            }
+
+            // The sequence settles once the burst actually stops, so the strips are not
+            // stranded hidden.
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(shownIds(h), 'restored once the burst settled').toEqual(shouldIds(h));
+        } finally {
+            h.release();
+        }
+    });
+
     // R4 — reduced motion. Currently unrequired and untested; the orientation must
     // be applied without animating.
     it('R4: under prefers-reduced-motion a view rotation applies directly and does not animate', () => {
