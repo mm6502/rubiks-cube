@@ -7,12 +7,6 @@ not repeat each other's content, so they cannot drift apart.
 
 ## Current tasks
 
-- Basic View - when view is initialized with ghosts stickers enabled, and cube
-  in a custom rotated state, the ghost stickers do not align correctly with the
-  cube's current orientation. Screenshot in
-  [docs/visuals/ghost-stickers-aligned-incorrectly.png](./docs/visuals/ghost-stickers-aligned-incorrectly.png)
-  Investigate and fix.
-
 - Investigate possibility of simplifying move table such as key will be the
   primary/canonical "identifier" of the move and alternative notations will be
   placed in an alternative notation list in the value object (move descriptor?).

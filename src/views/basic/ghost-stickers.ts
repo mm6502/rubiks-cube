@@ -116,10 +116,42 @@ export class GhostStickers {
     private cubeElement: HTMLElement;
     private pendingFadeTimer: number | null = null;
     private getModel: () => ReadOnlyCubeModel | null;
+    /**
+     * Signature of the selection {@link updateVisibleEdges} last applied.
+     *
+     * Needed because "are strips showing?" and "are the *right* strips showing?"
+     * are different questions, and callers such as {@link setOpacityIndex} used to
+     * ask the first while meaning the second. `create()` leaves every strip hidden,
+     * and a selection shown for one orientation is stale the moment another is
+     * restored — so the answer has to be about identity, not presence.
+     */
+    private appliedSelection: string | null = null;
 
     constructor(cubeElement: HTMLElement, getModel: () => ReadOnlyCubeModel | null) {
         this.cubeElement = cubeElement;
         this.getModel = getModel;
+    }
+
+    /**
+     * A stable signature of a silhouette selection.
+     *
+     * Face order is normalized, so two callers that name the same three visible
+     * faces in a different order produce the same signature. `isTilted`/`isPitched`
+     * participate because they decide the near/far depth, and therefore which of
+     * two candidate strips is the correct one.
+     */
+    private static selectionSignature(
+        visibleFaces: Array<{ face: Face }>,
+        hiddenFaces: Array<{ face: Face }>,
+        isTilted: boolean,
+        isPitched: boolean
+    ): string {
+        const names = (faces: Array<{ face: Face }>): string =>
+            faces
+                .map(f => f.face)
+                .sort()
+                .join(',');
+        return `${names(visibleFaces)}|${names(hiddenFaces)}|${isTilted}|${isPitched}`;
     }
 
     /**
@@ -223,6 +255,14 @@ export class GhostStickers {
 
         this.cancelPendingFade();
         this.hideAllStrips();
+        // Recorded before the reveal, because the reveal can be deferred by a fade
+        // timer while this selection is already the current one.
+        this.appliedSelection = GhostStickers.selectionSignature(
+            visibleFaces,
+            hiddenFaces,
+            isTilted,
+            isPitched
+        );
 
         const toShow = this.computeStripsToShow(visibleSet, hiddenSet, nearFace, farSourceFace);
 
@@ -404,6 +444,11 @@ export class GhostStickers {
                     }
                 }
             }
+            // Nothing is on screen any more, so no selection is "already applied".
+            // Leaving the signature behind would let a later `setOpacityIndex` for
+            // this same orientation conclude the strips are current and skip the
+            // recompute — which shows nothing, because hiding just cleared them.
+            this.appliedSelection = null;
         }
     }
 
@@ -469,16 +514,26 @@ export class GhostStickers {
         isTilted = false,
         isPitched = false
     ): void {
-        // Use instance-level strip state, not the shared module variable,
-        // because the source view's toggle() already mutated the global before emitting.
-        const wasVisible = this.strips.some(s => s.isShowing);
+        // Compare against the selection last *applied*, not against whether any
+        // strip happens to be showing. Those differ in exactly the case this guards:
+        // `create()` shows the strips for the default orientation, and a restored
+        // custom orientation arrives afterwards — asking "is anything showing?"
+        // answered yes and skipped the recompute, leaving the strips on the default
+        // orientation's silhouette while the cube showed another.
+        const applied = this.appliedSelection;
+        const requested =
+            visibleFaces && hiddenFaces
+                ? GhostStickers.selectionSignature(visibleFaces, hiddenFaces, isTilted, isPitched)
+                : null;
+        const wasVisible = applied !== null && applied === requested;
+
         setGhostOpacityIndex(index);
         if (isGhostVisible() && visibleFaces && hiddenFaces) {
             if (wasVisible) {
-                // Already showing — just smoothly transition opacity
+                // Same silhouette as the one already shown — only the opacity changed.
                 this.applyOpacity();
             } else {
-                // Turning on from off — need to determine which strips to show
+                // Turning on, or the orientation changed under an existing selection.
                 this.updateVisibleEdges(visibleFaces, hiddenFaces, isTilted, isPitched);
                 this.applyOpacity();
             }
