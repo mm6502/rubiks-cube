@@ -176,4 +176,97 @@ describe('BasicView (Basic 2) - ghost stickers integration', () => {
         const view = createView('basic-front', model);
         expect(() => ghostHintsAction(view)()).not.toThrow();
     });
+
+    it('restoring a custom orientation re-selects the strips for that orientation', () => {
+        // The reported defect. Ghosts are enabled *before* the view exists, which is
+        // the ordinary case when a session is restored: the opacity index is
+        // module-global, so `create()` shows the strips for the DEFAULT orientation
+        // and the saved custom orientation only arrives afterwards, via `setState`.
+        //
+        // `setOpacityIndex` decides whether to recompute the strip selection from
+        // `strips.some(s => s.isShowing)` — asking "are any strips showing?" when the
+        // question that matters is "is the selection right for the orientation being
+        // applied?". `create()` has already shown six, so it took the opacity-only
+        // branch and the selection stayed on the default orientation's silhouette:
+        // strips kept hanging off edges that are no longer the visible/hidden
+        // boundary, and the real silhouette edges kept none.
+        setGhostOpacityIndex(2);
+
+        const view = createView('basic-back', model);
+        const cubeElement = view.getCubeElement()!;
+
+        // A rotation that moves a different set of faces to the front.
+        vi.useFakeTimers();
+        view.setState({
+            viewRight: { x: 0, y: 0, z: 1 },
+            viewUp: { x: 0, y: 1, z: 0 },
+            viewForward: { x: -1, y: 0, z: 0 },
+            ghostOpacityIndex: 2,
+        });
+        // The re-selection fades in (the same 200ms as turning ghosts on), so let it.
+        vi.advanceTimersByTime(201);
+        vi.useRealTimers();
+
+        const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(
+            view.getState() as unknown as Parameters<typeof getVisibleFacesWithPositions>[0]
+        );
+
+        let shownCount = 0;
+        for (const strip of cubeElement.querySelectorAll<HTMLElement>('[data-host-face]')) {
+            if (strip.style.display === 'none') continue;
+            shownCount++;
+            const host = strip.getAttribute('data-host-face');
+            const source = strip.getAttribute('data-source-face');
+            expect(
+                visibleFaces.some(f => f.face === host) && hiddenFaces.some(f => f.face === source),
+                `${host}<-${source} is not a silhouette edge of the restored orientation`
+            ).toBe(true);
+        }
+        // 3 visible faces x 2 silhouette edges each — the same count the default
+        // orientation produces, so a selection that was merely *never recomputed*
+        // passes a count-only check while failing the invariant above.
+        expect(shownCount, 'three visible faces x two silhouette edges each').toBe(6);
+    });
+
+    it('re-shows the strips when the same orientation is restored after a toggle off', () => {
+        // Guards the fix above from over-reaching. The selection is now compared by
+        // identity, so "this orientation is already applied" can be answered from a
+        // remembered signature — and that signature must not outlive the strips it
+        // describes. Hiding clears every strip, so it must clear the signature too;
+        // otherwise restoring the same orientation takes the opacity-only branch and
+        // shows nothing, because the strips it believes are current were just hidden.
+        setGhostOpacityIndex(2);
+
+        const view = createView('basic-front', model);
+        const cubeElement = view.getCubeElement()!;
+
+        vi.useFakeTimers();
+        const action = ghostHintsAction(view);
+        action(); // on -> off
+        // The fade-out hides after its 400ms transition, not the 200ms fade-in.
+        vi.advanceTimersByTime(401);
+
+        expect(
+            Array.from(cubeElement.querySelectorAll<HTMLElement>('[data-host-face]')).filter(
+                s => s.style.display !== 'none'
+            ).length,
+            'hidden by the toggle'
+        ).toBe(0);
+
+        view.setState({
+            viewRight: { x: 1, y: 0, z: 0 },
+            viewUp: { x: 0, y: 1, z: 0 },
+            viewForward: { x: 0, y: 0, z: 1 },
+            ghostOpacityIndex: 2,
+        });
+        vi.advanceTimersByTime(201);
+        vi.useRealTimers();
+
+        expect(
+            Array.from(cubeElement.querySelectorAll<HTMLElement>('[data-host-face]')).filter(
+                s => s.style.display !== 'none'
+            ).length,
+            'strips must come back for the restored orientation'
+        ).toBe(6);
+    });
 });

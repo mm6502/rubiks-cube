@@ -28,6 +28,13 @@ jobs:
         run: npm run format:check
       - name: Type check
         run: npm run type-check
+      # `rotation-composition.browser.test.ts` skips itself when Chromium is
+      # absent, so without this install its assertions silently never run here —
+      # and it is the only check that can catch a transposed `matrix3d` reading,
+      # because it asks the browser's own transform parser rather than
+      # hand-written helpers that share the implementation's convention.
+      - name: Install Chromium for browser-backed tests
+        run: npx playwright install --with-deps chromium
       - name: Unit tests with coverage gate
         run: npm run test:coverage
       - name: Build

@@ -1,6 +1,9 @@
 // Animation system for the Basic per-cubie view
 import { Axis, QuarterTurn } from '@/cube/types';
+import type { Vector3 } from '@/cube/types';
 import { MoveExecutedEvent } from '@/types';
+
+import { axisToCss } from './rotation-math';
 
 /**
  * Animation configuration for the Basic view.
@@ -14,11 +17,165 @@ export type BasicAnimationConfig = {
 
 /**
  * Default animation configuration.
+ *
+ * Owned here, in the module that performs the animation, so that every consumer
+ * — move animation and view rotation alike — shares one duration rather than
+ * each carrying its own copy that can drift.
  */
-const DEFAULT_BASIC_ANIMATION_CONFIG: BasicAnimationConfig = {
+export const DEFAULT_BASIC_ANIMATION_CONFIG: BasicAnimationConfig = {
     duration: 300,
     easing: 'ease-out',
 };
+
+/**
+ * How one rotation animation is started.
+ */
+export type RotationAnimationOptions = {
+    /**
+     * Transform text placed *before* the rotation in every keyframe, and
+     * {@link suffix} after it. The caller composes its own stack this way: view
+     * rotation needs the base tilt inside the rotation and the basis matrix
+     * underneath it, while move animation needs neither.
+     */
+    prefix?: string;
+    /** Transform text placed after the rotation in every keyframe. */
+    suffix?: string;
+    /** Duration override, in milliseconds. */
+    duration?: number;
+    /** Easing override. */
+    easing?: string;
+};
+
+/**
+ * A started rotation animation.
+ */
+export type RotationAnimation = {
+    /** The underlying animation, so the caller can cancel or inspect it. */
+    animation: Animation;
+    /**
+     * Settles exactly once, with `true` when the rotation ran to completion and
+     * `false` when it was cancelled.
+     *
+     * It deliberately never rejects. Cancellation is the normal path when one
+     * rotation interrupts another, so surfacing it as a rejection would make the
+     * common case an unhandled-rejection hazard — and the caller needs to close
+     * its rotation on *both* outcomes anyway.
+     */
+    finished: Promise<boolean>;
+};
+
+/**
+ * Whether the user has asked for reduced motion.
+ *
+ * Every animation in this view consults this, so it is read in one place: both
+ * rotation animations decline to animate and the caller applies the result
+ * directly. `matchMedia` is absent in a bare jsdom, so it is guarded rather than
+ * assumed.
+ */
+export function prefersReducedMotion(): boolean {
+    return (
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches === true
+    );
+}
+
+/**
+ * Animate a rotation as an angle ramped about a known axis.
+ *
+ * This is the one primitive behind both rotation animations in the Basic view.
+ * It exists because the alternative — writing a new `matrix3d` and letting a CSS
+ * `transition: transform` interpolate it — blends the matrix *entries*, so every
+ * intermediate frame leaves the rotation group and shears the cube. Interrupting
+ * such a transition adopts the already-sheared matrix as the next start, which is
+ * the visible unwind users reported. Ramping a single angle keeps every frame a
+ * genuine rotation of the cube.
+ *
+ * Deliberately narrow, per the plan's lifecycle decision:
+ *
+ * - It does **not** set `transform-origin`. Move animation wants the cube centre
+ *   (`faceHalf, faceHalf, 0`) while `.cube` carries `50% 50% 0`; baking either in
+ *   would silently misplace the other.
+ * - It does **not** create, wrap, or reparent any element, and does not bake the
+ *   settled transform. Move animation reparents cubies into a pivot and reparents
+ *   them back; view rotation has no pivot at all.
+ * - The angle arrives as a plain number and is used verbatim. It is never
+ *   normalised to a shortest arc, so a 270° sweep stays 270° — narrowing it to
+ *   −90° would land on the same orientation while travelling the wrong way.
+ *
+ * @param element - The element to animate.
+ * @param axis - Rotation axis, in the same space as the composed transform. A
+ *   caller working in a different space applies its own sign convention first —
+ *   move animation negates Y and Z to match CSS space.
+ * @param fromDeg - Angle at the start of the ramp.
+ * @param toDeg - Angle at the end of the ramp.
+ * @param options - Transform prefix/suffix and timing overrides.
+ * @returns The animation and its completion signal.
+ */
+export function animateRotation(
+    element: HTMLElement,
+    axis: Vector3,
+    fromDeg: number,
+    toDeg: number,
+    options: RotationAnimationOptions = {}
+): RotationAnimation {
+    const prefix = options.prefix ?? '';
+    const suffix = options.suffix ?? '';
+    const cssAxis = axisToCss(axis);
+    const frame = (deg: number): string => `${prefix}rotate3d(${cssAxis},${deg}deg)${suffix}`;
+
+    const animation = element.animate(
+        [{ transform: frame(fromDeg) }, { transform: frame(toDeg) }],
+        {
+            duration: options.duration ?? DEFAULT_BASIC_ANIMATION_CONFIG.duration,
+            easing: options.easing ?? DEFAULT_BASIC_ANIMATION_CONFIG.easing,
+            fill: 'forwards',
+        }
+    );
+
+    const finished = animation.finished.then(
+        () => true,
+        () => false
+    );
+
+    return { animation, finished };
+}
+
+/**
+ * Animate between two fully-composed transform strings.
+ *
+ * The companion to {@link animateRotation} for the one change an axis ramp cannot
+ * express: the base tilt/pitch is a *pair* of angles (`rotateX(...) rotateY(...)`),
+ * and animating it means interpolating two coupled rotations rather than one.
+ *
+ * Both strings must describe the same transform stack with only the animated part
+ * differing, because CSS interpolates matching lists function-by-function. That is
+ * what keeps the cube's orientation frozen while only the presentation angles move.
+ *
+ * @param element - The element to animate.
+ * @param fromTransform - The composed transform at the start of the ramp.
+ * @param toTransform - The composed transform at the end of the ramp.
+ * @param options - Timing overrides.
+ */
+export function animateTransformPair(
+    element: HTMLElement,
+    fromTransform: string,
+    toTransform: string,
+    options: Pick<RotationAnimationOptions, 'duration' | 'easing'> = {}
+): RotationAnimation {
+    const animation = element.animate([{ transform: fromTransform }, { transform: toTransform }], {
+        duration: options.duration ?? DEFAULT_BASIC_ANIMATION_CONFIG.duration,
+        easing: options.easing ?? DEFAULT_BASIC_ANIMATION_CONFIG.easing,
+        fill: 'forwards',
+    });
+
+    const finished = animation.finished.then(
+        () => true,
+        () => false
+    );
+
+    return { animation, finished };
+}
 
 /**
  * Result of starting a layer animation.
@@ -90,10 +247,10 @@ export function animateLayer(
     cubieElements.forEach(el => pivot.appendChild(el));
 
     // Determine axis vector and CSS angle
-    const axisVec: Record<Axis, string> = {
-        [Axis.X]: '1,0,0',
-        [Axis.Y]: '0,1,0',
-        [Axis.Z]: '0,0,1',
+    const axisVec: Record<Axis, Vector3> = {
+        [Axis.X]: { x: 1, y: 0, z: 0 },
+        [Axis.Y]: { x: 0, y: 1, z: 0 },
+        [Axis.Z]: { x: 0, y: 0, z: 1 },
     };
 
     // Calculate CSS rotation angle from MoveDefinition angle (already in degrees).
@@ -103,17 +260,12 @@ export function animateLayer(
     //   CSS Y = model -Y (model Y is inverted: y=max → CSS top)
     //   CSS Z = model -Z (model Z is centered at +Z → CSS front)
     //
-    // So Y and Z axis rotations must be negated to match CSS space.
+    // So Y and Z axis rotations must be negated to match CSS space. This
+    // convention is specific to how a *move* axis maps to screen space, so it
+    // stays here rather than moving into the shared primitive.
     const effectiveAngle = axis === Axis.Y || axis === Axis.Z ? -angle : angle;
 
-    const animation = pivot.animate(
-        [{ transform: 'none' }, { transform: `rotate3d(${axisVec[axis]},${effectiveAngle}deg)` }],
-        {
-            duration: config.duration,
-            easing: config.easing,
-            fill: 'forwards',
-        }
-    );
+    const { animation } = animateRotation(pivot, axisVec[axis], 0, effectiveAngle, config);
 
     return { animation, pivot };
 }
@@ -154,7 +306,7 @@ export function animateMove(
     config?: BasicAnimationConfig
 ): AnimateMoveResult | null {
     // Check reduced motion preference
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (prefersReducedMotion()) {
         return null;
     }
 

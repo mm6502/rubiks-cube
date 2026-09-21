@@ -2,7 +2,6 @@ import { Application } from '@/application';
 import { createUndoRedoCommands } from '@/cube/commands/undo-redo';
 import { Command, CommandCategory, EventName, ViewRotation } from '@/types';
 
-import * as rendering from './rendering';
 import { isGhostVisible } from './ghost-stickers';
 import { isLinked, setLinked } from './linked-rotations';
 import type { BasicTouchHandler } from './touch-handler';
@@ -18,6 +17,8 @@ export interface BasicViewCommandContext {
     rotateViewRight(): void;
     rotateViewUp(): void;
     rotateViewDown(): void;
+    toggleTilt(): void;
+    togglePitch(): void;
     toggleGhosts(): void;
     updateGhostEdges(): void;
     emitStateChanged(): void;
@@ -119,10 +120,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             tooltip: 'Toggle view tilt (Y-axis: -35° ↔ 35°)',
             isActive: () => ctx.state.isTilted,
             action: () => {
-                ctx.state.isTilted = !ctx.state.isTilted;
-                rendering.updateRotation(ctx.state);
-                rendering.updateFaceLabels(ctx.state);
-                ctx.updateGhostEdges();
+                ctx.toggleTilt();
                 ctx.emitStateChanged();
             },
         },
@@ -138,10 +136,7 @@ export function getBasicViewCommands(ctx: BasicViewCommandContext): Command[] {
             tooltip: 'Toggle view pitch (X-axis: -25° ↔ 25°)',
             isActive: () => ctx.state.isPitched,
             action: () => {
-                ctx.state.isPitched = !ctx.state.isPitched;
-                rendering.updateRotation(ctx.state);
-                rendering.updateFaceLabels(ctx.state);
-                ctx.updateGhostEdges();
+                ctx.togglePitch();
                 ctx.emitStateChanged();
             },
         },

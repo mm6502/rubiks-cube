@@ -211,53 +211,59 @@ the exact notation.
   revise AE2/R4 to table-valid wide forms, or acceptance testing will fail
   against the documented authority.
 
-  > **Smerovanie (2026-09-06, premietnuté do R4/R6/R7):** Číslované wide ťahy
-  > (`2Rw`, `3Rw`, `4Uw`, ...) **majú dostať ikonu** — symetricky k číslovaným
-  > M/E/S slice ťahom, ktoré engine už generuje. Nevidíme dôvod, prečo by wide
-  > mali byť obmedzené len na nečíslovanú dvojvrstvovú formu, keď slice rodina
-  > číslované varianty má. Platí dvojcestná stratégia (zapísaná v R4/R6/R7):
+  > **Direction (2026-09-06, reflected in R4/R6/R7):** Numbered wide moves
+  > (`2Rw`, `3Rw`, `4Uw`, ...) **must get an icon** — symmetrically with the
+  > numbered M/E/S slice moves the engine already generates. We see no reason
+  > why wide moves should be limited to the unnumbered two-layer form when the
+  > slice family has numbered variants. A two-track strategy applies (recorded
+  > in R4/R6/R7):
   >
-  > - **A (happy path):** Rozšíriť `buildMoveDefinitions` o číslované wide (n
-  >   vrstiev z okraja pre n>2) — `2Rw`, `3Rw`, `4Uw`, ... aj s `'`/`2`/`2'`
-  >   variantmi. Potom R6/R7 fungujú jednotne: notácia je v tabuľke → fallback
-  >   ikona. Renderer sa pýta tabuľky a nič neduplikuje.
-  > - **C (núdzová cesta / exceptions):** Aj keby engine rozšírenie neprešlo
-  >   (výrazné problémy v pláne), fallback má rozoznať štruktúru wide notácie
-  >   (napr. regex maska `/^\d*[UDLRFB]w['2]*$/` na wide ťahy) a zobraziť
-  >   príslušný face base glyf s presným labelom — nie text. Wide notácia tak
-  >   dostane ikonu **vždy**, nezávisle od engine podpory. R6 túto vedomú
-  >   výnimku povoľuje len ak sa move tabuľka nerozširuje; R4 zaručuje ikonu pre
-  >   rozpoznateľné wide formy; R7 text fallback ostáva len pre ťahy, kde
-  >   rodinu/ikonu nevieme určiť.
+  > - **A (happy path):** Extend `buildMoveDefinitions` with numbered wide moves
+  >   (n layers from the edge for n>2) — `2Rw`, `3Rw`, `4Uw`, ... including
+  >   their `'`/`2`/`2'` variants. Then R6/R7 apply uniformly: the notation is
+  >   in the table → fallback icon. The renderer asks the table and duplicates
+  >   nothing.
+  > - **C (stopgap / exceptions):** Even if the engine extension does not land
+  >   (significant problems in the plan), the fallback must recognise the
+  >   structure of a wide notation (e.g. the regex mask `/^\d*[UDLRFB]w['2]*$/`
+  >   for wide moves) and show the matching face base glyph with the exact label
+  >   — not text. A wide notation then gets an icon **always**, independently of
+  >   engine support. R6 permits this deliberate exception only when the move
+  >   table is not being extended; R4 guarantees an icon for recognizable wide
+  >   forms; R7 leaves the text fallback only for moves whose family/icon cannot
+  >   be determined.
   >
-  > **Rozhodnuté:** Ak pri písaní plánu feasibility check neukáže výrazné
-  > problémy → **A** (rozšíriť engine, R4/AE2 s číselnými wide prejdú priamo).
-  > Ak by problémy boli → **aspoň C** (fallback regex maska), takže
-  > `2Rw`/`3Rw2`/`4Uw'` majú ikonu + presný label v oboch prípadoch. AE2 ostáva
-  > platný v oboch vetvách (ikonu dostanú tak či tak).
+  > **Decided:** If the feasibility check when writing the plan shows no
+  > significant problems → **A** (extend the engine; R4/AE2 pass directly with
+  > numbered wide moves). If there are problems → **at least C** (fallback regex
+  > mask), so `2Rw`/`3Rw2`/`4Uw'` get an icon plus an exact label in both
+  > branches. AE2 stays valid in both branches (they get an icon either way).
 
-- **Scramble pool a rozloženie pravdepodobnosti po rozšírení o číselné wide** —
-  `src/cube-controller.ts` (`isEligibleScrambleMove`, `buildScramblePool`) (P1)
+- **Scramble pool and probability distribution after extending with numbered
+  wide moves** — `src/cube-controller.ts` (`isEligibleScrambleMove`,
+  `buildScramblePool`) (P1)
 
-  Ak sa cesta A (rozšírenie `moveDefinitions` o číselné wide) implementuje,
-  treba pri písaní plánu **skontrolovať scramble logiku**. Dnešný scramble plán
+  If path A (extending `moveDefinitions` with numbered wide moves) is
+  implemented, the scramble logic **must be checked** when writing the plan.
+  Today's scramble plan
   (`docs/plans/2026-09-05-001-fix-scramble-layer-coverage-plan.md`, completed)
-  zámerne vylúčil wide ťahy z poolu: _"Wide moves are compositions of face+slice
-  (no new scrambling entropy) and over-represent outer layers."_ Overené v kóde:
-  `isEligibleScrambleMove` už dnes wide drží von cez `layerIndices.length !== 1`
-  (wide má n vrstiev), a `buildScramblePool` grupuje podľa fyzickej identity
-  `axis:layer:angle`, takže rozšírenie tabuľky samo o sebe pool nezmení.
-  **Napriek tomu treba pri pláne overiť:** (1) či číselné wide (`2Rw` = vrstvy
-  [last, last-1]) nezdieľajú fyzickú identitu s existujúcimi pool ťahmi tak, že
-  by sa zmenilo rozloženie pravdepodobnosti výberu; (2) či zámerné vylúčenie
-  wide zo scramble zostáva zachované (R2 scramble plánu: _"Wide moves ... are
-  excluded"_) a nie je potrebné ho meniť; (3) či `isEligibleScrambleMove` /
-  `isNumberedSliceName` / `buildScramblePool` potrebujú update, aby pool zostal
-  korektný a distribúcia ťahov (face + numbered slice, žiadne wide) sa
-  nezmenila. Ak sa zistí vplyv na pravdepodobnosť → updatnúť eligible-moves
-  logiku a scramble testy.
+  deliberately excluded wide moves from the pool: _"Wide moves are compositions
+  of face+slice (no new scrambling entropy) and over-represent outer layers."_
+  Verified in code: `isEligibleScrambleMove` already keeps wide moves out today
+  via `layerIndices.length !== 1` (a wide move has n layers), and
+  `buildScramblePool` groups by physical identity `axis:layer:angle`, so
+  extending the table by itself does not change the pool. **Even so, the plan
+  must verify:** (1) whether numbered wide moves (`2Rw` = layers [last, last-1])
+  share a physical identity with existing pool moves in a way that would change
+  the probability distribution of the draw; (2) whether the deliberate exclusion
+  of wide moves from scramble remains preserved (R2 of the scramble plan: _"Wide
+  moves ... are excluded"_) and does not need changing; (3) whether
+  `isEligibleScrambleMove` / `isNumberedSliceName` / `buildScramblePool` need an
+  update so the pool stays correct and the move distribution (face + numbered
+  slice, no wide) is unchanged. If an effect on probability is found → update
+  the eligible-moves logic and the scramble tests.
 
-  <!-- dedup-key: section="deferred open questions / scramble pool" title="scramble pool a rozlozenie pravdepodobnosti po rozsireni o ciselne wide" evidence="Wide moves are compositions of face+slice (no new scrambling entropy) and over-represent outer layers." -->
+  <!-- dedup-key: section="deferred open questions / scramble pool" title="scramble pool and probability distribution after extending with numbered wide moves" evidence="Wide moves are compositions of face+slice (no new scrambling entropy) and over-represent outer layers." -->
 
   <!-- dedup-key: section="ae2 / r6 / r4 (acceptance examples / validation authority)" title="numbered-wide notations absent from validated move table" evidence="AE2. A 7×7 history containing `3Rw2 4Uw'` renders `3Rw2` with the R-family icon labeled `3Rw2` and `4Uw'` with the U-family icon labeled `4Uw'`." -->
 

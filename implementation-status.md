@@ -3,9 +3,9 @@
 For current code quality evaluation, see
 [code quality evaluation](code-quality-evaluation.md).
 
-Last quality snapshot: **2026-09-20 at commit `40a1899`** — 113 test files
-passing, 2585 tests passing, 94.87% statements / 86.49% branches / 97.37%
-functions / 95.95% lines. (Counts are pinned to that commit because later work
+Last quality snapshot: **2026-09-20 at commit `4457261`** — 117 test files
+passing, 2727 tests passing, 94.85% statements / 86.63% branches / 97.35%
+functions / 95.90% lines. (Counts are pinned to that commit because later work
 adds tests; re-measure rather than trusting the figure after any change.)
 
 This document owns the completeness record. [TODO.md](TODO.md) owns actionable
@@ -14,6 +14,17 @@ apart.
 
 ✅ **Complete (100%)**
 
+- [x] (Sep 2026) Tilt/Pitch toggles animate again — they had snapped since the
+      rotation-animation redesign, because the `transition: transform` that used
+      to animate them had to be removed when the WAAPI rotation ramp replaced
+      it, and nothing else drove the change. The base tilt is now its own
+      animated slot, ramping a pair of coupled angles while the orientation slot
+      stays put. Verified in a real browser: a tilt starts an animation and is
+      interpolated, not snapped.
+- [x] (Sep 2026) Share one rotation-animation primitive between view rotation
+      and move animation, so every frame of a rotation is a valid rotation —
+      this replaced the `matrix3d` + CSS-transition scheme whose component-wise
+      interpolation sheared the cube and unwound on interruption
 - [x] (Sep 2026) Selection behaves identically in all three views — clearing a
       face highlight (tapping the background, the halo, or the same sticker
       again) keeps the sticker selected, so keyboard navigation continues from
@@ -92,19 +103,9 @@ apart.
 
 ### Known Issues (acknowledged, not planned to fix)
 
-- [!] Basic view (the sole 3D cube view since the Basic 2 cutover): rotations in
-  Firefox over 180° unwind rapidly in the opposite direction (matrix3d scheme)
-
-  Kept deliberately, not carried over by default: this is a real
-  browser-specific behaviour of the `matrix3d` + `transition: transform` scheme
-  that whole-cube view rotation still uses, and move-layer animations are
-  unaffected because they take the WAAPI `rotate3d` path. Removing this entry
-  would require first confirming it still reproduces in Firefox.
+(nothing atm)
 
 ### Long Term (almost certainly not, aka NOT planned)
 
 - [-] Solver algorithms (solving a scrambled cube programmatically)
 - [-] Additional view types beyond Flat, Basic, Circular and Moves
-
-> Multi-size visualisations (2×2, 4×4, 5×5+) used to be listed here as not
-> planned. They shipped — see the Complete section above.

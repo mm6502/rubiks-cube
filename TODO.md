@@ -7,4 +7,13 @@ not repeat each other's content, so they cannot drift apart.
 
 ## Current tasks
 
+- Investigate possibility of simplifying move table such as key will be the
+  primary/canonical "identifier" of the move and alternative notations will be
+  placed in an alternative notation list in the value object (move descriptor?).
+
+- Basic View - In Firefox resizing the view panel produces unexpected visual
+  issues. Screenshot in
+  [docs/visuals/firefox-resize-issue.png](./docs/visuals/firefox-resize-issue.png)
+  Investigate and fix.
+
 (nothing atm)

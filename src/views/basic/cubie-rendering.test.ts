@@ -4,7 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { Face } from '@/cube/types';
 
-import { buildCubieElement, getFaceTransform, updateCubiePositions } from './cubie-rendering';
+import {
+    buildCubieElement,
+    getFaceTransform,
+    stickerBorderWidth,
+    updateCubiePositions,
+} from './cubie-rendering';
 
 const styles: Record<string, string> = {
     cubie: 'cubie',
@@ -23,6 +28,57 @@ function createCubie(stickerFaces: Face[]): any {
         })),
     };
 }
+
+describe('cubie-rendering - stickerBorderWidth', () => {
+    // The sticker border used to be `0.5cqmin`, a container-query unit. This codebase declares
+    // no `container-type` anywhere, so per spec it resolved against the SMALL VIEWPORT rather
+    // than the cube: measured, resizing the panel left the border at a fixed 4px while the
+    // sticker went 63px -> 99px, and on a 900px-tall viewport the fractional 4.5px painted 4px
+    // on some stickers and 5px on others on the same cube. These pin the replacement.
+
+    it('scales with the cubie, so the proportion stays near-constant', () => {
+        // The defect was a border that did not track the cube. Every realistic cubie size must
+        // land in a narrow band; a fixed value would fail this by drifting as the size changes.
+        const sizes = [33, 46, 55, 63, 70, 80, 98, 120];
+        for (const cubie of sizes) {
+            const pct = (stickerBorderWidth(cubie) / cubie) * 100;
+            expect(pct, `cubie ${cubie}px should keep 8% +- rounding`).toBeGreaterThan(7);
+            expect(pct, `cubie ${cubie}px should keep 8% +- rounding`).toBeLessThan(10);
+        }
+    });
+
+    it('is strictly larger for a larger cubie, never smaller', () => {
+        // Monotonic: growing the panel must never thin the border.
+        let previous = 0;
+        for (const cubie of [33, 46, 55, 63, 70, 80, 98, 120, 160]) {
+            const width = stickerBorderWidth(cubie);
+            expect(width, `cubie ${cubie}px`).toBeGreaterThanOrEqual(previous);
+            previous = width;
+        }
+    });
+
+    it('returns whole pixels, so every sticker on a cube agrees', () => {
+        // The crux of the visible defect. A fractional width lets the browser round each
+        // element independently, producing mixed border widths across one cube — the uneven
+        // separations that were reported. Whole numbers make that impossible.
+        for (let cubie = 20; cubie <= 200; cubie++) {
+            const width = stickerBorderWidth(cubie);
+            expect(
+                Number.isInteger(width),
+                `cubie ${cubie}px -> ${width} must be a whole pixel`
+            ).toBe(true);
+        }
+    });
+
+    it('stays legible on a small cubie and does not explode on a large one', () => {
+        // A tiny cubie (a 7x7 in a short panel) would otherwise go sub-pixel and merge the
+        // facelets; the floor keeps the grid readable.
+        expect(stickerBorderWidth(10)).toBe(2);
+        expect(stickerBorderWidth(33)).toBe(3);
+        // And an absurd size is still bounded.
+        expect(stickerBorderWidth(10000)).toBeLessThanOrEqual(16);
+    });
+});
 
 describe('cubie-rendering - getFaceTransform', () => {
     it('returns a plain translateZ for Face.F', () => {

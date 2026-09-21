@@ -33,13 +33,17 @@ const GHOST_OPACITY_LEVELS = [0, 0.75, 1.0] as const;
 let ghostOpacityIndex = 0; // starts off
 
 /**
- * Default delay before a fade-in starts when the caller's own rotation is still
- * animating underneath.
+ * Default delay before a fade-in starts.
  *
- * The cube's transform runs for 250ms (`.cube { transition: transform 0.25s }`),
- * so revealing near the end of that lands the strips as the turn settles rather
- * than at its start. Callers that have already awaited their turn pass 0 instead
- * — see {@link GhostStickers.updateVisibleEdges}.
+ * Applies to callers that are *not* closing a cube turn — showing the strips for
+ * the first time, or changing their opacity. A turn's own callers pass 0, because
+ * they have already waited for the cube to settle: see
+ * {@link GhostStickers.updateVisibleEdges}.
+ *
+ * This was previously justified as matching the cube's 250ms
+ * `transition: transform`. That transition is gone — view rotation now ramps an
+ * angle through the Web Animations API — so the constant no longer stands in for
+ * a turn's length and must not be read as doing so.
  */
 const DEFAULT_FADE_DELAY_MS = 200;
 
@@ -112,10 +116,42 @@ export class GhostStickers {
     private cubeElement: HTMLElement;
     private pendingFadeTimer: number | null = null;
     private getModel: () => ReadOnlyCubeModel | null;
+    /**
+     * Signature of the selection {@link updateVisibleEdges} last applied.
+     *
+     * Needed because "are strips showing?" and "are the *right* strips showing?"
+     * are different questions, and callers such as {@link setOpacityIndex} used to
+     * ask the first while meaning the second. `create()` leaves every strip hidden,
+     * and a selection shown for one orientation is stale the moment another is
+     * restored — so the answer has to be about identity, not presence.
+     */
+    private appliedSelection: string | null = null;
 
     constructor(cubeElement: HTMLElement, getModel: () => ReadOnlyCubeModel | null) {
         this.cubeElement = cubeElement;
         this.getModel = getModel;
+    }
+
+    /**
+     * A stable signature of a silhouette selection.
+     *
+     * Face order is normalized, so two callers that name the same three visible
+     * faces in a different order produce the same signature. `isTilted`/`isPitched`
+     * participate because they decide the near/far depth, and therefore which of
+     * two candidate strips is the correct one.
+     */
+    private static selectionSignature(
+        visibleFaces: Array<{ face: Face }>,
+        hiddenFaces: Array<{ face: Face }>,
+        isTilted: boolean,
+        isPitched: boolean
+    ): string {
+        const names = (faces: Array<{ face: Face }>): string =>
+            faces
+                .map(f => f.face)
+                .sort()
+                .join(',');
+        return `${names(visibleFaces)}|${names(hiddenFaces)}|${isTilted}|${isPitched}`;
     }
 
     /**
@@ -182,26 +218,21 @@ export class GhostStickers {
      * Strips are categorised by depth: near (front face), far (back face),
      * or mid (everything else).
      *
-     * **When the caller has already waited for the turn, this must not wait
-     * again.** The fade-in is normally delayed to land near the end of a rotate
-     * gesture rather than at its start, which is what `fadeDelayMs` is for. The
-     * two kinds of caller need different values:
-     *
-     * - `rotateViewLeft/Right/Up/Down` are synchronous: they change the
-     *   orientation and return immediately, while the cube's own CSS transform
-     *   animates for 250ms underneath. Passing 0 would reveal the strips at the
-     *   start of that transform, so they pass the gesture length.
-     * - The move paths (`handleMoveExecuted`) await the move animation first.
-     *   The turn has already finished by the time they get here, so a delay is a
-     *   second, phantom turn — measured as a 233ms dead pause between the cube
-     *   stopping and the strips coming back.
+     * **The turn paths pass 0.** Every rotation and move entry point in the view
+     * now closes through a single settled path that runs only once the cube has
+     * actually stopped, so a fade-in delay there would be a second, phantom turn —
+     * measured as a 233ms dead pause between the cube stopping and the strips
+     * returning. The delay has another job, though: a *fade transition* between
+     * opacity levels looks better eased in, and that is what
+     * {@link DEFAULT_FADE_DELAY_MS} still exists for. Those callers take the
+     * default.
      *
      * @param visibleFaces Faces currently facing the viewer
      * @param hiddenFaces Faces currently turned away
      * @param isTilted Whether the view is tilted
      * @param isPitched Whether the view is pitched
      * @param fadeDelayMs Delay before the fade-in starts. Defaults to
-     *   {@link DEFAULT_FADE_DELAY_MS} for callers whose turn is still running.
+     *   {@link DEFAULT_FADE_DELAY_MS}; pass 0 when the cube has already settled.
      */
     updateVisibleEdges(
         visibleFaces: Array<{ face: Face; position?: string }>,
@@ -224,6 +255,14 @@ export class GhostStickers {
 
         this.cancelPendingFade();
         this.hideAllStrips();
+        // Recorded before the reveal, because the reveal can be deferred by a fade
+        // timer while this selection is already the current one.
+        this.appliedSelection = GhostStickers.selectionSignature(
+            visibleFaces,
+            hiddenFaces,
+            isTilted,
+            isPitched
+        );
 
         const toShow = this.computeStripsToShow(visibleSet, hiddenSet, nearFace, farSourceFace);
 
@@ -405,6 +444,11 @@ export class GhostStickers {
                     }
                 }
             }
+            // Nothing is on screen any more, so no selection is "already applied".
+            // Leaving the signature behind would let a later `setOpacityIndex` for
+            // this same orientation conclude the strips are current and skip the
+            // recompute — which shows nothing, because hiding just cleared them.
+            this.appliedSelection = null;
         }
     }
 
@@ -470,16 +514,26 @@ export class GhostStickers {
         isTilted = false,
         isPitched = false
     ): void {
-        // Use instance-level strip state, not the shared module variable,
-        // because the source view's toggle() already mutated the global before emitting.
-        const wasVisible = this.strips.some(s => s.isShowing);
+        // Compare against the selection last *applied*, not against whether any
+        // strip happens to be showing. Those differ in exactly the case this guards:
+        // `create()` shows the strips for the default orientation, and a restored
+        // custom orientation arrives afterwards — asking "is anything showing?"
+        // answered yes and skipped the recompute, leaving the strips on the default
+        // orientation's silhouette while the cube showed another.
+        const applied = this.appliedSelection;
+        const requested =
+            visibleFaces && hiddenFaces
+                ? GhostStickers.selectionSignature(visibleFaces, hiddenFaces, isTilted, isPitched)
+                : null;
+        const wasVisible = applied !== null && applied === requested;
+
         setGhostOpacityIndex(index);
         if (isGhostVisible() && visibleFaces && hiddenFaces) {
             if (wasVisible) {
-                // Already showing — just smoothly transition opacity
+                // Same silhouette as the one already shown — only the opacity changed.
                 this.applyOpacity();
             } else {
-                // Turning on from off — need to determine which strips to show
+                // Turning on, or the orientation changed under an existing selection.
                 this.updateVisibleEdges(visibleFaces, hiddenFaces, isTilted, isPitched);
                 this.applyOpacity();
             }

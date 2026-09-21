@@ -73,3 +73,22 @@ if (typeof window !== 'undefined') {
 if (typeof Element !== 'undefined') {
     Element.prototype.scrollIntoView = vi.fn();
 }
+
+// jsdom implements no hit testing at all: `document.elementFromPoint` is simply
+// absent, not stubbed. Every browser has it, and the views call it on every
+// pointer-down — the touch handlers hit-test the point under the pointer to
+// decide whether the gesture starts on a sticker, and `updateHoverCursor` calls
+// it again. A suite that dispatches contact without stubbing it therefore throws
+// inside a DOM listener, where jsdom reports the error out of band rather than
+// failing the test — a green suite with an error on stderr.
+//
+// `null` is the honest answer for an environment that cannot lay out: nothing is
+// at that point. It is also what the suites that stub this per file resolve to,
+// so a suite overriding it for real hit testing keeps working.
+if (typeof document !== 'undefined' && typeof document.elementFromPoint !== 'function') {
+    Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        writable: true,
+        value: () => null,
+    });
+}

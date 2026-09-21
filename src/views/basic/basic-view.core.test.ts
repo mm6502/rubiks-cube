@@ -5,6 +5,7 @@ import { CubeController } from '@/cube-controller';
 import { Face, QuarterTurn, SUPPORTED_SIZES } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { centerFacePosition } from '@/cube/utils/sticker-position';
+import { type LogEntry, LogLevel, logger } from '@/diagnostics/logger';
 import { EventName } from '@/types';
 
 import * as rendering from './rendering';
@@ -61,10 +62,45 @@ describe('BasicView core API', () => {
         container.remove();
     });
 
+    it('contacting the view raises no uncaught error from its hit test', () => {
+        // A pointer-down reaches the touch handler, which hit-tests the point under
+        // the pointer to decide whether the gesture starts on a sticker. That hit
+        // test needs `document.elementFromPoint` — absent in jsdom, present in every
+        // browser — and it runs inside a DOM listener.
+        //
+        // This is the assertion that was missing. Without it the throw was invisible:
+        // an exception inside a listener does not fail a vitest test. jsdom reports it
+        // by dispatching a `window` error event, and the app's own global handler
+        // catches that, logs it, and calls `stopImmediatePropagation()` — so a test
+        // cannot observe it with its own `window` listener. The logger listener is the
+        // route that survives, and it is exactly what CI printed: an `ERROR Uncaught
+        // error: …` line on stderr under a passing suite.
+        document.body.appendChild(container);
+
+        const logged: string[] = [];
+        const listener = (entry: LogEntry): void => {
+            if (entry.level === LogLevel.ERROR) logged.push(entry.args.map(String).join(' '));
+        };
+        logger.addListener(listener);
+        try {
+            container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        } finally {
+            logger.removeListener(listener);
+            container.remove();
+        }
+
+        expect(logged, 'pointer-down must not log an uncaught error').toEqual([]);
+    });
+
     it('getCommands returns a full command list and running actions updates state', () => {
         // Arrange
         const spyEmit = vi.spyOn(Application.eventBus, 'emit');
-        vi.spyOn(rendering as any, 'updateRotation').mockImplementation(() => {});
+        // These stubs must return the shape the real functions do: `updateRotation`
+        // now reports whether the rotation settled or is still ramping, and the
+        // view closes its rotation on that answer.
+        vi.spyOn(rendering as any, 'updateRotation').mockImplementation(() => ({
+            kind: 'settled',
+        }));
         vi.spyOn(rendering as any, 'updateFaceLabels').mockImplementation(() => {});
 
         // Act

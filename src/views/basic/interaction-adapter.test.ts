@@ -38,11 +38,11 @@ describe('basic-interaction-adapter', () => {
         });
     });
 
-    describe('mapDragDirection - rotated 90° right (Ctrl+Right)', () => {
+    describe('mapDragDirection - rotated 90° right (Alt+Right)', () => {
         // After rotateViewRight: viewForward = new -viewRight → screen-right is now model -Z → Face.B
         // viewRight = old viewForward = +Z, viewUp unchanged = +Y
         it('remaps directions on rotated view', () => {
-            // After one Ctrl+Right: viewRight = {0,0,1}, viewUp = {0,1,0}
+            // After one Alt+Right: viewRight = {0,0,1}, viewUp = {0,1,0}
             const adapter = createBasicInteractionAdapter(
                 () => ({ x: 0, y: 0, z: 1 }),
                 () => ({ x: 0, y: 1, z: 0 })

@@ -12,7 +12,11 @@ export default defineConfig({
         globals: true,
         environment: 'jsdom',
         environmentOptions: {},
-        setupFiles: ['./vitest.setup.ts'],
+        // Order matters. `vitest.error-guard.ts` must register its `window` error
+        // listener before anything imports `diagnostics/logger.ts`, which installs
+        // the app's own handler — that handler calls `stopImmediatePropagation()`,
+        // so a listener registered after it never runs. See the guard's header.
+        setupFiles: ['./vitest.error-guard.ts', './vitest.setup.ts'],
         include: ['src/**/*.{test,spec}.{ts,tsx}', 'src/**/*.{test,spec}.{js,jsx,mts,cts,mjs,cjs}'],
         // These suites build real views — a 7×7 view constructs 294 cubie objects
         // and a full DOM subtree — and a few enumerate a large sequence space (the

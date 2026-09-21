@@ -2,22 +2,26 @@
 // Basic View — per-cubie 3D architecture with move animations
 import { Application } from '@/application';
 import {
+    Axis,
     CubeView,
     Face,
     LayoutMode,
+    QuarterTurn,
     ReadOnlyCubeModel,
     Size2D,
     StickerId,
     Vector3,
 } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
-import { centerFacePosition } from '@/cube/utils/sticker-position';
+import { centerFacePosition, facePositionTo3D } from '@/cube/utils/sticker-position';
 import {
     inferKeyboardMove,
     isFaceSelectKey,
     isKeyboardMoveKey,
     mapArrowToDirection,
 } from '@/interaction/keyboard-moves';
+import { notationForSignedAngle } from '@/interaction/move-inference';
+import { DragDirection } from '@/interaction/types';
 import {
     BasicViewGhostToggledEvent,
     BasicViewResetLinkedEvent,
@@ -66,6 +70,8 @@ import {
     updateFaceLabels,
     updateRotation,
 } from './rendering';
+import { sliceRotationForViewTurn, stepDown, stepLeft, stepRight, stepUp } from './rotation-math';
+import type { Orientation } from './rotation-math';
 import { BasicVariant } from './types';
 import type { BasicViewInternalData, BasicViewState } from './types';
 import type { ViewOrientation, VisualCell } from './visual-cell';
@@ -82,6 +88,29 @@ type ActiveAnimation = {
     event: MoveExecutedEvent;
 };
 
+/**
+ * How many rotations may coalesce into one gesture before further ones stop
+ * animating.
+ *
+ * Expressed as "after two", matching the Circular view's `pending > 2` rule so the
+ * two views agree on what "rapid input" means. A two-step gesture is one continuous
+ * turn, so the first two are always animated; from the third on, the orientation is
+ * applied directly.
+ */
+const SKIP_ANIMATION_AFTER = 2;
+
+/**
+ * How long a throttled rotation sequence must stay quiet before it is considered
+ * settled.
+ *
+ * Past {@link SKIP_ANIMATION_AFTER} the rotations apply directly and start no
+ * animation, so there is no completion to await and nothing else can mark the end of
+ * the burst — the quiet period is the signal. Matches the shared animation duration
+ * (`animations.ts`), so an animated sequence and a throttled one restore the ghost
+ * strips after the same pause.
+ */
+const SEQUENCE_SETTLE_DELAY_MS = 300;
+
 export class BasicView implements CubeView {
     private state: BasicViewInternalData;
     private touchHandler: BasicTouchHandler | null = null;
@@ -90,6 +119,45 @@ export class BasicView implements CubeView {
     private linkedResetListener: ((e: BasicViewResetLinkedEvent) => void) | null = null;
     private ghostToggledListener: ((e: BasicViewGhostToggledEvent) => void) | null = null;
     private activeAnimation: ActiveAnimation | null = null;
+    /**
+     * How many rotations are currently turning the cube.
+     *
+     * Held here rather than in `rendering.ts` because it spans *both* kinds of
+     * turn — view rotations and move animations — and the ghost strips must stay
+     * hidden across a whole rapid sequence, not just one step of it (R7).
+     *
+     * Decremented in one place that runs on fulfilment and cancellation alike, so
+     * an interrupt cannot leak the count and latch the strips off permanently.
+     * That is the failure mode the Circular view's counter has (its decrement
+     * sits outside `try/finally`, so an `AbortError` from `cancel()` strands it);
+     * interruption is exactly the case being fixed here, so cancel-safety is
+     * required rather than nice to have.
+     */
+    private turnsInFlight = 0;
+    /**
+     * The rotation animation the view currently considers open, if any.
+     *
+     * Needed in addition to the plan on the state object, because a rotation that is
+     * superseded has already been forgotten there. This is what lets the settle guard
+     * tell an obsolete completion from the live one, and what lets a superseding
+     * rotation close its predecessor's turn so the count cannot leak.
+     */
+    private rotationAnimation: Animation | null = null;
+    /**
+     * How many rotations have coalesced into the gesture currently being shown.
+     *
+     * Reset when the sequence settles. Distinct from {@link turnsInFlight}, which
+     * counts open turns for the ghost strips: a superseded rotation is closed at once, so
+     * `turnsInFlight` stays at one throughout a burst and cannot express its length.
+     */
+    private rotationsInSequence = 0;
+    /**
+     * Pending settle for a skip-throttled sequence.
+     *
+     * Restarted by every rotation in the burst, so it only fires once the burst has
+     * stopped — see {@link scheduleSequenceSettle}.
+     */
+    private sequenceSettleTimer: number | null = null;
 
     constructor(config?: { viewType?: string }) {
         const viewType = config?.viewType === 'basic-back' ? 'basic-back' : 'basic-front';
@@ -136,6 +204,8 @@ export class BasicView implements CubeView {
             rotateViewRight: () => this.rotateViewRight(),
             rotateViewUp: () => this.rotateViewUp(),
             rotateViewDown: () => this.rotateViewDown(),
+            toggleTilt: () => this.toggleTilt(),
+            togglePitch: () => this.togglePitch(),
             toggleGhosts: () => this.toggleGhosts(),
             updateGhostEdges: () => this.updateGhostEdges(),
             emitStateChanged: () => this.emitStateChanged(),
@@ -162,7 +232,6 @@ export class BasicView implements CubeView {
         resetView(this.state);
         updateRotation(this.state, true);
         updateFaceLabels(this.state);
-
         // Wire up touch/pointer interaction.
         const adapter = createBasicInteractionAdapter(
             () => this.state.viewRight,
@@ -189,9 +258,13 @@ export class BasicView implements CubeView {
             //   means narrowing the touch handler's declaration.
             onStickerSelected: id => this.updateSelected(id as StickerId),
             onViewRotated: (_direction: 'horizontal' | 'vertical', rotation, steps) => {
-                updateRotation(this.state);
+                // The gesture has already applied `steps` rotations to the
+                // orientation (the touch handler loops over them), so this is one
+                // rotation of the cube whose ramp merges those steps into a single
+                // continuous sweep — not `steps` separate turns.
+                this.beginRotation();
                 updateFaceLabels(this.state, _direction);
-                this.endRotation();
+                this.applyRotation(this.shouldSkipRotationAnimation());
                 this.emitStateChanged();
                 if (isLinked(this.state.viewType)) {
                     for (let i = 0; i < steps; i++) {
@@ -340,7 +413,8 @@ export class BasicView implements CubeView {
     }
 
     /**
-     * Open a rotation: take the ghost strips off screen for its duration.
+     * Open a rotation: take the ghost strips off screen until the last turn in the
+     * sequence settles.
      *
      * A ghost strip borrows its colour from a hidden face, so while the cube is
      * turning it would show a mapping that is about to be wrong — during a
@@ -348,9 +422,11 @@ export class BasicView implements CubeView {
      * recolour at the end. Hiding first means a strip is either correct or
      * absent, never confidently wrong.
      *
-     * Must be paired with {@link endRotation}. Every rotation and move entry
-     * point goes through this pair so the treatment is the same whichever way
-     * the cube is turned.
+     * Every rotation and move entry point goes through this, and pairing is
+     * enforced by {@link turnsInFlight} rather than by each caller remembering to
+     * close what it opened: the strips come back when the counter reaches zero,
+     * so a rapid sequence hides them once and restores them once (R7) instead of
+     * flickering between steps.
      *
      * The hide is immediate (`animate = false`), not the animated fade-out: the
      * fade leaves each strip on screen for the length of its opacity transition
@@ -360,27 +436,165 @@ export class BasicView implements CubeView {
      * `hideAllStrips` only touches strips still flagged as showing.
      */
     private beginRotation(): void {
+        // A new rotation means the burst is still going, so a pending sequence settle
+        // is premature and must not be allowed to reveal the strips mid-burst.
+        this.clearSequenceSettleTimer();
+        this.turnsInFlight++;
+        this.rotationsInSequence++;
         this.ghostStickers?.setVisible(false, false);
     }
 
     /**
-     * Close a rotation whose turn is still animating underneath: the strips come
-     * back after the fade-in delay, landing as the cube's transform settles.
+     * Close a rotation and reveal the strips if this was the last turn in flight.
+     *
+     * Must be called for **both** outcomes of a turn — completed and cancelled —
+     * because a leaked count would hide the strips for the rest of the session.
+     * The counter lives with the view, which owns every animation, so a stale
+     * animation resolving after a resize or a model update cannot strand it: the
+     * guard in {@link closeRotation} refuses to touch replaced DOM.
+     *
+     * The reveal is immediate. The cube's own motion has already been awaited by
+     * whoever held the turn, so a fade-in delay would be a second, phantom turn:
+     * the same 233ms pause the user reported after a whole-cube move.
+     *
+     * R7 needs a *sequence-level* boundary, not just this per-animation count. Once a
+     * burst has crossed {@link SKIP_ANIMATION_AFTER} its later steps apply the
+     * orientation directly, so no animation is left to await and this count reaches
+     * zero between two keystrokes of the same gesture — revealing the strips mid-burst
+     * and hiding them again on the next key. A skipped step must therefore not settle
+     * the sequence; see {@link scheduleSequenceSettle}.
      */
     private endRotation(): void {
+        this.turnsInFlight = Math.max(0, this.turnsInFlight - 1);
+        if (this.turnsInFlight !== 0) return;
+        // Past the threshold the sequence has no animation left to await, so "the cube
+        // has settled" can only mean "no further rotation arrived" — a quiet period.
+        if (this.rotationsInSequence > SKIP_ANIMATION_AFTER) {
+            this.scheduleSequenceSettle();
+            return;
+        }
+        this.settleSequence();
+    }
+
+    /**
+     * End the sequence: let the next gesture start its count afresh, and put the
+     * strips back for the orientation now in effect.
+     */
+    private settleSequence(): void {
+        this.clearSequenceSettleTimer();
+        this.rotationsInSequence = 0;
         this.updateGhostEdges();
     }
 
     /**
-     * Close a rotation whose turn has already finished: the strips come back
-     * immediately, with no fade-in delay.
+     * Close a skip-throttled sequence after it goes quiet.
      *
-     * Used by the move paths, which await the move animation before reaching
-     * here. Waiting a second time is what produced the pause the user reported
-     * after a whole-cube turn.
+     * A skipped rotation writes the settled transform and starts no animation, so
+     * there is nothing whose completion can mark the end of the sequence. Waiting for
+     * a short quiet period is the only honest signal available: every rotation restarts
+     * this timer (see {@link beginRotation}), so it can only fire once the burst has
+     * actually stopped, and the strips stay hidden for the whole of it (R7).
+     *
+     * The delay matches the shared animation duration, so a throttled burst and an
+     * animated one restore the strips after the same pause.
      */
-    private endFinishedRotation(): void {
-        this.updateGhostEdges(true);
+    private scheduleSequenceSettle(): void {
+        this.clearSequenceSettleTimer();
+        this.sequenceSettleTimer = window.setTimeout(() => {
+            this.sequenceSettleTimer = null;
+            if (this.turnsInFlight !== 0) return;
+            this.settleSequence();
+        }, SEQUENCE_SETTLE_DELAY_MS);
+    }
+
+    /** Cancel a pending sequence settle, because the sequence is continuing. */
+    private clearSequenceSettleTimer(): void {
+        if (this.sequenceSettleTimer === null) return;
+        clearTimeout(this.sequenceSettleTimer);
+        this.sequenceSettleTimer = null;
+    }
+
+    /**
+     * Run a rotation and close it exactly once, whichever way it settles.
+     *
+     * `updateRotation` reports whether the orientation settled immediately or is
+     * still animating, and this is the only place that decides what to do about it.
+     * Every branch ends in {@link endRotation}, so a cancelled or superseded ramp
+     * cannot leak the counter.
+     *
+     * A rotation resolving after the element was replaced (resize, model update) still
+     * closes its turn, but does not bake a transform onto whatever replaced it.
+     */
+    private applyRotation(skipAnimation?: boolean): void {
+        const element = this.state.cubeElement;
+        const previous = this.rotationAnimation;
+        const result = updateRotation(this.state, skipAnimation);
+        const opened = result.kind === 'animating' ? result.animation : null;
+        const finished = result.kind === 'animating' ? result.finished : null;
+        const settlesImmediately = !opened || !finished;
+
+        // A rotation that supersedes another closes it here. The superseded one will
+        // never settle on its own — its completion is refused by the identity guard
+        // below — so leaving it open would leak the count and strand the strips
+        // hidden for the rest of the session.
+        if (previous !== null && previous !== opened) {
+            this.rotationAnimation = null;
+            this.endRotation();
+        }
+        this.rotationAnimation = opened;
+
+        if (settlesImmediately) {
+            this.endRotation();
+            return;
+        }
+
+        void finished.then(() => {
+            // Guard by *animation identity*. A superseded rotation's `finished` settles
+            // when it is cancelled, and if it were allowed to close the turn it would
+            // settle the rotation that replaced it — revealing the strips mid-sequence,
+            // which is exactly the flicker R7 forbids. Measured in a real browser before
+            // this guard existed: `0 → shown → 0 → shown`, two reveals for one gesture.
+            // The move path below guards the same hazard by event identity.
+            if (this.rotationAnimation !== opened) return;
+            this.rotationAnimation = null;
+
+            // Nothing to bake if the element this rotation was animating is gone.
+            if (this.state.cubeElement === element) {
+                // Bake the settled transform and drop the animation. While a ramp is
+                // running, the animation is what holds the element's transform with
+                // `fill: forwards`, so the inline style is still the pre-rotation value
+                // — leaving it there would make the DOM disagree with the cube the user
+                // is looking at, and anything reading the style would see stale geometry.
+                // `skipAnimation` performs exactly that settle, so there is one code
+                // path for it.
+                updateRotation(this.state, true);
+            }
+            this.endRotation();
+        });
+    }
+
+    /**
+     * Skip the animation for this rotation when enough of them have already coalesced
+     * into the current gesture.
+     *
+     * Follows the Circular view's skip-when-overloaded intent — the *pattern*, not the
+     * code, which is not cancel-safe. The reason differs slightly in this view: rapid
+     * input is not queued, so there is no unbounded backlog to prevent. What it bounds
+     * is animation restarts — each rotation retargets the ramp, and continuing to
+     * restart it for a long burst costs work while showing less than a steady sweep
+     * would. Dropping the animation while still applying the orientation keeps the cube
+     * where the gestures asked and keeps the trailing end of a burst cheap.
+     *
+     * Counted per gesture rather than per in-flight animation, because a superseded
+     * rotation is closed immediately: the in-flight count stays at one throughout a
+     * burst, so it can never express "this gesture is getting long".
+     *
+     * The threshold is two rather than one, because a two-step gesture designates a
+     * single continuous turn (a far-drag, or the anti-parallel case of `rotateViewToFace`)
+     * and skipping it would stutter the very case the shared primitive smooths.
+     */
+    private shouldSkipRotationAnimation(): boolean {
+        return this.rotationsInSequence > SKIP_ANIMATION_AFTER;
     }
 
     /**
@@ -491,7 +705,7 @@ export class BasicView implements CubeView {
             /* c8 ignore else if */ else if (r === ViewRotation.Right) rotateViewRight(this.state);
             /* c8 ignore else if */ else if (r === ViewRotation.Up) rotateViewUp(this.state);
             /* c8 ignore else if */ else if (r === ViewRotation.Down) rotateViewDown(this.state);
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
             /* c8 ignore if — guard when not linked */
             if (isLinked(this.state.viewType)) {
                 Application.eventBus.emit(EventName.BASIC_VIEW_ROTATION_LINKED, {
@@ -508,8 +722,8 @@ export class BasicView implements CubeView {
             id => this.updateSelected(id),
             onRotated
         );
+        /* c8 ignore if — the rotation path renders itself */
         if (handled && !preview) {
-            updateRotation(this.state);
             updateFaceLabels(this.state);
         }
         return handled;
@@ -531,21 +745,131 @@ export class BasicView implements CubeView {
         this.touchHandler.selectFace(current === face ? undefined : face);
     }
 
+    /**
+     * The layer turn a `Ctrl+Arrow` asks for when no face is selected.
+     *
+     * The arrow names a direction on screen, and the matching `Alt+Arrow` view
+     * rotation is the reference for how a turn in that direction goes. Working from
+     * that view rotation — rather than from the face the sticker sits on — is what
+     * makes the answer independent of which face the selection happens to be on.
+     *
+     * The layer comes from the selected sticker's coordinate along the turn's axis, so
+     * the press turns the layer the sticker is in: a centre sticker turns the middle
+     * slice, an edge sticker on the outer layer turns a face, and so on. That falls out
+     * of the sticker's own position, so a rotated view needs no special case.
+     */
+    private inferViewRelativeSlice(
+        event: KeyboardEvent,
+        direction: DragDirection
+    ): string | undefined {
+        const model = this.state.model;
+        /* c8 ignore if — guarded by the caller */
+        if (!model || !this.state.currentSelected) return undefined;
+
+        const sticker = CubeStateUtils.getStickerById(
+            model.getCurrentState(),
+            this.state.currentSelected
+        );
+        /* c8 ignore if — sticker always found for a valid selection */
+        if (!sticker) return undefined;
+
+        // Which view rotation does this arrow correspond to? The keyboard's arrow and
+        // the view rotation are the same physical motion: screen-right is
+        // `rotateViewRight`, and so on through the four directions.
+        const step =
+            direction === DragDirection.RIGHT
+                ? stepRight
+                : direction === DragDirection.LEFT
+                  ? stepLeft
+                  : direction === DragDirection.UP
+                    ? stepUp
+                    : stepDown;
+
+        const current: Orientation = {
+            viewRight: this.state.viewRight,
+            viewUp: this.state.viewUp,
+            viewForward: this.state.viewForward,
+        };
+        const turn = sliceRotationForViewTurn(current, step(current));
+
+        const cubeSize = model.getCurrentState().cubeSize;
+
+        // The sticker's coordinate along the turn's axis selects the layer. This is
+        // the same integer the drag inference uses, so `M` names the middle layer on a
+        // 3×3 and the numbered slices follow for larger cubes.
+        const position = facePositionTo3D(sticker.facePosition, sticker.currentFace, cubeSize);
+        const layerIndex =
+            turn.axis === Axis.X ? position.x : turn.axis === Axis.Y ? position.y : position.z;
+
+        const angle = event.shiftKey
+            ? ((turn.angle > 0 ? 180 : -180) as QuarterTurn)
+            : (turn.angle as QuarterTurn);
+
+        return notationForSignedAngle(turn.axis, layerIndex, angle, cubeSize);
+    }
+
+    /**
+     * Handle a `Ctrl+Arrow` layer move.
+     *
+     * Two cases, and they mean different things:
+     *
+     * - **A face is effectively selected** (explicitly, or via face-direct mode).
+     *   The key names a turn of *that face*, so "clockwise" is read on the face
+     *   itself and the arrow is a direction within the face's own frame. This is
+     *   what `inferKeyboardMove` already does, and the screen orientation is
+     *   deliberately irrelevant — a user turning the F face means `F`/`F'` however
+     *   the view is rotated.
+     * - **No face selected.** The arrow names a direction *on screen*, and the
+     *   selected sticker only chooses which layer is involved: the slice must turn
+     *   the same way the matching view rotation turns the whole cube. That turn is
+     *   derived by {@link sliceRotationForViewTurn} rather than read off the face
+     *   under the sticker — doing the latter made the key's meaning depend on which
+     *   face the selection happened to be on, so the same press turned different
+     *   ways before and after a rotation.
+     *
+     * `Ctrl+Shift+Arrow` doubles the derived turn. Because the derived angle is
+     * signed about a positive axis, the 180° variant keeps the sense: a doubled
+     * clockwise turn is `2` and a doubled anticlockwise turn is `2'`. That is why
+     * the slice path does not route through `toDoubleTurn` — that helper collapses
+     * the prime, which is right for a face turn but would lose the sense here.
+     */
     private handleKeyboardMove(event: KeyboardEvent): void {
+        const model = this.state.model;
         /* c8 ignore if — same invariant as handleFaceSelectKey */
-        if (!this.state.currentSelected || !this.state.model || !this.touchHandler) return;
+        if (!this.state.currentSelected || !model || !this.touchHandler) return;
 
         const direction = mapArrowToDirection(event);
         /* c8 ignore if — mapArrowToDirection can return undefined on unexpected key */
         if (!direction) return;
 
+        // A face is effectively selected when it was picked explicitly or when
+        // face-direct mode is on. That case is a face turn, and `inferKeyboardMove`
+        // already reads it correctly in the face's own frame — clockwise means
+        // clockwise *on that face*, whatever the view is doing. Only the no-face case
+        // below needs the view-relative treatment, so the two are kept apart here
+        // rather than folded into one path that would have to un-learn the distinction.
+        const selectedFace = this.touchHandler.getSelectedFace();
+        const faceDirectMode = this.touchHandler.isFaceDirectMode();
+
+        if (selectedFace === undefined && !faceDirectMode) {
+            const notation = this.inferViewRelativeSlice(event, direction);
+            /* c8 ignore if — only a cube too small to have a slice resolves to none */
+            if (!notation) return;
+            Application.eventBus.emit(EventName.MOVE_REQUESTED, {
+                moveNotation: notation,
+                viewId: this.state.viewType,
+                tentative: false,
+            });
+            return;
+        }
+
         const notation = inferKeyboardMove({
             stickerId: this.state.currentSelected,
-            selectedFace: this.touchHandler.getSelectedFace(),
-            faceDirectMode: this.touchHandler.isFaceDirectMode(),
+            selectedFace,
+            faceDirectMode,
             direction,
             doubleTurn: event.shiftKey,
-            model: this.state.model,
+            model,
         });
         /* c8 ignore if — inferKeyboardMove returns undefined on some keys */
         if (!notation) return;
@@ -631,7 +955,7 @@ export class BasicView implements CubeView {
             // No-cubie path (e.g. whole-cube rotation with no tracked cubies)
             // still needs the label refresh.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
-            this.endFinishedRotation();
+            this.endRotation();
             return;
         }
 
@@ -653,7 +977,7 @@ export class BasicView implements CubeView {
             // Reduced-motion / non-animated whole-cube path. There is no turn to
             // wait for, so the strips return immediately.
             this.refreshFaceLabelsAfterWholeCubeMove(event);
-            this.endFinishedRotation();
+            this.endRotation();
             return;
         }
 
@@ -678,7 +1002,7 @@ export class BasicView implements CubeView {
                     this.refreshFaceLabelsAfterWholeCubeMove(event);
                     // The move animation has just finished, so there is nothing
                     // left to wait for.
-                    this.endFinishedRotation();
+                    this.endRotation();
                 }
             })
             .catch(() => {
@@ -689,7 +1013,7 @@ export class BasicView implements CubeView {
                 // one we opened it for. Re-closing a rotation that is already shut
                 // is harmless: it recomputes the same set of strips.
                 if (this.activeAnimation?.event === event) {
-                    this.endFinishedRotation();
+                    this.endRotation();
                 }
             });
     }
@@ -728,7 +1052,7 @@ export class BasicView implements CubeView {
         // its post-move positions, so this rotation is over — there is nothing
         // left to wait for.
         this.restoreSelection();
-        this.endFinishedRotation();
+        this.endRotation();
     }
 
     // -------------------------------------------------------------------------
@@ -737,46 +1061,46 @@ export class BasicView implements CubeView {
 
     rotateViewLeft(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             rotateViewLeft(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state, 'horizontal');
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
     rotateViewRight(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             rotateViewRight(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state, 'horizontal');
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
     rotateViewUp(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             rotateViewUp(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state, 'vertical');
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
     rotateViewDown(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             rotateViewDown(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state, 'vertical');
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
     resetView(): void {
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             resetView(this.state);
-            updateRotation(this.state);
             updateFaceLabels(this.state);
-            this.endRotation();
+            this.applyRotation(this.shouldSkipRotationAnimation());
         });
     }
 
@@ -792,11 +1116,47 @@ export class BasicView implements CubeView {
         // than fixing a live defect. It also protects the invariant if that
         // move-emission path ever stops reconciling.
         this.preserveSelectionAcrossOrientationChange(() => {
+            this.beginRotation();
             alignCubeToView(this.state);
-            updateRotation(this.state, true);
             updateFaceLabels(this.state);
-            this.endRotation();
+            // Snapping is the intent here — the cube is being aligned to the view,
+            // not turned towards it — so the write is deliberately non-animating.
+            this.applyRotation(true);
         });
+    }
+
+    /**
+     * Toggle the view's tilt (a cosmetically rotated presentation of the same
+     * orientation).
+     *
+     * Routed through the view rather than letting the command call
+     * `rendering.updateRotation` directly, because a tilt swaps which CSS slots
+     * are visible and therefore which silhouette edges the ghost strips belong
+     * on — so it needs the same strips-off/refresh treatment as a rotation, and
+     * the command context has no way to express that.
+     *
+     * The base tilt is not the orientation, so there is no *orientation* rotation to
+     * animate — but the change itself is animated, as its own ramp on the base angles
+     * (see `updateRotation`). Asking to skip it would snap, which is the regression
+     * this restored: the skip was correct when a CSS transition on `.cube` covered the
+     * presentation change, and that transition had to be removed when the rotation
+     * primitive replaced it.
+     */
+    toggleTilt(): void {
+        this.beginRotation();
+        this.state.isTilted = !this.state.isTilted;
+        this.applyRotation();
+        updateFaceLabels(this.state);
+    }
+
+    /**
+     * Toggle the view's pitch. Same reasoning as {@link toggleTilt}.
+     */
+    togglePitch(): void {
+        this.beginRotation();
+        this.state.isPitched = !this.state.isPitched;
+        this.applyRotation();
+        updateFaceLabels(this.state);
     }
 
     // -------------------------------------------------------------------------
@@ -884,6 +1244,10 @@ export class BasicView implements CubeView {
             );
         }
 
+        // Restoring a saved orientation is not a turn the user asked for: there is
+        // no travel to show, so the write is settled and no rotation is opened.
+        // Going through `updateRotation` directly keeps the ramp bookkeeping
+        // consistent without touching `turnsInFlight`.
         updateRotation(this.state, true);
         updateFaceLabels(this.state);
 
@@ -900,6 +1264,13 @@ export class BasicView implements CubeView {
     destroy(): void {
         // Stop being addressable: a destroyed view must not be activatable.
         unregisterViewContainer(this.getViewType());
+
+        // Drop any rotation still in flight. Its completion is refused by the identity
+        // guard in `applyRotation`, so the view must not leave it holding a turn.
+        this.rotationAnimation = null;
+        this.turnsInFlight = 0;
+        this.rotationsInSequence = 0;
+        this.clearSequenceSettleTimer();
 
         // Finalize any running animation
         this.finalizeAnimation();
@@ -951,14 +1322,14 @@ export class BasicView implements CubeView {
     /**
      * Recompute which ghost strips belong on screen for the current orientation.
      *
-     * @param turnAlreadyFinished Whether the caller has already waited for its
-     *   own rotation to finish. The move paths have — they await the move
-     *   animation before calling this — so for them the fade-in delay would be a
-     *   second, phantom turn, measured as a 233ms pause between the cube stopping
-     *   and the strips returning. The synchronous rotation entry points still
-     *   have their turn running, so they keep the delay.
+     * The reveal is immediate. Every caller has already waited for its own turn —
+     * view rotations and move animations alike settle through
+     * {@link endRotation} — so the fade-in delay that used to live here would be a
+     * second, phantom turn. It was tuned against the CSS `transition: transform`
+     * that no longer exists, and it measured as a 233ms dead pause between the
+     * cube stopping and the strips returning.
      */
-    private updateGhostEdges(turnAlreadyFinished = false): void {
+    private updateGhostEdges(): void {
         if (!isGhostVisible()) return;
         const { visibleFaces, hiddenFaces } = getVisibleFacesWithPositions(this.state);
         this.ghostStickers?.updateVisibleEdges(
@@ -966,7 +1337,7 @@ export class BasicView implements CubeView {
             hiddenFaces,
             this.state.isTilted,
             this.state.isPitched,
-            turnAlreadyFinished ? 0 : undefined
+            0
         );
     }
 }

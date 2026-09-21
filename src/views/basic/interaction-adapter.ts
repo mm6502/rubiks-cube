@@ -12,7 +12,7 @@ import { Point2D, Vector3 } from '@/types/geometry';
  * screen-right and viewUp corresponds to screen-up (Y axis is inverted vs.
  * screen coordinates, so DOWN drag → negative viewUp contribution).
  *
- * For the default orientation this is a no-op. For rotated views (Ctrl+Arrow)
+ * For the default orientation this is a no-op. For rotated views (Alt+Arrow)
  * the correct intrinsic direction is inferred via dot products.
  */
 export function createBasicInteractionAdapter(

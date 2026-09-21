@@ -126,6 +126,40 @@ function isSurfaceCubie(position: Position3D, cubeSize: number): boolean {
 }
 
 /**
+ * The sticker border width for a given cubie size, in pixels.
+ *
+ * Proportional to the CUBIE rather than the viewport, so the separations between facelets
+ * stay consistent when the panel is resized instead of drifting against a border that does
+ * not move.
+ *
+ * The ratio is taken from what the app ALREADY renders, measured rather than guessed: with
+ * the previous `0.5cqmin`, a 46.2px cubie showed a 4px border (8.7%), a 55px cubie 4px
+ * (7.3%), and a 77px cubie 4px (5.2%) — i.e. the border was effectively fixed and its
+ * proportion shrank as the cube grew. 8% reproduces that weight at those sizes while making
+ * it hold at larger ones.
+ *
+ * Clamped: a purely proportional value goes sub-pixel on a small cube (a 2x2 or a 7x7 at a
+ * short panel gives a ~33px cubie, i.e. under 3px), which would leave the facelets visually
+ * merged. The floor keeps the grid legible. The ceiling only guards against an absurdly large
+ * cube; it is set high enough not to bind at any size this view actually produces, because
+ * capping it lower made the proportion drift (measured: 8.7% at a 46px cubie down to 6.1% at
+ * 98px) — the same shrinking-relative-border defect, just in milder form.
+ *
+ * @param cubieSize - The cubie's edge length in pixels.
+ */
+export function stickerBorderWidth(cubieSize: number): number {
+    const RATIO_OF_CUBIE = 0.08;
+    const raw = cubieSize * RATIO_OF_CUBIE;
+    // Quantised to WHOLE pixels, deliberately.
+    //
+    // A fractional border reintroduces the exact defect this fix removes: the browser rounds
+    // each element's border independently, so a 3.7px value paints 3px on some stickers and
+    // 4px on others ON THE SAME CUBE, which is the uneven-separation appearance reported.
+    // Rounding here means every sticker on a cube computes the same integer.
+    return Math.max(2, Math.min(16, Math.round(raw)));
+}
+
+/**
  * Initialize all cubie DOM elements for the cube.
  *
  * Creates one `div.cubie` per surface cubie and appends them to the cube element.
@@ -140,6 +174,23 @@ export function initializeCubies(state: BasicViewInternalData, size: number): vo
     const cubeState = state.model.getCurrentState();
     const cubeSize = cubeState.cubeSize ?? 3;
     const cubieSize = size / cubeSize;
+
+    // Publish the sticker border width for this cubie size, once, on the cube element.
+    //
+    // The `.sticker` rule cannot work this out for itself. A `cq*` unit (what this used to
+    // be) resolves against the nearest `container-type` ancestor and there are none in this
+    // codebase, so it silently fell back to the viewport — making the border independent of
+    // the cube. A percentage is circular: `border-width` percentages resolve against the
+    // containing block's width, which for a 100%-wide sticker under `box-sizing: border-box`
+    // is the sticker itself.
+    //
+    // This is the only place the cubie size is known, so it is the only place the value can
+    // be computed. Set on the cube element so it inherits to every cubie and sticker, one
+    // write for the whole rebuild rather than one per element.
+    state.cubeElement.style.setProperty(
+        '--cubie-border-width',
+        `${stickerBorderWidth(cubieSize)}px`
+    );
 
     // Clear existing cubies
     const existingCubies = state.cubeElement.querySelectorAll('[data-cubie-id]');
