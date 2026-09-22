@@ -291,3 +291,61 @@ describe('BasicView default selection', () => {
         expect(view.getSelectedSticker()).toBe(expected?.id);
     });
 });
+
+// =========================================================================
+// U4: resize settles in-flight animation
+// =========================================================================
+
+describe('BasicView resize settles in-flight animation', () => {
+    let view: BasicView;
+    let model: CubeController;
+    let container: HTMLElement;
+
+    beforeEach(() => {
+        model = new CubeController();
+        view = new BasicView({ viewType: 'basic-back' });
+        container = document.createElement('div');
+        view.create(container, model);
+    });
+
+    it('resize with no animation leaves animation state untouched', () => {
+        // Arrange — no animation has been started.
+        const pivotBefore = (view as any).pivot;
+
+        // Act
+        view.resize();
+
+        // Assert — no pivot was created, animation state is null.
+        const pivotAfter = (view as any).pivot;
+        expect(pivotAfter).toBe(pivotBefore);
+        expect((view as any).activeAnimation).toBeNull();
+    });
+
+    it('resize during a move animation cancels it and removes the pivot', () => {
+        // Arrange — start a move to create an animation.
+        (view as any).beginRotation();
+        (view as any).activeAnimation = {
+            animation: { cancel: vi.fn() } as any,
+            pivot: document.createElement('div'),
+            cubieElements: [],
+            event: {
+                moveDetails: {
+                    movedCubies: {
+                        before: [],
+                        after: [],
+                    },
+                },
+            },
+        };
+
+        const pivotEl = (view as any).activeAnimation.pivot;
+        container.appendChild(pivotEl);
+
+        // Act
+        view.resize();
+
+        // Assert — pivot was removed, animation was cancelled.
+        expect(pivotEl.parentNode).toBeNull();
+        expect((view as any).activeAnimation).toBeNull();
+    });
+});

@@ -642,6 +642,9 @@ export class BasicView implements CubeView {
     }
 
     resize(): void {
+        // Settle any in-flight move so the resize never rescales cubies that are
+        // reparented inside an animation pivot, and never leaves a pivot attached.
+        this.finalizeAnimation();
         resize(this.state);
         this.touchHandler?.resize();
     }
