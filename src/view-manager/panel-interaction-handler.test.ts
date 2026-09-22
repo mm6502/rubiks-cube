@@ -279,6 +279,13 @@ describe('PanelInteractionHandler', () => {
             panel.appendChild(handle);
             visualizationsContainer.appendChild(panel);
 
+            // Mock rAF to run synchronously so resize fires during the event dispatch.
+            const origRaf = globalThis.requestAnimationFrame;
+            globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+                cb(0);
+                return 0;
+            };
+
             // Act
             handle.dispatchEvent(
                 new PointerEvent('pointerdown', {
@@ -299,6 +306,262 @@ describe('PanelInteractionHandler', () => {
             expect(panel.style.width).toBeTruthy();
             expect(panel.style.height).toBeTruthy();
             expect(mockView.resize).toHaveBeenCalled();
+
+            globalThis.requestAnimationFrame = origRaf;
+        });
+
+        it('should coalesce multiple pointermove events into one resize per frame', () => {
+            // Arrange
+            handler.setupDragAndResizeHandlers();
+            const mockView = createMockView({
+                getMinimumSize: () => ({ width: 100, height: 100 }),
+                resize: vi.fn(),
+            });
+            activeViews.set('basic', {
+                view: mockView,
+                container: document.createElement('div'),
+            });
+            const panel = document.createElement('div');
+            panel.id = 'basic-panel';
+            panel.className = styles['view-panel'];
+            panel.style.position = 'absolute';
+            vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+                left: 50,
+                top: 50,
+                width: 200,
+                height: 200,
+                right: 250,
+                bottom: 250,
+                x: 50,
+                y: 50,
+                toJSON: () => ({}),
+            });
+            const handle = document.createElement('div');
+            handle.className = styles['resize-handle'];
+            handle.setAttribute('data-resize-direction', 'se');
+            panel.appendChild(handle);
+            visualizationsContainer.appendChild(panel);
+
+            // Mock rAF to run synchronously
+            const origRaf = globalThis.requestAnimationFrame;
+            globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+                cb(0);
+                return 0;
+            };
+
+            // Act — start resize
+            handle.dispatchEvent(
+                new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    clientX: 250,
+                    clientY: 250,
+                })
+            );
+
+            // Three pointermove events within the same frame
+            document.dispatchEvent(
+                new PointerEvent('pointermove', {
+                    bubbles: true,
+                    clientX: 260,
+                    clientY: 260,
+                })
+            );
+            document.dispatchEvent(
+                new PointerEvent('pointermove', {
+                    bubbles: true,
+                    clientX: 270,
+                    clientY: 270,
+                })
+            );
+            document.dispatchEvent(
+                new PointerEvent('pointermove', {
+                    bubbles: true,
+                    clientX: 280,
+                    clientY: 280,
+                })
+            );
+
+            // Assert — only one resize call despite three moves
+            expect(mockView.resize).toHaveBeenCalledTimes(1);
+            // Panel width reflects the last move
+            expect(parseInt(panel.style.width)).toBe(230);
+
+            globalThis.requestAnimationFrame = origRaf;
+        });
+
+        it('should commit final resize on pointerup when frame is pending', () => {
+            // Arrange
+            handler.setupDragAndResizeHandlers();
+            const mockView = createMockView({
+                getMinimumSize: () => ({ width: 100, height: 100 }),
+                resize: vi.fn(),
+            });
+            activeViews.set('basic', {
+                view: mockView,
+                container: document.createElement('div'),
+            });
+            const panel = document.createElement('div');
+            panel.id = 'basic-panel';
+            panel.className = styles['view-panel'];
+            panel.style.position = 'absolute';
+            vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+                left: 50,
+                top: 50,
+                width: 200,
+                height: 200,
+                right: 250,
+                bottom: 250,
+                x: 50,
+                y: 50,
+                toJSON: () => ({}),
+            });
+            const handle = document.createElement('div');
+            handle.className = styles['resize-handle'];
+            handle.setAttribute('data-resize-direction', 'se');
+            panel.appendChild(handle);
+            visualizationsContainer.appendChild(panel);
+
+            // Act — start resize, move, then pointerup before rAF fires
+            handle.dispatchEvent(
+                new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    clientX: 250,
+                    clientY: 250,
+                })
+            );
+            document.dispatchEvent(
+                new PointerEvent('pointermove', {
+                    bubbles: true,
+                    clientX: 300,
+                    clientY: 300,
+                })
+            );
+            document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+
+            // Assert — resize was called synchronously at gesture end
+            expect(mockView.resize).toHaveBeenCalled();
+        });
+
+        it('should not call resize after dispose with a pending frame', () => {
+            // Arrange
+            handler.setupDragAndResizeHandlers();
+            const mockView = createMockView({
+                getMinimumSize: () => ({ width: 100, height: 100 }),
+                resize: vi.fn(),
+            });
+            activeViews.set('basic', {
+                view: mockView,
+                container: document.createElement('div'),
+            });
+            const panel = document.createElement('div');
+            panel.id = 'basic-panel';
+            panel.className = styles['view-panel'];
+            panel.style.position = 'absolute';
+            vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+                left: 50,
+                top: 50,
+                width: 200,
+                height: 200,
+                right: 250,
+                bottom: 250,
+                x: 50,
+                y: 50,
+                toJSON: () => ({}),
+            });
+            const handle = document.createElement('div');
+            handle.className = styles['resize-handle'];
+            handle.setAttribute('data-resize-direction', 'se');
+            panel.appendChild(handle);
+            visualizationsContainer.appendChild(panel);
+
+            // Mock rAF to be a no-op so the frame never fires
+            const origRaf = globalThis.requestAnimationFrame;
+            globalThis.requestAnimationFrame = (_cb: FrameRequestCallback) => 0;
+
+            // Act — start resize, move (schedules frame), then dispose
+            handle.dispatchEvent(
+                new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    clientX: 250,
+                    clientY: 250,
+                })
+            );
+            document.dispatchEvent(
+                new PointerEvent('pointermove', {
+                    bubbles: true,
+                    clientX: 300,
+                    clientY: 300,
+                })
+            );
+            handler.dispose();
+
+            globalThis.requestAnimationFrame = origRaf;
+
+            // Assert — dispose cancelled the frame, so resize was never called
+            expect(mockView.resize).not.toHaveBeenCalled();
+        });
+
+        it('should not propagate resize errors out of the frame callback', () => {
+            // Arrange
+            handler.setupDragAndResizeHandlers();
+            const mockView = createMockView({
+                getMinimumSize: () => ({ width: 100, height: 100 }),
+                resize: vi.fn().mockImplementation(() => {
+                    throw new Error('resize failed');
+                }),
+            });
+            activeViews.set('basic', {
+                view: mockView,
+                container: document.createElement('div'),
+            });
+            const panel = document.createElement('div');
+            panel.id = 'basic-panel';
+            panel.className = styles['view-panel'];
+            panel.style.position = 'absolute';
+            vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+                left: 50,
+                top: 50,
+                width: 200,
+                height: 200,
+                right: 250,
+                bottom: 250,
+                x: 50,
+                y: 50,
+                toJSON: () => ({}),
+            });
+            const handle = document.createElement('div');
+            handle.className = styles['resize-handle'];
+            handle.setAttribute('data-resize-direction', 'se');
+            panel.appendChild(handle);
+            visualizationsContainer.appendChild(panel);
+
+            // Mock rAF to run synchronously
+            const origRaf = globalThis.requestAnimationFrame;
+            globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+                cb(0);
+                return 0;
+            };
+
+            // Act — start resize, move — should not throw
+            handle.dispatchEvent(
+                new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    clientX: 250,
+                    clientY: 250,
+                })
+            );
+            document.dispatchEvent(
+                new PointerEvent('pointermove', {
+                    bubbles: true,
+                    clientX: 300,
+                    clientY: 300,
+                })
+            );
+            globalThis.requestAnimationFrame = origRaf;
+
+            // Assert — resize was called (and threw), but the error was caught
+            expect(mockView.resize).toHaveBeenCalledTimes(1);
+            expect(logger.warn).toHaveBeenCalled();
         });
 
         it('should end drag on pointer up', () => {
