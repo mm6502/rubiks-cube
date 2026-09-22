@@ -455,9 +455,8 @@ export function getVisibleFacesWithPositions(state: BasicViewInternalData): {
 export function updateSize(state: BasicViewInternalData): void {
     if (!state.cubeElement || !state.container) return;
 
-    // Cubie elements are replaced wholesale below, so any rotation still ramping
-    // is now animating detached nodes. Drop it and take the settled transform, or
-    // its completion would later write to elements that are no longer on screen.
+    // A rebuild underneath an in-flight ramp would leave an interpolated
+    // transform applied over a freshly built grid, so settle the view first.
     resetRotationAnimation(state);
 
     const containerWidth = state.container.clientWidth;
@@ -480,8 +479,12 @@ export function updateSize(state: BasicViewInternalData): void {
         cubeWrapper.style.perspective = `${scaledPerspective}px`;
     }
 
-    // Reinitialize cubies with updated size (positions and face transforms both depend on size)
-    cubieRendering.initializeCubies(state, faceSize);
+    // Try an in-place resize first; fall back to a full rebuild when the
+    // existing DOM does not correspond to the current model.
+    const inPlaceOk = cubieRendering.resizeCubies(state, faceSize);
+    if (!inPlaceOk) {
+        cubieRendering.initializeCubies(state, faceSize);
+    }
 
     // Update ghost-anchor sizes and transforms
     initializeGhostAnchors(state, faceSize);
