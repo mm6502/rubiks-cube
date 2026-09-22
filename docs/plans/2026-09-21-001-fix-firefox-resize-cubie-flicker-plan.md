@@ -3,7 +3,7 @@ title:
   'fix: Stop the Basic view resize flicker by coalescing resize work and
   updating cubies in place'
 type: fix
-status: active
+status: completed
 date: 2026-09-21
 ---
 
