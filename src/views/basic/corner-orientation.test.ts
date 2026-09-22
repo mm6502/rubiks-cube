@@ -47,7 +47,7 @@ describe('corner-orientation - verify sticker currentFace after non-3 moves', ()
 
     /**
      * Verify that after a U move on 4x4, rendering the cubies with updateCubiePositions
-     * produces sticker elements with correct data-basic-face attributes.
+     * produces sticker elements with correct data-face attributes.
      */
     it('4x4: renderCubieFaces produces correct sticker DOM after U move', async () => {
         const { CubeController } = await import('@/cube-controller');
@@ -73,13 +73,11 @@ describe('corner-orientation - verify sticker currentFace after non-3 moves', ()
         // Build DOM element with the corner cubie
         const cubieEl = buildCubieElement(corner, 100, 4, styles, vi.fn());
 
-        // Verify sticker elements have correct data-basic-face attributes
+        // Verify sticker elements have correct data-face attributes
         const stickerEls = Array.from(cubieEl.querySelectorAll('.sticker'));
         expect(stickerEls.length).toBe(3);
 
-        const facesInDOM = stickerEls.map(el =>
-            (el as HTMLElement).getAttribute('data-basic-face')
-        );
+        const facesInDOM = stickerEls.map(el => (el as HTMLElement).getAttribute('data-face'));
         const expectedFaces = getExpectedCornerFaces(corner.position, 4);
 
         expect(facesInDOM.sort()).toEqual(expectedFaces.sort());

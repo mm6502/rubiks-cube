@@ -73,11 +73,11 @@ describe('GhostStickers', () => {
         for (const { face, cssName } of faces) {
             const faceDiv = document.createElement('div');
             faceDiv.className = `face ${cssName}`;
-            faceDiv.setAttribute('data-basic-face', face);
+            faceDiv.setAttribute('data-face', face);
             // Add 9 stickers
             for (let i = 0; i < 9; i++) {
                 const sticker = document.createElement('div');
-                sticker.setAttribute('data-basic-face', face);
+                sticker.setAttribute('data-face', face);
                 sticker.setAttribute('data-basic-pos', String(i));
                 sticker.style.backgroundColor = `rgb(${i * 10}, ${i * 20}, ${i * 30})`;
                 faceDiv.appendChild(sticker);

@@ -495,7 +495,7 @@ export function updateSize(state: BasicViewInternalData): void {
  * correct transforms and sizes.
  *
  * These anchors exist purely so the shared `GhostStickers` module (which
- * queries `[data-basic-face="X"]:not([data-basic-pos])` for a host element)
+ * queries `[data-face="X"]:not([data-basic-pos])` for a host element)
  * has a valid full-face target in the Basic view's per-cubie DOM. They are built
  * inside a dedicated `.ghost-anchor-container` wrapper — never alongside
  * cubie sticker divs — so the query can never resolve to the wrong element.
@@ -521,11 +521,11 @@ export function initializeGhostAnchors(state: BasicViewInternalData, size: numbe
     const faces = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
 
     faces.forEach(face => {
-        let anchor = wrapper!.querySelector(`[data-basic-face="${face}"]`) as HTMLElement | null;
+        let anchor = wrapper!.querySelector(`[data-face="${face}"]`) as HTMLElement | null;
         if (!anchor) {
             anchor = document.createElement('div');
             anchor.className = state.styles['ghost-anchor'] ?? '';
-            anchor.setAttribute('data-basic-face', face);
+            anchor.setAttribute('data-face', face);
             wrapper!.appendChild(anchor);
         }
         anchor.style.transform = cubieRendering.getFaceTransform(face, halfSize);

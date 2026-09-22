@@ -182,9 +182,13 @@ export class GhostStickers {
         const edgeDir = side === 'A' ? edge.edgeOnA : edge.edgeOnB;
         const sourceFace = side === 'A' ? edge.faceB : edge.faceA;
 
-        // Find the face element by data attribute
+        // Find the face element by data attribute. The `:not([data-basic-pos])`
+        // guard separates a full-face host from a sticker, but the real safety
+        // here is the SCOPE: `this.cubeElement` is the `.ghost-anchor-container`
+        // wrapper (see initializeGhostAnchors), which holds only anchors. Cubie
+        // sticker and interior divs share `data-face` and live outside it.
         const faceEl = this.cubeElement.querySelector(
-            `[data-basic-face="${hostFace}"]:not([data-basic-pos])`
+            `[data-face="${hostFace}"]:not([data-basic-pos])`
         ) as HTMLElement | null;
         /* c8 ignore if */
         if (!faceEl) return;

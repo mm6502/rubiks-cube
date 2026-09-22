@@ -82,10 +82,10 @@ describe('rendering - initializeGhostAnchors', () => {
         const wrapper = cubeElement.querySelector('.ghost-anchor-container');
         expect(wrapper).not.toBeNull();
 
-        const anchors = wrapper!.querySelectorAll('[data-basic-face]');
+        const anchors = wrapper!.querySelectorAll('[data-face]');
         expect(anchors).toHaveLength(6);
 
-        const faces = Array.from(anchors).map(el => el.getAttribute('data-basic-face'));
+        const faces = Array.from(anchors).map(el => el.getAttribute('data-face'));
         expect(new Set(faces)).toEqual(new Set([Face.F, Face.B, Face.U, Face.D, Face.L, Face.R]));
 
         anchors.forEach(el => {
@@ -100,7 +100,7 @@ describe('rendering - initializeGhostAnchors', () => {
         initializeGhostAnchors(state, 300);
 
         const anchorFor = (face: Face) =>
-            cubeElement.querySelector(`[data-basic-face="${face}"]`) as HTMLElement;
+            cubeElement.querySelector(`[data-face="${face}"]`) as HTMLElement;
 
         expect(anchorFor(Face.F).style.transform).toBe('translateZ(150px)');
         expect(anchorFor(Face.B).style.transform).toBe('rotateY(180deg) translateZ(150px)');
@@ -115,18 +115,18 @@ describe('rendering - initializeGhostAnchors', () => {
         initializeGhostAnchors(state, 300);
 
         expect(cubeElement.querySelectorAll('.ghost-anchor-container')).toHaveLength(1);
-        expect(cubeElement.querySelectorAll('[data-basic-face]')).toHaveLength(6);
+        expect(cubeElement.querySelectorAll('[data-face]')).toHaveLength(6);
     });
 
     it('updates size and transform when resized', () => {
         initializeGhostAnchors(state, 300);
         initializeGhostAnchors(state, 450);
 
-        const anchorF = cubeElement.querySelector('[data-basic-face="F"]') as HTMLElement;
+        const anchorF = cubeElement.querySelector('[data-face="F"]') as HTMLElement;
         expect(anchorF.style.width).toBe('450px');
         expect(anchorF.style.height).toBe('450px');
         expect(anchorF.style.transform).toBe('translateZ(225px)');
-        expect(cubeElement.querySelectorAll('[data-basic-face]')).toHaveLength(6);
+        expect(cubeElement.querySelectorAll('[data-face]')).toHaveLength(6);
     });
 
     it('stores the wrapper reference on state.ghostAnchorContainer', () => {
@@ -248,25 +248,25 @@ describe('rendering - initializeGhostAnchors', () => {
         expect(result).toEqual([]);
 
         // Anchors themselves never carry data-cubie-id.
-        cubeElement.querySelectorAll('[data-basic-face]').forEach(el => {
+        cubeElement.querySelectorAll('[data-face]').forEach(el => {
             expect(el.hasAttribute('data-cubie-id')).toBe(false);
         });
     });
 
     it('scopes the shared query so it resolves to the anchor even when a stray sticker div shares the same attribute shape', () => {
         // Simulate a cubie sticker div sitting directly under cubeElement,
-        // sharing data-basic-face with no data-basic-pos — the exact shape
+        // sharing data-face with no data-basic-pos — the exact shape
         // GhostStickers queries for. It is NOT inside the wrapper.
         const strayStickerDiv = document.createElement('div');
         strayStickerDiv.className = 'sticker';
-        strayStickerDiv.setAttribute('data-basic-face', Face.F);
+        strayStickerDiv.setAttribute('data-face', Face.F);
         cubeElement.appendChild(strayStickerDiv);
 
         initializeGhostAnchors(state, 300);
 
         const wrapper = state.ghostAnchorContainer!;
         const resolved = wrapper.querySelector(
-            '[data-basic-face="F"]:not([data-basic-pos])'
+            '[data-face="F"]:not([data-basic-pos])'
         ) as HTMLElement;
 
         expect(resolved).not.toBeNull();

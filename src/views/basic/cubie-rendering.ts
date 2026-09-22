@@ -62,7 +62,10 @@ function renderCubieFaces(
         const faceEl = document.createElement('div');
         faceEl.className = styles['sticker'] ?? 'sticker';
         faceEl.setAttribute('data-sticker-id', sticker.id);
-        faceEl.setAttribute('data-basic-face', sticker.currentFace);
+        // `data-face` is the ONE face-identity attribute in this view. It is set on
+        // sticker AND interior elements alike, because `resizeCubies` below must
+        // recompute a transform for every face element of a cubie, and interiors
+        // are not interactive so they cannot carry the sticker marker instead.
         faceEl.setAttribute('data-face', sticker.currentFace);
         faceEl.style.backgroundColor = resolveCubeColor(sticker.color);
         faceEl.style.transform = getFaceTransform(sticker.currentFace, cubieHalf);
@@ -286,8 +289,10 @@ export function resizeCubies(state: BasicViewInternalData, faceSize: number): bo
     const cubieSize = faceSize / cubeSize;
     const maxCoord = cubeSize - 1;
 
-    // Discovery pass: collect every expected surface cubie's element.
+    // Discovery pass: collect every expected surface cubie's element and
+    // build a position map keyed by cubie id.
     const expectedIds = new Set<string>();
+    const positionMap = new Map<string, Position3D>();
     for (let x = 0; x < cubeSize; x++) {
         for (let y = 0; y < cubeSize; y++) {
             for (let z = 0; z < cubeSize; z++) {
@@ -296,6 +301,7 @@ export function resizeCubies(state: BasicViewInternalData, faceSize: number): bo
                 const cubie = cubeState.cubiesByPosition.get(posKey);
                 if (!cubie) continue;
                 expectedIds.add(cubie.id);
+                positionMap.set(cubie.id, cubie.position);
             }
         }
     }
@@ -320,18 +326,11 @@ export function resizeCubies(state: BasicViewInternalData, faceSize: number): bo
 
     const cubieHalf = cubieSize / 2;
 
-    for (const cubie of expectedIds) {
-        const el = state.cubeElement!.querySelector(`[data-cubie-id="${cubie}"]`) as HTMLElement;
+    for (const id of expectedIds) {
+        const el = state.cubeElement!.querySelector(`[data-cubie-id="${id}"]`) as HTMLElement;
         if (!el) continue;
 
-        // Find the cubie's current position in the model.
-        let pos: Position3D | undefined;
-        for (const [, c] of cubeState.cubiesByPosition) {
-            if (c.id === cubie) {
-                pos = c.position;
-                break;
-            }
-        }
+        const pos = positionMap.get(id);
         if (!pos) continue;
 
         const cx = pos.x * cubieSize;

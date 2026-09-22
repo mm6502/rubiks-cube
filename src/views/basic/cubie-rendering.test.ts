@@ -195,6 +195,58 @@ describe('cubie-rendering - interior faces', () => {
     });
 });
 
+describe('cubie-rendering - data-face contract', () => {
+    // `data-face` is the ONE attribute naming a face element in this view. The
+    // whole render path depends on two properties of it, and both are load-bearing
+    // rather than incidental — a regression in either silently breaks something
+    // far away from this file:
+    //
+    //  1. Every face element carries it, sticker AND interior alike, because
+    //     `resizeCubies` finds them all through a single `[data-face]` query. An
+    //     interior div missing it keeps its OLD halfSize transform after a resize
+    //     and visibly detaches from its cubie.
+    //  2. Every face element carries it EXACTLY ONCE, and no element carries a
+    //     second face-naming attribute. A duplicate write is how this drifted into
+    //     two attributes (`data-basic-face` + `data-face`) in the first place.
+    it('marks every face element (sticker and interior) with exactly one data-face attribute', () => {
+        const cubie = createCubie([Face.F, Face.U]);
+        const cubieEl = buildCubieElement(cubie, 100, 3, styles, vi.fn());
+
+        const stickers = Array.from(cubieEl.querySelectorAll('.sticker')) as HTMLElement[];
+        const interiors = Array.from(cubieEl.querySelectorAll('.cubie-interior')) as HTMLElement[];
+
+        expect(stickers).toHaveLength(2);
+        expect(interiors).toHaveLength(4);
+
+        for (const el of [...stickers, ...interiors]) {
+            const face = el.getAttribute('data-face');
+            expect(face, 'every face element must name its face').not.toBeNull();
+
+            const faceAttrs = Array.from(el.attributes).filter(
+                a => a.name === 'data-face' || a.name.endsWith('-face')
+            );
+            expect(
+                faceAttrs.map(a => a.name),
+                'exactly one face-naming attribute — never a duplicate'
+            ).toEqual(['data-face']);
+        }
+    });
+
+    it('gives every face element a face it can be transformed from', () => {
+        // The transform is derived FROM the attribute, so an attribute value that
+        // is not a real Face would silently fall through getFaceTransform's default
+        // branch and stack every face on the front plane.
+        const cubie = createCubie([Face.F, Face.U, Face.R]);
+        const cubieEl = buildCubieElement(cubie, 100, 3, styles, vi.fn());
+        const validFaces = new Set<string>(Object.values(Face));
+
+        cubieEl.querySelectorAll('[data-face]').forEach(el => {
+            const face = el.getAttribute('data-face')!;
+            expect(validFaces.has(face), `"${face}" must be a real Face`).toBe(true);
+        });
+    });
+});
+
 // --- resizeCubies tests ---
 
 describe('cubie-rendering - resizeCubies', () => {
@@ -309,16 +361,49 @@ describe('cubie-rendering - resizeCubies', () => {
         initializeCubies(state, 300);
         const cubeEl = state.cubeElement!;
 
-        resizeCubies(state, 300); // same size — geometry should match
+        // Resize to a DIFFERENT size. A same-size resize would leave every
+        // transform already correct, so it could not tell a working update from a
+        // skipped one — which is exactly the failure mode being guarded.
+        resizeCubies(state, 600);
 
         const faceEls = cubeEl.querySelectorAll('[data-face]');
+        expect(faceEls.length).toBeGreaterThan(0);
+
+        const newHalf = 600 / 3 / 2;
         faceEls.forEach(el => {
             const h = el as HTMLElement;
             const faceAttr = h.getAttribute('data-face');
-            if (!faceAttr) return;
-            const cubieSize = 300 / 3;
-            const expected = getFaceTransform(faceAttr as Face, cubieSize / 2);
-            expect(h.style.transform).toBe(expected);
+            // No silent skip: an element that reaches this query without a face is
+            // the bug, not a case to tolerate.
+            expect(faceAttr, 'every element matched by [data-face] must carry one').not.toBeNull();
+            expect(h.style.transform).toBe(getFaceTransform(faceAttr as Face, newHalf));
+        });
+    });
+
+    it('rescales interior faces too, not only stickers', () => {
+        // makeState builds cubies with NO stickers, so every face element here is
+        // an interior div. `resizeCubies` finds them through the same `[data-face]`
+        // query as stickers — if interiors ever stopped carrying the attribute they
+        // would keep the pre-resize halfSize and visibly detach from their cubie.
+        const state = makeState(3, 100);
+        initializeCubies(state, 300);
+        const cubeEl = state.cubeElement!;
+
+        const interiors = cubeEl.querySelectorAll('.cubie-interior');
+        expect(interiors.length).toBeGreaterThan(0);
+        expect(cubeEl.querySelectorAll('.sticker')).toHaveLength(0);
+
+        resizeCubies(state, 600);
+
+        const newHalf = 600 / 3 / 2;
+        cubeEl.querySelectorAll('.cubie-interior').forEach(el => {
+            const interior = el as HTMLElement;
+            const face = interior.getAttribute('data-face');
+            expect(
+                face,
+                'an interior element without data-face is invisible to the resize'
+            ).not.toBeNull();
+            expect(interior.style.transform).toBe(getFaceTransform(face as Face, newHalf));
         });
     });
 

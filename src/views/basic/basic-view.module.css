@@ -148,8 +148,8 @@
 }
 
 /* Ghost anchor wrapper — groups the six per-face ghost-anchor host divs.
-   Scoped so the shared GhostStickers module's data-basic-face query never
-   matches a cubie sticker div; must preserve 3D so its rotated children
+   Scoped so the shared GhostStickers module's data-face query never matches a
+   cubie sticker or interior div; must preserve 3D so its rotated children
    (ghost-anchor) render in true cube space rather than being flattened. */
 .ghost-anchor-container {
     position: absolute;
