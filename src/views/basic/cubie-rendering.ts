@@ -63,6 +63,7 @@ function renderCubieFaces(
         faceEl.className = styles['sticker'] ?? 'sticker';
         faceEl.setAttribute('data-sticker-id', sticker.id);
         faceEl.setAttribute('data-basic-face', sticker.currentFace);
+        faceEl.setAttribute('data-face', sticker.currentFace);
         faceEl.style.backgroundColor = resolveCubeColor(sticker.color);
         faceEl.style.transform = getFaceTransform(sticker.currentFace, cubieHalf);
         faceEl.addEventListener('click', () => onStickerSelected(sticker.id));
@@ -77,6 +78,7 @@ function renderCubieFaces(
 
         const interiorEl = document.createElement('div');
         interiorEl.className = styles['cubie-interior'] ?? 'cubie-interior';
+        interiorEl.setAttribute('data-face', face);
         interiorEl.style.transform = getFaceTransform(face, cubieHalf);
         interiorEl.style.backgroundColor = 'var(--color-domain-cube-interior)';
         interiorEl.style.pointerEvents = 'none';
@@ -257,6 +259,99 @@ function getCubieAtPosition(
     const posKey = getPositionKey(position, cubeState.cubeSize);
     const cubie = cubeState.cubiesByPosition.get(posKey);
     return cubie;
+}
+
+/**
+ * Update every existing cubie and face element in place for a new cubie size.
+ *
+ * Returns `true` when the existing DOM matched the model and was mutated,
+ * `false` when the DOM was missing or inconsistent (in which case the
+ * caller should fall back to a full rebuild via `initializeCubies`).
+ *
+ * The function performs a **discovery pass** followed by a **mutation pass**:
+ * it first collects each expected surface cubie's element by
+ * `[data-cubie-id]` and confirms the count matches the model's surface
+ * cubie count.  Only then does it mutate widths, transforms, and the
+ * border-width custom property.
+ *
+ * @param state - The basic view internal data
+ * @param faceSize - New visual size of the cube in pixels
+ * @returns Whether the in-place update succeeded
+ */
+export function resizeCubies(state: BasicViewInternalData, faceSize: number): boolean {
+    if (!state.cubeElement || !state.model) return false;
+
+    const cubeState = state.model.getCurrentState();
+    const cubeSize = cubeState.cubeSize ?? 3;
+    const cubieSize = faceSize / cubeSize;
+    const maxCoord = cubeSize - 1;
+
+    // Discovery pass: collect every expected surface cubie's element.
+    const expectedIds = new Set<string>();
+    for (let x = 0; x < cubeSize; x++) {
+        for (let y = 0; y < cubeSize; y++) {
+            for (let z = 0; z < cubeSize; z++) {
+                if (!isSurfaceCubie({ x, y, z }, cubeSize)) continue;
+                const posKey = getPositionKey({ x, y, z }, cubeSize);
+                const cubie = cubeState.cubiesByPosition.get(posKey);
+                if (!cubie) continue;
+                expectedIds.add(cubie.id);
+            }
+        }
+    }
+
+    const existingCubies = state.cubeElement.querySelectorAll('[data-cubie-id]');
+    if (existingCubies.length !== expectedIds.size) return false;
+
+    // Verify every expected cubie is present.
+    for (const id of expectedIds) {
+        if (!state.cubeElement!.querySelector(`[data-cubie-id="${id}"]`)) return false;
+    }
+
+    // Mutation pass — safe to mutate because discovery passed.
+    state.cubeElement.style.setProperty(
+        '--cubie-border-width',
+        `${stickerBorderWidth(cubieSize)}px`
+    );
+
+    const cubeElementWithSize = state.cubeElement as HTMLElement & { cubieSize?: number };
+    cubeElementWithSize.cubieSize = cubieSize;
+    (state as BasicViewInternalData & { cubieSize?: number }).cubieSize = cubieSize;
+
+    const cubieHalf = cubieSize / 2;
+
+    for (const cubie of expectedIds) {
+        const el = state.cubeElement!.querySelector(`[data-cubie-id="${cubie}"]`) as HTMLElement;
+        if (!el) continue;
+
+        // Find the cubie's current position in the model.
+        let pos: Position3D | undefined;
+        for (const [, c] of cubeState.cubiesByPosition) {
+            if (c.id === cubie) {
+                pos = c.position;
+                break;
+            }
+        }
+        if (!pos) continue;
+
+        const cx = pos.x * cubieSize;
+        const cy = (maxCoord - pos.y) * cubieSize;
+        const cz = (maxCoord / 2 - pos.z) * cubieSize;
+
+        el.style.width = `${cubieSize}px`;
+        el.style.height = `${cubieSize}px`;
+        el.style.transform = `translate3d(${cx}px, ${cy}px, ${cz}px)`;
+
+        // Update each face element's transform from its data-face attribute.
+        const faceEls = el.querySelectorAll('[data-face]');
+        faceEls.forEach(faceEl => {
+            const faceAttr = faceEl.getAttribute('data-face');
+            if (!faceAttr) return;
+            (faceEl as HTMLElement).style.transform = getFaceTransform(faceAttr as Face, cubieHalf);
+        });
+    }
+
+    return true;
 }
 
 /**

@@ -7,9 +7,12 @@ import { Face } from '@/cube/types';
 import {
     buildCubieElement,
     getFaceTransform,
+    initializeCubies,
+    resizeCubies,
     stickerBorderWidth,
     updateCubiePositions,
 } from './cubie-rendering';
+import type { BasicViewInternalData } from './types';
 
 const styles: Record<string, string> = {
     cubie: 'cubie',
@@ -189,5 +192,174 @@ describe('cubie-rendering - interior faces', () => {
         stickerFace.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
         expect(onStickerSelected).toHaveBeenCalledTimes(1);
+    });
+});
+
+// --- resizeCubies tests ---
+
+describe('cubie-rendering - resizeCubies', () => {
+    function makeState(
+        cubeSize: number,
+        cubieSize: number
+    ): BasicViewInternalData & { cubieSize?: number } {
+        const cubeEl = document.createElement('div');
+        cubeEl.style.width = `${cubieSize * cubeSize}px`;
+        cubeEl.style.height = `${cubieSize * cubeSize}px`;
+        (cubeEl as HTMLElement & { cubieSize?: number }).cubieSize = cubieSize;
+
+        const cubiesByPosition = new Map<string, any>();
+        const max = cubeSize - 1;
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        for (let x = 0; x < cubeSize; x++) {
+            for (let y = 0; y < cubeSize; y++) {
+                for (let z = 0; z < cubeSize; z++) {
+                    if (x === 0 || x === max || y === 0 || y === max || z === 0 || z === max) {
+                        const posKey = `pos_${pad(x)}_${pad(y)}_${pad(z)}` as any;
+                        cubiesByPosition.set(posKey, {
+                            id: `c-${x}-${y}-${z}`,
+                            position: { x, y, z },
+                            stickers: [],
+                        });
+                    }
+                }
+            }
+        }
+
+        const model = {
+            getCurrentState: () => ({
+                cubeSize,
+                cubiesByPosition,
+            }),
+        } as any;
+
+        return {
+            cubeElement: cubeEl,
+            model,
+            styles: {},
+            cubieSize,
+        } as any;
+    }
+
+    it('returns true and resizes every cubie for a matching 3x3 DOM', () => {
+        const state = makeState(3, 100);
+        // Build initial DOM via initializeCubies
+        initializeCubies(state, 300);
+
+        const cubeEl = state.cubeElement!;
+        expect(cubeEl.querySelectorAll('[data-cubie-id]')).toHaveLength(26);
+
+        const result = resizeCubies(state, 600);
+        expect(result).toBe(true);
+
+        // Every cubie should now be 200px (600 / 3)
+        const cubies = cubeEl.querySelectorAll('[data-cubie-id]');
+        expect(cubies).toHaveLength(26);
+        cubies.forEach(el => {
+            const h = el as HTMLElement;
+            expect(h.style.width).toBe('200px');
+            expect(h.style.height).toBe('200px');
+        });
+    });
+
+    it('preserves node identity for every cubie', () => {
+        const state = makeState(3, 100);
+        initializeCubies(state, 300);
+        const cubeEl = state.cubeElement!;
+
+        const beforeIds = Array.from(cubeEl.querySelectorAll('[data-cubie-id]')).map(el =>
+            el.getAttribute('data-cubie-id')
+        );
+
+        resizeCubies(state, 450);
+
+        const afterIds = Array.from(cubeEl.querySelectorAll('[data-cubie-id]')).map(el =>
+            el.getAttribute('data-cubie-id')
+        );
+        expect(afterIds).toEqual(beforeIds);
+    });
+
+    it('rejects a DOM missing one expected cubie', () => {
+        const state = makeState(3, 100);
+        initializeCubies(state, 300);
+        const cubeEl = state.cubeElement!;
+
+        // Remove one cubie to break the match
+        const all = cubeEl.querySelectorAll('[data-cubie-id]');
+        all[0].remove();
+
+        const result = resizeCubies(state, 450);
+        expect(result).toBe(false);
+
+        // Existing elements must be untouched — assert widths are still the old size.
+        const remaining = cubeEl.querySelectorAll('[data-cubie-id]');
+        remaining.forEach(el => {
+            const h = el as HTMLElement;
+            expect(h.style.width).toBe('100px');
+        });
+    });
+
+    it('rejects an empty cubie DOM', () => {
+        const state = makeState(3, 100);
+        const result = resizeCubies(state, 450);
+        expect(result).toBe(false);
+    });
+
+    it('updates every face element transform to the new half-size', () => {
+        const state = makeState(3, 100);
+        initializeCubies(state, 300);
+        const cubeEl = state.cubeElement!;
+
+        resizeCubies(state, 300); // same size — geometry should match
+
+        const faceEls = cubeEl.querySelectorAll('[data-face]');
+        faceEls.forEach(el => {
+            const h = el as HTMLElement;
+            const faceAttr = h.getAttribute('data-face');
+            if (!faceAttr) return;
+            const cubieSize = 300 / 3;
+            const expected = getFaceTransform(faceAttr as Face, cubieSize / 2);
+            expect(h.style.transform).toBe(expected);
+        });
+    });
+
+    it('sets --cubie-border-width from stickerBorderWidth of the new cubie size', () => {
+        const state = makeState(3, 100);
+        initializeCubies(state, 300);
+        const cubeEl = state.cubeElement!;
+
+        resizeCubies(state, 600);
+
+        const newCubieSize = 600 / 3;
+        const expectedBorder = stickerBorderWidth(newCubieSize);
+        const actualBorder = cubeEl.style.getPropertyValue('--cubie-border-width');
+        expect(actualBorder).toBe(`${expectedBorder}px`);
+    });
+
+    it('two resizes to the same size produce identical geometry', () => {
+        const state = makeState(3, 100);
+        initializeCubies(state, 300);
+        const cubeEl = state.cubeElement!;
+
+        resizeCubies(state, 400);
+        const first = Array.from(cubeEl.querySelectorAll('[data-cubie-id]')).map(el => {
+            const h = el as HTMLElement;
+            return {
+                width: h.style.width,
+                height: h.style.height,
+                transform: h.style.transform,
+            };
+        });
+
+        resizeCubies(state, 400);
+        const second = Array.from(cubeEl.querySelectorAll('[data-cubie-id]')).map(el => {
+            const h = el as HTMLElement;
+            return {
+                width: h.style.width,
+                height: h.style.height,
+                transform: h.style.transform,
+            };
+        });
+
+        expect(second).toEqual(first);
     });
 });
