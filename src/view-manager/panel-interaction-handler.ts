@@ -34,11 +34,11 @@ export class PanelInteractionHandler {
      */
     private pendingResizeFrame: number | null = null;
     /**
-     * Panel element captured when the resize frame is scheduled, so
+     * Panel element captured at the time the resize frame was scheduled, so
      * `endDragOrResize` can still resolve the active view after the drag state
      * has been cleared.
      */
-    private resizePanelSnapshot: HTMLElement | null = null;
+    private resizePanelAtSchedule: HTMLElement | null = null;
     private dragState: {
         isDragging: boolean;
         isResizing: boolean;
@@ -125,7 +125,7 @@ export class PanelInteractionHandler {
             cancelAnimationFrame(this.pendingResizeFrame);
             this.pendingResizeFrame = null;
         }
-        this.resizePanelSnapshot = null;
+        this.resizePanelAtSchedule = null;
         this.visualizationsContainer.removeEventListener('pointerdown', this.boundPointerDown);
         document.removeEventListener('pointermove', this.boundPointerMove);
         document.removeEventListener('pointerup', this.boundPointerUp);
@@ -334,12 +334,12 @@ export class PanelInteractionHandler {
         }
 
         // Capture the panel at schedule time; it may be removed before the frame fires.
-        this.resizePanelSnapshot = this.dragState.panel;
+        this.resizePanelAtSchedule = this.dragState.panel;
 
         this.pendingResizeFrame = requestAnimationFrame(() => {
             this.pendingResizeFrame = null;
-            this.flushResize(this.resizePanelSnapshot);
-            this.resizePanelSnapshot = null;
+            this.flushResize(this.resizePanelAtSchedule);
+            this.resizePanelAtSchedule = null;
         });
     }
 
@@ -352,9 +352,11 @@ export class PanelInteractionHandler {
         if (!panel) return;
         const viewType = panel.id.replace('-panel', '');
         const activeView = this.activeViews.get(viewType);
-        if (!activeView || !activeView.view.resize) return;
+        if (!activeView || !activeView.view) return;
+        const view = activeView.view;
+        if (!view.resize) return;
         try {
-            activeView.view.resize();
+            view.resize();
         } catch (err) {
             logger.warn('Error resizing view during drag', err);
         }
@@ -369,9 +371,9 @@ export class PanelInteractionHandler {
         // size rather than the second-to-last one.
         if (this.pendingResizeFrame !== null) {
             cancelAnimationFrame(this.pendingResizeFrame);
-            this.flushResize(this.resizePanelSnapshot);
+            this.flushResize(this.resizePanelAtSchedule);
             this.pendingResizeFrame = null;
-            this.resizePanelSnapshot = null;
+            this.resizePanelAtSchedule = null;
         }
 
         if (this.dragState.panel) {
