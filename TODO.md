@@ -109,6 +109,33 @@ not repeat each other's content, so they cannot drift apart.
     3. Only then consider reducing elements per cubie — capped at ~20 ms of 133
        ms.
 
+- Basic View - ghost sticker corners are rounder than real sticker corners, and
+  the error grows with cube size. Found while fixing the ghost length and
+  border; NOT fixed, because the right value needs a look in a real browser.
+
+  A real sticker uses `border-radius: 15%`, which is a share of the CUBIE, so it
+  scales: 6.9px at 3×3 down to 3.0px at 7×7. `.ghost-sticker` uses a fixed
+  `8px`, so the ghost's corner is a much larger share of a smaller cell:
+
+  | size | cell   | ghost radius as a share | real |
+  | ---- | ------ | ----------------------- | ---- |
+  | 3×3  | 46.2px | 17%                     | 15%  |
+  | 4×4  | 34.6px | 23%                     | 15%  |
+  | 5×5  | 27.7px | 29%                     | 15%  |
+  | 7×7  | 19.8px | 40%                     | 15%  |
+
+  Worse, the depth variants diverge further: `.ghost-sticker` is 8px, the `mid`
+  variant 9px and the `far` variant 10px — all fixed, so all three grow relative
+  to the cell as the cube gets smaller. A single percentage (matching the
+  sticker's 15%) would track the cell instead, but the depth variants exist for
+  a reason (nearer strips are drawn thinner to suggest depth), so the
+  replacement should probably be a percentage per depth rather than one shared
+  value.
+
+  Worth checking in a real browser before changing: whether the depth difference
+  is still legible as a percentage, and whether the ghost corners now read as
+  the same shape as the stickers at 3×3 and 7×7.
+
 - Investigate whether a persistent cubie-element index is worth its cost.
   `collectCubieElements` (cubie-rendering.ts) builds an id-keyed Map at each
   call, which is what fixed the per-cubie `querySelector` cost (measured at 7×7:
