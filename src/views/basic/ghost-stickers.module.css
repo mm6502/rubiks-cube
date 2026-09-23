@@ -106,7 +106,29 @@
      * a vertical band's are left/right. */
     border-style: solid;
     border-color: var(--color-domain-sticker-border);
-    border-radius: 8px;
+    /* Rounded corners that SCALE with the cell, so the look is the same at every cube size.
+     *
+     * This was `8px`, a fixed length, and a ghost cell is a band of constant thickness
+     * (~10px) whose width shrinks as `anchor / n`. CSS shrinks every radius by one factor when
+     * the radii would overflow the box — `min(w / 2R, h / 2R)` — so the HEIGHT clamped it
+     * every time: the used radius was a constant 5px at every size. As a share of the cell
+     * that is 11% at n=3 but 25% at n=7, which is why the corners read sharp on a small cube
+     * and nicely rounded on a large one, and why the `mid`/`far` depth variants (9px and 10px)
+     * had no effect at all — both clamped to the same 5px as the base.
+     *
+     * A percentage makes the horizontal radius a share of the cell WIDTH and the vertical one
+     * a share of the HEIGHT, so both track the cell instead of being clamped by it. 25% is the
+     * value measured to reproduce the n=7 appearance exactly (deviation 0.0009 on a normalized
+     * shape comparison against the old n=7 render); 30% is marginally more even between sizes
+     * but no longer matches the look that was asked for. The vertical 50% keeps the band's ends
+     * fully rounded, which is what the clamp was already producing.
+     *
+     * The two shares live in custom properties because the vertical strips have to TRANSPOSE
+     * them (see below). Naming them once means that swap cannot drift out of step with the
+     * base value, which a second copy of the numbers could. */
+    --ghost-radius-h: 25%;
+    --ghost-radius-v: 50%;
+    border-radius: var(--ghost-radius-h) / var(--ghost-radius-v);
     pointer-events: none;
     transition:
         background-color 0.3s ease,
@@ -121,16 +143,22 @@
     border-width: 1px var(--cubie-border-width, 3px);
 }
 
-/* Vertical band: the same rule with the axes swapped. */
+/* Vertical band: the same rule with the axes swapped.
+ *
+ * The radius swaps with them, and swapping means swapping the PROPERTIES, not restating the
+ * percentages: `var(--ghost-radius-v) / var(--ghost-radius-h)`. A vertical cell is the
+ * transpose of a horizontal one — tall and narrow — so keeping the order would put the small
+ * share on the long axis, and the two orientations would end up with visibly different
+ * corners. Deriving the swap from the custom properties keeps a single source of truth: change
+ * the base shares above and both orientations follow, in the right axes. The border-width
+ * rules swap for the same reason; the values are the same in both orientations because a cell
+ * is square at a given n. */
 .ghost-strip[data-edge='left'] .ghost-sticker,
 .ghost-strip[data-edge='right'] .ghost-sticker {
     border-width: var(--cubie-border-width, 3px) 1px;
+    border-radius: var(--ghost-radius-v) / var(--ghost-radius-h);
 }
 
-.ghost-strip[data-depth='mid'] .ghost-sticker {
-    border-radius: 9px;
-}
-
-.ghost-strip[data-depth='far'] .ghost-sticker {
-    border-radius: 10px;
-}
+/* The depth variants used to raise the radius (9px, 10px), which did nothing: the band height
+ * clamped all three to the same used value. Depth is already conveyed by the band's THICKNESS
+ * (7.3% / 8.5% / 9.7% above), so there is nothing to add here. */

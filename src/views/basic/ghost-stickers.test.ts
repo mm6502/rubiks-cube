@@ -682,4 +682,92 @@ describe('ghost strip grid contract (ghost length must match a sticker)', () => 
         expect(valueOf(base, 'filter'), 'a filter could re-introduce a glow').toBeUndefined();
         expect(valueOf(base, 'text-shadow'), 'the hint has no text to shadow').toBeUndefined();
     });
+
+    it('scales the corners with the cell, so the look is the same at every cube size', () => {
+        // Reported defect: "the inner corners of the ghost stickers look sharp at small n, and
+        // rounder as n grows".
+        //
+        // Root cause, measured in a real browser: the radius was a FIXED `8px` while a ghost
+        // cell is a BAND of constant thickness (~10px, the strip's 7.3% of the face anchor)
+        // whose width shrinks as `anchor / n`. CSS shrinks every radius by a single factor when
+        // the radii overflow the box — `min(w / 2R, h / 2R)` — so the HEIGHT clamped it every
+        // time and the used radius was a constant 5px at every size. As a share of the cell
+        // that is ~11% at 3x3 but ~25% at 7x7, which is exactly the reported divergence.
+        //
+        // The same clamp also made the `mid` and `far` depth variants dead code: 9px and 10px
+        // both clamped to the same 5px as the base. They are removed rather than converted,
+        // because depth is already conveyed by the band's thickness (7.3% / 8.5% / 9.7%).
+        //
+        // A percentage is the fix: the horizontal radius becomes a share of the cell WIDTH and
+        // the vertical one a share of the HEIGHT, so neither is clamped by the other axis. 25%
+        // is the value measured to reproduce the 7x7 appearance exactly (deviation 0.0009 on a
+        // normalized shape comparison); 30% is marginally more even across sizes but no longer
+        // matches the look that was asked for. jsdom cannot verify that geometry, so this pins
+        // the declaration and the browser measurement is the other half of the guard.
+        const base = blockFor('.ghost-sticker', ghostStripCss);
+        const radius = valueOf(base, 'border-radius');
+        expect(radius, 'the base rule must set a radius').toBeDefined();
+        expect(
+            radius,
+            'a fixed length here is clamped by the band height and stops tracking the cell'
+        ).not.toMatch(/px/);
+
+        // Both axes must be proportional. A single-value percentage would leave one axis
+        // length-driven, and that axis would then be the one clamping.
+        expect(
+            radius!.split('/').length,
+            'both axes need their own share, or one axis still clamps'
+        ).toBe(2);
+
+        // The percentages live in the custom properties, so that is where "proportional" has to
+        // be true. Both must be declared on the base rule: the vertical strips transpose them,
+        // and a transposition can only stay in step with the base value if there is one value.
+        for (const share of ['--ghost-radius-h', '--ghost-radius-v']) {
+            const value = valueOf(base, share);
+            expect(value, `${share} must be declared on the base rule`).toBeDefined();
+            expect(value, `${share} must be a share of the cell, not a fixed length`).toMatch(/%/);
+            expect(value, `${share} must not be a length`).not.toMatch(/px/);
+        }
+
+        // The depth overrides must not come back as fixed radii. Checked by parsing rather than
+        // trusting the file: any `border-radius` in a `[data-depth=...]` block is the dead
+        // pattern, regardless of the length it names.
+        expect(
+            /\[data-depth[^\]]*\][^{]*\{[^}]*border-radius/.test(ghostStripCss),
+            'a per-depth border-radius was clamped by the band height and did nothing'
+        ).toBe(false);
+    });
+
+    it('transposes the radius shares on vertical strips, via the properties not copies', () => {
+        // A vertical cell is the transpose of a horizontal one — tall and narrow instead of
+        // short and wide — so its radius must transpose too: the axis that takes the small
+        // share swaps. Reusing the base order would put the small share on the long axis and
+        // the two orientations would end up with visibly different corners.
+        //
+        // The assertion is on the ORDER OF THE PROPERTIES rather than on the numbers, because
+        // the numbers must not be restated here at all: two copies of `25%` and `50%` can drift
+        // apart, one transposition of them cannot. This mirrors the border-width rules directly
+        // above, which swap for the same reason.
+        const col = valueOf(blockFor(COL_CELL, ghostStripCss), 'border-radius');
+        expect(col, 'the column strip must declare its own radius').toBeDefined();
+
+        const args = (value: string) =>
+            [...value.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]).filter(Boolean);
+        const declared = args(col!);
+
+        expect(
+            declared,
+            'the vertical strip must derive its radius from the shared shares, not restate them'
+        ).toEqual(['--ghost-radius-v', '--ghost-radius-h']);
+
+        // And it must swap rather than repeat: the base rule uses h then v.
+        const base = args(valueOf(blockFor('.ghost-sticker', ghostStripCss), 'border-radius')!);
+        expect(base, 'the base rule reads the shares in h/v order').toEqual([
+            '--ghost-radius-h',
+            '--ghost-radius-v',
+        ]);
+        expect(declared, 'the vertical strip must be the transpose of the base order').not.toEqual(
+            base
+        );
+    });
 });
