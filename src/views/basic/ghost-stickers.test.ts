@@ -664,4 +664,22 @@ describe('ghost strip grid contract (ghost length must match a sticker)', () => 
         expect(valueOf(base, 'border-style'), 'the border must render').toBe('solid');
         expect(valueOf(base, 'border-color'), 'the border must be visible').toBeDefined();
     });
+
+    it('carries no glow, so the hint does not halo over the cube', () => {
+        // `.ghost-sticker` used to set `box-shadow: 0 0 4px 1px var(--color-ghost-sticker-glow)`
+        // — a white glow at 30% opacity, which read as a halo around every hint facelet. It was
+        // the ONLY consumer of that token and the feature's implementation note never mentions
+        // it, so it was a leftover rather than a deliberate cue. `stickerBorderWidth` and the
+        // strip's border already make the hint legible.
+        //
+        // Pinned because a glow is easy to reintroduce while tuning visibility, and because it
+        // is invisible in jsdom — a rendered assertion here would prove nothing either way.
+        const base = blockFor('.ghost-sticker', ghostStripCss);
+        expect(
+            valueOf(base, 'box-shadow'),
+            'a shadow here is the halo that was removed'
+        ).toBeUndefined();
+        expect(valueOf(base, 'filter'), 'a filter could re-introduce a glow').toBeUndefined();
+        expect(valueOf(base, 'text-shadow'), 'the hint has no text to shadow').toBeUndefined();
+    });
 });

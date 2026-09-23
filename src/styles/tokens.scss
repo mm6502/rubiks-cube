@@ -220,9 +220,6 @@
     --color-detection-band-fill: color-mix(in srgb, var(--palette-cyan-500) 10%, transparent);
     --color-detection-band-stroke: color-mix(in srgb, var(--palette-cyan-500) 25%, transparent);
 
-    // § Ghost sticker glow
-    --color-ghost-sticker-glow: color-mix(in srgb, var(--palette-gray-0) 30%, transparent);
-
     // § Basic 2 view — glow behind the 3D cube container
     --color-basic2-cube-glow: var(--color-canvas-bg);
 }
