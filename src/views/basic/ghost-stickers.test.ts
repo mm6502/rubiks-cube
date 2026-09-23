@@ -683,27 +683,34 @@ describe('ghost strip grid contract (ghost length must match a sticker)', () => 
         expect(valueOf(base, 'text-shadow'), 'the hint has no text to shadow').toBeUndefined();
     });
 
-    it('scales the corners with the cell, so the look is the same at every cube size', () => {
-        // Reported defect: "the inner corners of the ghost stickers look sharp at small n, and
-        // rounder as n grows".
+    it('scales the corners with the cell, and caps them so they do not over-extend on small cubes', () => {
+        // Two defects were found here, in sequence, and the fix has to hold both.
         //
-        // Root cause, measured in a real browser: the radius was a FIXED `8px` while a ghost
-        // cell is a BAND of constant thickness (~10px, the strip's 7.3% of the face anchor)
-        // whose width shrinks as `anchor / n`. CSS shrinks every radius by a single factor when
-        // the radii overflow the box — `min(w / 2R, h / 2R)` — so the HEIGHT clamped it every
-        // time and the used radius was a constant 5px at every size. As a share of the cell
-        // that is ~11% at 3x3 but ~25% at 7x7, which is exactly the reported divergence.
+        // (1) "The inner corners look sharp at small n and rounder as n grows." The radius was a
+        // FIXED `8px` while a ghost cell is a BAND of constant thickness (~10px, 7.3% of the face
+        // anchor) whose width shrinks as `anchor / n`. CSS shrinks every radius by one factor when
+        // the radii overflow the box — `min(w / 2R, h / 2R)` — so the HEIGHT clamped it at every
+        // size and the used radius was a constant ~5.7px. As a share of the cell that is ~12.5% at
+        // 3x3 but ~29% at 7x7: exactly the reported divergence, in the wrong direction.
         //
-        // The same clamp also made the `mid` and `far` depth variants dead code: 9px and 10px
-        // both clamped to the same 5px as the base. They are removed rather than converted,
-        // because depth is already conveyed by the band's thickness (7.3% / 8.5% / 9.7%).
+        // A percentage fixes that: each axis becomes a share of its own dimension, so neither is
+        // clamped by the other. 25% reproduces the 7x7 appearance.
         //
-        // A percentage is the fix: the horizontal radius becomes a share of the cell WIDTH and
-        // the vertical one a share of the HEIGHT, so neither is clamped by the other axis. 25%
-        // is the value measured to reproduce the 7x7 appearance exactly (deviation 0.0009 on a
-        // normalized shape comparison); 30% is marginally more even across sizes but no longer
-        // matches the look that was asked for. jsdom cannot verify that geometry, so this pins
-        // the declaration and the browser measurement is the other half of the guard.
+        // (2) "n=5 is best, n=7 acceptable, n=3 odd, n=2 very ugly — the arc is too long." Now the
+        // share is constant, but the ARC'S LENGTH is not: `25% x cellWidth` with
+        // `cellWidth = anchor / n` is proportional to `1/n`, so the corner's elongation grows from
+        // 1.10 at 7x7 to 2.39 at 3x3 and 3.61 at 2x2. Measured against the report, the arc reads
+        // best at 1.5-1.8, acceptable at 1.1, and wrong from 2.4 up.
+        //
+        // So the long share is CAPPED at a share of the band thickness. That cap is what makes the
+        // change safe: it is chosen to meet the uncapped curve at n=4, so n=5,6,7 — the sizes rated
+        // best — are untouched, while n=2 and n=3 are held near n=4 instead of running away.
+        // Measured with the cap: n=2 19.00 -> 9.75px, n=3 12.67 -> 9.62px, n=4 9.65 -> 9.59px,
+        // n=5,6,7 unchanged. (A UNIFORM radius would have been simpler but would have pulled n=4,5,6
+        // down to n=7's level, which is rated only "acceptable" — a regression in the best sizes.)
+        //
+        // jsdom renders nothing, so this pins the declarations and the browser measurement is the
+        // other half of the guard; the levels and the arithmetic are in the sibling tests below.
         const base = blockFor('.ghost-sticker', ghostStripCss);
         const radius = valueOf(base, 'border-radius');
         expect(radius, 'the base rule must set a radius').toBeDefined();
@@ -719,15 +726,18 @@ describe('ghost strip grid contract (ghost length must match a sticker)', () => 
             'both axes need their own share, or one axis still clamps'
         ).toBe(2);
 
-        // The percentages live in the custom properties, so that is where "proportional" has to
-        // be true. Both must be declared on the base rule: the vertical strips transpose them,
-        // and a transposition can only stay in step with the base value if there is one value.
-        for (const share of ['--ghost-radius-h', '--ghost-radius-v']) {
-            const value = valueOf(base, share);
-            expect(value, `${share} must be declared on the base rule`).toBeDefined();
-            expect(value, `${share} must be a share of the cell, not a fixed length`).toMatch(/%/);
-            expect(value, `${share} must not be a length`).not.toMatch(/px/);
-        }
+        // The long share must be capped. Without a cap the arc grows as 1/n and the small cubes
+        // are the ones that suffer, which is the second reported defect.
+        const long = valueOf(base, '--ghost-radius-long');
+        expect(long, 'the long share must be declared').toBeDefined();
+        expect(long, 'the long share must be capped, or the arc runs away on small cubes').toMatch(
+            /min\(/
+        );
+        expect(long, 'the long share must still be a share of the cell').toMatch(/%/);
+
+        const short = valueOf(base, '--ghost-radius-short');
+        expect(short, 'the short share must be declared').toBeDefined();
+        expect(short, 'the short share must be a share of the band').toMatch(/%/);
 
         // The depth overrides must not come back as fixed radii. Checked by parsing rather than
         // trusting the file: any `border-radius` in a `[data-depth=...]` block is the dead
@@ -738,16 +748,136 @@ describe('ghost strip grid contract (ghost length must match a sticker)', () => 
         ).toBe(false);
     });
 
+    it('caps the arc in units of the band, not in pixels', () => {
+        // The cap has to be a share of the BAND, not a length. A pixel cap would be the original
+        // defect again in a milder form: the band's thickness is a percentage of the face anchor
+        // that scales with the panel, so a px cap would stop tracking it and would bind at a
+        // different n on a short panel than on a tall one.
+        //
+        // The only way to express "a share of the band" inside `border-radius` is a container
+        // unit, because a percentage in the horizontal position of `border-radius` always resolves
+        // against the box WIDTH — even inside `min()`. So `min(25%, 7.3%)` would be meaningless
+        // (it would compare two widths); the cap needs `cqmin`, which is the strip's SHORTER side
+        // and therefore its thickness.
+        const base = blockFor('.ghost-sticker', ghostStripCss);
+        const long = valueOf(base, '--ghost-radius-long')!;
+
+        const capArg = /min\(\s*[^,]+,\s*([^)]+)\)/.exec(long)?.[1]?.trim();
+        expect(capArg, 'the cap must have a second argument to compare against').toBeDefined();
+        expect(
+            capArg,
+            'a px cap stops tracking the band when the panel resizes and binds at a different n'
+        ).not.toMatch(/px/);
+        expect(
+            capArg,
+            'the cap must be a share of the band, which only a container unit can express here'
+        ).toMatch(/cq/i);
+
+        // `cqmin` specifically, because it is the band's thickness in BOTH orientations: a strip is
+        // thin in exactly one dimension, so the smaller of its sides is the thickness whether the
+        // strip runs along a top edge or a side edge. `cqh`/`cqw` would need a per-orientation rule
+        // and would silently use the LONG side on the wrong one.
+        expect(
+            capArg,
+            'cqmin measures the band thickness in both orientations with one value'
+        ).toBe('85cqmin');
+    });
+
+    it('makes the strip its own query container, which the cap depends on', () => {
+        // A `cq*` unit resolves against the nearest ancestor with a `container-type`, and falls
+        // back to the SMALL VIEWPORT when there is none. `.sticker` was bitten by exactly that:
+        // its old `0.5cqmin` silently sized against the browser window while the sticker was
+        // sized by its cubie, so resizing the panel left the border at a fixed 4px.
+        //
+        // The same trap would apply here, and it would be harder to notice: a viewport-relative
+        // cap would look plausible at the default window size and only diverge on a resize. So the
+        // declaration is pinned rather than assumed.
+        const strip = blockFor('.ghost-strip', ghostStripCss);
+        const containerType = valueOf(strip, 'container-type');
+        expect(
+            containerType,
+            'without this the cap resolves against the viewport, not the band'
+        ).toBeDefined();
+
+        // `size`, not `inline-size`: `cqmin` is the smaller of BOTH axes, and `inline-size` leaves
+        // the block axis unavailable, so the cap would collapse rather than measure the thickness.
+        expect(containerType, 'cqmin needs both axes, so inline-size is not enough').toBe('size');
+    });
+
+    it('sets the cap so it meets the uncapped arc at n=4, leaving the best sizes alone', () => {
+        // This is the arithmetic behind "n=5,6,7 are untouched", checked rather than trusted.
+        //
+        // The arc is `longShare x anchor / n`; the cap is `capFraction x stripThickness% x anchor`.
+        // They meet where
+        //
+        //     n = longShare / (capFraction x stripThickness%)
+        //
+        // and that crossover has to sit at n=4: below it the cap binds (n=2, 3, the sizes the
+        // report objected to) and at or above it the cap is inactive (n=4..7, which keep exactly
+        // the arcs they have today). If someone retunes either number so the crossover drifts to
+        // 3 or 5, a size rated "best" starts changing — which is the regression this guards.
+        //
+        // Note the crossover is only approximately 4 (`85% x 7.3%` is 6.205% against `25% / 4` =
+        // 6.25%), so n=4 is very slightly clipped: measured 9.65px -> 9.59px, a 0.06px difference
+        // that is imperceptible and well inside the tolerance below. A level that cleared n=4
+        // entirely (90%) would leave n=2 and n=3 0.61px longer than n=4 instead of 0.04px, so this
+        // is the better trade rather than a rounding slip.
+        const base = blockFor('.ghost-sticker', ghostStripCss);
+        const longValue = valueOf(base, '--ghost-radius-long')!;
+        // Both numbers are INSIDE the `min(...)`, so they have to be read out of the expression
+        // rather than with a bare `parseFloat`, which returns NaN for a string that does not
+        // begin with a digit — `min(25%, 85cqmin)` starts with `m`.
+        const capMatch = /min\(\s*([\d.]+)%\s*,\s*([\d.]+)cq/i.exec(longValue);
+        expect(
+            capMatch,
+            `--ghost-radius-long must be a capped percentage (got "${longValue}")`
+        ).not.toBeNull();
+        const longShare = parseFloat(capMatch![1]);
+        const capFraction = parseFloat(capMatch![2]);
+        const stripRule = blockFor(ROW_STRIP, ghostStripCss);
+        const thicknessPct = parseFloat(valueOf(stripRule, 'height')!);
+
+        expect(Number.isFinite(longShare), 'the long share must be a number').toBe(true);
+        expect(Number.isFinite(capFraction), 'the cap fraction must be a number').toBe(true);
+        expect(Number.isFinite(thicknessPct), 'the band thickness must be a number').toBe(true);
+
+        // Solving the two expressions for the n where they are equal:
+        //
+        //     uncapped:  (longShare / 100) x anchor / n
+        //     cap:       (capFraction / 100) x (thicknessPct / 100) x anchor
+        //
+        // Setting them equal and cancelling `anchor` leaves an equality of PERCENTAGES, so both
+        // factors carry a /100 — `capFraction` is read as `85`, not `0.85`, and forgetting the
+        // division is what made the first version of this assertion compute 0.04 and fail.
+        const crossoverN = longShare / ((capFraction / 100) * thicknessPct);
+        expect(
+            crossoverN,
+            `the cap must start binding below n=4 and stop above it (crossover computed at n=${crossoverN.toFixed(2)})`
+        ).toBeCloseTo(4, 0);
+        expect(
+            crossoverN,
+            'a crossover below 3 would change n=3, which the report calls odd'
+        ).toBeGreaterThan(3);
+        expect(
+            crossoverN,
+            'a crossover above 5 would change n=5, which the report rates best'
+        ).toBeLessThan(5);
+    });
+
     it('transposes the radius shares on vertical strips, via the properties not copies', () => {
         // A vertical cell is the transpose of a horizontal one — tall and narrow instead of
-        // short and wide — so its radius must transpose too: the axis that takes the small
-        // share swaps. Reusing the base order would put the small share on the long axis and
-        // the two orientations would end up with visibly different corners.
+        // short and wide — so its radius must transpose too: the axis that takes the long share
+        // swaps. Reusing the base order would put the long share on the short axis and the two
+        // orientations would end up with visibly different corners.
         //
-        // The assertion is on the ORDER OF THE PROPERTIES rather than on the numbers, because
-        // the numbers must not be restated here at all: two copies of `25%` and `50%` can drift
-        // apart, one transposition of them cannot. This mirrors the border-width rules directly
-        // above, which swap for the same reason.
+        // The assertion is on the ORDER OF THE PROPERTIES rather than on the numbers, because the
+        // numbers must not be restated here at all: two copies of the values can drift apart, one
+        // transposition of them cannot. This mirrors the border-width rules directly above, which
+        // swap for the same reason.
+        //
+        // The transpose is safe for the cap even though it is orientation-specific in principle:
+        // `cqmin` is the band's thickness in both orientations, so the same property value means
+        // the same thickness whichever axis it lands on.
         const col = valueOf(blockFor(COL_CELL, ghostStripCss), 'border-radius');
         expect(col, 'the column strip must declare its own radius').toBeDefined();
 
@@ -757,14 +887,14 @@ describe('ghost strip grid contract (ghost length must match a sticker)', () => 
 
         expect(
             declared,
-            'the vertical strip must derive its radius from the shared shares, not restate them'
-        ).toEqual(['--ghost-radius-v', '--ghost-radius-h']);
+            'the vertical strip must derive its radius from the shared properties, not restate them'
+        ).toEqual(['--ghost-radius-short', '--ghost-radius-long']);
 
-        // And it must swap rather than repeat: the base rule uses h then v.
+        // And it must swap rather than repeat: the base rule uses long then short.
         const base = args(valueOf(blockFor('.ghost-sticker', ghostStripCss), 'border-radius')!);
-        expect(base, 'the base rule reads the shares in h/v order').toEqual([
-            '--ghost-radius-h',
-            '--ghost-radius-v',
+        expect(base, 'the base rule reads the shares in long/short order').toEqual([
+            '--ghost-radius-long',
+            '--ghost-radius-short',
         ]);
         expect(declared, 'the vertical strip must be the transpose of the base order').not.toEqual(
             base

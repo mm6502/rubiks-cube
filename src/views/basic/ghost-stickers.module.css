@@ -27,6 +27,25 @@
     position: absolute;
     display: flex;
     pointer-events: none;
+    /* Makes the strip its OWN query container, so `cqh` / `cqw` inside it resolve to the strip's
+     * dimensions — which for a band IS its thickness. The cells need that number to cap their
+     * corner radius (see `.ghost-sticker` below) and there is no other way to obtain it in CSS:
+     * the thickness is a percentage of the face anchor that JS owns.
+     *
+     * `container-type: size` implies size containment, so worth being explicit about what it
+     * costs here. The strip's size is already independent of its contents — its height is
+     * `7.3%` of the anchor and its width comes from `left: 0; right: 0` — so containment changes
+     * nothing today, and the strip should never size to its cells anyway (its dimensions are
+     * chosen to match the sticker grid, not to fit the hints). It also gives the strip a stacking
+     * context; verified visually inert on the real 3D render in Firefox and Chromium — forced
+     * ghosts visible, pixel-compared with and without containment, 0 differing pixels at 3x3,
+     * 5x5 and 7x7.
+     *
+     * Note for `.sticker` in basic-view.module.css: its comment says this codebase declares no
+     * `container-type` anywhere, which is why its old `cqmin` fell back to the viewport. That is
+     * still true OF THE STICKER — this container type is on the ghost strip, which the sticker is
+     * not inside. */
+    container-type: size;
 }
 
 .ghost-strip[data-edge='top'],
@@ -125,10 +144,30 @@
      *
      * The two shares live in custom properties because the vertical strips have to TRANSPOSE
      * them (see below). Naming them once means that swap cannot drift out of step with the
-     * base value, which a second copy of the numbers could. */
-    --ghost-radius-h: 25%;
-    --ghost-radius-v: 50%;
-    border-radius: var(--ghost-radius-h) / var(--ghost-radius-v);
+     * base value, which a second copy of the numbers could.
+     *
+     * THE CAP. A percentage alone still leaves the arc too long on a SHORT cell, because a
+     * quarter of the cell width grows as the cell does while the band stays a constant ~10px
+     * thick. Measured, the corner's elongation (its length along the cell over its length
+     * across the band) was 1.10 at 7x7 but 2.39 at 3x3 and 3.61 at 2x2 — and 2x2/3x3 read as
+     * "very ugly, the arc is too long" and "odd" against 4x4-6x6 as "best".
+     *
+     * So the long share is capped at 85% of the band's thickness, which is where the cap meets
+     * the uncapped value: `85% x 7.3%` of the anchor is `6.2%` of it, and `25% / 4` is `6.25%`,
+     * so 4x4 is the crossover. The cap therefore does not bind from 4x4 up — those sizes keep
+     * their arcs to the hundredth of a pixel — and below that it holds 3x3 and 2x2 at 4x4's
+     * elongation instead of letting them run away. Swept against the reported ratings: 85% put
+     * the 2x2/3x3 plateau within 0.04px of 4x4's arc, 100% left them 1.64px long, and 80%
+     * started changing 4x4 itself.
+     *
+     * `cqmin` is the band's thickness in BOTH orientations, which is why one value serves both:
+     * a strip is always thin in exactly one dimension, so the smaller of its sides is the
+     * thickness whether it runs along a top edge or a side edge. That also makes the cap track
+     * the `mid` (8.5%) and `far` (9.7%) strips for free, since their bands are thicker. It
+     * resolves against the strip, which is a query container — see `.ghost-strip`. */
+    --ghost-radius-long: min(25%, 85cqmin);
+    --ghost-radius-short: 50%;
+    border-radius: var(--ghost-radius-long) / var(--ghost-radius-short);
     pointer-events: none;
     transition:
         background-color 0.3s ease,
@@ -146,17 +185,19 @@
 /* Vertical band: the same rule with the axes swapped.
  *
  * The radius swaps with them, and swapping means swapping the PROPERTIES, not restating the
- * percentages: `var(--ghost-radius-v) / var(--ghost-radius-h)`. A vertical cell is the
- * transpose of a horizontal one — tall and narrow — so keeping the order would put the small
- * share on the long axis, and the two orientations would end up with visibly different
- * corners. Deriving the swap from the custom properties keeps a single source of truth: change
- * the base shares above and both orientations follow, in the right axes. The border-width
- * rules swap for the same reason; the values are the same in both orientations because a cell
- * is square at a given n. */
+ * values: `--ghost-radius-short / --ghost-radius-long`. A vertical cell is the transpose of a
+ * horizontal one — tall and narrow — so keeping the base order would put the long share on the
+ * short axis and the two orientations would end up with visibly different corners. Deriving the
+ * swap from the custom properties keeps a single source of truth: change the shares above and
+ * both orientations follow, in the right axes. The border-width rules swap for the same reason.
+ *
+ * `--ghost-radius-long` needs no separate vertical form even though it contains a cap. `cqmin`
+ * is the SMALLER of the strip's two sides, and a strip is thin in exactly one of them, so the
+ * cap measures the band's thickness in either orientation — one value serves both. */
 .ghost-strip[data-edge='left'] .ghost-sticker,
 .ghost-strip[data-edge='right'] .ghost-sticker {
     border-width: var(--cubie-border-width, 3px) 1px;
-    border-radius: var(--ghost-radius-v) / var(--ghost-radius-h);
+    border-radius: var(--ghost-radius-short) / var(--ghost-radius-long);
 }
 
 /* The depth variants used to raise the radius (9px, 10px), which did nothing: the band height

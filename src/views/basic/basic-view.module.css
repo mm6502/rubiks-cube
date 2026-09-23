@@ -66,13 +66,19 @@
     /* Scaled to THIS cubie, not to the viewport.
      *
      * This was `0.5cqmin`, a container-query unit. A `cq*` unit resolves against the nearest
-     * ancestor with a `container-type`, and this codebase declares none anywhere — so per spec
-     * it fell back to the SMALL VIEWPORT. The border was therefore sized by the browser window
-     * while the sticker was sized by its cubie, and the two are unrelated: measured, resizing
-     * the panel left the border at a fixed 4px while the sticker went 63px -> 99px. Worse,
-     * `0.5cqmin` on a 900px-tall viewport is 4.5px, a fractional length, so sub-pixel rounding
-     * gave some stickers a 4px border and others 5px ON THE SAME CUBE — which reads as uneven,
-     * drifting separations between facelets rather than a consistent grid.
+     * ancestor with a `container-type`, and a sticker has none in its ancestry — the only
+     * `container-type` in the view is on a `.ghost-strip`, which is not an ancestor of this
+     * element — so per spec it fell back to the SMALL VIEWPORT. The border was therefore sized
+     * by the browser window while the sticker was sized by its cubie, and the two are unrelated:
+     * measured, resizing the panel left the border at a fixed 4px while the sticker went
+     * 63px -> 99px. Worse, `0.5cqmin` on a 900px-tall viewport is 4.5px, a fractional length, so
+     * sub-pixel rounding gave some stickers a 4px border and others 5px ON THE SAME CUBE — which
+     * reads as uneven, drifting separations between facelets rather than a consistent grid.
+     *
+     * (`container-type` WAS introduced later, but on the ghost strips rather than anywhere in
+     * this element's ancestry, so it still does not supply a container here. Were a container
+     * ever added above `.sticker`, this value would remain correct: `--cubie-border-width` is
+     * published from the cubie size and is unaffected by what any `cq*` unit would resolve to.)
      *
      * A percentage border-width would be circular (`border-width` percentages resolve against
      * the containing block's WIDTH, and with `box-sizing: border-box` a 100%-wide sticker makes
