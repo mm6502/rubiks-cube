@@ -539,6 +539,36 @@ describe('ghost strip grid contract (ghost length must match a sticker)', () => 
     // to rediscover it.
     const ROW_STRIP = ".ghost-strip[data-edge='top'], .ghost-strip[data-edge='bottom']";
     const COL_STRIP = ".ghost-strip[data-edge='left'], .ghost-strip[data-edge='right']";
+    const ROW_CELL =
+        ".ghost-strip[data-edge='top'] .ghost-sticker, .ghost-strip[data-edge='bottom'] .ghost-sticker";
+    const COL_CELL =
+        ".ghost-strip[data-edge='left'] .ghost-sticker, .ghost-strip[data-edge='right'] .ghost-sticker";
+
+    /**
+     * Split a two-value `border-width` into its parts, respecting parentheses.
+     *
+     * A plain `split(/\s+/)` is wrong here and was caught by its own test: the value it has
+     * to parse is `1px var(--cubie-border-width, 3px)`, and that fallback contains a space,
+     * so a naive split yields `['1px', 'var(--cubie-border-width,', '3px)']`. Splitting only
+     * on whitespace OUTSIDE parentheses keeps the `var()` expression as one token.
+     */
+    function splitBorderWidth(value: string): string[] {
+        const parts: string[] = [];
+        let depth = 0;
+        let current = '';
+        for (const ch of value) {
+            if (ch === '(') depth++;
+            if (ch === ')') depth--;
+            if (/\s/.test(ch) && depth === 0) {
+                if (current) parts.push(current);
+                current = '';
+                continue;
+            }
+            current += ch;
+        }
+        if (current) parts.push(current);
+        return parts;
+    }
 
     it('insets the strip by nothing, so n cells tile the full face edge', () => {
         const strip = blockFor(ROW_STRIP, ghostStripCss);
@@ -576,30 +606,62 @@ describe('ghost strip grid contract (ghost length must match a sticker)', () => 
         expect(valueOf(blockFor('.ghost-sticker', ghostStripCss), 'flex')).toBe('1');
     });
 
-    it('uses the SAME border width as a real sticker, from the same custom property', () => {
-        // A real sticker's border is not a fixed length — it is 8% of the cubie, clamped to
-        // whole pixels, published per cube size as `--cubie-border-width` by
-        // `stickerBorderWidth()`. So it is 4px at 3x3 and 2px at 5x5 and above. This rule
-        // hardcoded `3px`, which made the ghost's border too thin on a 3x3 and too thick on a
-        // large cube.
+    it('uses the SAME border width as a real sticker along the band, so cells separate', () => {
+        // A ghost cell is a thin BAND, and its two pairs of edges do genuinely different
+        // jobs, so they take different widths:
         //
-        // This also fixes the separator between cells, which is why one declaration answers
-        // both halves of the report. Neither element has layout space between neighbours
-        // (stickers sit at `i * cubieSize`, the strip's `gap` is 0), so the only separation
-        // between two facelets is their two borders meeting: matching the border width
-        // matches the separation with it.
-        const ghostBorder = valueOf(blockFor('.ghost-sticker', ghostStripCss), 'border');
-        expect(ghostBorder, 'ghost border must be declared').toBeDefined();
+        //   ALONG the band  — the separators between cells. Neither element has layout space
+        //     between neighbours (stickers sit at `i * cubieSize`, the strip's `gap` is 0),
+        //     so the ONLY separation between two facelets is their two borders meeting. These
+        //     edges must therefore match a real sticker's border, which is 8% of the cubie,
+        //     clamped to whole pixels and published as `--cubie-border-width` (4px at 3x3 down
+        //     to 2px at 5x5+). A hardcoded width here cannot track the cubie and diverges.
+        //
+        //   ACROSS the band — the band's own thickness. Nothing separates along it, so a wide
+        //     border there buys no separation and simply eats the colour: at 3x3 a uniform 4px
+        //     left 2px of colour out of a 10px band (80% border).
+        const rowSticker = blockFor(ROW_CELL, ghostStripCss);
+        const colSticker = blockFor(COL_CELL, ghostStripCss);
+
+        // Horizontal band: width, height = across the band, along it. So the SECOND value is
+        // the separator and must be the custom property.
+        const rowWidth = valueOf(rowSticker, 'border-width');
+        expect(rowWidth, 'the row strip must declare its two widths').toBeDefined();
         expect(
-            ghostBorder,
-            'a hardcoded width here cannot track the cubie, so it diverges from the stickers'
+            splitBorderWidth(rowWidth!)[1],
+            'the separator width (along the band) must come from the cubie-scaled property'
         ).toContain('var(--cubie-border-width');
 
-        // And the real sticker must still be the one that publishes it, or the ghost is
-        // reading a property nothing sets.
-        const stickerBorder = valueOf(blockFor('.sticker'), 'border');
-        expect(stickerBorder, 'the sticker border is the reference').toContain(
-            'var(--cubie-border-width'
-        );
+        // Vertical band: the axes swap, so the FIRST value is the separator.
+        const colWidth = valueOf(colSticker, 'border-width');
+        expect(colWidth, 'the column strip must declare its two widths').toBeDefined();
+        expect(
+            splitBorderWidth(colWidth!)[0],
+            'the separator width (along the band) must come from the cubie-scaled property'
+        ).toContain('var(--cubie-border-width');
+
+        // And the real sticker must still be the one that publishes it, or the ghost reads a
+        // property nothing sets.
+        expect(
+            valueOf(blockFor('.sticker'), 'border'),
+            'the sticker border is the reference'
+        ).toContain('var(--cubie-border-width');
+    });
+
+    it('keeps the across-the-band border minimal, so the colour is not eaten', () => {
+        // The other half of the same trade-off. A full-width border on these edges consumed
+        // most of a ~10px band, leaving the hint unreadable. 1px outlines the band without
+        // competing with the colour.
+        const rowWidth = valueOf(blockFor(ROW_CELL, ghostStripCss), 'border-width');
+        const colWidth = valueOf(blockFor(COL_CELL, ghostStripCss), 'border-width');
+
+        expect(splitBorderWidth(rowWidth!)[0], 'across the band, row strip').toBe('1px');
+        expect(splitBorderWidth(colWidth!)[1], 'across the band, column strip').toBe('1px');
+
+        // The base rule must still set the style and colour, or the per-orientation rules
+        // above set only widths and the border does not render at all.
+        const base = blockFor('.ghost-sticker', ghostStripCss);
+        expect(valueOf(base, 'border-style'), 'the border must render').toBe('solid');
+        expect(valueOf(base, 'border-color'), 'the border must be visible').toBeDefined();
     });
 });
