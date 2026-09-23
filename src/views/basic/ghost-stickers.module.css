@@ -85,7 +85,22 @@
 
 .ghost-sticker {
     flex: 1;
-    border: 3px solid var(--color-domain-sticker-border);
+    /* Same border width as a real sticker — the same custom property, published once per
+     * cube size by `stickerBorderWidth()`.
+     *
+     * A real sticker's border is not a fixed length: it is 8% of the cubie, clamped to whole
+     * pixels, so it is 4px at 3x3, 3px at 4x4 and 2px at 5x5 and above. This rule hardcoded
+     * `3px`, so the ghost's border was too thin on a 3x3 (3 vs 4) and too thick on a 5x5 or
+     * 7x7 (3 vs 2) — reported as "on the shorter side they should have a border as wide as
+     * real stickers".
+     *
+     * It also explains the "stuck to each other" half of the report, and is why one change
+     * fixes both. Neither element has layout space between neighbours — real stickers are
+     * absolutely positioned at `i * cubieSize` and the strip's own `gap` is 0 — so the ONLY
+     * separation between two facelets is their two borders meeting. Ghost separation was
+     * therefore 2x3px against the real sticker's 2x4px at 3x3: the cells read as a single
+     * band. Matching the border width matches the separation with it. */
+    border: var(--cubie-border-width, 3px) solid var(--color-domain-sticker-border);
     border-radius: 8px;
     box-shadow: 0 0 4px 1px var(--color-ghost-sticker-glow);
     pointer-events: none;

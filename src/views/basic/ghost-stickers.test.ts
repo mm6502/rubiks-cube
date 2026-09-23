@@ -575,4 +575,31 @@ describe('ghost strip grid contract (ghost length must match a sticker)', () => 
         // the grid would drift regardless of the other three assertions.
         expect(valueOf(blockFor('.ghost-sticker', ghostStripCss), 'flex')).toBe('1');
     });
+
+    it('uses the SAME border width as a real sticker, from the same custom property', () => {
+        // A real sticker's border is not a fixed length — it is 8% of the cubie, clamped to
+        // whole pixels, published per cube size as `--cubie-border-width` by
+        // `stickerBorderWidth()`. So it is 4px at 3x3 and 2px at 5x5 and above. This rule
+        // hardcoded `3px`, which made the ghost's border too thin on a 3x3 and too thick on a
+        // large cube.
+        //
+        // This also fixes the separator between cells, which is why one declaration answers
+        // both halves of the report. Neither element has layout space between neighbours
+        // (stickers sit at `i * cubieSize`, the strip's `gap` is 0), so the only separation
+        // between two facelets is their two borders meeting: matching the border width
+        // matches the separation with it.
+        const ghostBorder = valueOf(blockFor('.ghost-sticker', ghostStripCss), 'border');
+        expect(ghostBorder, 'ghost border must be declared').toBeDefined();
+        expect(
+            ghostBorder,
+            'a hardcoded width here cannot track the cubie, so it diverges from the stickers'
+        ).toContain('var(--cubie-border-width');
+
+        // And the real sticker must still be the one that publishes it, or the ghost is
+        // reading a property nothing sets.
+        const stickerBorder = valueOf(blockFor('.sticker'), 'border');
+        expect(stickerBorder, 'the sticker border is the reference').toContain(
+            'var(--cubie-border-width'
+        );
+    });
 });
