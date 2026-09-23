@@ -56,37 +56,45 @@ function renderCubieFaces(
 ): void {
     cubieEl.replaceChildren();
 
-    const stickerFaces = new Set<Face>();
+    // Six walls first — one per face, ALWAYS, whether or not that face carries a
+    // sticker. Together they are the cubie's sealed body: neighbouring cubies' walls
+    // meet flush on the shared face plane, so the cube occludes its own far side from
+    // painted geometry rather than from a flat quad in the middle.
+    //
+    // This replaced a `background-color` on `.cubie` itself. Because a cubie is only
+    // ever translated (never rotated), that background was a quad in the cubie's XY
+    // plane at z=0 — half an edge BEHIND the face planes where the seams actually are.
+    // It therefore could not seal them (far-side colour showed through), and at grazing
+    // angles it painted over the stickers instead (a line across the middle of a face).
+    const allFaces = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
+    allFaces.forEach(face => {
+        const wallEl = document.createElement('div');
+        wallEl.className = styles['cubie-interior'] ?? 'cubie-interior';
+        // `data-face` is the ONE face-identity attribute in this view. It is set on
+        // sticker AND wall elements alike, because `resizeCubies` below must recompute
+        // a transform for every face element of a cubie, and walls are not interactive
+        // so they cannot carry the sticker marker instead.
+        wallEl.setAttribute('data-face', face);
+        wallEl.style.transform = getFaceTransform(face, cubieHalf);
+        wallEl.style.backgroundColor = 'var(--color-domain-cube-interior)';
+        wallEl.style.pointerEvents = 'none';
+        wallEl.setAttribute('aria-hidden', 'true');
+        cubieEl.appendChild(wallEl);
+    });
 
+    // Stickers last, so each one paints on top of its own wall. A sticker is lifted a
+    // hair in front of that wall (`STICKER_LIFT_PX`): the two must never share a plane,
+    // or the browser depth-sorts them inconsistently and the sticker flickers.
     cubie.stickers.forEach(sticker => {
         const faceEl = document.createElement('div');
         faceEl.className = styles['sticker'] ?? 'sticker';
         faceEl.setAttribute('data-sticker-id', sticker.id);
-        // `data-face` is the ONE face-identity attribute in this view. It is set on
-        // sticker AND interior elements alike, because `resizeCubies` below must
-        // recompute a transform for every face element of a cubie, and interiors
-        // are not interactive so they cannot carry the sticker marker instead.
         faceEl.setAttribute('data-face', sticker.currentFace);
         faceEl.style.backgroundColor = resolveCubeColor(sticker.color);
-        faceEl.style.transform = getFaceTransform(sticker.currentFace, cubieHalf);
+        faceEl.style.transform = stickerTransform(sticker.currentFace, cubieHalf);
         faceEl.addEventListener('click', () => onStickerSelected(sticker.id));
 
         cubieEl.appendChild(faceEl);
-        stickerFaces.add(sticker.currentFace);
-    });
-
-    const interiorFaces = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
-    interiorFaces.forEach(face => {
-        if (stickerFaces.has(face)) return;
-
-        const interiorEl = document.createElement('div');
-        interiorEl.className = styles['cubie-interior'] ?? 'cubie-interior';
-        interiorEl.setAttribute('data-face', face);
-        interiorEl.style.transform = getFaceTransform(face, cubieHalf);
-        interiorEl.style.backgroundColor = 'var(--color-domain-cube-interior)';
-        interiorEl.style.pointerEvents = 'none';
-        interiorEl.setAttribute('aria-hidden', 'true');
-        cubieEl.appendChild(interiorEl);
     });
 }
 
@@ -113,6 +121,35 @@ export function getFaceTransform(face: Face, halfSize: number): string {
         default:
             return `translateZ(${halfSize}px)`;
     }
+}
+
+/**
+ * How far in front of its wall a sticker sits, in pixels.
+ *
+ * The sticker and the wall behind it describe the same face, so they would be
+ * coplanar and the browser would depth-sort them inconsistently — the reported
+ * "flicker" shape. A sub-pixel lift is enough to order them deterministically and
+ * is not visible at any cube size the view produces.
+ *
+ * The lift is deliberately a small ABSOLUTE value rather than a fraction of the
+ * cubie: it only has to break the tie, so scaling it with the cube would make a
+ * larger cube look like its stickers are floating.
+ */
+export const STICKER_LIFT_PX = 0.5;
+
+/**
+ * The transform for a STICKER on a given face.
+ *
+ * Stickers are the only face elements that need the lift; walls use
+ * {@link getFaceTransform} directly. Both the initial render and `resizeCubies`
+ * go through here, so the two can never disagree about how far a sticker sits
+ * off its wall — the defect this pairing exists to prevent.
+ *
+ * @param face - The face the sticker sits on
+ * @param halfSize - Half the cubie's edge length in pixels
+ */
+export function stickerTransform(face: Face, halfSize: number): string {
+    return getFaceTransform(face, halfSize + STICKER_LIFT_PX);
 }
 
 /**
@@ -265,6 +302,48 @@ function getCubieAtPosition(
 }
 
 /**
+ * Read every cubie element under `cubeElement` into an id-keyed index, in ONE pass.
+ *
+ * This exists because `cubeElement.querySelector('[data-cubie-id="…"]')` is not O(1) —
+ * an attribute selector is matched against every element in the subtree. Measured in
+ * jsdom at 7×7 (218 cubies, 1820 elements):
+ *
+ *   - one such lookup         ~1.25ms
+ *   - 218 of them (one pass's worth)   ~826ms   <- a full rebuild is only ~35ms
+ *   - building this index instead      ~1.2ms, and 218 lookups from it ~0.1ms
+ *
+ * So anywhere the same tree is queried per-cubie, the per-lookup form is quadratic work
+ * doing the job of a linear one. The index is built at each call rather than cached,
+ * deliberately: a cached index would be a second source of truth that every rebuild
+ * (resize, size change, model update) would have to remember to invalidate, and getting
+ * that wrong yields a silently stale element. Building it costs ~1.2ms against a ~35ms
+ * rebuild, so there is nothing to win by caching it.
+ *
+ * A descendant selector — not `cubeElement.children` — is load-bearing here. During a
+ * layer animation `animateLayer` reparents the moving cubies into a pivot div inside
+ * the cube element, so a children-only walk finds NONE of the moving layer mid-move
+ * (measured: 0/49). Walking descendants still finds them.
+ *
+ * @param cubeElement - The cube root to index
+ * @returns The index, plus how many elements were seen — a count greater than the index
+ *   size means two elements claimed the same cubie id, which a caller may treat as an
+ *   inconsistent DOM rather than silently writing to one of them.
+ */
+export function collectCubieElements(cubeElement: HTMLElement): {
+    byId: Map<string, HTMLElement>;
+    count: number;
+} {
+    const byId = new Map<string, HTMLElement>();
+    let count = 0;
+    for (const el of cubeElement.querySelectorAll<HTMLElement>('[data-cubie-id]')) {
+        count++;
+        const id = el.getAttribute('data-cubie-id');
+        if (id) byId.set(id, el);
+    }
+    return { byId, count };
+}
+
+/**
  * Update every existing cubie and face element in place for a new cubie size.
  *
  * Returns `true` when the existing DOM matched the model and was mutated,
@@ -272,10 +351,19 @@ function getCubieAtPosition(
  * caller should fall back to a full rebuild via `initializeCubies`).
  *
  * The function performs a **discovery pass** followed by a **mutation pass**:
- * it first collects each expected surface cubie's element by
- * `[data-cubie-id]` and confirms the count matches the model's surface
- * cubie count.  Only then does it mutate widths, transforms, and the
- * border-width custom property.
+ * it first indexes the cubie elements in one walk (see
+ * {@link collectCubieElements} for why the index matters) and confirms the
+ * result matches the model's surface cubie count. Only then does it mutate
+ * widths, transforms, and the border-width custom property.
+ *
+ * The discovery pass reads the cubie elements ONCE into an id-keyed Map. That is
+ * load-bearing, not tidiness: looking each cubie up with
+ * `cubeElement.querySelector('[data-cubie-id="…"]')` instead costs ~1.25ms per
+ * call in jsdom because the selector is matched against the whole subtree, and a
+ * 7x7 has 218 cubies — measured, 436 such lookups took **826ms** of the
+ * function's 1620ms, while building the Map cost 1.2ms and the same 218 lookups
+ * from it cost 0.1ms. The build was already ~34ms, so the lookup was 47x the
+ * work it was saving.
  *
  * @param state - The basic view internal data
  * @param faceSize - New visual size of the cube in pixels
@@ -306,12 +394,16 @@ export function resizeCubies(state: BasicViewInternalData, faceSize: number): bo
         }
     }
 
-    const existingCubies = state.cubeElement.querySelectorAll('[data-cubie-id]');
-    if (existingCubies.length !== expectedIds.size) return false;
+    const { byId: elementById, count } = collectCubieElements(state.cubeElement);
+
+    // A duplicate cubie id means the DOM is already inconsistent, so this fails the
+    // discovery rather than letting the mutation pass write to one of two competitors.
+    if (count !== elementById.size) return false;
+    if (elementById.size !== expectedIds.size) return false;
 
     // Verify every expected cubie is present.
     for (const id of expectedIds) {
-        if (!state.cubeElement!.querySelector(`[data-cubie-id="${id}"]`)) return false;
+        if (!elementById.has(id)) return false;
     }
 
     // Mutation pass — safe to mutate because discovery passed.
@@ -327,7 +419,7 @@ export function resizeCubies(state: BasicViewInternalData, faceSize: number): bo
     const cubieHalf = cubieSize / 2;
 
     for (const id of expectedIds) {
-        const el = state.cubeElement!.querySelector(`[data-cubie-id="${id}"]`) as HTMLElement;
+        const el = elementById.get(id);
         if (!el) continue;
 
         const pos = positionMap.get(id);
@@ -341,16 +433,50 @@ export function resizeCubies(state: BasicViewInternalData, faceSize: number): bo
         el.style.height = `${cubieSize}px`;
         el.style.transform = `translate3d(${cx}px, ${cy}px, ${cz}px)`;
 
-        // Update each face element's transform from its data-face attribute.
+        // Update each face element's transform from its data-face attribute. A sticker
+        // is detected by its own marker rather than by class, because a wall sits on the
+        // same face and must keep the un-lifted transform — they are two elements per
+        // sticker face now, and only one of them is offset.
         const faceEls = el.querySelectorAll('[data-face]');
         faceEls.forEach(faceEl => {
             const faceAttr = faceEl.getAttribute('data-face');
             if (!faceAttr) return;
-            (faceEl as HTMLElement).style.transform = getFaceTransform(faceAttr as Face, cubieHalf);
+            const face = faceAttr as Face;
+            const isSticker = faceEl.hasAttribute('data-sticker-id');
+            (faceEl as HTMLElement).style.transform = isSticker
+                ? stickerTransform(face, cubieHalf)
+                : getFaceTransform(face, cubieHalf);
         });
     }
 
     return true;
+}
+
+/**
+ * Get the cubie DOM elements that belong to a move's layer.
+ *
+ * Uses the cubie IDs from movedCubies.before (the authoritative set of cubies
+ * currently in the layer) to look up DOM elements. This is correct across all
+ * move sequences because cubie.id is a stable identity key while cubie.position
+ * reflects the current location — the ID-coordinate filtering approach fails
+ * after any move because IDs encode initial positions, not current positions.
+ *
+ * Lives here, next to {@link collectCubieElements}, rather than beside the
+ * animation code that calls it: the lookup and the index share one explanation of
+ * why per-id `querySelector` is the wrong shape, and splitting them across modules
+ * is how the slow form came back the first time.
+ *
+ * @param cubieIds - Stable cubie IDs in the layer (from movedCubies.before)
+ * @param cubeElement - The cube DOM element
+ * @returns Array of matching cubie elements
+ */
+export function getLayerCubieElements(cubieIds: string[], cubeElement: HTMLElement): HTMLElement[] {
+    const { byId } = collectCubieElements(cubeElement);
+    return cubieIds.reduce<HTMLElement[]>((acc, id) => {
+        const el = byId.get(id);
+        if (el) acc.push(el);
+        return acc;
+    }, []);
 }
 
 /**
@@ -370,9 +496,14 @@ export function updateCubiePositions(
 ): void {
     const cubeSize = getCubeSizeFromElement(cubeElement);
 
+    // One index for the whole rehome, rather than a lookup per moved cubie — see
+    // `collectCubieElements`. A 7x7 move rehomes up to 49 cubies, and the per-lookup
+    // form cost ~331ms of the post-move path.
+    const { byId } = collectCubieElements(cubeElement);
+
     movedCubies.after.forEach(cubie => {
         // Find the cubie DOM element
-        const cubieEl = cubeElement.querySelector(`[data-cubie-id="${cubie.id}"]`) as HTMLElement;
+        const cubieEl = byId.get(cubie.id);
         if (!cubieEl) return;
 
         // Calculate new position

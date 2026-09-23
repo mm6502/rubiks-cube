@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Face } from '@/cube/types';
 
 import * as cubieRendering from './cubie-rendering';
-import { getLayerCubieElements } from './animations';
 import type { BasicViewInternalData } from './basic-view';
+import { getLayerCubieElements } from './cubie-rendering';
 import {
     getMinimumSize,
     getVisibleFacesWithPositions,

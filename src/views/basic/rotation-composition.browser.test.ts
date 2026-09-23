@@ -79,7 +79,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await browser?.close();
-});
+    // Explicit, and deliberately the same 60s as the launch above. Closing a Chromium
+    // under load is not instant — measured, it exceeded vitest's 10s default `hookTimeout`
+    // while 19 other jsdom workers saturated the CPU, and a teardown timeout FAILS THE
+    // SUITE even though every assertion passed. The setup side already knew a browser
+    // operation needs a generous budget here; teardown needs it just as much.
+}, 60_000);
 
 describe('the animation slot composes to the target basis', () => {
     it('the implementation derives the rotation the browser requires, for all 96 cases', async () => {

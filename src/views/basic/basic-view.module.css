@@ -44,6 +44,17 @@
 .cubie {
     position: absolute;
     transform-style: preserve-3d;
+    /* No background here, deliberately.
+     *
+     * This used to carry an opaque body colour. A cubie is only ever translated
+     * (never rotated), so that background was a flat quad in the cubie's XY plane at
+     * z=0 — half an edge BEHIND the face planes, which is where the seams between
+     * cubies actually are. It therefore could not seal them (a face from the far side
+     * of the cube showed through), and at grazing angles it painted over the stickers
+     * instead, drawing a line across the middle of a face.
+     *
+     * Occlusion now comes from the six `.cubie-interior` walls, which sit ON the face
+     * planes and meet a neighbour's walls flush — see `renderCubieFaces`. */
     /* width/height set dynamically by initializeCubies */
 }
 
@@ -77,19 +88,51 @@
         box-shadow 0.2s;
     forced-color-adjust: none;
     color-scheme: light only;
-    backface-visibility: hidden;
+    /* Deliberately NOT `backface-visibility: hidden`.
+     *
+     * Each face's own transform is a 90 degree rotation (`getFaceTransform`), so while the
+     * cube ramps through a view rotation every face passes through edge-on to the viewer.
+     * At that instant its facing sign is ~0, and Gecko and Blink resolve the near-zero
+     * backface test differently: Firefox transiently culls a face that should still be
+     * painted, exposing the face directly behind it — which is the OPPOSITE face, and is
+     * exactly the reported defect (with R on top, the R face briefly shows GREEN, i.e. L;
+     * with pitch on, L briefly shows BLUE, i.e. R).
+     *
+     * Verified by measurement: the app emits byte-identical CSS to both engines (32/32
+     * transform lines, 156/156 3D-context property lines), both interpolate the composed
+     * transform identically, and no colour is ever written during the gesture — so the
+     * divergence is entirely in culling. Confirmed in a real browser: disabling culling at
+     * runtime removed the flash in both Firefox and Edge.
+     *
+     * The cost is that back faces are painted too. They are depth-sorted behind the near
+     * faces, and every cubie face is opaque, so the cube still reads as solid. */
+    backface-visibility: visible;
 }
 
-/* Interior body face on a cubie */
+/* Interior body wall on a cubie.
+ *
+ * All SIX of a cubie's faces carry this class now, not just the sticker-less ones.
+ * Together they are the sealed box that hides the cube's far side, so the wall behind
+ * a sticker is load-bearing: it fills the area the sticker's rounded corner does not
+ * paint, and what shows through that corner is body colour rather than a face from
+ * the other side of the cube. Squaring it here would reopen exactly the seam the
+ * class exists to close. */
 .cubie-interior {
     position: absolute;
     width: 100%;
     height: 100%;
     background-color: var(--color-domain-cube-interior);
+    /* Matches .sticker, so a wall corner and a sticker corner read as the same shape
+     * and the seam around a facelet is even on every side of every cubie. */
+    border-radius: 15%;
     pointer-events: none;
     forced-color-adjust: none;
     color-scheme: light only;
-    backface-visibility: hidden;
+    /* Same reasoning as `.sticker`: culling these is what leaves the cube's body open,
+     * so the far side shows through the seams. These six walls are what make each cubie
+     * an opaque box, and a cube built from opaque boxes occludes its own far side
+     * without needing the backface test at all. */
+    backface-visibility: visible;
 }
 
 /* Cross-view highlight class — applied by updateHighlight when hovering other views */

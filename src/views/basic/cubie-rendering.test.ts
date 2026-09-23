@@ -5,11 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { Face } from '@/cube/types';
 
 import {
+    STICKER_LIFT_PX,
     buildCubieElement,
     getFaceTransform,
     initializeCubies,
     resizeCubies,
     stickerBorderWidth,
+    stickerTransform,
     updateCubiePositions,
 } from './cubie-rendering';
 import type { BasicViewInternalData } from './types';
@@ -114,48 +116,117 @@ describe('cubie-rendering - getFaceTransform', () => {
     });
 });
 
-describe('cubie-rendering - interior faces', () => {
-    it('creates one interior face per non-sticker side for corner, edge, and face-center cubies', () => {
-        const cornerCubie = createCubie([Face.F, Face.U, Face.R]);
-        const edgeCubie = createCubie([Face.F, Face.U]);
-        const centerCubie = createCubie([Face.F]);
-
-        const cornerEl = buildCubieElement(cornerCubie, 100, 3, styles, vi.fn());
-        const edgeEl = buildCubieElement(edgeCubie, 100, 3, styles, vi.fn());
-        const centerEl = buildCubieElement(centerCubie, 100, 3, styles, vi.fn());
-
-        expect(cornerEl.querySelectorAll('.cubie-interior')).toHaveLength(3);
-        expect(edgeEl.querySelectorAll('.cubie-interior')).toHaveLength(4);
-        expect(centerEl.querySelectorAll('.cubie-interior')).toHaveLength(5);
+describe('cubie-rendering - stickerTransform', () => {
+    it('is the wall transform with the sticker lift added', () => {
+        // The pair exists so the initial render and the resize path can never disagree
+        // about how far a sticker sits off its wall — that divergence is what makes a
+        // sticker flicker or visibly detach after a resize.
+        for (const face of [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D]) {
+            for (const half of [0, 23.1, 50, 150]) {
+                expect(stickerTransform(face, half)).toBe(
+                    getFaceTransform(face, half + STICKER_LIFT_PX)
+                );
+            }
+        }
     });
 
-    it('marks each interior face as non-interactive and aria-hidden, with the cube-interior color token', () => {
-        const cubie = createCubie([Face.F, Face.U]);
-        const cubieEl = buildCubieElement(cubie, 100, 3, styles, vi.fn());
-        const interiorFaces = Array.from(
-            cubieEl.querySelectorAll('.cubie-interior')
-        ) as HTMLElement[];
+    it('lifts by a small absolute amount, not a fraction of the cube', () => {
+        // The lift only has to break a depth-sort tie; scaling it with the cube would make
+        // a larger cube look like its stickers are floating.
+        expect(STICKER_LIFT_PX).toBeGreaterThan(0);
+        expect(STICKER_LIFT_PX).toBeLessThan(2);
+        expect(stickerTransform(Face.F, 0)).toBe(`translateZ(${STICKER_LIFT_PX}px)`);
+        expect(stickerTransform(Face.F, 400)).toBe(`translateZ(${400 + STICKER_LIFT_PX}px)`);
+    });
+});
 
-        expect(interiorFaces).not.toHaveLength(0);
-        interiorFaces.forEach(face => {
-            expect(face.getAttribute('aria-hidden')).toBe('true');
-            expect(face.style.pointerEvents).toBe('none');
-            expect(face.style.backgroundColor).toBe('var(--color-domain-cube-interior)');
+describe('cubie-rendering - sealed body walls', () => {
+    it('gives every cubie six walls, whatever its sticker count', () => {
+        // The body is the seal: it is not "the sides without a sticker", it is ALL six
+        // sides. Neighbouring cubies' walls meet flush on the shared face plane, which is
+        // what closes the cube. So a centre cubie (1 sticker) gets six walls too — the
+        // walls behind its sticker are load-bearing, not redundant.
+        const cases: Array<[string, Face[], number]> = [
+            ['corner', [Face.F, Face.U, Face.R], 3],
+            ['edge', [Face.F, Face.U], 2],
+            ['face-centre', [Face.F], 1],
+        ];
+
+        for (const [name, faces, stickerCount] of cases) {
+            const el = buildCubieElement(createCubie(faces), 100, 3, styles, vi.fn());
+            const walls = el.querySelectorAll('.cubie-interior');
+            const stickers = el.querySelectorAll('.sticker');
+
+            expect(stickers, `${name}: sticker count`).toHaveLength(stickerCount);
+            expect(walls, `${name}: one wall per face`).toHaveLength(6);
+            expect(el.children, `${name}: 6 walls + ${stickerCount} stickers`).toHaveLength(
+                6 + stickerCount
+            );
+        }
+    });
+
+    it('lays the walls before the stickers, so a sticker paints over its own wall', () => {
+        const el = buildCubieElement(createCubie([Face.F]), 100, 3, styles, vi.fn());
+        const children = [...el.children];
+        const lastWall = children.map(c => c.className).lastIndexOf('cubie-interior');
+        const firstSticker = children.map(c => c.className).indexOf('sticker');
+
+        expect(firstSticker, 'a sticker exists').toBeGreaterThan(-1);
+        expect(lastWall).toBeLessThan(firstSticker);
+    });
+
+    it('marks every wall as non-interactive, aria-hidden, with the cube-interior colour', () => {
+        const el = buildCubieElement(createCubie([Face.F, Face.U]), 100, 3, styles, vi.fn());
+        const walls = Array.from(el.querySelectorAll('.cubie-interior')) as HTMLElement[];
+
+        expect(walls).toHaveLength(6);
+        walls.forEach(wall => {
+            expect(wall.getAttribute('aria-hidden')).toBe('true');
+            expect(wall.style.pointerEvents).toBe('none');
+            expect(wall.style.backgroundColor).toBe('var(--color-domain-cube-interior)');
         });
     });
 
-    it('does not fire the sticker callback when an interior face is clicked', () => {
+    it('does not fire the sticker callback when a wall is clicked', () => {
         const onStickerSelected = vi.fn();
-        const cubie = createCubie([Face.F]);
-        const cubieEl = buildCubieElement(cubie, 100, 3, styles, onStickerSelected);
-        const interiorFace = cubieEl.querySelector('.cubie-interior') as HTMLElement;
+        const el = buildCubieElement(createCubie([Face.F]), 100, 3, styles, onStickerSelected);
 
-        interiorFace.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        (el.querySelector('.cubie-interior') as HTMLElement).dispatchEvent(
+            new MouseEvent('click', { bubbles: true })
+        );
 
         expect(onStickerSelected).not.toHaveBeenCalled();
     });
 
-    it('rebuilds interior faces when cubie stickers change during a position update', () => {
+    it('lifts each sticker clear of the wall it sits on', () => {
+        // Sticker and wall describe the same face, so without the lift they are coplanar
+        // and the browser depth-sorts them inconsistently (visible flicker). The wall must
+        // stay exactly on the face plane while the sticker moves in front of it.
+        const half = 50;
+        const el = buildCubieElement(createCubie([Face.F, Face.U]), 100, 3, styles, vi.fn());
+
+        const zOf = (element: Element | null) => {
+            const m = /translateZ\(([\d.]+)px\)/.exec(
+                (element as HTMLElement | null)?.style.transform ?? ''
+            );
+            return m ? parseFloat(m[1]) : null;
+        };
+
+        for (const face of [Face.F, Face.U]) {
+            const sticker = el.querySelector(`.sticker[data-face="${face}"]`);
+            const wall = el.querySelector(`.cubie-interior[data-face="${face}"]`);
+
+            expect(wall, `wall for ${face}`).not.toBeNull();
+            expect(sticker, `sticker for ${face}`).not.toBeNull();
+            expect(zOf(wall), `wall ${face} on the face plane`).toBe(half);
+            expect(zOf(sticker), `sticker ${face} in front of its wall`).toBe(
+                half + STICKER_LIFT_PX
+            );
+            expect(zOf(sticker)!).toBeGreaterThan(zOf(wall)!);
+        }
+    });
+
+    it('rebuilds all six walls when a cubie’s stickers change during a position update', () => {
         const cubeElement = document.createElement('div');
         cubeElement.style.width = '300px';
         cubeElement.style.height = '300px';
@@ -169,8 +240,8 @@ describe('cubie-rendering - interior faces', () => {
         updatedCubie.id = initialCubie.id;
         updateCubiePositions(cubeElement, { after: [updatedCubie] });
 
-        const rebuiltInteriorFaces = cubeElement.querySelectorAll('.cubie-interior');
-        expect(rebuiltInteriorFaces).toHaveLength(5);
+        expect(cubeElement.querySelectorAll('.cubie-interior')).toHaveLength(6);
+        expect(cubeElement.querySelectorAll('.sticker')).toHaveLength(1);
     });
 
     it('keeps the sticker-selection callback wired after a position update rebuilds sticker faces', () => {
@@ -201,24 +272,25 @@ describe('cubie-rendering - data-face contract', () => {
     // rather than incidental — a regression in either silently breaks something
     // far away from this file:
     //
-    //  1. Every face element carries it, sticker AND interior alike, because
-    //     `resizeCubies` finds them all through a single `[data-face]` query. An
-    //     interior div missing it keeps its OLD halfSize transform after a resize
-    //     and visibly detaches from its cubie.
+    //  1. Every face element carries it, sticker AND wall alike, because
+    //     `resizeCubies` finds them all through a single `[data-face]` query. A wall
+    //     missing it keeps its OLD halfSize transform after a resize and visibly
+    //     detaches from its cubie.
     //  2. Every face element carries it EXACTLY ONCE, and no element carries a
     //     second face-naming attribute. A duplicate write is how this drifted into
     //     two attributes (`data-basic-face` + `data-face`) in the first place.
-    it('marks every face element (sticker and interior) with exactly one data-face attribute', () => {
+    it('marks every face element (sticker and wall) with exactly one data-face attribute', () => {
         const cubie = createCubie([Face.F, Face.U]);
         const cubieEl = buildCubieElement(cubie, 100, 3, styles, vi.fn());
 
         const stickers = Array.from(cubieEl.querySelectorAll('.sticker')) as HTMLElement[];
-        const interiors = Array.from(cubieEl.querySelectorAll('.cubie-interior')) as HTMLElement[];
+        const walls = Array.from(cubieEl.querySelectorAll('.cubie-interior')) as HTMLElement[];
 
         expect(stickers).toHaveLength(2);
-        expect(interiors).toHaveLength(4);
+        expect(walls).toHaveLength(6);
+        expect([...stickers, ...walls]).toHaveLength(8);
 
-        for (const el of [...stickers, ...interiors]) {
+        for (const el of [...stickers, ...walls]) {
             const face = el.getAttribute('data-face');
             expect(face, 'every face element must name its face').not.toBeNull();
 
