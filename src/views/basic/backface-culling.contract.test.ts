@@ -38,55 +38,16 @@
 // actually regressed before — is that these declarations stay coupled. Parsing the
 // stylesheet is the only honest way to pin that.
 //
-// The stylesheet is read with `node:fs`. Vite's CSS-modules plugin intercepts `?raw` and
-// `?inline` for a `.module.css` path, returning a class-name proxy and an empty string
-// respectively (both measured), so the `import.meta.glob(…, '?raw')` convention used by
-// `src/types/event-catalogue.test.ts` is not available for a stylesheet. The `node` types are
-// pulled in for this file alone by the reference below, rather than by widening the project's
-// `types` array, so no other test gains an implicit Node dependency.
+// The stylesheet is read with `node:fs` via `./css-contract-helpers`, not `?raw`: Vite's
+// CSS-modules plugin intercepts `?raw`/`?inline` for a `.module.css` path (measured — it
+// returns a class-name proxy and an empty string), so the `import.meta.glob(…, '?raw')`
+// convention used by `src/types/event-catalogue.test.ts` is not available for a stylesheet.
+// `node` types are pulled in for this file alone by the reference below rather than by
+// widening the project's `types` array, so no other test gains an implicit Node dependency.
 /// <reference types="node" />
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
-const rawCss = readFileSync(resolve(__dirname, 'basic-view.module.css'), 'utf8');
-
-/**
- * The stylesheet with comments removed.
- *
- * Stripping first is not tidiness — it is required for correctness here. These rules carry
- * long explanatory comments that mention property names and braces in prose, and a naive
- * scan either matches a property name out of a sentence or has its `[^}]*` capture run past
- * the declaration it was meant to read. Removing comments makes the remaining text pure
- * declarations, so the scans below see exactly what the browser would.
- */
-const css = rawCss.replace(/\/\*[\s\S]*?\*\//g, '');
-
-/**
- * The declaration block of a top-level rule, by selector.
- *
- * Deliberately a plain text scan rather than a CSS parser: this file has no parser
- * dependency, and the selectors below are single, unique, top-level rules. The function
- * throws when a selector is missing or ambiguous, so a rename cannot silently turn an
- * assertion into a no-op — which is the failure mode a "contains" check on the whole file
- * would have.
- */
-function blockFor(selector: string): string {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Match the selector at the start of a line, then capture up to the closing brace.
-    const matches = [...css.matchAll(new RegExp(`^${escaped}\\s*\\{([^}]*)\\}`, 'gm'))];
-    if (matches.length === 0) throw new Error(`no rule found for ${selector}`);
-    if (matches.length > 1) throw new Error(`ambiguous: ${matches.length} rules for ${selector}`);
-    return matches[0][1];
-}
-
-/** A declaration's value, normalised to lower case; `undefined` when absent. */
-function valueOf(block: string, property: string): string | undefined {
-    // Properties may follow `{`, `;` or a newline, so allow any of them rather than `;` alone.
-    const match = new RegExp(`(?:^|[;{\\n])\\s*${property}\\s*:\\s*([^;]+)`, 'i').exec(block);
-    return match?.[1].trim().toLowerCase();
-}
+import { blockFor, basicViewCss as css, valueOf } from './css-contract-helpers';
 
 describe('basic view CSS — backface culling contract (Firefox flash regression)', () => {
     it('does not cull the sticker faces', () => {
@@ -179,8 +140,7 @@ describe('basic view CSS — backface culling contract (Firefox flash regression
         }
 
         // The body class carries no state variant at all — that is the invariant that keeps
-        // a highlight from ever reaching the body.
-        const css = rawCss.replace(/\/\*[\s\S]*?\*\//g, '');
+        // a highlight from ever reaching the body. `css` is already comment-stripped.
         expect(
             /\.cubie-interior\s*[:.\[][^\s{]*\s*\{/.test(css),
             'a state selector on .cubie-interior would let a highlight reach the body'

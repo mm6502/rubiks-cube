@@ -1,8 +1,10 @@
+/// <reference types="node" />
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StateManager } from '@/cube/core/state-manager';
 import { Face, ReadOnlyCubeModel } from '@/cube/types';
 
+import { blockFor, ghostStripCss, valueOf } from './css-contract-helpers';
 import {
     CUBE_EDGE_MAP,
     GhostStickers,
@@ -505,5 +507,72 @@ describe('GhostStickers', () => {
             expect(isGhostVisible()).toBe(true);
             setGhostVisible(false);
         });
+    });
+});
+
+// Regression guard for the ghost strips' grid metrics.
+//
+// Reported defect: "ghost stickers are shorter along their longer side than real
+// stickers". A ghost cell stretched along an edge must be exactly as long as a real
+// sticker, because a real sticker is one cubie: `anchorSize / n`. The strips are children
+// of the `ghost-anchor` host, which spans a whole face, so `flex: 1` divides it into n
+// cells — and that is correct ONLY if the strip carries no inset and no gap.
+//
+// It used to carry both, left over from the OLD face-based grid this view used before the
+// per-cubie cutover: a 3.33% inset per side (the old face padding) and `gap: 3%` between
+// cells (the old per-slot gap). Those are wrong against the current grid, which has no
+// padding and no gap — the visible separation between facelets is each sticker's own inset
+// border, not space in the layout. Measured in a real browser, the leftover inset plus a
+// gap per cell shrank every ghost to 89% of a sticker at 3x3 and 75% at 7x7, the error
+// growing with n because the gap count does.
+//
+// Why this parses the stylesheet rather than asserting on rendered geometry: jsdom
+// implements no layout, so a ghost cell's width is always 0 there and a rendered assertion
+// would prove nothing. What IS checkable — and what actually regressed — is that the strip
+// declares no inset and no gap. The real-browser measurement is the other half of the
+// guard, and is how the 89%-to-75% figures above were obtained.
+describe('ghost strip grid contract (ghost length must match a sticker)', () => {
+    // The selector text must match the sheet's own quoting: this stylesheet writes
+    // attribute values with SINGLE quotes (`[data-edge='top']`). A double-quoted search
+    // throws "no rule found" rather than silently passing, which is the point of `blockFor`
+    // throwing — but it is a difference worth stating here so the next edit does not have
+    // to rediscover it.
+    const ROW_STRIP = ".ghost-strip[data-edge='top'], .ghost-strip[data-edge='bottom']";
+    const COL_STRIP = ".ghost-strip[data-edge='left'], .ghost-strip[data-edge='right']";
+
+    it('insets the strip by nothing, so n cells tile the full face edge', () => {
+        const strip = blockFor(ROW_STRIP, ghostStripCss);
+        expect(valueOf(strip, 'left'), 'a left inset shortens every cell').toBe('0');
+        expect(valueOf(strip, 'right'), 'a right inset shortens every cell').toBe('0');
+    });
+
+    it('declares no gap between ghost cells', () => {
+        // A gap is the worse of the two leftovers: it is a fixed FRACTION of the strip but
+        // there are n-1 of them, so the shortfall grows with the cube size (11% at 3x3 to
+        // 25% at 7x7), which is exactly the shape the defect was reported with.
+        expect(
+            valueOf(blockFor(ROW_STRIP, ghostStripCss), 'gap'),
+            'a gap steals length from every cell'
+        ).toBe('0');
+        expect(
+            valueOf(blockFor(COL_STRIP, ghostStripCss), 'gap'),
+            'a gap steals length from every cell'
+        ).toBe('0');
+    });
+
+    it('does not inset the vertical strips either', () => {
+        // The same leftover padding was applied top/bottom on the column strips; both edges
+        // have to stay clean or the vertical ghosts stay short while the horizontal ones
+        // are fixed.
+        const strip = blockFor(COL_STRIP, ghostStripCss);
+        expect(valueOf(strip, 'top'), 'a top inset shortens every cell').toBe('0');
+        expect(valueOf(strip, 'bottom'), 'a bottom inset shortens every cell').toBe('0');
+    });
+
+    it('keeps the cells flexed, so they share the strip equally', () => {
+        // The fix removes the inset and gap; the equal division itself is what must remain.
+        // If the cells stopped being flexible the strip would no longer fill the edge and
+        // the grid would drift regardless of the other three assertions.
+        expect(valueOf(blockFor('.ghost-sticker', ghostStripCss), 'flex')).toBe('1');
     });
 });
