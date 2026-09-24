@@ -1,18 +1,34 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { Application } from '@/application';
 import { Axis, Face, LayoutMode } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { inferMoveFromDrag } from '@/interaction/move-inference';
-import { DragDirection } from '@/interaction/types';
+import { DragDirection, HitKind } from '@/interaction/types';
 import { EventName } from '@/types';
+import { blockFor, valueOf } from '@/views/basic/css-contract-helpers';
 
 import { AxisCircle } from './svg-tools';
 import { CircularTouchHandler } from './touch-handler';
+import { getInteractionStart } from './touch-handler-interaction';
+
+/**
+ * The Circular stylesheet with comments stripped, so a scan for a declaration
+ * cannot read a sentence as one.
+ */
+const circularCss = readFileSync(resolve(__dirname, 'circular.module.css'), 'utf8').replace(
+    /\/\*[\s\S]*?\*\//g,
+    ''
+);
 
 const styles = {
     'circular-halo': 'circular-halo',
     'circular-drag-label': 'circular-drag-label',
     'circular-axis-selected': 'circular-axis-selected',
     'circular-cancel-zone': 'circular-cancel-zone',
+    'circular-drag-cross-arm': 'circular-drag-cross-arm',
 } as const;
 
 type Fixture = {
@@ -52,6 +68,11 @@ describe('CircularTouchHandler', () => {
 
     afterEach(() => {
         fixture.cleanup();
+        // The label and the decision indicator are appended to the body, outside
+        // the fixture's SVG, so a test that never calls `destroy()` would leave
+        // one behind for the next test's `document.querySelector` to find.
+        document.querySelectorAll(`.${styles['circular-drag-label']}`).forEach(el => el.remove());
+        document.querySelectorAll('svg[aria-hidden="true"]').forEach(el => el.remove());
         Application.eventBus.removeAllListeners();
         vi.restoreAllMocks();
     });
@@ -157,6 +178,28 @@ describe('CircularTouchHandler', () => {
             EventName.MOVE_REQUESTED,
             expect.objectContaining({ moveNotation: expectedNotation, viewId: 'circular' })
         );
+
+        handler.destroy();
+    });
+
+    it('accepts the whole clip container as background, not just the SVG inside it', () => {
+        // The SVG is letterboxed inside the clip and shrinks further when zoomed
+        // out, so a border of the clip is not covered by the SVG. A pointer-down
+        // there used to resolve to nothing, making the border a dead zone where a
+        // gesture could not be started at all — exactly the area a user reaches
+        // for when the cube is zoomed out. The clip is also where the zoom/pan
+        // controller listens, so it is the view's real surface.
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // A plain div inside the clip container but outside the SVG.
+        const padEl = document.createElement('div');
+        fixture.host.appendChild(padEl);
+
+        expect(handler['state'].host).toBe(fixture.host);
+
+        const start = getInteractionStart(handler['state'], padEl, 10, 10);
+        expect(start.kind).toBe(HitKind.BACKGROUND);
 
         handler.destroy();
     });
@@ -362,7 +405,7 @@ describe('CircularTouchHandler', () => {
         handler.onPointerMove(pointer('pointermove', 14, 150, 132));
 
         // Assert
-        const dragLabel = fixture.host.querySelector(
+        const dragLabel = document.querySelector(
             `.${styles['circular-drag-label']}`
         ) as HTMLElement;
         expect(dragLabel).not.toBeNull();
@@ -439,7 +482,7 @@ describe('CircularTouchHandler', () => {
 
         // Assert
         expect(fixture.svgRoot.querySelector(`.${styles['circular-halo']}`)).toBeNull();
-        expect(fixture.host.querySelector(`.${styles['circular-drag-label']}`)).toBeNull();
+        expect(document.querySelector(`.${styles['circular-drag-label']}`)).toBeNull();
         expect(fixture.svgRoot.querySelector(`.${styles['circular-cancel-zone']}`)).toBeNull();
     });
 
@@ -454,7 +497,7 @@ describe('CircularTouchHandler', () => {
         handler.onPointerCancel(pointer('pointercancel', 17, 170, 132));
 
         // Assert
-        const dragLabel = fixture.host.querySelector(
+        const dragLabel = document.querySelector(
             `.${styles['circular-drag-label']}`
         ) as HTMLElement;
         const cancelZone = fixture.svgRoot.querySelector(
@@ -495,9 +538,14 @@ describe('CircularTouchHandler', () => {
         // Act – press down on face ellipse; nearest F sticker should show a cross
         handler.onPointerDown(pointer('pointerdown', 21, 165, 210), fixture.fFaceEllipse);
 
-        // The secondary arm should be visible (cross = both arms visible; line = secondary hidden)
-        const dragCrossGroup = fixture.svgRoot.querySelector('.circular-drag-cross') as SVGGElement;
-        const arms = dragCrossGroup?.querySelectorAll('line') ?? [];
+        // The secondary arm should be visible (cross = both arms visible; line = secondary hidden).
+        // The indicator is a fixed, viewport-anchored overlay on the body now rather
+        // than an SVG group, so it is queried from the document: inside the SVG it was
+        // clipped by the viewBox and scaled by the zoom transform.
+        const arms = document.querySelectorAll('.circular-drag-cross-arm');
+        expect(arms.length).toBe(2);
+        const overlay = arms[0].closest('svg') as SVGSVGElement;
+        expect(overlay.getAttribute('visibility')).not.toBe('hidden');
         const visibleArms = Array.from(arms).filter(
             el => el.getAttribute('visibility') !== 'hidden'
         );
@@ -959,7 +1007,7 @@ describe('CircularTouchHandler', () => {
         handler.onPointerMove(pointer('pointermove', 68, 300, 255));
 
         // Assert — drag label shows both move notations, space-separated (e.g. "L' R")
-        const dragLabel = fixture.host.querySelector(
+        const dragLabel = document.querySelector(
             `.${styles['circular-drag-label']}`
         ) as HTMLElement;
         expect(dragLabel.style.display).toBe('block');
@@ -1041,11 +1089,14 @@ describe('CircularTouchHandler', () => {
         handler.onPointerDown(pointer('pointerdown', 72, 150, 220), fixture.fSticker);
         handler.onPointerMove(pointer('pointermove', 72, 100, 220));
 
-        // Assert — fixed positioning
-        const dragLabel = fixture.host.querySelector(
+        // Assert — fixed positioning is a stylesheet contract (the label is always a
+        // viewport overlay), and jsdom applies no `.module.css`, so it is pinned in
+        // the sheet rather than read back through `getComputedStyle`.
+        const dragLabel = document.querySelector(
             `.${styles['circular-drag-label']}`
         ) as HTMLElement;
-        expect(dragLabel.style.position).toBe('fixed');
+        expect(dragLabel.style.display).toBe('block');
+        expect(valueOf(blockFor('.circular-drag-label', circularCss), 'position')).toBe('fixed');
 
         handler.onPointerUp(pointer('pointerup', 72, 100, 220), fixture.fSticker);
         handler.destroy();
@@ -1061,7 +1112,7 @@ describe('CircularTouchHandler', () => {
         handler.onPointerMove(pointer('pointermove', 73, 100, 220));
 
         // Assert — no fixed position
-        const dragLabel = fixture.host.querySelector(
+        const dragLabel = document.querySelector(
             `.${styles['circular-drag-label']}`
         ) as HTMLElement;
         expect(dragLabel.style.position).not.toBe('fixed');
@@ -1228,7 +1279,7 @@ describe('CircularTouchHandler', () => {
         handler.onPointerUp(pointer('pointerup', 81, 100, 220), fixture.fSticker);
 
         // Assert — label hidden and position reset
-        const dragLabel = fixture.host.querySelector(
+        const dragLabel = document.querySelector(
             `.${styles['circular-drag-label']}`
         ) as HTMLElement;
         expect(dragLabel.style.display).toBe('none');
@@ -1346,7 +1397,7 @@ describe('CircularTouchHandler', () => {
         handler.onPointerMove(pointer('pointermove', 89, 152, 220));
 
         // Assert — drag label hidden
-        const dragLabel = fixture.host.querySelector(
+        const dragLabel = document.querySelector(
             `.${styles['circular-drag-label']}`
         ) as HTMLElement;
         expect(dragLabel.style.display).toBe('none');

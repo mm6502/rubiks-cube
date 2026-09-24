@@ -79,7 +79,6 @@ export class FlatTouchHandler {
         // The arm length is read lazily: the overlay only asks for it when it is
         // shown, by which time `this.s` exists.
         const dragDecision = createDragDecisionOverlay(
-            options.host,
             options.styles['flat-drag-decision-arm'] ?? 'flat-drag-decision-arm',
             () =>
                 this.s.layoutMode === LayoutMode.Tabbed
@@ -141,10 +140,14 @@ export class FlatTouchHandler {
     attach(): void {
         this.s.host.style.touchAction = 'none';
 
+        // The halo hit target and cancel zone mark places inside the panel, so
+        // they belong to it. The label and the decision indicator follow the
+        // pointer instead and are viewport-anchored, so a gesture made against a
+        // screen edge still shows them in full rather than clipped by the panel.
         this.s.host.appendChild(this.s.haloHitTargetEl);
         this.s.host.appendChild(this.s.haloCancelZoneEl);
-        this.s.host.appendChild(this.s.dragLabelEl);
-        this.s.host.appendChild(this.s.dragDecision.element);
+        document.body.appendChild(this.s.dragLabelEl);
+        document.body.appendChild(this.s.dragDecision.element);
 
         this.s.host.addEventListener('pointerdown', this.onPointerDownBound);
         document.addEventListener('pointermove', this.onPointerMoveBound);

@@ -1,6 +1,7 @@
 import { Axis, Face } from '@/cube/types';
 import type { CubeState } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import type { DragDecisionOverlay } from '@/interaction/drag-decision-overlay';
 import type { DragStateMachine } from '@/interaction/drag-state-machine';
 import {
     CANCEL_ZONE_RADIUS_BASE_PX,
@@ -166,12 +167,15 @@ export type TouchHandlerState = {
     readonly dragLabelEl: HTMLDivElement;
     /** SVG circle shown at the pointer-down position as a cancel/commit threshold indicator. */
     readonly cancelZoneEl: SVGCircleElement;
-    /** SVG group containing the two drag-decision cross arms. */
-    readonly dragCrossGroupEl: SVGGElement;
-    /** Primary arm of the drag-decision cross (bisector between UP/RIGHT zones). */
-    readonly dragCrossPrimaryEl: SVGLineElement;
-    /** Secondary arm of the drag-decision cross (bisector between UP/LEFT zones). */
-    readonly dragCrossSecondaryEl: SVGLineElement;
+    /**
+     * The drag-decision indicator: a fixed, viewport-anchored overlay on the body.
+     *
+     * Deliberately not an SVG child. Inside the SVG it was clipped by the
+     * `viewBox` and scaled by the zoom transform, so at 0.2x an arm that is 70px
+     * at 1x rendered 14px — and a gesture made against the panel edge lost the
+     * indicator entirely. As a screen-space overlay it is neither.
+     */
+    readonly dragDecision: DragDecisionOverlay;
     /** SVG group containing the two parallel fretboard guide lines. */
     readonly fretboardGroupEl: SVGGElement;
     /** First parallel fret guide line (offset perpendicular from the radial axis). */

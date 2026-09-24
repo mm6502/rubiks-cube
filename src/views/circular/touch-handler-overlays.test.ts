@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { Axis, Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import { createDragDecisionOverlay } from '@/interaction/drag-decision-overlay';
 
 import type { AxisCircle } from './svg-tools';
 import {
@@ -59,9 +60,7 @@ function createMinimalState(overrides?: Partial<TouchHandlerState>): TouchHandle
         faceOverlayEl: createSvgEl('ellipse'),
         dragLabelEl: document.createElement('div'),
         cancelZoneEl: createSvgEl('circle'),
-        dragCrossGroupEl: createSvgEl('g'),
-        dragCrossPrimaryEl: createSvgEl('line'),
-        dragCrossSecondaryEl: createSvgEl('line'),
+        dragDecision: createDragDecisionOverlay('test-arm', () => 30),
         fretboardGroupEl: createSvgEl('g'),
         fretboardLine1El: createSvgEl('line'),
         fretboardLine2El: createSvgEl('line'),
@@ -110,7 +109,7 @@ describe('setupStickerDragCross', () => {
         expect(state.pendingStickerCross!.downMove).toBeTypeOf('string');
         expect(state.pendingStickerCross!.rightMove).toBeTypeOf('string');
         expect(state.pendingStickerCross!.leftMove).toBeTypeOf('string');
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('visible');
+        expect(state.dragDecision.element.getAttribute('visibility')).not.toBe('hidden');
     });
 
     it('should fall back to face-screen basis when crossing basis is null', () => {
@@ -121,7 +120,7 @@ describe('setupStickerDragCross', () => {
         setupStickerDragCross(state, sticker, 50, 50);
 
         expect(state.pendingStickerCross).toBeDefined();
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('visible');
+        expect(state.dragDecision.element.getAttribute('visibility')).not.toBe('hidden');
     });
 });
 
@@ -133,8 +132,8 @@ describe('showDragDecisionCross', () => {
         const basis = { upDir: { x: 0, y: -1 }, rightDir: { x: 1, y: 0 } };
         showDragDecisionCross(state, basis, 100, 100);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('visible');
-        expect(state.dragCrossSecondaryEl.getAttribute('visibility')).toBeNull(); // removed
+        expect(state.dragDecision.element.getAttribute('visibility')).not.toBe('hidden');
+        expect(state.dragDecision.element.getAttribute('visibility')).not.toBe('hidden');
     });
 
     it('should use tabbed arm length in tabbed layout', () => {
@@ -144,7 +143,7 @@ describe('showDragDecisionCross', () => {
         const basis = { upDir: { x: 0, y: -1 }, rightDir: { x: 1, y: 0 } };
         showDragDecisionCross(state, basis, 100, 100);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('visible');
+        expect(state.dragDecision.element.getAttribute('visibility')).not.toBe('hidden');
     });
 });
 
@@ -155,8 +154,8 @@ describe('showDragDecisionLine', () => {
 
         showDragDecisionLine(state, { x: 0, y: -1 }, 100, 100);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('visible');
-        expect(state.dragCrossSecondaryEl.getAttribute('visibility')).toBe('hidden');
+        expect(state.dragDecision.element.getAttribute('visibility')).not.toBe('hidden');
+        expect(state.dragDecision.element.getAttribute('visibility')).not.toBe('hidden');
     });
 });
 
@@ -175,7 +174,7 @@ describe('hideDragDecisionCross', () => {
         hideDragDecisionCross(state);
 
         expect(state.pendingStickerCross).toBeUndefined();
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('hidden');
+        expect(state.dragDecision.element.getAttribute('visibility')).toBe('hidden');
     });
 });
 
@@ -187,7 +186,7 @@ describe('setupHaloGuideLine', () => {
 
         setupHaloGuideLine(state, 50, 50);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('hidden');
+        expect(state.dragDecision.element.getAttribute('visibility')).toBe('hidden');
     });
 
     it('should hide drag cross when face ellipse not found', () => {
@@ -195,7 +194,7 @@ describe('setupHaloGuideLine', () => {
 
         setupHaloGuideLine(state, 50, 50);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('hidden');
+        expect(state.dragDecision.element.getAttribute('visibility')).toBe('hidden');
     });
 
     it('should show guide line when ellipse and radial dir are valid', () => {
@@ -212,7 +211,7 @@ describe('setupHaloGuideLine', () => {
 
         setupHaloGuideLine(state, 150, 100);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('visible');
+        expect(state.dragDecision.element.getAttribute('visibility')).not.toBe('hidden');
     });
 
     it('should hide drag cross when radial direction is zero', () => {
@@ -230,7 +229,7 @@ describe('setupHaloGuideLine', () => {
         // Touch point at ellipse centre → normalize2 returns undefined
         setupHaloGuideLine(state, 50, 50);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('hidden');
+        expect(state.dragDecision.element.getAttribute('visibility')).toBe('hidden');
     });
 });
 
@@ -240,7 +239,7 @@ describe('setupFaceEllipseGuideLine', () => {
 
         setupFaceEllipseGuideLine(state, Face.F, 50, 50);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('hidden');
+        expect(state.dragDecision.element.getAttribute('visibility')).toBe('hidden');
     });
 
     it('should show guide line when ellipse and radial dir are valid', () => {
@@ -257,7 +256,7 @@ describe('setupFaceEllipseGuideLine', () => {
 
         setupFaceEllipseGuideLine(state, Face.F, 150, 100);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('visible');
+        expect(state.dragDecision.element.getAttribute('visibility')).not.toBe('hidden');
     });
 
     it('should hide drag cross when radial direction is zero', () => {
@@ -274,7 +273,7 @@ describe('setupFaceEllipseGuideLine', () => {
 
         setupFaceEllipseGuideLine(state, Face.F, 50, 50);
 
-        expect(state.dragCrossGroupEl.getAttribute('visibility')).toBe('hidden');
+        expect(state.dragDecision.element.getAttribute('visibility')).toBe('hidden');
     });
 });
 

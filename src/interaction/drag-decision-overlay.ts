@@ -113,13 +113,18 @@ export function computeFaceScreenBasis(
 }
 
 /**
- * A view's drag-decision indicator: an absolutely-positioned SVG holding two
+ * A view's drag-decision indicator: a fixed, viewport-sized SVG holding two
  * lines, with the operations the handlers need.
  */
 export type DragDecisionOverlay = {
-    /** Append target — the caller adds this to its own host. */
+    /**
+     * The overlay's root element.
+     *
+     * Callers append this to `document.body` (not to their own view), because the
+     * whole point is that no view's subtree can clip it.
+     */
     readonly element: SVGSVGElement;
-    /** Show the two-armed cross at a client position. */
+    /** Show the two-armed cross at a viewport position. */
     showCross(basis: FaceScreenBasis, clientX: number, clientY: number): void;
     /** Show a single radial line along a screen direction. */
     showLine(dir: Point2D, clientX: number, clientY: number): void;
@@ -132,20 +137,29 @@ export type DragDecisionOverlay = {
 /**
  * Create the overlay.
  *
- * @param host - The positioned host the SVG is measured and placed against.
+ * The root is `position: fixed` at the viewport origin and sized to the viewport,
+ * and it is appended to `document.body` rather than to any view. That is what
+ * keeps the arms unclipped and at a constant apparent size: inside a view's own
+ * subtree the indicator was cut off by whatever clips that subtree (the Basic
+ * cube's 3D transform, a panel with `overflow: hidden`) and, in the Circular
+ * view, scaled with the SVG's zoom — measured there at 14px for an arm that is
+ * 70px at 1x.
+ *
+ * Because the SVG has no `viewBox` and sits at the viewport origin, one user unit
+ * is one CSS pixel and viewport coordinates map 1:1 — so the arm length is a
+ * screen length, and no host-rect arithmetic is needed.
+ *
  * @param armClassName - The CSS-module class for the arms. Passed in because the
- *   two views own their own stylesheets; the geometry below is what is shared.
- * @param getArmLength - Current arm length in px, which the caller derives from
- *   its layout mode.
+ *   views own their own stylesheets; the geometry below is what is shared.
+ * @param getArmLength - Current arm length in screen pixels.
  */
 export function createDragDecisionOverlay(
-    host: HTMLElement,
     armClassName: string,
     getArmLength: () => number
 ): DragDecisionOverlay {
     const element = document.createElementNS(SVG_NS, 'svg') as SVGSVGElement;
     element.style.cssText =
-        'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:20;';
+        'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;overflow:visible;z-index:10000;';
     element.setAttribute('aria-hidden', 'true');
     element.setAttribute('visibility', 'hidden');
 
@@ -158,18 +172,11 @@ export function createDragDecisionOverlay(
     element.appendChild(primary);
     element.appendChild(secondary);
 
-    // The SVG is `inset: 0` inside a positioned host, so client coordinates become
-    // host-local ones by subtracting the host's own origin.
-    const local = (clientX: number, clientY: number): Point2D => {
-        const hostRect = host.getBoundingClientRect();
-        return { x: clientX - hostRect.left, y: clientY - hostRect.top };
-    };
-
     return {
         element,
         showCross(basis, clientX, clientY) {
             const { arm1, arm2 } = computeCrossArms(basis);
-            const center = local(clientX, clientY);
+            const center = { x: clientX, y: clientY };
             const armLength = getArmLength();
             placeLine(primary, center, arm1, armLength);
             placeLine(secondary, center, arm2, armLength);
@@ -177,7 +184,7 @@ export function createDragDecisionOverlay(
             element.removeAttribute('visibility');
         },
         showLine(dir, clientX, clientY) {
-            placeLine(primary, local(clientX, clientY), dir, getArmLength());
+            placeLine(primary, { x: clientX, y: clientY }, dir, getArmLength());
             secondary.setAttribute('visibility', 'hidden');
             element.removeAttribute('visibility');
         },

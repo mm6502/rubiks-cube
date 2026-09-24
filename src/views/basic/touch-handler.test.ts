@@ -7,6 +7,7 @@ import { DragDirection, HitKind } from '@/interaction/types';
 import { EventName } from '@/types';
 
 import type { BasicViewInternalData } from './basic-view';
+import { basicViewCss, blockFor, valueOf } from './css-contract-helpers';
 import { BasicTouchHandler } from './touch-handler';
 
 // -------------------------------------------------------------------------
@@ -180,6 +181,11 @@ describe('BasicTouchHandler', () => {
 
     afterEach(() => {
         fixture.cleanup();
+        // The label and decision indicator live on the body, outside the host, so
+        // removing the host does not remove them. Without this, a test that never
+        // calls `destroy()` leaves one behind for the next test to find.
+        document.querySelectorAll(`.${styles['basic-drag-label']}`).forEach(el => el.remove());
+        document.querySelectorAll('svg[aria-hidden="true"]').forEach(el => el.remove());
         Application.eventBus.removeAllListeners();
         vi.restoreAllMocks();
         resetElementFromPoint();
@@ -189,25 +195,30 @@ describe('BasicTouchHandler', () => {
     // Lifecycle
     // -----------------------------------------------------------------------
 
-    it('attach() appends overlay elements to host', () => {
+    it('attach() puts panel overlays in the host and pointer overlays on the body', () => {
         const handler = createHandler(fixture);
         handler.attach();
 
+        // These mark a place inside the panel, so they belong to it.
         expect(fixture.host.querySelector('.basic-halo-hit-target')).not.toBeNull();
         expect(fixture.host.querySelector('.basic-halo-cancel-zone')).not.toBeNull();
-        expect(fixture.host.querySelector('.basic-drag-label')).not.toBeNull();
+
+        // The label and the decision indicator follow the pointer, so they are
+        // viewport-anchored on the body — outside every panel's clipping.
+        expect(document.querySelector('.basic-drag-label')).not.toBeNull();
+        expect(fixture.host.querySelector('.basic-drag-label')).toBeNull();
 
         handler.destroy();
     });
 
-    it('destroy() removes overlay elements from host', () => {
+    it('destroy() removes every overlay it attached', () => {
         const handler = createHandler(fixture);
         handler.attach();
         handler.destroy();
 
         expect(fixture.host.querySelector('.basic-halo-hit-target')).toBeNull();
         expect(fixture.host.querySelector('.basic-halo-cancel-zone')).toBeNull();
-        expect(fixture.host.querySelector('.basic-drag-label')).toBeNull();
+        expect(document.querySelector('.basic-drag-label')).toBeNull();
     });
 
     it('destroy() can be called safely before attach()', () => {
@@ -493,7 +504,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointercancel', 11, 130, 200));
 
         const cancelZone = fixture.host.querySelector('.basic-halo-cancel-zone') as HTMLElement;
-        const dragLabel = fixture.host.querySelector('.basic-drag-label') as HTMLElement;
+        const dragLabel = document.querySelector('.basic-drag-label') as HTMLElement;
 
         expect(cancelZone.style.display).toBe('none');
         expect(dragLabel.style.display).toBe('none');
@@ -663,7 +674,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 20, 140, 100));
 
         // Check that no drag label is rendered
-        const dragLabel = fixture.host.querySelector('.basic-drag-label') as HTMLElement;
+        const dragLabel = document.querySelector('.basic-drag-label') as HTMLElement;
         expect(dragLabel.style.display).toBe('none');
 
         document.dispatchEvent(pointer('pointerup', 20, 140, 100));
@@ -825,9 +836,11 @@ describe('BasicTouchHandler', () => {
         fixture.host.dispatchEvent(pointer('pointerdown', 25, 100, 200));
         document.dispatchEvent(pointer('pointermove', 25, 140, 200));
 
-        const dragLabel = fixture.host.querySelector('.basic-drag-label') as HTMLElement;
-        // In tabbed mode, position should be 'fixed'
-        expect(dragLabel.style.position).toBe('fixed');
+        // Fixed positioning is a stylesheet contract, not an inline style: the
+        // label is a viewport overlay, so a gesture made against a screen edge
+        // still shows it in full. jsdom applies no `.module.css`, so the
+        // declaration is pinned in the stylesheet rather than computed.
+        expect(valueOf(blockFor('.basic-drag-label', basicViewCss), 'position')).toBe('fixed');
 
         document.dispatchEvent(pointer('pointerup', 25, 140, 200));
         handler.destroy();
@@ -863,7 +876,7 @@ describe('BasicTouchHandler', () => {
         });
         document.dispatchEvent(touchMove);
 
-        const dragLabel = fixture.host.querySelector('.basic-drag-label') as HTMLElement;
+        const dragLabel = document.querySelector('.basic-drag-label') as HTMLElement;
         if (dragLabel.style.display === 'block') {
             const top = parseFloat(dragLabel.style.top);
             // Touch label should be positioned above the finger
@@ -1092,7 +1105,7 @@ describe('BasicTouchHandler', () => {
         fixture.host.dispatchEvent(pointer('pointerdown', 34, 100, 100));
 
         // The drag decision SVG should be hidden (mag < 1 path)
-        const svg = fixture.host.querySelector('svg[aria-hidden]') as SVGSVGElement;
+        const svg = document.querySelector('svg[aria-hidden]') as SVGSVGElement;
         expect(svg).not.toBeNull();
         handler.destroy();
     });
@@ -1111,7 +1124,7 @@ describe('BasicTouchHandler', () => {
         fixture.host.dispatchEvent(pointer('pointerdown', 35, 100, 200));
 
         // Verify drag decision SVG is visible (showDragDecisionCross was called)
-        const svg = fixture.host.querySelector('svg[aria-hidden]') as SVGSVGElement;
+        const svg = document.querySelector('svg[aria-hidden]') as SVGSVGElement;
         expect(svg).not.toBeNull();
         handler.destroy();
     });

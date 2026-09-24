@@ -26,8 +26,12 @@
     filter: drop-shadow(0 0 6px var(--color-drag-halo-shadow));
 }
 
+/* Floating label showing the inferred move during a drag.
+   Fixed rather than absolute: it is appended to the body, outside the SVG, so
+   neither the SVG's viewBox nor the clip container can cut it off — and so it
+   does not shrink with the SVG's zoom. */
 .circular-drag-label {
-    position: absolute;
+    position: fixed;
     padding: 4px 8px;
     min-width: var(--size-tooltip-graphical-width);
     width: max-content;
@@ -41,7 +45,7 @@
     font-weight: 700;
     letter-spacing: 0.02em;
     pointer-events: none;
-    z-index: 20;
+    z-index: 10000;
 }
 
 .circular-face-overlay {

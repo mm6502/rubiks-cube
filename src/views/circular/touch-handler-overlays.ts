@@ -1,14 +1,19 @@
 /**
  * Visual overlay management for the circular touch handler.
  *
- * Exports functions that manage the SVG overlay elements: halo ring,
- * face overlay, drag-decision cross, cancel zone, drag label, axis
- * detection bands, and axis circle previews.
+ * Exports functions that manage the overlay elements: halo ring, face overlay,
+ * drag-decision indicator, cancel zone, drag label, axis detection bands, and
+ * axis circle previews.
+ *
+ * The drag label and the decision indicator are screen-space overlays on the
+ * document body, not SVG children — see `TouchHandlerState.dragDecision`. The
+ * rest are SVG children because their geometry is SVG geometry (an ellipse's
+ * `cx`/`cy`/`rx`, an axis circle's centre), so moving them out would mean
+ * re-deriving that geometry in client space for no benefit.
  */
 import { Axis, Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { normalize2 } from '@/cube/utils/math';
-import { computeCrossArms, placeLine } from '@/interaction/drag-decision-overlay';
 import { computeDragLabelPosition } from '@/interaction/drag-label-positioning';
 import { inferMoveFromDrag } from '@/interaction/move-inference';
 import { DragDirection } from '@/interaction/types';
@@ -18,11 +23,7 @@ import { type FaceScreenBasis, buildFaceScreenBasisFromHint } from './direction-
 import { clientToSvgPoint, svgToClientPoint } from './svg-tools';
 import { computeBiasedBoundaries, parseAxisCircleKey } from './touch-handler-geometry';
 import { buildCrossingBasisAtPoint, getLbdTrianglePoints } from './touch-handler-hit-testing';
-import {
-    DRAG_CROSS_ARM_LENGTH_FLOATING,
-    DRAG_CROSS_ARM_LENGTH_TABBED,
-    SVG_NS,
-} from './touch-handler-types';
+import { SVG_NS } from './touch-handler-types';
 import type { TouchHandlerState } from './touch-handler-types';
 // ── Commit threshold ────────────────────────────────────────────────────────
 
@@ -96,18 +97,10 @@ export function showDragDecisionCross(
     clientX: number,
     clientY: number
 ): void {
-    const center = clientToSvgPoint(state.svgRoot, clientX, clientY);
-    const armLength =
-        state.layoutMode === LayoutMode.Tabbed
-            ? DRAG_CROSS_ARM_LENGTH_TABBED
-            : DRAG_CROSS_ARM_LENGTH_FLOATING;
-
-    const { arm1: arm1Dir, arm2: arm2Dir } = computeCrossArms(basis);
-
-    placeLine(state.dragCrossPrimaryEl, center, arm1Dir, armLength);
-    placeLine(state.dragCrossSecondaryEl, center, arm2Dir, armLength);
-    state.dragCrossSecondaryEl.removeAttribute('visibility');
-    state.dragCrossGroupEl.setAttribute('visibility', 'visible');
+    // Viewport coordinates throughout: the overlay is a fixed layer on the body,
+    // so there is no SVG/viewBox mapping and no zoom scaling to account for. The
+    // arm length is the overlay's own concern, since it is a screen length now.
+    state.dragDecision.showCross(basis, clientX, clientY);
 }
 
 /**
@@ -120,21 +113,13 @@ export function showDragDecisionLine(
     clientX: number,
     clientY: number
 ): void {
-    const center = clientToSvgPoint(state.svgRoot, clientX, clientY);
-    const armLength =
-        state.layoutMode === LayoutMode.Tabbed
-            ? DRAG_CROSS_ARM_LENGTH_TABBED
-            : DRAG_CROSS_ARM_LENGTH_FLOATING;
-
-    placeLine(state.dragCrossPrimaryEl, center, dir, armLength);
-    state.dragCrossSecondaryEl.setAttribute('visibility', 'hidden');
-    state.dragCrossGroupEl.setAttribute('visibility', 'visible');
+    state.dragDecision.showLine(dir, clientX, clientY);
 }
 
 /** Hide the drag-decision cross and clear the pending sticker cross state. */
 export function hideDragDecisionCross(state: TouchHandlerState): void {
     state.pendingStickerCross = undefined;
-    state.dragCrossGroupEl.setAttribute('visibility', 'hidden');
+    state.dragDecision.hide();
 }
 
 // ── Halo guide line ─────────────────────────────────────────────────────────
@@ -535,7 +520,6 @@ export function showDragLabel(
     clientX: number,
     clientY: number
 ): void {
-    const hostRect = state.host.getBoundingClientRect();
     state.dragLabelEl.textContent = label;
     state.dragLabelEl.style.display = 'block';
 
@@ -546,20 +530,15 @@ export function showDragLabel(
         layoutMode: state.layoutMode,
         clientX,
         clientY,
-        hostRect,
         labelWidth,
         labelHeight,
     });
 
-    state.dragLabelEl.style.position = result.position;
-    state.dragLabelEl.style.zIndex = result.zIndex;
     state.dragLabelEl.style.left = `${result.x}px`;
     state.dragLabelEl.style.top = `${result.y}px`;
 }
 
-/** Hide the floating drag label and reset its positioning style. */
+/** Hide the floating drag label. Its position and z-index are constant. */
 export function hideDragLabel(state: TouchHandlerState): void {
     state.dragLabelEl.style.display = 'none';
-    state.dragLabelEl.style.position = '';
-    state.dragLabelEl.style.zIndex = '';
 }

@@ -181,9 +181,11 @@ export class BasicTouchHandler {
         this.dragLabelEl.style.display = 'none';
         this.dragLabelEl.setAttribute('aria-hidden', 'true');
 
-        // SVG overlay for drag decision cross / line indicator.
+        // SVG overlay for drag decision cross / line indicator. Appended to the
+        // body, not the host: a hint drawn inside the panel is clipped by the
+        // panel (and by the cube's own 3D transform), which is exactly when a
+        // gesture started near an edge needs it most.
         this.dragDecision = createDragDecisionOverlay(
-            this.host,
             this.styles['basic-drag-decision-arm'] ?? 'basic-drag-decision-arm',
             () =>
                 this.layoutMode === LayoutMode.Tabbed
@@ -220,10 +222,16 @@ export class BasicTouchHandler {
     attach(): void {
         this.host.style.touchAction = 'none';
 
+        // The halo hit target and cancel zone belong to the panel: they mark a
+        // place inside it, so the panel's own clipping is correct for them.
         this.host.appendChild(this.haloHitTargetEl);
         this.host.appendChild(this.haloCancelZoneEl);
-        this.host.appendChild(this.dragLabelEl);
-        this.host.appendChild(this.dragDecision.element);
+
+        // The label and the decision indicator are viewport-anchored instead.
+        // They follow the pointer, and a gesture made against a screen edge must
+        // still show them in full — inside the panel they would be clipped by it.
+        document.body.appendChild(this.dragLabelEl);
+        document.body.appendChild(this.dragDecision.element);
 
         this.host.addEventListener('pointerdown', this.onPointerDownBound);
         this.host.addEventListener('pointerleave', this.onPointerLeaveBound);
@@ -1074,7 +1082,6 @@ export class BasicTouchHandler {
      * an offset for touch pointers.
      */
     private showDragLabel(label: string, clientX: number, clientY: number): void {
-        const hostRect = this.host.getBoundingClientRect();
         this.dragLabelEl.textContent = label;
         this.dragLabelEl.style.display = 'block';
 
@@ -1085,7 +1092,6 @@ export class BasicTouchHandler {
             layoutMode: this.layoutMode,
             clientX,
             clientY,
-            hostRect,
             labelWidth,
             labelHeight,
             activePointerType: this.activePointerType,
@@ -1100,8 +1106,6 @@ export class BasicTouchHandler {
     /** Hide the drag label and reset any layout-mode-specific styling. */
     private hideDragLabel(): void {
         this.dragLabelEl.style.display = 'none';
-        this.dragLabelEl.style.position = '';
-        this.dragLabelEl.style.zIndex = '';
     }
 
     // -------------------------------------------------------------------------

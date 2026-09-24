@@ -104,7 +104,6 @@ export function showDragLabel(
     clientX: number,
     clientY: number
 ): void {
-    const hostRect = s.host.getBoundingClientRect();
     s.dragLabelEl.textContent = label;
     s.dragLabelEl.style.display = 'block';
 
@@ -115,23 +114,18 @@ export function showDragLabel(
         layoutMode: s.layoutMode,
         clientX,
         clientY,
-        hostRect,
         labelWidth,
         labelHeight,
         activePointerType: s.activePointerType,
     });
 
-    s.dragLabelEl.style.position = result.position;
-    s.dragLabelEl.style.zIndex = result.zIndex;
     s.dragLabelEl.style.left = `${result.x}px`;
     s.dragLabelEl.style.top = `${result.y}px`;
 }
 
-/** Hide the drag label and reset its positioning styles. */
+/** Hide the drag label. Its position and z-index are constant, so only display changes. */
 export function hideDragLabel(s: FlatTouchHandlerState): void {
     s.dragLabelEl.style.display = 'none';
-    s.dragLabelEl.style.position = '';
-    s.dragLabelEl.style.zIndex = '';
 }
 
 // ── Drag-decision indicator ─────────────────────────────────────────

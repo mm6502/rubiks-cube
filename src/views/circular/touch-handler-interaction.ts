@@ -110,7 +110,14 @@ export function getInteractionStart(
         return { kind: HitKind.AXIS_CIRCLE, axis };
     }
 
-    if (element && state.svgRoot.contains(element)) {
+    // Background means "anywhere in this view", which is the whole clip container —
+    // not just the SVG inside it. The SVG is letterboxed within the clip (it keeps
+    // the viewBox aspect ratio, and shrinks further when zoomed out), so testing
+    // only `svgRoot` left a dead border that accepted a pointer-down and then
+    // resolved to nothing: a gesture started there did not register at all. The
+    // clip is also what the zoom/pan controller listens on, so treating it as the
+    // view's surface matches where the events actually arrive.
+    if (element && (state.svgRoot.contains(element) || state.host.contains(element))) {
         return { kind: HitKind.BACKGROUND };
     }
 

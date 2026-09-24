@@ -1,6 +1,11 @@
 // fallow-ignore-file unused-type
 import { Axis, Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import {
+    DRAG_CROSS_ARM_LENGTH_FLOATING,
+    DRAG_CROSS_ARM_LENGTH_TABBED,
+    createDragDecisionOverlay,
+} from '@/interaction/drag-decision-overlay';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { HitKind } from '@/interaction/types';
 
@@ -70,21 +75,13 @@ export class CircularTouchHandler {
         cancelZoneEl.setAttribute('pointer-events', 'none');
         cancelZoneEl.setAttribute('aria-hidden', 'true');
 
-        const dragCrossGroupEl = document.createElementNS(SVG_NS, 'g');
-        dragCrossGroupEl.classList.add(styles['circular-drag-cross'] ?? 'circular-drag-cross');
-        dragCrossGroupEl.setAttribute('visibility', 'hidden');
-        dragCrossGroupEl.setAttribute('pointer-events', 'none');
-
-        const dragCrossPrimaryEl = document.createElementNS(SVG_NS, 'line');
-        dragCrossPrimaryEl.classList.add(
-            styles['circular-drag-cross-arm'] ?? 'circular-drag-cross-arm'
+        const dragDecision = createDragDecisionOverlay(
+            styles['circular-drag-cross-arm'] ?? 'circular-drag-cross-arm',
+            () =>
+                this.state.layoutMode === LayoutMode.Tabbed
+                    ? DRAG_CROSS_ARM_LENGTH_TABBED
+                    : DRAG_CROSS_ARM_LENGTH_FLOATING
         );
-        const dragCrossSecondaryEl = document.createElementNS(SVG_NS, 'line');
-        dragCrossSecondaryEl.classList.add(
-            styles['circular-drag-cross-arm'] ?? 'circular-drag-cross-arm'
-        );
-        dragCrossGroupEl.appendChild(dragCrossPrimaryEl);
-        dragCrossGroupEl.appendChild(dragCrossSecondaryEl);
 
         const fretboardGroupEl = document.createElementNS(SVG_NS, 'g');
         fretboardGroupEl.setAttribute('visibility', 'hidden');
@@ -145,9 +142,7 @@ export class CircularTouchHandler {
             faceOverlayEl,
             dragLabelEl,
             cancelZoneEl,
-            dragCrossGroupEl,
-            dragCrossPrimaryEl,
-            dragCrossSecondaryEl,
+            dragDecision,
             fretboardGroupEl,
             fretboardLine1El,
             fretboardLine2El,
@@ -193,9 +188,16 @@ export class CircularTouchHandler {
         state.svgRoot.appendChild(state.haloEl);
         state.svgRoot.appendChild(state.faceOverlayEl);
         state.svgRoot.appendChild(state.cancelZoneEl);
-        state.svgRoot.appendChild(state.dragCrossGroupEl);
         state.svgRoot.appendChild(state.fretboardGroupEl);
-        state.host.appendChild(state.dragLabelEl);
+
+        // The label and the decision indicator follow the pointer, so they live in
+        // a fixed layer on the body rather than inside the SVG. Inside the SVG
+        // they were clipped by its viewBox and shrank with its zoom (measured: an
+        // arm 70px at 1x renders 14px at 0.2x), both of which made the hint
+        // useless exactly when the view was zoomed out or the gesture was made
+        // near an edge.
+        document.body.appendChild(state.dragLabelEl);
+        document.body.appendChild(state.dragDecision.element);
     }
 
     /** Return whether face-direct mode is active. */
@@ -238,7 +240,7 @@ export class CircularTouchHandler {
         state.haloEl.remove();
         state.faceOverlayEl.remove();
         state.cancelZoneEl.remove();
-        state.dragCrossGroupEl.remove();
+        state.dragDecision.remove();
         state.fretboardGroupEl.remove();
         state.dragLabelEl.remove();
         for (const { bandEl, clipEl } of state.axisDetectionBands.values()) {

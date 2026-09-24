@@ -132,8 +132,11 @@
     z-index: 16;
 }
 
+/* Floating label showing the inferred move during a drag.
+   Fixed rather than absolute: it is appended to the body so no panel clipping
+   can hide it, and its coordinates are viewport pixels. */
 .flat-drag-label {
-    position: absolute;
+    position: fixed;
     padding: 4px 8px;
     min-width: var(--size-tooltip-graphical-width);
     text-align: center;
@@ -145,7 +148,7 @@
     font-weight: 700;
     letter-spacing: 0.02em;
     pointer-events: none;
-    z-index: 20;
+    z-index: 10000;
 }
 
 /* Arms of the drag decision cross / line indicator */

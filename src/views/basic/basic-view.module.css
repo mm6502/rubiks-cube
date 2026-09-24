@@ -643,9 +643,11 @@
     z-index: 16;
 }
 
-/* Floating label showing the inferred move during a drag */
+/* Floating label showing the inferred move during a drag.
+   Fixed rather than absolute: the label is appended to the body so no view's
+   clipping can hide it, and its coordinates are viewport pixels. */
 .basic-drag-label {
-    position: absolute;
+    position: fixed;
     padding: 4px 8px;
     min-width: var(--size-tooltip-graphical-width);
     text-align: center;
@@ -656,7 +658,7 @@
     font-size: var(--size-tooltip-graphical-font);
     font-weight: bold;
     pointer-events: none;
-    z-index: 30;
+    z-index: 10000;
     white-space: nowrap;
 }
 
