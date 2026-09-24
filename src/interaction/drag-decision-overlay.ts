@@ -135,8 +135,25 @@ export function computeFaceScreenBasis(
 export const CANCEL_ZONE_Z_INDEX = 9989;
 /** Rails: the band a fretboard drag is tracking. Above the threshold ring. */
 export const PARALLEL_GUIDE_Z_INDEX = 9999;
-/** Decision arms: what the gesture will commit. Above everything else. */
+/** Decision arms: what the gesture will commit. Above everything else.
+ *
+ * Above the guide lines, but NOT above the drag label — see
+ * `DRAG_LABEL_Z_INDEX`. The arms and the label occupy the same place at the same
+ * moment (the label is offset a few pixels from the pointer the arms radiate
+ * from), so they cannot share a level.
+ */
 export const DRAG_DECISION_Z_INDEX = 10000;
+/**
+ * The floating move label: the conclusion the user is reading.
+ *
+ * Topmost of all the feedback layers. It ties with the decision arms by default,
+ * and a tie is decided by document order — the label is appended FIRST in every
+ * view, so the arms painted over it. That is backwards: the arms are an
+ * intermediate "which way is this resolving?" hint, while the label states the
+ * move that will actually be committed, and it is drawn as a filled tooltip that
+ * a 3px line through the middle makes hard to read.
+ */
+export const DRAG_LABEL_Z_INDEX = 10001;
 
 /**
  * Create the viewport-anchored frame all gesture-feedback layers are drawn in.

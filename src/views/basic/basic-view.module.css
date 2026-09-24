@@ -648,7 +648,10 @@
 
 /* Floating label showing the inferred move during a drag.
    Fixed rather than absolute: the label is appended to the body so no view's
-   clipping can hide it, and its coordinates are viewport pixels. */
+   clipping can hide it, and its coordinates are viewport pixels.
+   Topmost feedback layer: the label states the move that will be committed, so the
+   guide lines must never paint across it. The value is also applied as an inline
+   style by `computeDragLabelPosition`; kept here so the rule is complete on its own. */
 .basic-drag-label {
     position: fixed;
     padding: 4px 8px;
@@ -661,7 +664,7 @@
     font-size: var(--size-tooltip-graphical-font);
     font-weight: bold;
     pointer-events: none;
-    z-index: 10000;
+    z-index: 10001;
     white-space: nowrap;
 }
 

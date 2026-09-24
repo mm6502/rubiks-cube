@@ -1,5 +1,6 @@
 import { LayoutMode } from '@/cube/types/view';
 import { clamp } from '@/cube/utils/math';
+import { DRAG_LABEL_Z_INDEX } from '@/interaction/drag-decision-overlay';
 
 /**
  * Parameters for computing the position of a floating drag-label overlay.
@@ -89,5 +90,5 @@ export function computeDragLabelPosition(params: DragLabelPositionParams): DragL
         y = clamp(y, EDGE_MARGIN_PX, maxY);
     }
 
-    return { x, y, position: 'fixed', zIndex: '10000' };
+    return { x, y, position: 'fixed', zIndex: String(DRAG_LABEL_Z_INDEX) };
 }

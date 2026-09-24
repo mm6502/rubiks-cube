@@ -45,7 +45,11 @@
     font-weight: 700;
     letter-spacing: 0.02em;
     pointer-events: none;
-    z-index: 10000;
+    /* Topmost feedback layer: the label states the move that will be committed, so
+       the guide lines must never paint across it. The value is also applied as an
+       inline style by `computeDragLabelPosition`; kept here so the rule is complete
+       on its own. */
+    z-index: 10001;
 }
 
 .circular-face-overlay {
