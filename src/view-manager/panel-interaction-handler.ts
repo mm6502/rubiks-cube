@@ -344,7 +344,7 @@ export class PanelInteractionHandler {
     }
 
     /**
-     * Commutes the resize that the coalesced frame callback invokes.
+     * Commits the resize that the coalesced frame callback invokes.
      * Wraps the view call in a try/catch so a throwing `resize()` cannot
      * break the drag gesture.
      */

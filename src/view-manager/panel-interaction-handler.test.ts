@@ -31,6 +31,52 @@ function createMockView(
     };
 }
 
+/**
+ * A controllable `requestAnimationFrame` harness.
+ *
+ * The previous mock ran the callback synchronously and returned `0`, which cannot
+ * express a pending frame. Production writes the handle AFTER the callback returns
+ * (`this.pendingResizeFrame = requestAnimationFrame(...)`), so a synchronous callback
+ * left `pendingResizeFrame === 0` — and `0 !== null` made the coalescing guard treat
+ * every later `pointermove` as "a frame is already scheduled". The coalescing test
+ * therefore passed for a reason no browser can reproduce: between two real events a
+ * frame runs and sets the handle back to `null`.
+ *
+ * Queueing frames and flushing them explicitly separates the two behaviours that the
+ * mock previously conflated: moves WITHIN a frame coalesce, moves ACROSS frames do not.
+ */
+function installRafQueue() {
+    const frames = new Map<number, FrameRequestCallback>();
+    const original = {
+        raf: globalThis.requestAnimationFrame,
+        cancel: globalThis.cancelAnimationFrame,
+    };
+    let nextId = 1;
+
+    globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+        const id = nextId++;
+        frames.set(id, cb);
+        return id;
+    };
+    globalThis.cancelAnimationFrame = (id: number) => {
+        frames.delete(id);
+    };
+
+    return {
+        /** Run exactly one frame's worth of callbacks, the way a browser would. */
+        flushFrame: () => {
+            const due = [...frames.values()];
+            frames.clear();
+            due.forEach(cb => cb(0));
+        },
+        pending: () => frames.size,
+        restore: () => {
+            globalThis.requestAnimationFrame = original.raf;
+            globalThis.cancelAnimationFrame = original.cancel;
+        },
+    };
+}
+
 describe('PanelInteractionHandler', () => {
     let visualizationsContainer: HTMLElement;
     let styles: Record<string, string>;
@@ -90,6 +136,11 @@ describe('PanelInteractionHandler', () => {
     });
 
     afterEach(() => {
+        // A test that leaves a drag in progress leaves listeners on `document`, which
+        // then receive the NEXT test's synthetic pointer events. Disposing here is the
+        // only thing that unpicks that, and it also exercises the dispose path that
+        // cancels a pending frame.
+        handler.dispose();
         vi.clearAllMocks();
     });
 
@@ -342,12 +393,12 @@ describe('PanelInteractionHandler', () => {
             panel.appendChild(handle);
             visualizationsContainer.appendChild(panel);
 
-            // Mock rAF to run synchronously
-            const origRaf = globalThis.requestAnimationFrame;
-            globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
-                cb(0);
-                return 0;
-            };
+            const raf = installRafQueue();
+
+            const move = (x: number, y: number) =>
+                document.dispatchEvent(
+                    new PointerEvent('pointermove', { bubbles: true, clientX: x, clientY: y })
+                );
 
             // Act — start resize
             handle.dispatchEvent(
@@ -358,35 +409,40 @@ describe('PanelInteractionHandler', () => {
                 })
             );
 
-            // Three pointermove events within the same frame
-            document.dispatchEvent(
-                new PointerEvent('pointermove', {
-                    bubbles: true,
-                    clientX: 260,
-                    clientY: 260,
-                })
-            );
-            document.dispatchEvent(
-                new PointerEvent('pointermove', {
-                    bubbles: true,
-                    clientX: 270,
-                    clientY: 270,
-                })
-            );
-            document.dispatchEvent(
-                new PointerEvent('pointermove', {
-                    bubbles: true,
-                    clientX: 280,
-                    clientY: 280,
-                })
-            );
+            // Three pointermove events WITHIN one frame: the first schedules, the next
+            // two must be coalesced into it and not schedule frames of their own.
+            move(260, 260);
+            move(270, 270);
+            move(280, 280);
 
-            // Assert — only one resize call despite three moves
+            // One frame was queued, not three — the coalescing guard, asserted directly.
+            expect(raf.pending(), 'the three moves must share a single queued frame').toBe(1);
+            // Nothing has run yet: `resize()` is driven by the frame, not by the event.
+            expect(mockView.resize).not.toHaveBeenCalled();
+
+            raf.flushFrame();
+
+            // Assert — one resize for the three moves, at the LAST position.
             expect(mockView.resize).toHaveBeenCalledTimes(1);
             // Panel width reflects the last move
             expect(parseInt(panel.style.width)).toBe(230);
 
-            globalThis.requestAnimationFrame = origRaf;
+            // Across frames they must NOT coalesce: a move in the next frame has to
+            // produce its own resize, or the view would trail the panel by however many
+            // pointermoves happened to arrive first.
+            move(300, 300);
+            expect(
+                mockView.resize,
+                'a new frame must not run before it is flushed'
+            ).toHaveBeenCalledTimes(1);
+            raf.flushFrame();
+            expect(
+                mockView.resize,
+                'a move in a later frame must produce a second resize'
+            ).toHaveBeenCalledTimes(2);
+            expect(parseInt(panel.style.width)).toBe(250);
+
+            raf.restore();
         });
 
         it('should commit final resize on pointerup when frame is pending', () => {
@@ -421,7 +477,9 @@ describe('PanelInteractionHandler', () => {
             panel.appendChild(handle);
             visualizationsContainer.appendChild(panel);
 
-            // Act — start resize, move, then pointerup before rAF fires
+            const raf = installRafQueue();
+
+            // Act — start resize, move, then pointerup before the frame fires
             handle.dispatchEvent(
                 new PointerEvent('pointerdown', {
                     bubbles: true,
@@ -436,10 +494,23 @@ describe('PanelInteractionHandler', () => {
                     clientY: 300,
                 })
             );
+            expect(raf.pending(), 'a frame is queued and has not run').toBe(1);
+            const widthBeforeRelease = panel.style.width;
+
             document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
 
-            // Assert — resize was called synchronously at gesture end
-            expect(mockView.resize).toHaveBeenCalled();
+            // Assert — the pending frame was cancelled and the resize committed
+            // synchronously, so the view ends at the gesture's FINAL size rather than
+            // at the size of the last frame that happened to run.
+            expect(raf.pending(), 'the pending frame must be cancelled on release').toBe(0);
+            expect(mockView.resize).toHaveBeenCalledTimes(1);
+            expect(panel.style.width).toBe(widthBeforeRelease);
+
+            // A later flush must not produce a second resize from the cancelled frame.
+            raf.flushFrame();
+            expect(mockView.resize).toHaveBeenCalledTimes(1);
+
+            raf.restore();
         });
 
         it('should not call resize after dispose with a pending frame', () => {
@@ -568,6 +639,19 @@ describe('PanelInteractionHandler', () => {
             // Arrange
             vi.mocked(panelPositioning.savePanelState).mockImplementation(() => {});
             handler.setupDragAndResizeHandlers();
+            // The view must be registered: `endDragOrResize` resolves the panel's view
+            // from `activeViews` and only saves state when it finds one. Without this
+            // entry `savePanelState` is never reached.
+            //
+            // This test used to pass WITHOUT the entry — not because the code worked, but
+            // because an earlier test had leaked a handler still holding an active drag
+            // and its own populated `activeViews`, and that handler answered this test's
+            // `pointerup`. `afterEach` now disposes the handler, which removed the leak
+            // and exposed the missing setup.
+            activeViews.set('basic', {
+                view: createMockView(),
+                container: document.createElement('div'),
+            });
             const panel = document.createElement('div');
             panel.id = 'basic-panel';
             panel.className = styles['view-panel'];
