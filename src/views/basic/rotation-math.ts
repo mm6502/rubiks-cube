@@ -416,6 +416,61 @@ export type RotationPlan = {
 };
 
 /**
+ * Re-spell a half turn so its axis carries the gesture's sense.
+ *
+ * A quarter turn's matrix carries the sense: the skew-symmetric part is
+ * non-zero and its sign says which way round. A half turn's does not — the skew
+ * part is identically zero, so `axisAngleFromMatrix` recovers the axis from the
+ * diagonal, which yields magnitudes only, and picks one of the two equivalent
+ * spellings (`n` at +180 and `−n` at +180 are the same rotation). One of any two
+ * opposing gestures therefore animates the wrong way round, and no amount of
+ * matrix arithmetic can tell which, because the matrices are equal.
+ *
+ * The gesture knows, though. A far drag applies two steps before the single
+ * animation starts, and the *first* of those steps is a quarter turn — whose
+ * sense the matrix recovers exactly. That elementary step therefore calibrates
+ * the half turn: it names the physical axis (with a sign), and the half turn is
+ * re-spelled with the axis sign the elementary step implies.
+ *
+ * Deliberately narrow, so it can only ever fix the case it is for:
+ *
+ * - It only touches a half turn. Every other angle is already exact, and
+ *   re-spelling one would be a second, divergent source of truth for results
+ *   that are correct today.
+ * - It only acts on an elementary step of exactly ±90 that is parallel (up to
+ *   sign) to the half turn's axis. An anchor from an unrelated gesture names a
+ *   different physical axis and is ignored, so a stale or mismatched anchor
+ *   degrades to the matrix-derived result rather than flipping the sign wrongly.
+ *
+ * @param step - The matrix-derived rotation.
+ * @param elementary - One step of the same gesture, if the caller has it.
+ */
+function withElementarySense(step: AxisAngle, elementary: AxisAngle | null): AxisAngle {
+    if (!elementary) return step;
+
+    // Only a half turn loses its sense to the matrix.
+    if (Math.abs(Math.abs(step.angle) - 180) > 1e-9) return step;
+
+    // The anchor must be one elementary quarter turn, or it cannot sign anything.
+    if (Math.abs(Math.abs(elementary.angle) - 90) > 1e-6) return step;
+
+    // Parallel up to sign, i.e. the same physical axis. A foreign anchor names a
+    // different axis and must not be allowed to flip this rotation.
+    const dot =
+        step.axis.x * elementary.axis.x +
+        step.axis.y * elementary.axis.y +
+        step.axis.z * elementary.axis.z;
+    if (Math.abs(Math.abs(dot) - 1) > 1e-9) return step;
+
+    // The elementary step's sign is recoverable, so it decides which spelling of
+    // the half turn the gesture meant.
+    return {
+        axis: elementary.angle > 0 ? elementary.axis : negate3(elementary.axis),
+        angle: Math.abs(step.angle),
+    };
+}
+
+/**
  * Derive the plan that animates from what is on screen to a new orientation.
  *
  * Handles the three situations a rotation can arrive in:
@@ -438,6 +493,11 @@ export type RotationPlan = {
  * @param args.target - The newly requested orientation.
  * @param args.currentAngleDeg - Where the running ramp is right now. Only read
  *   when `plan` is present; the caller obtains it from the animation itself.
+ * @param args.stepAnchor - One elementary step of the gesture that produced
+ *   `target`, when the gesture applied its steps before asking for a single
+ *   animation (a far drag). Signs a composed half turn, which the matrix cannot
+ *   sign on its own — see {@link withElementarySense}. Omitted by every caller
+ *   that rotates one step at a time, because those are already exact.
  * @returns The plan to render, or `null` when there is nothing to animate
  *   because the requested orientation is the one already on screen.
  */
@@ -446,12 +506,16 @@ export function planRotation(args: {
     rendered: Orientation;
     target: Orientation;
     currentAngleDeg: number;
+    stepAnchor?: Orientation;
 }): RotationPlan | null {
     // What the rotation has to travel from: the running ramp's goal, or what is
     // rendered when nothing is in flight.
     const from = args.plan ? args.plan.target : args.rendered;
-    const step = rotationBetween(from, args.target);
-    if (!step) return args.plan;
+    const rawStep = rotationBetween(from, args.target);
+    if (!rawStep) return args.plan;
+
+    const elementary = args.stepAnchor ? rotationBetween(args.rendered, args.stepAnchor) : null;
+    const step = withElementarySense(rawStep, elementary);
 
     if (args.plan) {
         const merged = mergeSameAxis({ axis: args.plan.axis, angle: args.plan.toDeg }, step);
@@ -472,10 +536,11 @@ export function planRotation(args: {
             axis: args.plan.axis,
             angle: args.currentAngleDeg,
         });
-        const fresh = rotationBetween(shown, args.target);
-        // `fresh` is null only when the pose already equals the target, which can
+        const rawFresh = rotationBetween(shown, args.target);
+        // `rawFresh` is null only when the pose already equals the target, which can
         // happen if the interrupted ramp had in fact reached it.
-        if (!fresh) return null;
+        if (!rawFresh) return null;
+        const fresh = withElementarySense(rawFresh, elementary);
         return {
             base: shown,
             target: args.target,

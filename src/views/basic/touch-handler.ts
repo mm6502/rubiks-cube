@@ -22,6 +22,7 @@ import { ViewRotation } from '@/types/geometry';
 
 import * as navigation from './navigation';
 import { buildFaceScreenBasis } from './interaction-adapter';
+import type { Orientation } from './rotation-math';
 import type { BasicViewInternalData } from './types';
 
 type StickerHit = {
@@ -52,11 +53,17 @@ export type BasicTouchHandlerOptions = {
     /**
      * Called after a background drag changes the view orientation.
      * Should re-run rendering.updateRotation + rendering.updateFaceLabels.
+     *
+     * `stepAnchor` is the orientation after ONE of the gesture's steps, supplied
+     * only when the gesture composed more than one. A single step is a quarter
+     * turn, whose sign the matrix recovers exactly; a composed half turn is not,
+     * so the caller needs a quarter turn to name its sense.
      */
     onViewRotated: (
         direction: 'horizontal' | 'vertical',
         rotation: ViewRotation,
-        steps: number
+        steps: number,
+        stepAnchor?: Orientation
     ) => void;
     /** View identifier used in MOVE_REQUESTED events. */
     viewId: string;
@@ -93,7 +100,8 @@ export class BasicTouchHandler {
     private readonly onViewRotated: (
         direction: 'horizontal' | 'vertical',
         rotation: ViewRotation,
-        steps: number
+        steps: number,
+        stepAnchor?: Orientation
     ) => void;
     private readonly viewId: string;
     private readonly adapter: ViewInteractionAdapter;
@@ -737,21 +745,21 @@ export class BasicTouchHandler {
         const state = this.getState();
         const steps = gesture.distancePx > this.dragStateMachine.farDragThresholdPx ? 2 : 1;
 
-        for (let i = 0; i < steps; i++) {
-            switch (gesture.direction) {
-                case DragDirection.RIGHT:
-                    navigation.rotateViewRight(state);
-                    break;
-                case DragDirection.LEFT:
-                    navigation.rotateViewLeft(state);
-                    break;
-                case DragDirection.DOWN:
-                    navigation.rotateViewDown(state);
-                    break;
-                case DragDirection.UP:
-                    navigation.rotateViewUp(state);
-                    break;
+        // The pose after the FIRST step, captured before the loop applies the rest.
+        // A composed half turn (the far-drag case) is the same orientation either
+        // way round, so the ramp cannot recover which way the gesture went from the
+        // matrix — but this quarter turn can name it. Captured only when the gesture
+        // actually composes, because a single step is already exact.
+        let stepAnchor: Orientation | undefined;
+        if (steps > 1) {
+            this.applyBackgroundStep(state, gesture.direction);
+            stepAnchor = this.orientationSnapshot(state);
+            // The first step is already applied; the loop applies the rest.
+            for (let i = 1; i < steps; i++) {
+                this.applyBackgroundStep(state, gesture.direction);
             }
+        } else {
+            this.applyBackgroundStep(state, gesture.direction);
         }
 
         const rotation =
@@ -768,8 +776,36 @@ export class BasicTouchHandler {
                 ? 'vertical'
                 : 'horizontal',
             rotation,
-            steps
+            steps,
+            stepAnchor
         );
+    }
+
+    /** Read the current orientation vectors as a plain snapshot. */
+    private orientationSnapshot(state: BasicViewInternalData): Orientation {
+        return {
+            viewRight: { ...state.viewRight },
+            viewUp: { ...state.viewUp },
+            viewForward: { ...state.viewForward },
+        };
+    }
+
+    /** Apply one discrete 90° view rotation in the gesture's direction. */
+    private applyBackgroundStep(state: BasicViewInternalData, direction: DragDirection): void {
+        switch (direction) {
+            case DragDirection.RIGHT:
+                navigation.rotateViewRight(state);
+                break;
+            case DragDirection.LEFT:
+                navigation.rotateViewLeft(state);
+                break;
+            case DragDirection.DOWN:
+                navigation.rotateViewDown(state);
+                break;
+            case DragDirection.UP:
+                navigation.rotateViewUp(state);
+                break;
+        }
     }
 
     /**

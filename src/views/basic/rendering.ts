@@ -183,11 +183,18 @@ function composeTransform(
  *
  * @param state - The view's internal state.
  * @param skipAnimation - Jump straight to the settled transform.
+ * @param stepAnchor - The pose after one elementary step of the gesture that
+ *   produced the current orientation, when that gesture applied its steps before
+ *   asking for a single animation (a far drag). A composed half turn is the same
+ *   matrix either way round, so the gesture's sense has to come from one of its
+ *   quarter turns — see `planRotation` in `rotation-math.ts`. Omitted by every
+ *   entry point that rotates a single step at a time.
  * @returns Whether the rotation settled now or is still animating.
  */
 export function updateRotation(
     state: BasicViewInternalData,
-    skipAnimation?: boolean
+    skipAnimation?: boolean,
+    stepAnchor?: Orientation
 ): RotationResult {
     if (!state.cubeElement) return { kind: 'settled' };
 
@@ -264,6 +271,7 @@ export function updateRotation(
         rendered,
         target,
         currentAngleDeg: currentRampAngle(state, previousAnimation),
+        stepAnchor,
     });
 
     // `null` means the requested orientation is already the one on screen — a

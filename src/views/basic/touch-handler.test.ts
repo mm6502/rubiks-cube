@@ -93,7 +93,12 @@ function createHandler(
     fixture: Fixture,
     overrides: {
         onStickerSelected?: (id?: string) => void;
-        onViewRotated?: (dir: 'horizontal' | 'vertical') => void;
+        onViewRotated?: (
+            dir: 'horizontal' | 'vertical',
+            rotation?: string,
+            steps?: number,
+            stepAnchor?: unknown
+        ) => void;
     } = {}
 ): BasicTouchHandler {
     const state = createState(fixture);
@@ -356,7 +361,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 5, 140, 200));
         document.dispatchEvent(pointer('pointerup', 5, 140, 200));
 
-        expect(onViewRotated).toHaveBeenCalledWith('horizontal', 'right', 1);
+        expect(onViewRotated).toHaveBeenCalledWith('horizontal', 'right', 1, undefined);
         handler.destroy();
     });
 
@@ -371,7 +376,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 6, 100, 140));
         document.dispatchEvent(pointer('pointerup', 6, 100, 140));
 
-        expect(onViewRotated).toHaveBeenCalledWith('vertical', 'down', 1);
+        expect(onViewRotated).toHaveBeenCalledWith('vertical', 'down', 1, undefined);
         handler.destroy();
     });
 
@@ -712,7 +717,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 22, 160, 200));
         document.dispatchEvent(pointer('pointerup', 22, 160, 200));
 
-        expect(onViewRotated).toHaveBeenCalledWith('horizontal', 'left', 1);
+        expect(onViewRotated).toHaveBeenCalledWith('horizontal', 'left', 1, undefined);
         handler.destroy();
     });
 
@@ -727,7 +732,7 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 23, 200, 160));
         document.dispatchEvent(pointer('pointerup', 23, 200, 160));
 
-        expect(onViewRotated).toHaveBeenCalledWith('vertical', 'up', 1);
+        expect(onViewRotated).toHaveBeenCalledWith('vertical', 'up', 1, undefined);
         handler.destroy();
     });
 
@@ -747,7 +752,32 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointermove', 24, 200, 200));
         document.dispatchEvent(pointer('pointerup', 24, 200, 200));
 
-        expect(onViewRotated).toHaveBeenCalledWith('horizontal', 'right', 2);
+        expect(onViewRotated).toHaveBeenCalledWith('horizontal', 'right', 2, expect.anything());
+        handler.destroy();
+    });
+
+    it('the far drag anchor is the pose after ONE step, not the target', () => {
+        // The anchor exists so a composed half turn can be signed. If it were the
+        // end pose the ramp would be signed from a half turn anyway (no use), so
+        // this pins that it is the *intermediate* quarter turn.
+        const onViewRotated = vi.fn();
+        const handler = createHandler(fixture, { onViewRotated });
+        handler.attach();
+
+        mockElementFromPoint(null);
+
+        fixture.host.dispatchEvent(pointer('pointerdown', 25, 100, 200));
+        document.dispatchEvent(pointer('pointermove', 25, 200, 200));
+        document.dispatchEvent(pointer('pointerup', 25, 200, 200));
+
+        const anchor = onViewRotated.mock.calls[0][3];
+        // Two right steps bring the left face forward twice, so after ONE step the
+        // view forward axis is the negated original right axis.
+        expect(anchor).toEqual({
+            viewRight: { x: 0, y: 0, z: 1 },
+            viewUp: { x: 0, y: 1, z: 0 },
+            viewForward: { x: -1, y: 0, z: 0 },
+        });
         handler.destroy();
     });
 
