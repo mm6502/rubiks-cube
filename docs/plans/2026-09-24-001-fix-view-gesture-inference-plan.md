@@ -1,7 +1,7 @@
 ---
 title: 'fix: Correct view gesture inference and rotation animation'
 type: fix
-status: active
+status: completed
 date: 2026-09-24
 origin: docs/brainstorms/2026-09-24-view-gesture-inference-fixes-requirements.md
 ---
