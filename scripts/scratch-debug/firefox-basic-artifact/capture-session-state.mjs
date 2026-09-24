@@ -18,53 +18,69 @@
 //     down, and the whole point is to leave the session the user arranged intact.
 //
 // Usage: node capture-session-state.mjs [label]
+import { mkdirSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
-import { writeFileSync, mkdirSync } from 'node:fs';
 
 const label = process.argv[2] || 'state';
 const outDir = 'd:/llms/vision/artifact';
 mkdirSync(outDir, { recursive: true });
 
 const socket = net.createConnection({ host: '127.0.0.1', port: 2828 });
-let buffer = Buffer.alloc(0), msgId = 0;
+let buffer = Buffer.alloc(0),
+    msgId = 0;
 const pending = new Map();
 
-function send(m) { const j = JSON.stringify(m); socket.write(`${Buffer.byteLength(j, 'utf8')}:${j}`); }
-socket.on('data', (c) => {
-  buffer = Buffer.concat([buffer, c]);
-  for (;;) {
-    const k = buffer.indexOf(0x3a);
-    if (k < 0) return;
-    const n = parseInt(buffer.subarray(0, k).toString('utf8'), 10);
-    if (!Number.isFinite(n) || buffer.length < k + 1 + n) return;
-    const j = buffer.subarray(k + 1, k + 1 + n).toString('utf8');
-    buffer = buffer.subarray(k + 1 + n);
-    try {
-      const o = JSON.parse(j);
-      if (Array.isArray(o) && o[0] === 1) {
-        const p = pending.get(o[1]);
-        if (p) { pending.delete(o[1]); o[2] ? p.reject(new Error(JSON.stringify(o[2]))) : p.resolve(o[3]); }
-      }
-    } catch { /* ignore partial frames */ }
-  }
+function send(m) {
+    const j = JSON.stringify(m);
+    socket.write(`${Buffer.byteLength(j, 'utf8')}:${j}`);
+}
+socket.on('data', c => {
+    buffer = Buffer.concat([buffer, c]);
+    for (;;) {
+        const k = buffer.indexOf(0x3a);
+        if (k < 0) return;
+        const n = parseInt(buffer.subarray(0, k).toString('utf8'), 10);
+        if (!Number.isFinite(n) || buffer.length < k + 1 + n) return;
+        const j = buffer.subarray(k + 1, k + 1 + n).toString('utf8');
+        buffer = buffer.subarray(k + 1 + n);
+        try {
+            const o = JSON.parse(j);
+            if (Array.isArray(o) && o[0] === 1) {
+                const p = pending.get(o[1]);
+                if (p) {
+                    pending.delete(o[1]);
+                    o[2] ? p.reject(new Error(JSON.stringify(o[2]))) : p.resolve(o[3]);
+                }
+            }
+        } catch {
+            /* ignore partial frames */
+        }
+    }
 });
 function cmd(name, params = {}) {
-  return new Promise((res, rej) => {
-    const id = ++msgId;
-    pending.set(id, { resolve: res, reject: rej });
-    send([0, id, name, params]);
-    setTimeout(() => rej(new Error('timeout ' + name)), 30000);
-  });
+    return new Promise((res, rej) => {
+        const id = ++msgId;
+        pending.set(id, { resolve: res, reject: rej });
+        send([0, id, name, params]);
+        setTimeout(() => rej(new Error('timeout ' + name)), 30000);
+    });
 }
-socket.on('error', (e) => { console.error('socket error ' + e.message); process.exit(1); });
+socket.on('error', e => {
+    console.error('socket error ' + e.message);
+    process.exit(1);
+});
 
-await new Promise((r) => socket.once('connect', r));
-await new Promise((r) => setTimeout(r, 500));
+await new Promise(r => socket.once('connect', r));
+await new Promise(r => setTimeout(r, 500));
 await cmd('WebDriver:NewSession', { capabilities: {} }).catch(() => {});
 
 // --- window / screen --------------------------------------------------------
 let windowRect = null;
-try { windowRect = await cmd('WebDriver:GetWindowRect', {}); } catch (e) { windowRect = { error: e.message.slice(0, 120) }; }
+try {
+    windowRect = await cmd('WebDriver:GetWindowRect', {});
+} catch (e) {
+    windowRect = { error: e.message.slice(0, 120) };
+}
 
 // --- DOM state --------------------------------------------------------------
 // Generic discovery: the panel element and its class names have changed during
@@ -147,11 +163,11 @@ const shotPath = `${outDir}/${label}.png`;
 if (b64) writeFileSync(shotPath, Buffer.from(b64, 'base64'));
 
 const out = {
-  capturedAt: new Date().toISOString(),
-  label,
-  windowRect,
-  screenshot: b64 ? shotPath : null,
-  dom,
+    capturedAt: new Date().toISOString(),
+    label,
+    windowRect,
+    screenshot: b64 ? shotPath : null,
+    dom,
 };
 const jsonPath = `${outDir}/${label}.json`;
 writeFileSync(jsonPath, JSON.stringify(out, null, 1));
@@ -159,22 +175,38 @@ writeFileSync(jsonPath, JSON.stringify(out, null, 1));
 console.log(`saved ${shotPath}`);
 console.log(`saved ${jsonPath}`);
 console.log(`\nwindow (WebDriver:GetWindowRect): ${JSON.stringify(windowRect)}`);
-console.log(`viewport(css) ${dom.inner.w}x${dom.inner.h}   outer ${dom.outer.w}x${dom.outer.h}   dpr ${dom.dpr}`);
-console.log(`screen ${dom.screen.w}x${dom.screen.h} (avail ${dom.screen.availW}x${dom.screen.availH})`);
+console.log(
+    `viewport(css) ${dom.inner.w}x${dom.inner.h}   outer ${dom.outer.w}x${dom.outer.h}   dpr ${dom.dpr}`
+);
+console.log(
+    `screen ${dom.screen.w}x${dom.screen.h} (avail ${dom.screen.availW}x${dom.screen.availH})`
+);
 console.log(`url ${dom.url}`);
 console.log(`\npanels (${dom.panels.length}):`);
 for (const p of dom.panels) {
-  console.log(`  ${p.cls.slice(0, 60)}`);
-  console.log(`     rect x=${p.rect.x} y=${p.rect.y} ${p.rect.w}x${p.rect.h}   inline left=${p.inline.left} top=${p.inline.top} w=${p.inline.width} h=${p.inline.height}`);
+    console.log(`  ${p.cls.slice(0, 60)}`);
+    console.log(
+        `     rect x=${p.rect.x} y=${p.rect.y} ${p.rect.w}x${p.rect.h}   inline left=${p.inline.left} top=${p.inline.top} w=${p.inline.width} h=${p.inline.height}`
+    );
 }
 if (dom.basic) {
-  const b = dom.basic;
-  console.log(`\nbasic view:`);
-  console.log(`  panelRect x=${b.panelRect.x} y=${b.panelRect.y} ${b.panelRect.w}x${b.panelRect.h}`);
-  console.log(`  perspective ${b.cubeWrapperPerspective}   cubeElement ${b.cubeElementSize?.w}x${b.cubeElementSize?.h}`);
-  console.log(`  cubies ${b.cubieCount}  stickers ${b.stickerCount}  U stickers ${b.uStickerCount}`);
-  console.log(`  --cubie-border-width ${b.cubieBorderVar}   computed sticker border ${b.computedStickerBorder}`);
-  console.log(`  distinct computed borders: ${b.distinctBorders.join(', ')}`);
-  console.log(`  border (css) x dpr ${dom.dpr.toFixed(6)} = ${(parseFloat(b.computedStickerBorder || '0') * dom.dpr).toFixed(4)} device px`);
+    const b = dom.basic;
+    console.log(`\nbasic view:`);
+    console.log(
+        `  panelRect x=${b.panelRect.x} y=${b.panelRect.y} ${b.panelRect.w}x${b.panelRect.h}`
+    );
+    console.log(
+        `  perspective ${b.cubeWrapperPerspective}   cubeElement ${b.cubeElementSize?.w}x${b.cubeElementSize?.h}`
+    );
+    console.log(
+        `  cubies ${b.cubieCount}  stickers ${b.stickerCount}  U stickers ${b.uStickerCount}`
+    );
+    console.log(
+        `  --cubie-border-width ${b.cubieBorderVar}   computed sticker border ${b.computedStickerBorder}`
+    );
+    console.log(`  distinct computed borders: ${b.distinctBorders.join(', ')}`);
+    console.log(
+        `  border (css) x dpr ${dom.dpr.toFixed(6)} = ${(parseFloat(b.computedStickerBorder || '0') * dom.dpr).toFixed(4)} device px`
+    );
 }
 socket.end();
