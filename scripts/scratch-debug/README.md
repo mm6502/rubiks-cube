@@ -11,6 +11,13 @@ This folder holds the checks that cannot live in the test suite:
   tilt/pitch toggle actually starts an animation, with a mid-flight sample that
   distinguishes an interpolated ramp from a snap.
 
+Subfolders hold instruments for a _different_ defect, kept separate so this
+folder's scope stays readable:
+
+- `firefox-basic-artifact/` — measuring the Firefox-only Basic-view stripes
+  (dark bands eating face colour on resize/move). DPR-dependent, so it cannot be
+  reproduced in Playwright's browsers; see that folder's `README.md`.
+
 ## Why this exists at all
 
 The rotation-animation defect is a property of a _traversal_ — what the cube

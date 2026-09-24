@@ -124,7 +124,8 @@ not repeat each other's content, so they cannot drift apart.
     | 3x3, panel 730.667x748.8 | `10px`   | `9.63333px` | `17`      | 17.647          | 0.647     |
     | after resize             | `11px`   | `10.767px`  | `19`      | 19.412          | 0.412     |
 
-    Both rows were read with `scripts/scratch-debug/probe-basic-geometry.mjs`
+    Both rows were read with
+    `scripts/scratch-debug/firefox-basic-artifact/probe-basic-geometry.mjs`
     while the browser was live; the 10px row is also corroborated by
     `capture-session-state.mjs` and `probe-border3.mjs`.
 

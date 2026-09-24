@@ -63,9 +63,14 @@ Framing is `length:json`, where **length is the BYTE length** of the JSON.
 | out       | `[0, msgId, command, params]` |
 | in        | `[1, msgId, error, result]`   |
 
-Copy the client from `scripts/scratch-debug/probe-basic-geometry.mjs`: connect,
-concatenate chunks, split on `0x3a`, `parseInt` the length, slice by **byte**
-length, `JSON.parse`, match on `frame[1] === msgId`.
+Copy the client from
+`scripts/scratch-debug/firefox-basic-artifact/probe-basic-geometry.mjs`:
+connect, concatenate chunks, split on `0x3a`, `parseInt` the length, slice by
+**byte** length, `JSON.parse`, match on `frame[1] === msgId`.
+
+All scripts named in this document live in
+`scripts/scratch-debug/firefox-basic-artifact/` — see its `README.md` for the
+inventory and the traps.
 
 Commands used: `WebDriver:NewSession`, `WebDriver:ExecuteScript`,
 `WebDriver:GetWindowRect`, `WebDriver:TakeScreenshot`,
@@ -106,8 +111,8 @@ Procedure:
    both scripts below, in the order given.
 
 ```
-node scripts/scratch-debug/capture-session-state.mjs <label>
-node scripts/scratch-debug/probe-basic-geometry.mjs
+node scripts/scratch-debug/firefox-basic-artifact/capture-session-state.mjs <label>
+node scripts/scratch-debug/firefox-basic-artifact/probe-basic-geometry.mjs
 ```
 
 `capture-session-state.mjs` writes `<label>.json` + `<label>.png` under
@@ -124,10 +129,10 @@ Then read the pixels back (section 5) and only afterwards start changing things.
 
 Two tools are sound. **The local VLM is not.**
 
-### ASCII render — `scripts/scratch-debug/ascii-image.mjs`
+### ASCII render — `firefox-basic-artifact/ascii-image.mjs`
 
 ```
-node scripts/scratch-debug/ascii-image.mjs <image> [cols] [rows] [x y w h] [dpr]
+node scripts/scratch-debug/firefox-basic-artifact/ascii-image.mjs <image> [cols] [rows] [x y w h] [dpr]
 ```
 
 Each character is the **block average** classified into a coarse palette
@@ -138,7 +143,7 @@ Region args are CSS px, scaled by `dpr`.
 per cell, so a single dark pixel inside a white block becomes a whole dark
 character — **fabricating thin dark lines that look exactly like the defect.**
 
-### Real pixel runs — `scripts/scratch-debug/probe-u-centerline.mjs`
+### Real pixel runs — `firefox-basic-artifact/probe-u-centerline.mjs`
 
 Prints the actual runs with real token names, e.g.
 `[35..252] 218px 72.2% WHITE`. Sampling the **centre line of the bounding box**
