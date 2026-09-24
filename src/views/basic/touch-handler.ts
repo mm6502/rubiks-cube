@@ -1016,6 +1016,32 @@ export class BasicTouchHandler {
      *
      * @returns The resolved hit, or undefined if no sticker was found.
      */
+    /**
+     * Resolves a pointer position to a sticker hit on the cube.
+     *
+     * Uses `document.elementFromPoint` to find the element under the pointer,
+     * then walks up to the nearest `.sticker` element. That element is used for
+     * two things only: proving the pointer is on a sticker at all, and handing
+     * the caller the element to mark up. Its identity — face, row and column —
+     * comes from the **model**, via `data-sticker-id`.
+     *
+     * Reading identity off the element instead is the defect this replaced. A
+     * move is animated by reparenting the moving cubies into a pivot, so mid-flight
+     * the element under the pointer is showing an in-between pose, and the
+     * `data-face`/`data-basic-pos` attributes it carries still describe where it
+     * *started*. A drag begun before the previous animation settled therefore
+     * targeted the wrong layer — the user grabbed one sticker and turned another's.
+     * The model, meanwhile, is already in its post-move state (a move updates it
+     * before `MOVE_EXECUTED` fires), so it is the only source that agrees with the
+     * cube the user is aiming at.
+     *
+     * `data-basic-pos` is gone from this path entirely: nothing in production has
+     * written it since face identity was unified on `data-face`, so the "fast path"
+     * that read it was already dead code that only tests could reach.
+     *
+     * @returns The resolved hit, or undefined if no sticker was found or it could
+     *   not be resolved in the model.
+     */
     private getStickerHitFromPoint(clientX: number, clientY: number): StickerHit | undefined {
         const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
         if (!element) return undefined;
@@ -1024,39 +1050,22 @@ export class BasicTouchHandler {
         const stickerEl = element.closest(`.${stickerClass}`) as HTMLElement | null;
         if (!stickerEl || !this.host.contains(stickerEl)) return undefined;
 
-        const face = stickerEl.getAttribute('data-face') as Face | null;
-        if (!face) return undefined;
+        const stickerId = stickerEl.getAttribute('data-sticker-id') as StickerId | null;
+        if (!stickerId) return undefined;
 
-        const posText = stickerEl.getAttribute('data-basic-pos');
-        let row: number;
-        let col: number;
+        const model = this.getModel?.();
+        if (!model) return undefined;
 
-        if (posText !== null) {
-            // Fast path: Basic view with grid positions
-            const pos = Number(posText);
-            if (!Number.isFinite(pos)) return undefined;
-            const cubeSize = this.getCubeSize();
-            row = Math.floor(pos / cubeSize);
-            col = pos % cubeSize;
-        } else {
-            // Fallback: resolve via CubeStateUtils when grid positions are absent.
-            const stickerId = stickerEl.getAttribute('data-sticker-id') as StickerId | null;
-            if (!stickerId) return undefined;
-            const model = this.getModel?.();
-            if (!model) return undefined;
-            const sticker = CubeStateUtils.getStickerById(model.getCurrentState(), stickerId);
-            if (!sticker || !Number.isFinite(sticker.facePosition)) return undefined;
-            const cubeSize = this.getCubeSize();
-            row = Math.floor(sticker.facePosition / cubeSize);
-            col = sticker.facePosition % cubeSize;
-        }
+        const sticker = CubeStateUtils.getStickerById(model.getCurrentState(), stickerId);
+        if (!sticker || !Number.isFinite(sticker.facePosition)) return undefined;
 
+        const cubeSize = this.getCubeSize();
         return {
             stickerElement: stickerEl,
-            face,
-            row,
-            col,
-            stickerId: stickerEl.getAttribute('data-sticker-id') ?? undefined,
+            face: sticker.currentFace,
+            row: Math.floor(sticker.facePosition / cubeSize),
+            col: sticker.facePosition % cubeSize,
+            stickerId,
         };
     }
 
@@ -1155,31 +1164,25 @@ export class BasicTouchHandler {
      * reflects the full CSS 3D transform (including tilt/pitch) and works for
      * all six faces.  Falls back to the model-vector projection when the DOM
      * elements are unavailable or degenerate (e.g. in jsdom tests).
+     *
+     * The three probe elements are resolved through the **model**, by sticker
+     * identity, for the same reason the hit-test is: the element under a given
+     * grid slot mid-flight is not necessarily the sticker that belongs there. The
+     * `data-basic-pos` selector this used to consult first has had no production
+     * writer since face identity was unified on `data-face`.
      */
     private getFaceScreenBasisFromDOM(
         face: Face,
         cubeSize: number
     ): { upDir: Point2D; rightDir: Point2D } | undefined {
-        let s00 = this.host.querySelector(
-            `[data-face="${face}"][data-basic-pos="0"]`
-        ) as HTMLElement | null;
-        let s01 = this.host.querySelector(
-            `[data-face="${face}"][data-basic-pos="1"]`
-        ) as HTMLElement | null;
-        let s10 = this.host.querySelector(
-            `[data-face="${face}"][data-basic-pos="${cubeSize}"]`
-        ) as HTMLElement | null;
+        const model = this.getModel?.();
+        /* c8 ignore if — production always supplies a model; guarded for direct construction */
+        if (!model) return undefined;
 
-        // Fallback: resolve via CubeStateUtils when data-basic-pos is absent.
-        if ((!s00 || !s01 || !s10) && this.getModel) {
-            const model = this.getModel();
-            if (model) {
-                const state = model.getCurrentState();
-                if (!s00) s00 = this.resolveBasisElement(state, face, 0);
-                if (!s01) s01 = this.resolveBasisElement(state, face, 1);
-                if (!s10) s10 = this.resolveBasisElement(state, face, cubeSize);
-            }
-        }
+        const state = model.getCurrentState();
+        const s00 = this.resolveBasisElement(state, face, 0);
+        const s01 = this.resolveBasisElement(state, face, 1);
+        const s10 = this.resolveBasisElement(state, face, cubeSize);
 
         /* c8 ignore if */
         if (!s00 || !s01 || !s10) return undefined;

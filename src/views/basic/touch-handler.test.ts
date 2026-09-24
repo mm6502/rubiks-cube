@@ -1,4 +1,5 @@
 import { Application } from '@/application';
+import { CubeController } from '@/cube-controller';
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
@@ -32,8 +33,30 @@ type Fixture = {
     faceEl: HTMLElement;
     /** The first sticker element (F face, pos 0). */
     stickerEl: HTMLElement;
+    /** A real model, so hits resolve through the sticker identity, as in production. */
+    model: CubeController;
     cleanup: () => void;
 };
+
+/**
+ * The real sticker ids for the F face, ordered by face position.
+ *
+ * The hit-test resolves identity from the model, so the fixture cannot invent
+ * ids — they have to be the ones the model actually holds, or every hit resolves
+ * to nothing. The format is `{cubieId}_{face}_sticker`.
+ */
+function frontFaceStickerIds(model: CubeController): string[] {
+    const state = model.getCurrentState();
+    const byPosition = new Map<number, string>();
+    state.cubiesByPosition.forEach(cubie => {
+        cubie.stickers.forEach(sticker => {
+            if (sticker.currentFace === Face.F) {
+                byPosition.set(sticker.facePosition, sticker.id as string);
+            }
+        });
+    });
+    return [...byPosition.entries()].sort((a, b) => a[0] - b[0]).map(([, id]) => id);
+}
 
 function createFixture(): Fixture {
     const host = document.createElement('div');
@@ -48,13 +71,16 @@ function createFixture(): Fixture {
     faceEl.setAttribute('data-face', Face.F);
     cubeEl.appendChild(faceEl);
 
-    // Stickers for F face (3×3 = 9), needed for face-basis + hit detection
+    const model = new CubeController(3);
+    const stickerIds = frontFaceStickerIds(model);
+
+    // Stickers for F face (3×3 = 9), needed for face-basis + hit detection.
+    // They carry the REAL model ids, because that is what the hit-test reads.
     for (let i = 0; i < 9; i++) {
         const el = document.createElement('div');
         el.className = styles.sticker;
         el.setAttribute('data-face', Face.F);
-        el.setAttribute('data-basic-pos', String(i));
-        el.setAttribute('data-sticker-id', `F-${i}`);
+        el.setAttribute('data-sticker-id', stickerIds[i]);
         faceEl.appendChild(el);
     }
 
@@ -65,13 +91,14 @@ function createFixture(): Fixture {
         cubeEl,
         faceEl,
         stickerEl,
+        model,
         cleanup: () => host.remove(),
     };
 }
 
 function createState(fixture: Fixture): BasicViewInternalData {
     return {
-        model: undefined,
+        model: fixture.model,
         container: fixture.host,
         cubeElement: fixture.cubeEl,
         cubeContainer: fixture.host,
@@ -111,6 +138,7 @@ function createHandler(
         onViewRotated: overrides.onViewRotated ?? vi.fn(),
         viewId: 'basic-front',
         adapter: { mapDragDirection: d => d },
+        getModel: () => fixture.model,
     });
 }
 
@@ -299,7 +327,9 @@ describe('BasicTouchHandler', () => {
         document.dispatchEvent(pointer('pointerup', 1, 100, 100));
 
         expect(handler.getSelectedFace()).toBe(Face.F);
-        expect(onStickerSelected).toHaveBeenCalledWith('F-0');
+        expect(onStickerSelected).toHaveBeenCalledWith(
+            fixture.stickerEl.getAttribute('data-sticker-id')
+        );
 
         handler.destroy();
     });
@@ -1102,9 +1132,9 @@ describe('BasicTouchHandler', () => {
         handler.destroy();
     });
 
-    it('getFaceScreenBasisFromDOM uses model fallback when data-basic-pos is missing', () => {
+    it('getFaceScreenBasisFromDOM resolves its probes through the model', () => {
         const state = createState(fixture);
-        const getModel = vi.fn(() => ({ getCurrentState: () => ({}) }) as any);
+        const getModel = vi.fn(() => fixture.model);
         const handler = new BasicTouchHandler({
             host: fixture.host,
             styles: styles as Record<string, string>,
@@ -1122,7 +1152,6 @@ describe('BasicTouchHandler', () => {
             `.${styles.sticker}`
         ) as NodeListOf<HTMLElement>;
         stickers.forEach((el, index) => {
-            el.removeAttribute('data-basic-pos');
             el.getBoundingClientRect = () =>
                 ({
                     left: 50 + index,
@@ -1134,13 +1163,6 @@ describe('BasicTouchHandler', () => {
                 }) as DOMRect;
         });
 
-        const stickerAtSpy = vi.spyOn(CubeStateUtils, 'getStickerAt').mockImplementation(
-            (_cubeState, _face, position) =>
-                ({
-                    id: `F-${position}`,
-                }) as any
-        );
-
         const basis = handler['getFaceScreenBasisFromDOM'](Face.F, 3);
 
         expect(basis).toEqual({
@@ -1148,7 +1170,139 @@ describe('BasicTouchHandler', () => {
             rightDir: expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }),
         });
         expect(getModel).toHaveBeenCalled();
-        expect(stickerAtSpy).toHaveBeenCalled();
+        handler.destroy();
+    });
+
+    it('getFaceScreenBasisFromDOM returns undefined with no model', () => {
+        // The basis used to be readable off `data-basic-pos` selectors; that
+        // attribute has no production writer any more, so the model is the only
+        // source. Without one there is no basis, and the callers fall back.
+        const state = createState(fixture);
+        const handler = new BasicTouchHandler({
+            host: fixture.host,
+            styles: styles as Record<string, string>,
+            getCubeSize: () => 3,
+            getState: () => state,
+            onStickerSelected: vi.fn(),
+            onViewRotated: vi.fn(),
+            viewId: 'basic-front',
+            adapter: { mapDragDirection: d => d },
+        });
+        handler.attach();
+
+        expect(handler['getFaceScreenBasisFromDOM'](Face.F, 3)).toBeUndefined();
+        handler.destroy();
+    });
+
+    // -----------------------------------------------------------------------
+    // Hit resolution – identity comes from the model, never the element
+    // -----------------------------------------------------------------------
+
+    it('resolves the hit from the model, not the element attributes', () => {
+        // The defect this pins: mid-animation the element under the pointer is
+        // showing an in-between pose while its attributes still describe where it
+        // started. Identity therefore has to come from the model. Here the element
+        // deliberately LIES — it claims a different face than its sticker is on —
+        // and the model must win.
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        mockElementFromPoint(fixture.stickerEl);
+        fixture.stickerEl.setAttribute('data-face', Face.D);
+
+        const hit = handler['getStickerHitFromPoint'](100, 100);
+
+        expect(hit).toBeDefined();
+        expect(hit!.face).toBe(Face.F);
+        expect(hit!.row).toBe(0);
+        expect(hit!.col).toBe(0);
+        handler.destroy();
+    });
+
+    it('reports the model face and position for a mid-face sticker', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // Centre sticker of the F face: row 1, col 1 on a 3x3.
+        const centre = fixture.faceEl.querySelectorAll(`.${styles.sticker}`)[4] as HTMLElement;
+        mockElementFromPoint(centre);
+
+        const hit = handler['getStickerHitFromPoint'](100, 100);
+
+        expect(hit).toBeDefined();
+        expect(hit!.face).toBe(Face.F);
+        expect(hit!.row).toBe(1);
+        expect(hit!.col).toBe(1);
+        handler.destroy();
+    });
+
+    it('returns undefined when the element carries no sticker id', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        mockElementFromPoint(fixture.stickerEl);
+        fixture.stickerEl.removeAttribute('data-sticker-id');
+
+        expect(handler['getStickerHitFromPoint'](100, 100)).toBeUndefined();
+        handler.destroy();
+    });
+
+    it('returns undefined when the id does not resolve in the model', () => {
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        mockElementFromPoint(fixture.stickerEl);
+        fixture.stickerEl.setAttribute('data-sticker-id', 'not_a_sticker');
+
+        expect(handler['getStickerHitFromPoint'](100, 100)).toBeUndefined();
+        handler.destroy();
+    });
+
+    it('returns undefined when no model is available', () => {
+        const state = createState(fixture);
+        const handler = new BasicTouchHandler({
+            host: fixture.host,
+            styles: styles as Record<string, string>,
+            getCubeSize: () => 3,
+            getState: () => state,
+            onStickerSelected: vi.fn(),
+            onViewRotated: vi.fn(),
+            viewId: 'basic-front',
+            adapter: { mapDragDirection: d => d },
+        });
+        handler.attach();
+
+        mockElementFromPoint(fixture.stickerEl);
+
+        expect(handler['getStickerHitFromPoint'](100, 100)).toBeUndefined();
+        handler.destroy();
+    });
+
+    it('Covers AE2: a drag after a model change targets the layer from the model', () => {
+        // A D move on cubie FLD, then a second pointer-down before the animation
+        // settles: the second gesture must read the post-move layer, because the
+        // model already reflects the move. This asserts the mechanism the AE
+        // depends on — the hit follows the model, so it cannot disagree with it.
+        const handler = createHandler(fixture);
+        handler.attach();
+
+        // Move the model on, WITHOUT rebuilding the DOM: the DOM is now stale,
+        // exactly as it is mid-animation.
+        fixture.model.applyMove('D', false, false, true);
+
+        mockElementFromPoint(fixture.stickerEl);
+        const hit = handler['getStickerHitFromPoint'](100, 100);
+
+        expect(hit).toBeDefined();
+        // Whatever the model now says for this sticker id is what the hit reports
+        // — the stale element attributes do not get a vote.
+        const sticker = CubeStateUtils.getStickerById(
+            fixture.model.getCurrentState(),
+            hit!.stickerId as any
+        )!;
+        expect(hit!.face).toBe(sticker.currentFace);
+        expect(hit!.row).toBe(Math.floor(sticker.facePosition / 3));
+        expect(hit!.col).toBe(sticker.facePosition % 3);
         handler.destroy();
     });
 
