@@ -142,7 +142,7 @@ describe('FlatTouchHandler', () => {
         handler.destroy();
     });
 
-    it('does not start drag from clear background', () => {
+    it('starts a whole-cube rotation drag from the clear background', () => {
         // Arrange
         const emitSpy = vi.spyOn(Application.eventBus, 'emit');
 
@@ -155,26 +155,19 @@ describe('FlatTouchHandler', () => {
         });
         handler.attach();
 
-        // Act
+        // Act — the pointer is on neither a sticker nor the halo: the background.
         elementFromPointMock.mockReturnValue(null);
 
         firePointer(fixture.host, 'pointerdown', 9, 210, 220, 'touch');
         firePointer(document, 'pointermove', 9, 210, 180, 'touch');
         firePointer(document, 'pointerup', 9, 210, 180, 'touch');
 
-        // Assert
-        expect(emitSpy).not.toHaveBeenCalledWith(
-            EventName.MOVE_REQUESTED,
-            expect.objectContaining({ viewId: 'flat' })
-        );
-
-        const cancelZone = fixture.host.querySelector(
-            `.${styles['flat-halo-cancel-zone']}`
-        ) as HTMLElement;
-        expect(cancelZone.style.display).toBe('none');
-
-        const label = document.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
-        expect(label.style.display).toBe('none');
+        // Assert — a drag up from the background is a whole-cube `x` rotation.
+        expect(emitSpy).toHaveBeenCalledWith(EventName.MOVE_REQUESTED, {
+            moveNotation: 'x',
+            viewId: 'flat',
+            tentative: false,
+        });
 
         handler.destroy();
     });

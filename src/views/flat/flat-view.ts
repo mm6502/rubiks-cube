@@ -7,12 +7,10 @@ import { Command, EventName, MoveExecutedEvent } from '@/types';
 import { registerViewContainer, unregisterViewContainer } from '@/views/shared/focus';
 
 import * as commands from './commands';
-import * as legendDrag from './legend-drag';
 import * as rendering from './rendering';
 import * as selection from './selection';
 import { GhostStrips } from './ghost-strips';
 import { FlatTouchHandler } from './touch-handler';
-import { FAR_DRAG_THRESHOLD_PX } from './touch-handler-types';
 
 export type FlatViewState = {
     faceDirectMode: boolean;
@@ -60,16 +58,6 @@ export class FlatView implements CubeView {
     getGhostStrips(): GhostStrips | null {
         return this.ghostStrips;
     }
-    /** Current layout mode, forwarded to the touch handler on change. */
-    private layoutMode: LayoutMode = LayoutMode.Floating;
-    /** Mutable state used by the legend drag subsystem. */
-    private legendDragState = legendDrag.createLegendDragState();
-    /** Stable listener references for the legend drag pointer events; null before {@link create}. */
-    private legendHandlers: {
-        down: (e: PointerEvent) => void;
-        move: (e: PointerEvent) => void;
-        up: (e: PointerEvent) => void;
-    } | null = null;
 
     constructor(styles: Record<string, string>) {
         this.state = {
@@ -113,7 +101,6 @@ export class FlatView implements CubeView {
 
     /** Updates the layout mode and forwards it to the touch handler. */
     setLayoutMode(mode: LayoutMode): void {
-        this.layoutMode = mode;
         this.touchHandler?.setLayoutMode(mode);
     }
 
@@ -200,30 +187,6 @@ export class FlatView implements CubeView {
             onStickerSelected: stickerId => this.updateSelected(stickerId as StickerId | undefined),
         });
         this.touchHandler.attach();
-
-        // Add drag interactions for whole cube rotations (after touchHandler is ready).
-        this.legendHandlers = legendDrag.createLegendDragHandlers(this.legendDragState, {
-            legendElement: legend,
-            getIsRotated: () => this.state.isRotated,
-            getLayoutMode: () => this.layoutMode,
-            getFarDragThresholdPx: () => FAR_DRAG_THRESHOLD_PX,
-            showCancellationZone: (x, y, r) =>
-                this.touchHandler?.showCancellationZoneAtOrigin(x, y, r),
-            showDragLabel: (n, x, y) => this.touchHandler?.showDragLabel(n, x, y),
-            hideDragLabel: () => this.touchHandler?.hideDragLabel(),
-            hideCancellationZone: () => this.touchHandler?.hideCancellationZone(),
-            showDragCross: (x, y) => this.touchHandler?.showWholeCubeDragCross(x, y),
-            hideDragCross: () => this.touchHandler?.hideDragDecision(),
-            emitMove: notation =>
-                Application.eventBus.emit(EventName.MOVE_REQUESTED, {
-                    moveNotation: notation,
-                    viewId: this.getViewType(),
-                    tentative: false,
-                }),
-        });
-        legend.addEventListener('pointerdown', this.legendHandlers.down);
-        document.addEventListener('pointermove', this.legendHandlers.move);
-        document.addEventListener('pointerup', this.legendHandlers.up);
 
         // Initial resize
         this.handleResize();
@@ -388,11 +351,6 @@ export class FlatView implements CubeView {
     destroy(): void {
         // Stop being addressable: a destroyed view must not be activatable.
         unregisterViewContainer(this.getViewType());
-
-        if (this.legendHandlers) {
-            document.removeEventListener('pointermove', this.legendHandlers.move);
-            document.removeEventListener('pointerup', this.legendHandlers.up);
-        }
 
         this.touchHandler?.destroy();
         this.touchHandler = null;

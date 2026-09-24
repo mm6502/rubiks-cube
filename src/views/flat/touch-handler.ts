@@ -116,6 +116,7 @@ export class FlatTouchHandler {
             activePointerAllowsDrag: false,
             startHit: undefined,
             selectedFaceGesture: false,
+            backgroundGesture: false,
             suppressNextClick: false,
             activeCommitDistancePx: CANCEL_ZONE_RADIUS_BASE_PX,
             faceDirectMode: false,
@@ -242,7 +243,14 @@ export class FlatTouchHandler {
         this.s.activePointerOrigin = { x: event.clientX, y: event.clientY };
         this.s.activePointerAllowsDrag = false;
         this.s.selectedFaceGesture = false;
+        this.s.backgroundGesture = false;
         this.s.startHit = this.getStickerHitFromPoint(event.clientX, event.clientY);
+
+        // Whether the pointer went down on a sticker at all, before any of the
+        // branches below clear `startHit`. This distinguishes a true background
+        // drag (empty space or the legend) from a drag on the selected face's
+        // own sticker — the latter is deliberately ignored, not rotated.
+        const hadStickerHit = Boolean(this.s.startHit);
 
         const isHaloDragStart = this.isHaloHitTargetAtPoint(event.clientX, event.clientY);
 
@@ -271,9 +279,21 @@ export class FlatTouchHandler {
         this.s.activePointerAllowsDrag = canStartDrag;
 
         if (!canStartDrag) {
-            this.restoreTempFaceState();
-            this.hideCancellationZone();
-            return;
+            if (hadStickerHit) {
+                // The pointer went down on the selected face's own sticker (not
+                // the halo). That is not a drag at all — neither a layer move
+                // nor a whole-cube rotation — so end the interaction exactly as
+                // before.
+                this.restoreTempFaceState();
+                this.hideCancellationZone();
+                return;
+            }
+
+            // The pointer is on neither a sticker nor the halo: the empty
+            // background (or the legend). A drag from here is a whole-cube
+            // rotation, so it may begin.
+            this.s.backgroundGesture = true;
+            this.s.activePointerAllowsDrag = true;
         }
 
         this.s.activeCommitDistancePx = this.cancelZoneRadiusPx();
@@ -301,7 +321,10 @@ export class FlatTouchHandler {
                 event.clientY
             );
         } else {
+            // Background drag: whole-cube rotation, so the decision cross is the
+            // axis-aligned four-zone shape read from screen direction alone.
             this.s.dragStateMachine.onPointerDown(event);
+            showWholeCubeDragCross(this.s, event.clientX, event.clientY);
         }
 
         this.s.host.setPointerCapture?.(event.pointerId);
@@ -361,6 +384,7 @@ export class FlatTouchHandler {
         this.s.activePointerOrigin = undefined;
         this.s.activePointerAllowsDrag = false;
         this.s.selectedFaceGesture = false;
+        this.s.backgroundGesture = false;
         this.s.startHit = undefined;
         this.hideCancellationZone();
         hideDragDecision(this.s);
@@ -388,6 +412,7 @@ export class FlatTouchHandler {
         this.s.activePointerOrigin = undefined;
         this.s.activePointerAllowsDrag = false;
         this.s.selectedFaceGesture = false;
+        this.s.backgroundGesture = false;
         this.s.startHit = undefined;
         this.hideDragLabel();
         this.hideCancellationZone();

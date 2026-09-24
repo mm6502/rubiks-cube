@@ -16,6 +16,7 @@ import {
     updateHaloPosition,
 } from './touch-handler-overlays';
 import type { FlatTouchHandlerState, StickerHit } from './touch-handler-types';
+import { inferWholeCubeNotation } from './whole-cube';
 
 // ── Interaction context ─────────────────────────────────────────────
 
@@ -38,7 +39,8 @@ export function createInteractionContext(s: FlatTouchHandlerState): InteractionC
 /**
  * Convert a raw {@link DragGesture} into a classified {@link GestureIntent}.
  * Returns a HALO intent for selected-face rotation gestures, a STICKER
- * intent for ring-drag gestures originating on a sticker, or NONE otherwise.
+ * intent for ring-drag gestures originating on a sticker, or BACKGROUND
+ * for a drag anywhere else in the view (the empty space and the legend).
  */
 export function buildGestureIntent(s: FlatTouchHandlerState, gesture: DragGesture): GestureIntent {
     if (s.selectedFace && s.selectedFaceGesture) {
@@ -67,7 +69,7 @@ export function buildGestureIntent(s: FlatTouchHandlerState, gesture: DragGestur
     }
 
     return {
-        hitKind: HitKind.NONE,
+        hitKind: HitKind.BACKGROUND,
         direction: gesture.direction,
         distancePx: gesture.distancePx,
         deltaX: gesture.deltaX,
@@ -125,6 +127,18 @@ export function inferMoveNotationForGesture(
             return toFar(baseNotation);
         }
         return baseNotation;
+    }
+
+    if (intent.hitKind === HitKind.BACKGROUND) {
+        // A whole-cube rotation read from the drag's screen displacement alone.
+        // No face is under the pointer, so there is no basis to measure — the
+        // Flat layout's fixed orientation (`isRotated`) is the mapping.
+        return inferWholeCubeNotation(
+            intent.deltaX,
+            intent.deltaY,
+            s.getIsRotated(),
+            s.dragStateMachine.farDragThresholdPx
+        );
     }
 
     if (intent.hitKind !== HitKind.STICKER || !intent.face) {

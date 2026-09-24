@@ -81,6 +81,11 @@ export type FlatTouchHandlerState = {
     startHit: StickerHit | undefined;
     /** True when the current drag started on the halo or via face-direct mode (whole-face rotation). */
     selectedFaceGesture: boolean;
+    /**
+     * True when the current drag started on neither a sticker nor the halo — the
+     * empty background or the legend — and resolves to a whole-cube rotation.
+     */
+    backgroundGesture: boolean;
     /** When true, the next click event is swallowed to prevent tap-through after a drag. */
     suppressNextClick: boolean;
     /** Minimum drag distance (px) required to commit a move — set to the cancel-zone radius at pointer-down. */
