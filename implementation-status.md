@@ -14,6 +14,31 @@ apart.
 
 ✅ **Complete (100%)**
 
+- [x] (Sep 2026) Gesture feedback is anchored to the viewport rather than the
+      panel, so no view's clipping or zoom transform can cut it off or shrink
+      it. See
+      [docs/plans/2026-09-24-001-fix-view-gesture-inference-plan.md](docs/plans/2026-09-24-001-fix-view-gesture-inference-plan.md)
+- [x] (Sep 2026) Whole-cube rotation keeps its ±180° sense — the gesture's first
+      quarter turn anchors the half turn, so both directions animate the way
+      they were dragged. See
+      [docs/brainstorms/2026-09-24-view-gesture-inference-fixes-requirements.md](docs/brainstorms/2026-09-24-view-gesture-inference-fixes-requirements.md)
+- [x] (Sep 2026) Hit-testing resolves a drag's sticker from the model rather
+      than the mid-flight DOM, so a drag begun before the previous turn settles
+      targets the layer the user is aiming at.
+- [x] (Sep 2026) One drag-decision indicator shared by all three views,
+      replacing three separate overlays; Flat gains the indicator it never had.
+      See
+      [docs/plans/2026-09-24-001-fix-view-gesture-inference-plan.md](docs/plans/2026-09-24-001-fix-view-gesture-inference-plan.md)
+- [x] (Sep 2026) Flat view rotates the whole cube on the entire background
+      (empty space or legend), through one handler.
+- [x] (Sep 2026) A far Flat drag promotes to the doubled rotation, through the
+      same helper the layer drags use.
+- [x] (Sep 2026) Resizing a view panel no longer rebuilds the cube — the resize
+      is coalesced to one per animation frame and updates the cubie DOM in
+      place, which removes the Firefox flicker.
+- [x] (Sep 2026) Cubies are closed solids, so colour no longer bleeds through
+      the gaps between their faces. See
+      [docs/visuals/firefox-color-leak.png](docs/visuals/firefox-color-leak.png)
 - [x] (Sep 2026) Tilt/Pitch toggles animate again — they had snapped since the
       rotation-animation redesign, because the `transition: transform` that used
       to animate them had to be removed when the WAAPI rotation ramp replaced

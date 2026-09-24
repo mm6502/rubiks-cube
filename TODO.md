@@ -7,29 +7,6 @@ not repeat each other's content, so they cannot drift apart.
 
 ## Current tasks
 
-- [x] Basic View - after fixing face culling in Firefox, now there are colors
-      leaking from adjacent faces through the gaps among cubies. See
-      [docs/visuals/firefox-color-leak.png](./docs/visuals/firefox-color-leak.png)
-
-- [ ] Basic View - Whole-cube rotation animation loses the ±180° sign (the
-      orientation matrix cannot distinguish them), so one direction animates the
-      wrong way. Carry the signed angle from the gesture into the animation
-      instead of re-deriving it from the matrix. See
-      [docs/brainstorms/2026-09-24-view-gesture-inference-fixes-requirements.md](./docs/brainstorms/2026-09-24-view-gesture-inference-fixes-requirements.md).
-
-- [ ] Basic View - Hit-testing resolves a drag's sticker from the mid-flight DOM
-      (face/position lags until the post-move rebuild), so a move started before
-      the animation settles targets the wrong layer (D then expect L' but get
-      B'). Resolve the hit from the model's sticker identity, not the flying
-      element.
-
-- [ ] Flat View - Does not display move inference cross / line during a drag
-      (Basic view does). Reuse the Basic view's cross/line indicator.
-
-- [ ] Flat View - Whole-cube legend drag only ever emits quarter turns. Promote
-      a far drag to the '2' variant (x2/y2/z2) using the existing far-drag
-      threshold.
-
 - Investigate possibility of simplifying move table such as key will be the
   primary/canonical "identifier" of the move and alternative notations will be
   placed in an alternative notation list in the value object (move descriptor?).
@@ -54,5 +31,3 @@ not repeat each other's content, so they cannot drift apart.
   [docs/solutions/design-patterns/cubie-element-index-caching-trade-off.md](./docs/solutions/design-patterns/cubie-element-index-caching-trade-off.md).
   ⚠ Decide only after re-measuring `resizeCubies` with phases itemised — 48% of
   the recorded 1620 ms → 12 ms win is currently unattributed.
-
-(nothing atm)
