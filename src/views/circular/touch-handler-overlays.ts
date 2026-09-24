@@ -281,20 +281,18 @@ export function getFaceCenterClient(
 
 // ── Cancel zone ─────────────────────────────────────────────────────────────
 
-/** Show the circular cancel-zone indicator at the pointer-down position. */
+/** Show the commit-threshold ring centred on the pointer-down position. */
 export function showCancelZone(state: TouchHandlerState, clientX: number, clientY: number): void {
-    const center = clientToSvgPoint(state.svgRoot, clientX, clientY);
-    const edge = clientToSvgPoint(state.svgRoot, clientX + getCommitThresholdPx(state), clientY);
-    const svgRadius = Math.hypot(edge.x - center.x, edge.y - center.y);
-    state.cancelZoneEl.setAttribute('cx', `${center.x}`);
-    state.cancelZoneEl.setAttribute('cy', `${center.y}`);
-    state.cancelZoneEl.setAttribute('r', `${svgRadius}`);
-    state.cancelZoneEl.setAttribute('visibility', 'visible');
+    // Viewport coordinates and a screen-pixel radius, both directly: the overlay is
+    // a fixed layer with no viewBox, so no SVG conversion is involved. The radius is
+    // the commit threshold itself — the ring depicts that distance, and it is only
+    // truthful if both are the same number of screen pixels.
+    state.cancelZone.show(clientX, clientY, getCommitThresholdPx(state));
 }
 
 /** Hide the cancel-zone indicator. */
 export function hideCancelZone(state: TouchHandlerState): void {
-    state.cancelZoneEl.setAttribute('visibility', 'hidden');
+    state.cancelZone.hide();
 }
 
 /** Return the commit-distance threshold in pixels for the current layout mode. */

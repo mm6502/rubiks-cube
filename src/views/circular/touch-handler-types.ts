@@ -2,6 +2,7 @@ import { Axis, Face } from '@/cube/types';
 import type { CubeState } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import type {
+    CancelZoneOverlay,
     DragDecisionOverlay,
     ParallelGuideOverlay,
 } from '@/interaction/drag-decision-overlay';
@@ -180,8 +181,18 @@ export type TouchHandlerState = {
     readonly faceOverlayEl: SVGEllipseElement;
     /** Floating HTML label that shows the inferred move notation during a drag. */
     readonly dragLabelEl: HTMLDivElement;
-    /** SVG circle shown at the pointer-down position as a cancel/commit threshold indicator. */
-    readonly cancelZoneEl: SVGCircleElement;
+    /**
+     * The commit-threshold ring shown at pointer-down, as a fixed viewport layer.
+     *
+     * Deliberately not an SVG child. A root `<svg>` clips to its own element box,
+     * and the Circular view's box is the *canvas* — which shrinks with the zoom and
+     * can be a small rectangle centred in a much larger panel. A gesture started in
+     * the empty space around it then drew its ring outside the canvas and showed
+     * nothing, while the cross and rails (already on the body) survived the same
+     * gesture. Keeping it in the SVG also tied its stroke width to the zoom, which
+     * rendered a hairline when zoomed out and a blob when zoomed in.
+     */
+    readonly cancelZone: CancelZoneOverlay;
     /**
      * The drag-decision indicator: a fixed, viewport-anchored overlay on the body.
      *

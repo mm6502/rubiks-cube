@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { Axis } from '@/cube/types';
-import { createParallelGuideOverlay } from '@/interaction/drag-decision-overlay';
+import {
+    createCancelZoneOverlay,
+    createParallelGuideOverlay,
+} from '@/interaction/drag-decision-overlay';
 
 import type { AxisCircle } from './svg-tools';
 import {
@@ -45,7 +48,7 @@ function createMinimalState(overrides?: Partial<TouchHandlerState>): TouchHandle
         haloEl: createSvgEl('ellipse'),
         faceOverlayEl: createSvgEl('ellipse'),
         dragLabelEl: document.createElement('div'),
-        cancelZoneEl: createSvgEl('circle'),
+        cancelZone: createCancelZoneOverlay('test-ring'),
         dragCrossGroupEl: createSvgEl('g'),
         dragCrossPrimaryEl: createSvgEl('line'),
         dragCrossSecondaryEl: createSvgEl('line'),

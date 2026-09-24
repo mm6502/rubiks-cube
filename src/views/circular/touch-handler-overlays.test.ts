@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Axis, Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import {
+    createCancelZoneOverlay,
     createDragDecisionOverlay,
     createParallelGuideOverlay,
 } from '@/interaction/drag-decision-overlay';
@@ -62,7 +63,7 @@ function createMinimalState(overrides?: Partial<TouchHandlerState>): TouchHandle
         haloEl: createSvgEl('ellipse'),
         faceOverlayEl: createSvgEl('ellipse'),
         dragLabelEl: document.createElement('div'),
-        cancelZoneEl: createSvgEl('circle'),
+        cancelZone: createCancelZoneOverlay('test-ring'),
         dragDecision: createDragDecisionOverlay('test-arm', () => 30),
         fretboardRails: createParallelGuideOverlay('test-rail'),
         axisDetectionBands: new Map(),
@@ -435,26 +436,71 @@ describe('getFaceCenterClient', () => {
 // ── Cancel zone ─────────────────────────────────────────────────────────────
 
 describe('showCancelZone', () => {
-    it('should position and show the cancel zone circle', () => {
+    it('places the ring at the pointer in viewport coordinates, not SVG units', () => {
+        // The point of moving the ring out of the SVG: its centre is the raw pointer
+        // position. No CTM conversion is involved, so the values pass straight through
+        // — which is what keeps the ring on the pointer however the view is zoomed.
         const state = createMinimalState();
-        addToBody(state.svgRoot);
 
         showCancelZone(state, 100, 100);
 
-        expect(state.cancelZoneEl.getAttribute('visibility')).toBe('visible');
-        expect(state.cancelZoneEl.getAttribute('cx')).toBeDefined();
-        expect(state.cancelZoneEl.getAttribute('cy')).toBeDefined();
-        expect(state.cancelZoneEl.getAttribute('r')).toBeDefined();
+        const circle = state.cancelZone.element.querySelector('circle')!;
+        expect(state.cancelZone.element.getAttribute('visibility')).not.toBe('hidden');
+        expect(circle.getAttribute('cx')).toBe('100');
+        expect(circle.getAttribute('cy')).toBe('100');
+    });
+
+    it('uses the commit threshold as the radius, so the ring depicts it directly', () => {
+        // The ring's whole job is to show how far the gesture must travel before it
+        // commits. That is only honest if the radius IS that distance in the same
+        // units the distance is measured in — screen pixels.
+        const state = createMinimalState({ layoutMode: LayoutMode.Floating });
+
+        showCancelZone(state, 40, 60);
+
+        const circle = state.cancelZone.element.querySelector('circle')!;
+        expect(Number(circle.getAttribute('r'))).toBeCloseTo(getCommitThresholdPx(state), 6);
+        expect(Number(circle.getAttribute('r'))).toBeGreaterThan(0);
+    });
+
+    it('grows the ring with the tabbed threshold', () => {
+        const floating = createMinimalState({ layoutMode: LayoutMode.Floating });
+        const tabbed = createMinimalState({ layoutMode: LayoutMode.Tabbed });
+
+        showCancelZone(floating, 10, 10);
+        showCancelZone(tabbed, 10, 10);
+
+        const radius = (s: TouchHandlerState) =>
+            Number(s.cancelZone.element.querySelector('circle')!.getAttribute('r'));
+        expect(radius(tabbed)).toBeGreaterThan(radius(floating));
+    });
+
+    it('draws the ring on a viewport-anchored layer that no view subtree can clip', () => {
+        // The regression this fixes: inside the Circular SVG the ring was clipped to
+        // the canvas box, which shrinks with the zoom and can sit well inside the
+        // panel — so a gesture in the surrounding empty space showed no ring at all,
+        // while the cross and rails (already on the body) did.
+        const state = createMinimalState();
+        document.body.appendChild(state.cancelZone.element);
+
+        expect(state.cancelZone.element.style.position).toBe('fixed');
+        expect(state.cancelZone.element.style.width).toBe('100vw');
+        expect(state.cancelZone.element.parentElement).toBe(document.body);
+        // And it is not inside the view's SVG, which is the box that clipped it.
+        expect(state.svgRoot.contains(state.cancelZone.element)).toBe(false);
+
+        state.cancelZone.remove();
     });
 });
 
 describe('hideCancelZone', () => {
     it('should hide the cancel zone', () => {
         const state = createMinimalState();
+        showCancelZone(state, 30, 30);
 
         hideCancelZone(state);
 
-        expect(state.cancelZoneEl.getAttribute('visibility')).toBe('hidden');
+        expect(state.cancelZone.element.getAttribute('visibility')).toBe('hidden');
     });
 });
 

@@ -4,6 +4,7 @@ import { LayoutMode } from '@/cube/types/view';
 import {
     DRAG_CROSS_ARM_LENGTH_FLOATING,
     DRAG_CROSS_ARM_LENGTH_TABBED,
+    createCancelZoneOverlay,
     createDragDecisionOverlay,
     createParallelGuideOverlay,
 } from '@/interaction/drag-decision-overlay';
@@ -70,11 +71,9 @@ export class CircularTouchHandler {
         dragLabelEl.style.display = 'none';
         dragLabelEl.setAttribute('aria-hidden', 'true');
 
-        const cancelZoneEl = document.createElementNS(SVG_NS, 'circle');
-        cancelZoneEl.classList.add(styles['circular-cancel-zone'] ?? 'circular-cancel-zone');
-        cancelZoneEl.setAttribute('visibility', 'hidden');
-        cancelZoneEl.setAttribute('pointer-events', 'none');
-        cancelZoneEl.setAttribute('aria-hidden', 'true');
+        const cancelZone = createCancelZoneOverlay(
+            styles['circular-cancel-zone'] ?? 'circular-cancel-zone'
+        );
 
         const dragDecision = createDragDecisionOverlay(
             styles['circular-drag-cross-arm'] ?? 'circular-drag-cross-arm',
@@ -131,7 +130,7 @@ export class CircularTouchHandler {
             haloEl,
             faceOverlayEl,
             dragLabelEl,
-            cancelZoneEl,
+            cancelZone,
             dragDecision,
             fretboardRails,
             axisDetectionBands,
@@ -175,19 +174,17 @@ export class CircularTouchHandler {
         }
         state.svgRoot.appendChild(state.haloEl);
         state.svgRoot.appendChild(state.faceOverlayEl);
-        state.svgRoot.appendChild(state.cancelZoneEl);
 
-        // The label, the decision indicator and the fretboard rails all follow the
-        // pointer, so they live in fixed layers on the body rather than inside the
-        // SVG. Inside the SVG they were clipped by its viewBox and shrank with its
-        // zoom (measured: an arm 70px at 1x renders 14px at 0.2x, and the rails'
-        // gap fell to about 1px), both of which made the feedback useless exactly
-        // when the view was zoomed out or the gesture was made near an edge.
+        // The label, the threshold ring, the fretboard rails and the decision indicator
+        // all follow the pointer, so they live in fixed layers on the body rather than
+        // inside the SVG. Inside the SVG they were clipped by its viewBox (or, for
+        // the ring, by the canvas box, which at 0.2x zoom is a small rectangle in the
+        // middle of the panel) and shrank with its zoom.
         //
-        // Order matters: the rails go in first so the decision indicator paints on
-        // top. The rails say which band is being tracked, the arms say what is
-        // about to be committed, and the latter must never be obscured.
+        // Order matters: each layer outranks the one it clarifies — threshold ring,
+        // then rails, then the arms that show what is about to be committed.
         document.body.appendChild(state.dragLabelEl);
+        document.body.appendChild(state.cancelZone.element);
         document.body.appendChild(state.fretboardRails.element);
         document.body.appendChild(state.dragDecision.element);
     }
@@ -231,9 +228,9 @@ export class CircularTouchHandler {
         clearAxisSelections(state);
         state.haloEl.remove();
         state.faceOverlayEl.remove();
-        state.cancelZoneEl.remove();
         state.dragDecision.remove();
         state.fretboardRails.remove();
+        state.cancelZone.remove();
         state.dragLabelEl.remove();
         for (const { bandEl, clipEl } of state.axisDetectionBands.values()) {
             bandEl.remove();

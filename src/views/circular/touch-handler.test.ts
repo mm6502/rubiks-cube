@@ -6,6 +6,7 @@ import { Application } from '@/application';
 import { Axis, Face, LayoutMode } from '@/cube/types';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
 import { inferMoveFromDrag } from '@/interaction/move-inference';
+import { CANCEL_ZONE_RADIUS_BASE_PX, CANCEL_ZONE_TABBED_MULTIPLIER } from '@/interaction/types';
 import { DragDirection, HitKind } from '@/interaction/types';
 import { EventName } from '@/types';
 import { blockFor, valueOf } from '@/views/basic/css-contract-helpers';
@@ -30,6 +31,42 @@ const styles = {
     'circular-cancel-zone': 'circular-cancel-zone',
     'circular-drag-cross-arm': 'circular-drag-cross-arm',
 } as const;
+
+/**
+ * The commit thresholds, restated from source rather than hard-coded.
+ *
+ * The floating threshold is the cancel-zone base radius; the tabbed one applies a
+ * multiplier. Both used to be written as literals in these tests pre-divided by the
+ * SVG's CTM scale, because the ring lived inside the SVG and its radius was in
+ * user units. It is a plain screen-pixel length now, so the expectation is the
+ * threshold itself — which is what makes these assertions about the behaviour
+ * rather than about the coordinate space it used to happen to live in.
+ */
+const COMMIT_THRESHOLD_FLOATING_PX = CANCEL_ZONE_RADIUS_BASE_PX;
+const COMMIT_THRESHOLD_TABBED_PX = CANCEL_ZONE_RADIUS_BASE_PX * CANCEL_ZONE_TABBED_MULTIPLIER;
+
+/**
+ * Find the cancel-zone ring in the document.
+ *
+ * Deliberately scoped to the whole document, not `fixture.svgRoot`: the ring is a
+ * body-level overlay precisely so that no view subtree can clip it, and searching
+ * the SVG would silently pass while asserting nothing.
+ *
+ * Returns both the layer and the circle, because they carry different things. The
+ * layer is the master visibility switch — `show`/`hide` toggle it, and the circle
+ * inside carries no visibility attribute of its own — while the geometry (cx, cy,
+ * r) lives on the circle.
+ */
+function queryCancelZone(): { layer: SVGSVGElement; circle: SVGCircleElement } {
+    const circle = document.querySelector(
+        `circle.${styles['circular-cancel-zone']}`
+    ) as SVGCircleElement | null;
+    const layer = circle?.closest('svg') ?? null;
+    if (!circle || !layer) {
+        throw new Error('cancel-zone overlay not found on the document');
+    }
+    return { layer, circle };
+}
 
 type Fixture = {
     host: HTMLElement;
@@ -425,11 +462,11 @@ describe('CircularTouchHandler', () => {
         handler.onPointerDown(pointer('pointerdown', 15, 200, 132), fixture.uSticker);
 
         // Assert
-        const cancelZone = fixture.svgRoot.querySelector(
-            `.${styles['circular-cancel-zone']}`
-        ) as SVGCircleElement;
-        expect(cancelZone.getAttribute('visibility')).toBe('visible');
-        expect(Number(cancelZone.getAttribute('r'))).toBeCloseTo(16, 4);
+        const cancelZone = queryCancelZone().circle;
+        expect(cancelZone.getAttribute('visibility')).not.toBe('hidden');
+        // The radius is the commit threshold in screen pixels, unconverted: the ring
+        // is drawn on a viewport layer with no viewBox, so nothing rescales it.
+        expect(Number(cancelZone.getAttribute('r'))).toBeCloseTo(COMMIT_THRESHOLD_FLOATING_PX, 4);
 
         handler.onPointerUp(pointer('pointerup', 15, 200, 132), fixture.uSticker);
         handler.destroy();
@@ -445,11 +482,9 @@ describe('CircularTouchHandler', () => {
         handler.onPointerDown(pointer('pointerdown', 15, 200, 132), fixture.uSticker);
 
         // Assert
-        const cancelZone = fixture.svgRoot.querySelector(
-            `.${styles['circular-cancel-zone']}`
-        ) as SVGCircleElement;
-        expect(cancelZone.getAttribute('visibility')).toBe('visible');
-        expect(Number(cancelZone.getAttribute('r'))).toBeCloseTo(20.8, 4);
+        const cancelZone = queryCancelZone().circle;
+        expect(cancelZone.getAttribute('visibility')).not.toBe('hidden');
+        expect(Number(cancelZone.getAttribute('r'))).toBeCloseTo(COMMIT_THRESHOLD_TABBED_PX, 4);
 
         handler.onPointerUp(pointer('pointerup', 15, 200, 132), fixture.uSticker);
         handler.destroy();
@@ -483,7 +518,9 @@ describe('CircularTouchHandler', () => {
         // Assert
         expect(fixture.svgRoot.querySelector(`.${styles['circular-halo']}`)).toBeNull();
         expect(document.querySelector(`.${styles['circular-drag-label']}`)).toBeNull();
-        expect(fixture.svgRoot.querySelector(`.${styles['circular-cancel-zone']}`)).toBeNull();
+        // The cancel ring lives on a body-level overlay now, so destroy() must remove
+        // it from the document rather than merely clear its attributes.
+        expect(document.querySelector(`.${styles['circular-cancel-zone']}`)).toBeNull();
     });
 
     it('cancel gesture hides drag label and cancel zone', () => {
@@ -500,12 +537,10 @@ describe('CircularTouchHandler', () => {
         const dragLabel = document.querySelector(
             `.${styles['circular-drag-label']}`
         ) as HTMLElement;
-        const cancelZone = fixture.svgRoot.querySelector(
-            `.${styles['circular-cancel-zone']}`
-        ) as SVGCircleElement;
+        const cancelZone = queryCancelZone();
 
         expect(dragLabel.style.display).toBe('none');
-        expect(cancelZone.getAttribute('visibility')).toBe('hidden');
+        expect(cancelZone.layer.getAttribute('visibility')).toBe('hidden');
 
         handler.destroy();
     });
@@ -619,12 +654,9 @@ describe('CircularTouchHandler', () => {
         // here we just verify the state is stored and applied when pointerdown fires.
         handler.setLayoutMode(LayoutMode.Tabbed);
         handler.onPointerDown(pointer('pointerdown', 20, 150, 220), fixture.fSticker);
-        const cancelZone = fixture.svgRoot.querySelector(
-            `.${styles['circular-cancel-zone']}`
-        ) as SVGCircleElement;
-        expect(cancelZone.getAttribute('visibility')).toBe('visible');
-        // tabbed radius is 20.8
-        expect(Number(cancelZone.getAttribute('r'))).toBeCloseTo(20.8, 4);
+        const cancelZone = queryCancelZone().circle;
+        expect(cancelZone.getAttribute('visibility')).not.toBe('hidden');
+        expect(Number(cancelZone.getAttribute('r'))).toBeCloseTo(COMMIT_THRESHOLD_TABBED_PX, 4);
         handler.onPointerUp(pointer('pointerup', 20, 150, 220), fixture.fSticker);
 
         handler.destroy();
@@ -1030,10 +1062,8 @@ describe('CircularTouchHandler', () => {
         handler.onPointerCancel(pointer('pointercancel', 69, 280, 240));
 
         // Assert — UI elements hidden
-        const cancelZone = fixture.svgRoot.querySelector(
-            `.${styles['circular-cancel-zone']}`
-        ) as SVGCircleElement;
-        expect(cancelZone.getAttribute('visibility')).toBe('hidden');
+        const cancelZone = queryCancelZone();
+        expect(cancelZone.layer.getAttribute('visibility')).toBe('hidden');
 
         handler.destroy();
     });
