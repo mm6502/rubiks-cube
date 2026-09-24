@@ -12,6 +12,7 @@ import * as rendering from './rendering';
 import * as selection from './selection';
 import { GhostStrips } from './ghost-strips';
 import { FlatTouchHandler } from './touch-handler';
+import { FAR_DRAG_THRESHOLD_PX } from './touch-handler-types';
 
 export type FlatViewState = {
     faceDirectMode: boolean;
@@ -205,6 +206,7 @@ export class FlatView implements CubeView {
             legendElement: legend,
             getIsRotated: () => this.state.isRotated,
             getLayoutMode: () => this.layoutMode,
+            getFarDragThresholdPx: () => FAR_DRAG_THRESHOLD_PX,
             showCancellationZone: (x, y, r) =>
                 this.touchHandler?.showCancellationZoneAtOrigin(x, y, r),
             showDragLabel: (n, x, y) => this.touchHandler?.showDragLabel(n, x, y),

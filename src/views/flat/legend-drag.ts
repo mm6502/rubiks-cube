@@ -1,4 +1,5 @@
 import { LayoutMode } from '@/cube/types/view';
+import { toFar } from '@/interaction/move-inference';
 import { CANCEL_ZONE_RADIUS_BASE_PX, CANCEL_ZONE_TABBED_MULTIPLIER } from '@/interaction/types';
 
 /** Mutable state for the legend drag gesture. */
@@ -17,6 +18,12 @@ export interface LegendDragCallbacks {
     readonly legendElement: HTMLElement;
     getIsRotated(): boolean;
     getLayoutMode(): LayoutMode;
+    /**
+     * Distance (px) past which a drag means the doubled move, not the quarter
+     * turn. Shared with the layer-drag path so one gesture distance means one
+     * thing across the view.
+     */
+    getFarDragThresholdPx(): number;
     showCancellationZone(x: number, y: number, radius: number): void;
     showDragLabel(notation: string, x: number, y: number): void;
     hideDragLabel(): void;
@@ -51,6 +58,25 @@ export function inferLegendMove(deltaX: number, deltaY: number, isRotated: boole
         return deltaX > 0 ? "y'" : 'y';
     }
     return deltaY > 0 ? "x'" : 'x';
+}
+
+/**
+ * The notation a legend drag asks for, at the distance it was dragged.
+ *
+ * A drag past the far-drag threshold means the doubled rotation, spelled as the
+ * `2` variant of the quarter turn the direction gives — `y` → `y2`, `x'` →
+ * `x2'`. This is the same promotion the layer drags in this view already make,
+ * through the same helper, so the two gesture families cannot drift apart.
+ */
+export function inferLegendNotation(
+    deltaX: number,
+    deltaY: number,
+    isRotated: boolean,
+    farDragThresholdPx: number
+): string {
+    const base = inferLegendMove(deltaX, deltaY, isRotated);
+    const distance = Math.hypot(deltaX, deltaY);
+    return distance > farDragThresholdPx ? toFar(base) : base;
 }
 
 /**
@@ -95,7 +121,7 @@ export function createLegendDragHandlers(
 
         if (Math.abs(deltaX) > threshold || Math.abs(deltaY) > threshold) {
             cb.showDragLabel(
-                inferLegendMove(deltaX, deltaY, cb.getIsRotated()),
+                inferLegendNotation(deltaX, deltaY, cb.getIsRotated(), cb.getFarDragThresholdPx()),
                 event.clientX,
                 event.clientY
             );
@@ -112,7 +138,9 @@ export function createLegendDragHandlers(
         const threshold = 20;
 
         if (Math.abs(deltaX) > threshold || Math.abs(deltaY) > threshold) {
-            cb.emitMove(inferLegendMove(deltaX, deltaY, cb.getIsRotated()));
+            cb.emitMove(
+                inferLegendNotation(deltaX, deltaY, cb.getIsRotated(), cb.getFarDragThresholdPx())
+            );
         }
 
         dragState.isDragging = false;
