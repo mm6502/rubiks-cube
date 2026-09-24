@@ -1,7 +1,7 @@
 ---
 title: 'fix: Seal cubie face planes to stop far-side bleed-through'
 type: fix
-status: active
+status: completed
 date: 2026-09-23
 origin: docs/brainstorms/2026-09-23-cubie-sealed-body-requirements.md
 ---
@@ -63,7 +63,14 @@ Carried from `docs/brainstorms/2026-09-23-cubie-sealed-body-requirements.md`.
 
 - R8. V pokoji aj pri rotácii sa cez zaoblené rohy a škáry ukazuje len tmavé
   telo, nikdy farba nálepky z far-side.
-- R9. Steny bez nálepky majú zaoblené rohy lícujúce s rohmi nálepiek.
+- R9. Steny bez nálepky majú zaoblené rohy lícujúce s rohmi nálepiek. **Doplnené
+  2026-09-24:** stena, ktorá nálepku MÁ, je naopak hranatá. Dôvod je meraný, nie
+  estetický: nálepka je 100 % box S BORDER-om pri `box-sizing: border-box`,
+  takže jej content box je menší než content box steny, a rovnaké percento
+  `border-radius` sa meria z dvoch rôznych boxov — zaoblená hrana nálepky tak
+  leží VONKU zaoblenej hrany steny. Hranatá stena túto hranu pokrýva
+  konštrukčne, nezávisle od polomeru. KTD2 teda platí doslovne a R9 sa vzťahuje
+  len na steny bez nálepky.
 - R10. Vizuálny vzhľad sa nemení okrem dvoch výnimiek: zaoblenia stien bez
   nálepky (R9) a odstránenia presvitania.
 
@@ -83,7 +90,10 @@ Carried from `docs/brainstorms/2026-09-23-cubie-sealed-body-requirements.md`.
   oblasť, ktorú nálepka vo svojom zaoblenom rohu nevykreslí, aby cez roh
   nepresvitalo nič z far-side (R8). Steny bez nálepky sa zaoblia tak, aby
   lícovali s nálepkami (R9). Presné polomery a odsadenie sa dolaďujú vo
-  vizuálnej bráne — headless ich nedokáže overiť.
+  vizuálnej bráne — headless ich nedokáže overiť. **Doplnené 2026-09-24:** „musí
+  vyplniť oblasť" sa nedá splniť zaoblenou stenou, keďže content boxy nálepky a
+  steny majú rôznu veľkosť (viď R9). Stena za nálepkou je preto hranatá; zvyšné
+  steny zaoblené lícujú s nálepkami.
 - **KTD3 — odsadenie a polomer prežijú resize cez jeden zdieľaný helper.**
   Odsadenie nálepky aj polomer zaoblenia sa odvodzujú z jedného zdieľaného
   zdroja (cubie size), ktorý volajú render, resize aj rehome; nálepka sa od
@@ -196,13 +206,15 @@ nie orientáciu tváre.
   - `src/views/basic/basic-view.module.css`
   - `src/views/basic/backface-culling.contract.test.ts`
 - **Approach:** Z `.cubie` vypadne `background-color` a jeho komentár;
-  `.cubie-interior` dostane `border-radius` lícujúci s `.sticker` a komentár
-  vysvetľujúci, že stena za nálepkou tesní zaoblený roh.
+  `.cubie-interior` dostane `border-radius` lícujúci s `.sticker` (steny bez
+  nálepky) a stena s nálepkou sa cez `data-sticker-backed` vyhrani a komentár
+  vysvetľuje, prečo content boxy nálepky a steny nie sú rovnaké.
   `backface-visibility: visible` ostáva na `.sticker` aj `.cubie-interior`.
 - **Test scenarios:**
   - `.cubie` nemá `background-color` (resp. je `transparent`) — R3.
   - `.cubie-interior` má nepriehľadnú farbu tela a `border-radius` ≠ 0 lícujúci
-    s `.sticker` — R9.
+    s `.sticker`; `.cubie-interior[data-sticker-backed]` má `border-radius: 0` —
+    R9 + KTD2.
   - `.sticker` a `.cubie-interior` nie sú culled — zachovaný existujúci
     kontrakt.
   - hover / `.selected` / `.face-selected` menia len `.sticker`; stena za

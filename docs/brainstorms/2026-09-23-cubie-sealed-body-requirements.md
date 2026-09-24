@@ -91,6 +91,9 @@ skutočne sú.
   (`--color-domain-cube-interior`), nikdy farba nálepky z far-side.
 - R9. Steny bez nálepky majú zaoblené rohy lícujúce s rohmi nálepiek (rovnaký
   tvar rohu), takže škára okolo nálepky vyzerá rovnako na všetkých stenách.
+  **Doplnené 2026-09-24:** týka sa LEN stien bez nálepky. Stena, ktorá nálepku
+  má, je hranatá — dôvod je v
+  `docs/plans/2026-09-23-001-fix-seal-cubie-face-planes-plan.md` (R9, KTD2).
 - R10. Vizuálny vzhľad kocky sa oproti súčasnosti nemení okrem odstránenia
   presvitania — žiadny plastový rám, žiadne zmenšené nálepky.
 

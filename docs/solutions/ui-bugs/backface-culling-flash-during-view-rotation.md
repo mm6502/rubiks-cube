@@ -118,31 +118,70 @@ now comes from painted, depth-sorted geometry instead of the backface test.
 .cubie {
   position: absolute;
   transform-style: preserve-3d;
-  /* Opaque body colour, in the cubie's own plane: seals the seams left by the
-     stickers' rounded corners, so what shows through a seam is the interior
-     rather than a face from the far side of the cube. */
-  background-color: var(--color-domain-cube-interior);
+  /* Deliberately NO background. A quad here sits in the cubie's own XY plane at z=0,
+     half an edge behind the face planes, so it cannot seal the seams and at grazing
+     angles paints over the stickers instead. */
 }
 .sticker {
   /* … */
   /* Deliberately NOT `hidden` — see "Why This Works". */
   backface-visibility: visible;
 }
+/* Six of these per cubie, one per face, on the face planes. Together they are the
+   cubie's opaque box, so occlusion comes from painted geometry rather than from the
+   backface test. */
 .cubie-interior {
-  /* … */
-  /* Same reasoning: these six faces are what make each cubie an opaque box. */
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-domain-cube-interior);
+  border-radius: 15%;
   backface-visibility: visible;
+}
+/* The wall that shares its face with a sticker is squared. A sticker is a 100% box
+   WITH a border under `box-sizing: border-box`, so its content box is smaller than the
+   wall's: the same percentage radius is measured from two different boxes, which puts
+   the sticker's rounded bound outside the wall's. Square removes that dependency. */
+.cubie-interior[data-sticker-backed] {
+  border-radius: 0;
 }
 ```
 
-The three declarations are load-bearing as a set. Breaking any one of them
+The four declarations are load-bearing as a set. Breaking any one of them
 reintroduces a visible defect:
 
-| Declaration reverted                 | Result                                                                                                                         |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `.sticker` back to `hidden`          | The flash returns (Firefox).                                                                                                   |
-| `.cubie-interior` back to `hidden`   | The cube body is open, so the far side shows through the seams. This is exactly what a partial fix produced in a real browser. |
-| `.cubie` loses its opaque background | The seams are unpainted, so the far side leaks through them again.                                                             |
+| Declaration reverted                       | Result                                                                                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `.sticker` back to `hidden`                | The flash returns (Firefox).                                                                                                   |
+| `.cubie-interior` back to `hidden`         | The cube body is open, so the far side shows through the seams. This is exactly what a partial fix produced in a real browser. |
+| `.cubie` re-gains an opaque background     | The centre-plane quad returns: it cannot seal the seams and paints over stickers at grazing angles.                            |
+| a sticker-backed wall loses its square arc | The seal becomes a function of the radius again, and the corner exposes a subpixel fringe of the stickers' antialiasing.       |
+
+**Correction (2026-09-24).** This record previously showed an "After" with
+`background-color` on `.cubie`, and its table asserted that losing that
+background would leak the far side. Both are now wrong: the cubie background was
+removed precisely because it could not seal the face-plane seams, and the seal
+moved onto the six `.cubie-interior` walls. The record is updated to the
+wall-based implementation so it cannot mislead the next fix in this area.
+
+**Measured, not reasoned (2026-09-24).** Whether the rounded corner of a
+sticker-backed wall leaks was settled by measurement rather than argument
+(`scripts/scratch-debug/junction-hole-probe.mjs`, Chromium **and** Firefox,
+3×3-7×7, driving the real app and diffing the shipped CSS against a squared-wall
+alternative with the declaration applied at runtime, verified applied before the
+result was accepted). Of the pixels the rounded corner exposed, **98.4 % were
+body `#222` or sticker border `#333`** — dark in both alternatives — and the
+remaining 1-2 pixels per cube were the stickers' antialiased corner fringe
+(`rgb(54,54,54)` → `rgb(48,48,48)`). So the squared wall closes a subpixel edge
+per facelet, not a far-side leak; it earns its place by making the seal
+independent of the radius, not by fixing a visible hole.
+
+A 2D reduction of the same scene reports a large leak and is **wrong**: with the
+perpendicular and back walls omitted, the background sits directly behind the
+hole. A cubie is a closed box, so the ray through a clipped corner lands on the
+far wall of the _same_ cubie — painted the same colour as the wall whose corner
+is clipped. Two instruments disagreeing was resolved by looking at the pixels,
+not by preferring the larger number.
 
 **Verification.** Confirmed in a real browser (Firefox and Edge): setting
 `backface-visibility: visible` at runtime removes the flash in both. At rest the
