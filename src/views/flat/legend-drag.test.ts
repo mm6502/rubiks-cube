@@ -85,6 +85,8 @@ describe('createLegendDragHandlers', () => {
             showDragLabel: vi.fn(),
             hideDragLabel: vi.fn(),
             hideCancellationZone: vi.fn(),
+            showDragCross: vi.fn(),
+            hideDragCross: vi.fn(),
             emitMove: vi.fn(),
         };
 
@@ -195,6 +197,7 @@ describe('createLegendDragHandlers', () => {
             expect(dragState.isDragging).toBe(false);
             expect(callbacks.hideDragLabel).toHaveBeenCalledOnce();
             expect(callbacks.hideCancellationZone).toHaveBeenCalledOnce();
+            expect(callbacks.hideDragCross).toHaveBeenCalledOnce();
             expect(legendEl.style.cursor).toBe('grab');
         });
 
@@ -207,6 +210,7 @@ describe('createLegendDragHandlers', () => {
 
             expect(callbacks.emitMove).not.toHaveBeenCalled();
             expect(dragState.isDragging).toBe(false);
+            expect(callbacks.hideDragCross).toHaveBeenCalledOnce();
         });
     });
 
@@ -229,6 +233,25 @@ describe('createLegendDragHandlers', () => {
             handlers.up(new PointerEvent('pointerup', { clientX: 300, clientY: 200 }));
             expect(callbacks.emitMove).toHaveBeenCalledWith("y'");
             expect(dragState.isDragging).toBe(false);
+        });
+
+        it('shows the decision cross on down and hides it on up', () => {
+            // The legend gesture had label + cancel-zone feedback but no
+            // decision indicator, while the Basic view's equivalent background
+            // drag had one. This pins the gap closed.
+            handlers.down(
+                new PointerEvent('pointerdown', {
+                    clientX: 100,
+                    clientY: 200,
+                    pointerId: 3,
+                    bubbles: true,
+                    cancelable: true,
+                })
+            );
+            expect(callbacks.showDragCross).toHaveBeenCalledWith(100, 200);
+
+            handlers.up(new PointerEvent('pointerup', { clientX: 100, clientY: 200 }));
+            expect(callbacks.hideDragCross).toHaveBeenCalledOnce();
         });
     });
 });

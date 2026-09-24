@@ -9,6 +9,7 @@ import { Axis } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { distance2 } from '@/cube/utils';
 import { normalize2 } from '@/cube/utils/math';
+import { placeLine } from '@/interaction/drag-decision-overlay';
 import type { DragGesture } from '@/interaction/types';
 
 import type { AxisCircle } from './svg-tools';
@@ -19,7 +20,6 @@ import {
     getAxisCircleKey,
     getNearestAxisByPoint,
     parseAxisCircleKey,
-    setLineFromBasis,
 } from './touch-handler-geometry';
 import {
     clearAxisSelections,
@@ -154,8 +154,8 @@ function showFretboardLines(
         y: center.y - perpDir.y * FRETBOARD_HALF_GAP_SVG,
     };
 
-    setLineFromBasis(state.fretboardLine1El, c1, radialDir, armLength);
-    setLineFromBasis(state.fretboardLine2El, c2, radialDir, armLength);
+    placeLine(state.fretboardLine1El, c1, radialDir, armLength);
+    placeLine(state.fretboardLine2El, c2, radialDir, armLength);
     state.fretboardGroupEl.setAttribute('visibility', 'visible');
 }
 

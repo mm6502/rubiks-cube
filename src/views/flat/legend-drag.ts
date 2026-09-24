@@ -21,6 +21,13 @@ export interface LegendDragCallbacks {
     showDragLabel(notation: string, x: number, y: number): void;
     hideDragLabel(): void;
     hideCancellationZone(): void;
+    /**
+     * Show the axis-aligned decision cross at the pointer. The legend gesture is
+     * read from screen direction alone, so the cross marks the four screen zones.
+     */
+    showDragCross(x: number, y: number): void;
+    /** Hide the decision cross. */
+    hideDragCross(): void;
     emitMove(notation: string): void;
 }
 
@@ -76,6 +83,7 @@ export function createLegendDragHandlers(
                 ? CANCEL_ZONE_RADIUS_BASE_PX * CANCEL_ZONE_TABBED_MULTIPLIER
                 : CANCEL_ZONE_RADIUS_BASE_PX
         );
+        cb.showDragCross(event.clientX, event.clientY);
     };
 
     const move = (event: PointerEvent): void => {
@@ -110,6 +118,7 @@ export function createLegendDragHandlers(
         dragState.isDragging = false;
         cb.hideDragLabel();
         cb.hideCancellationZone();
+        cb.hideDragCross();
         cb.legendElement.style.cursor = 'grab';
     };
 

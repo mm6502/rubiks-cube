@@ -8,6 +8,7 @@
 import { Axis, Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { normalize2 } from '@/cube/utils/math';
+import { computeCrossArms, placeLine } from '@/interaction/drag-decision-overlay';
 import { computeDragLabelPosition } from '@/interaction/drag-label-positioning';
 import { inferMoveFromDrag } from '@/interaction/move-inference';
 import { DragDirection } from '@/interaction/types';
@@ -15,11 +16,7 @@ import type { Point2D } from '@/interaction/types';
 
 import { type FaceScreenBasis, buildFaceScreenBasisFromHint } from './direction-mapping';
 import { clientToSvgPoint, svgToClientPoint } from './svg-tools';
-import {
-    computeBiasedBoundaries,
-    parseAxisCircleKey,
-    setLineFromBasis,
-} from './touch-handler-geometry';
+import { computeBiasedBoundaries, parseAxisCircleKey } from './touch-handler-geometry';
 import { buildCrossingBasisAtPoint, getLbdTrianglePoints } from './touch-handler-hit-testing';
 import {
     DRAG_CROSS_ARM_LENGTH_FLOATING,
@@ -105,19 +102,10 @@ export function showDragDecisionCross(
             ? DRAG_CROSS_ARM_LENGTH_TABBED
             : DRAG_CROSS_ARM_LENGTH_FLOATING;
 
-    const arm1Dir =
-        normalize2({
-            x: basis.upDir.x + basis.rightDir.x,
-            y: basis.upDir.y + basis.rightDir.y,
-        }) ?? basis.upDir;
-    const arm2Dir =
-        normalize2({
-            x: basis.upDir.x - basis.rightDir.x,
-            y: basis.upDir.y - basis.rightDir.y,
-        }) ?? basis.rightDir;
+    const { arm1: arm1Dir, arm2: arm2Dir } = computeCrossArms(basis);
 
-    setLineFromBasis(state.dragCrossPrimaryEl, center, arm1Dir, armLength);
-    setLineFromBasis(state.dragCrossSecondaryEl, center, arm2Dir, armLength);
+    placeLine(state.dragCrossPrimaryEl, center, arm1Dir, armLength);
+    placeLine(state.dragCrossSecondaryEl, center, arm2Dir, armLength);
     state.dragCrossSecondaryEl.removeAttribute('visibility');
     state.dragCrossGroupEl.setAttribute('visibility', 'visible');
 }
@@ -138,7 +126,7 @@ export function showDragDecisionLine(
             ? DRAG_CROSS_ARM_LENGTH_TABBED
             : DRAG_CROSS_ARM_LENGTH_FLOATING;
 
-    setLineFromBasis(state.dragCrossPrimaryEl, center, dir, armLength);
+    placeLine(state.dragCrossPrimaryEl, center, dir, armLength);
     state.dragCrossSecondaryEl.setAttribute('visibility', 'hidden');
     state.dragCrossGroupEl.setAttribute('visibility', 'visible');
 }

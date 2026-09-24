@@ -4,6 +4,12 @@ import type { CubeState, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { normalize2 } from '@/cube/utils/math';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import {
+    DRAG_CROSS_ARM_LENGTH_FLOATING,
+    DRAG_CROSS_ARM_LENGTH_TABBED,
+    type DragDecisionOverlay,
+    createDragDecisionOverlay,
+} from '@/interaction/drag-decision-overlay';
 import { computeDragLabelPosition } from '@/interaction/drag-label-positioning';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { inferMoveFromDrag, inferMoveFromFaceRotation, toFar } from '@/interaction/move-inference';
@@ -35,9 +41,6 @@ type StickerHit = {
 
 const DRAG_THRESHOLD_PX = 4;
 const FAR_DRAG_THRESHOLD_PX = 60;
-const DRAG_CROSS_ARM_LENGTH_FLOATING = 34;
-const DRAG_CROSS_ARM_LENGTH_TABBED = 64;
-const SVG_NS = 'http://www.w3.org/2000/svg';
 
 export type BasicTouchHandlerOptions = {
     /** The outer container element (host for abs-positioned overlays). */
@@ -138,9 +141,7 @@ export class BasicTouchHandler {
               leftMove: string;
           }
         | undefined;
-    private dragDecisionSvgEl: SVGSVGElement;
-    private dragDecisionPrimaryEl: SVGLineElement;
-    private dragDecisionSecondaryEl: SVGLineElement;
+    private readonly dragDecision: DragDecisionOverlay;
 
     private activeCommitDistancePx = CANCEL_ZONE_RADIUS_BASE_PX;
 
@@ -181,22 +182,14 @@ export class BasicTouchHandler {
         this.dragLabelEl.setAttribute('aria-hidden', 'true');
 
         // SVG overlay for drag decision cross / line indicator.
-        this.dragDecisionSvgEl = document.createElementNS(SVG_NS, 'svg') as SVGSVGElement;
-        this.dragDecisionSvgEl.style.cssText =
-            'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:20;';
-        this.dragDecisionSvgEl.setAttribute('aria-hidden', 'true');
-        this.dragDecisionSvgEl.setAttribute('visibility', 'hidden');
-        this.dragDecisionPrimaryEl = document.createElementNS(SVG_NS, 'line') as SVGLineElement;
-        this.dragDecisionPrimaryEl.classList.add(
-            this.styles['basic-drag-decision-arm'] ?? 'basic-drag-decision-arm'
+        this.dragDecision = createDragDecisionOverlay(
+            this.host,
+            this.styles['basic-drag-decision-arm'] ?? 'basic-drag-decision-arm',
+            () =>
+                this.layoutMode === LayoutMode.Tabbed
+                    ? DRAG_CROSS_ARM_LENGTH_TABBED
+                    : DRAG_CROSS_ARM_LENGTH_FLOATING
         );
-        this.dragDecisionSecondaryEl = document.createElementNS(SVG_NS, 'line') as SVGLineElement;
-        this.dragDecisionSecondaryEl.classList.add(
-            this.styles['basic-drag-decision-arm'] ?? 'basic-drag-decision-arm'
-        );
-        this.dragDecisionSecondaryEl.setAttribute('visibility', 'hidden');
-        this.dragDecisionSvgEl.appendChild(this.dragDecisionPrimaryEl);
-        this.dragDecisionSvgEl.appendChild(this.dragDecisionSecondaryEl);
 
         this.dragStateMachine = new DragStateMachine(
             {
@@ -230,7 +223,7 @@ export class BasicTouchHandler {
         this.host.appendChild(this.haloHitTargetEl);
         this.host.appendChild(this.haloCancelZoneEl);
         this.host.appendChild(this.dragLabelEl);
-        this.host.appendChild(this.dragDecisionSvgEl);
+        this.host.appendChild(this.dragDecision.element);
 
         this.host.addEventListener('pointerdown', this.onPointerDownBound);
         this.host.addEventListener('pointerleave', this.onPointerLeaveBound);
@@ -257,7 +250,7 @@ export class BasicTouchHandler {
         this.haloHitTargetEl.remove();
         this.haloCancelZoneEl.remove();
         this.dragLabelEl.remove();
-        this.dragDecisionSvgEl.remove();
+        this.dragDecision.remove();
     }
 
     resize(): void {
@@ -1007,18 +1000,6 @@ export class BasicTouchHandler {
     /**
      * Resolves a pointer position to a sticker hit on the cube.
      *
-     * Uses `document.elementFromPoint` to find the element under the
-     * pointer, then walks up to the nearest `.sticker` element.
-     * Extracts the sticker's face, grid position, and DOM id.
-     *
-     * Reads `data-basic-pos` for fast grid position when present; otherwise
-     * falls back to `CubeStateUtils.getStickerById` via `data-sticker-id`.
-     *
-     * @returns The resolved hit, or undefined if no sticker was found.
-     */
-    /**
-     * Resolves a pointer position to a sticker hit on the cube.
-     *
      * Uses `document.elementFromPoint` to find the element under the pointer,
      * then walks up to the nearest `.sticker` element. That element is used for
      * two things only: proving the pointer is on a sticker at all, and handing
@@ -1317,30 +1298,7 @@ export class BasicTouchHandler {
         clientX: number,
         clientY: number
     ): void {
-        const hostRect = this.host.getBoundingClientRect();
-        const cx = clientX - hostRect.left;
-        const cy = clientY - hostRect.top;
-        const armLength =
-            this.layoutMode === LayoutMode.Tabbed
-                ? DRAG_CROSS_ARM_LENGTH_TABBED
-                : DRAG_CROSS_ARM_LENGTH_FLOATING;
-
-        // Arms are the zone boundaries — bisectors between adjacent drag directions.
-        const arm1Dir =
-            normalize2({
-                x: basis.upDir.x + basis.rightDir.x,
-                y: basis.upDir.y + basis.rightDir.y,
-            }) ?? basis.upDir;
-        const arm2Dir =
-            normalize2({
-                x: basis.upDir.x - basis.rightDir.x,
-                y: basis.upDir.y - basis.rightDir.y,
-            }) ?? basis.rightDir;
-
-        setSvgLineFromCenter(this.dragDecisionPrimaryEl, { x: cx, y: cy }, arm1Dir, armLength);
-        setSvgLineFromCenter(this.dragDecisionSecondaryEl, { x: cx, y: cy }, arm2Dir, armLength);
-        this.dragDecisionSecondaryEl.removeAttribute('visibility');
-        this.dragDecisionSvgEl.removeAttribute('visibility');
+        this.dragDecision.showCross(basis, clientX, clientY);
     }
 
     /**
@@ -1348,23 +1306,13 @@ export class BasicTouchHandler {
      * indicating the CW/CCW rotation boundary for halo/face-direct drags.
      */
     private showDragDecisionLine(dir: Point2D, clientX: number, clientY: number): void {
-        const hostRect = this.host.getBoundingClientRect();
-        const cx = clientX - hostRect.left;
-        const cy = clientY - hostRect.top;
-        const armLength =
-            this.layoutMode === LayoutMode.Tabbed
-                ? DRAG_CROSS_ARM_LENGTH_TABBED
-                : DRAG_CROSS_ARM_LENGTH_FLOATING;
-
-        setSvgLineFromCenter(this.dragDecisionPrimaryEl, { x: cx, y: cy }, dir, armLength);
-        this.dragDecisionSecondaryEl.setAttribute('visibility', 'hidden');
-        this.dragDecisionSvgEl.removeAttribute('visibility');
+        this.dragDecision.showLine(dir, clientX, clientY);
     }
 
     /** Hide the drag decision overlay and clear `pendingStickerCross`. */
     private hideDragDecision(): void {
         this.pendingStickerCross = undefined;
-        this.dragDecisionSvgEl.setAttribute('visibility', 'hidden');
+        this.dragDecision.hide();
     }
 
     // -------------------------------------------------------------------------
@@ -1404,21 +1352,4 @@ export class BasicTouchHandler {
 function getElementCenter(element: HTMLElement): { x: number; y: number } {
     const rect = element.getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-}
-
-/**
- * Positions an SVG line so that it passes through a center point and
- * extends `armLength` pixels in both directions along the given unit vector.
- * Used by the drag decision cross and radial line overlays.
- */
-function setSvgLineFromCenter(
-    line: SVGLineElement,
-    center: Point2D,
-    dir: Point2D,
-    armLength: number
-): void {
-    line.setAttribute('x1', String(center.x - dir.x * armLength));
-    line.setAttribute('y1', String(center.y - dir.y * armLength));
-    line.setAttribute('x2', String(center.x + dir.x * armLength));
-    line.setAttribute('y2', String(center.y + dir.y * armLength));
 }

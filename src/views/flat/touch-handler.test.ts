@@ -20,6 +20,7 @@ const styles = {
     'flat-halo-hit-target': 'flat-halo-hit-target',
     'flat-halo-cancel-zone': 'flat-halo-cancel-zone',
     'flat-drag-label': 'flat-drag-label',
+    'flat-drag-decision-arm': 'flat-drag-decision-arm',
     'face-selected': 'face-selected',
 } as const;
 
@@ -623,9 +624,11 @@ function createFixture(): Fixture {
         return sticker;
     };
 
-    // pos=0 (top-left), pos=1 (same face), pos=4 (center)
+    // pos=0 (top-left), pos=1 (its right neighbour), pos=3 (its lower neighbour,
+    // needed for the indicator's basis), pos=4 (center)
     makeSticker('s0', '0');
     makeSticker('s1', '1');
+    makeSticker('s3', '3');
     makeSticker('s2', '4');
 
     const selectedCalls: Array<string | undefined> = [];

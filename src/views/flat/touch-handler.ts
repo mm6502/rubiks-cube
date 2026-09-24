@@ -1,5 +1,10 @@
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import {
+    DRAG_CROSS_ARM_LENGTH_FLOATING,
+    DRAG_CROSS_ARM_LENGTH_TABBED,
+    createDragDecisionOverlay,
+} from '@/interaction/drag-decision-overlay';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import {
     CANCEL_ZONE_RADIUS_BASE_PX,
@@ -25,9 +30,13 @@ import {
     cancelZoneRadiusPx,
     createOverlayElement,
     hideCancellationZone,
+    hideDragDecision,
     hideDragLabel,
     showCancellationZoneAtOrigin,
     showDragLabel,
+    showHaloGuideLine,
+    showStickerDragCross,
+    showWholeCubeDragCross,
     updateHaloPosition,
 } from './touch-handler-overlays';
 import {
@@ -63,6 +72,20 @@ export class FlatTouchHandler {
         const haloHitTargetEl = createOverlayElement(options.styles, 'flat-halo-hit-target');
         const haloCancelZoneEl = createOverlayElement(options.styles, 'flat-halo-cancel-zone');
         const dragLabelEl = createOverlayElement(options.styles, 'flat-drag-label');
+
+        // The drag-decision cross / line, built from the same shared overlay the
+        // Basic view uses — so "the Flat view shows the same indicator" is a
+        // property of one implementation rather than of two copies staying in step.
+        // The arm length is read lazily: the overlay only asks for it when it is
+        // shown, by which time `this.s` exists.
+        const dragDecision = createDragDecisionOverlay(
+            options.host,
+            options.styles['flat-drag-decision-arm'] ?? 'flat-drag-decision-arm',
+            () =>
+                this.s.layoutMode === LayoutMode.Tabbed
+                    ? DRAG_CROSS_ARM_LENGTH_TABBED
+                    : DRAG_CROSS_ARM_LENGTH_FLOATING
+        );
 
         const dragStateMachine = new DragStateMachine(
             {
@@ -102,6 +125,7 @@ export class FlatTouchHandler {
             haloHitTargetEl,
             haloCancelZoneEl,
             dragLabelEl,
+            dragDecision,
             haloFaceCenter: undefined,
             previousTouchAction: options.host.style.touchAction,
         };
@@ -120,6 +144,7 @@ export class FlatTouchHandler {
         this.s.host.appendChild(this.s.haloHitTargetEl);
         this.s.host.appendChild(this.s.haloCancelZoneEl);
         this.s.host.appendChild(this.s.dragLabelEl);
+        this.s.host.appendChild(this.s.dragDecision.element);
 
         this.s.host.addEventListener('pointerdown', this.onPointerDownBound);
         document.addEventListener('pointermove', this.onPointerMoveBound);
@@ -191,6 +216,7 @@ export class FlatTouchHandler {
         this.s.haloHitTargetEl.remove();
         this.s.haloCancelZoneEl.remove();
         this.s.dragLabelEl.remove();
+        this.s.dragDecision.remove();
     }
 
     /**
@@ -255,6 +281,7 @@ export class FlatTouchHandler {
             this.s.dragStateMachine.onPointerDown(event, {
                 rotationCenter: getElementCenter(this.s.haloHitTargetEl),
             });
+            showHaloGuideLine(this.s, event.clientX, event.clientY);
         } else if (this.s.startHit) {
             const faceElement = this.findFaceElement(this.s.startHit.stickerElement);
             const rotationCenter =
@@ -263,6 +290,13 @@ export class FlatTouchHandler {
                     : undefined;
 
             this.s.dragStateMachine.onPointerDown(event, { rotationCenter });
+            showStickerDragCross(
+                this.s,
+                this.s.startHit.face,
+                this.s.getCubeSize(),
+                event.clientX,
+                event.clientY
+            );
         } else {
             this.s.dragStateMachine.onPointerDown(event);
         }
@@ -326,6 +360,7 @@ export class FlatTouchHandler {
         this.s.selectedFaceGesture = false;
         this.s.startHit = undefined;
         this.hideCancellationZone();
+        hideDragDecision(this.s);
         this.restoreTempFaceState();
         this.s.host.releasePointerCapture?.(event.pointerId);
         this.s.host.style.cursor = '';
@@ -353,6 +388,7 @@ export class FlatTouchHandler {
         this.s.startHit = undefined;
         this.hideDragLabel();
         this.hideCancellationZone();
+        hideDragDecision(this.s);
         this.restoreTempFaceState();
         this.s.host.style.cursor = '';
     }
@@ -399,6 +435,23 @@ export class FlatTouchHandler {
     /** Shows the drag-direction label overlay near the given client coordinates. */
     showDragLabel(label: string, clientX: number, clientY: number): void {
         showDragLabel(this.s, label, clientX, clientY);
+    }
+
+    /**
+     * Shows the axis-aligned decision cross for a whole-cube legend drag.
+     *
+     * Axis-aligned rather than face-derived, because the legend gesture is read
+     * from the drag's screen direction alone — there is no face under it to give
+     * a basis. This matches the Basic view's background drag, which shows the
+     * same axis-aligned cross for the same reason.
+     */
+    showWholeCubeDragCross(clientX: number, clientY: number): void {
+        showWholeCubeDragCross(this.s, clientX, clientY);
+    }
+
+    /** Hides the drag-decision indicator (cross or line). */
+    hideDragDecision(): void {
+        hideDragDecision(this.s);
     }
 
     /** Hides the drag-direction label overlay. */

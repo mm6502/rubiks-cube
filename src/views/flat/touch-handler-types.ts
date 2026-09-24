@@ -1,5 +1,6 @@
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import type { DragDecisionOverlay } from '@/interaction/drag-decision-overlay';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { ViewInteractionAdapter } from '@/interaction/types';
 
@@ -102,6 +103,12 @@ export type FlatTouchHandlerState = {
     haloCancelZoneEl: HTMLDivElement;
     /** Floating label that previews the inferred move notation during a drag. */
     dragLabelEl: HTMLDivElement;
+    /**
+     * The drag-decision indicator — the cross or single line that shows which way
+     * the gesture is resolving. The same shared overlay the Basic view uses, so
+     * the two views give identical feedback for the same gesture.
+     */
+    dragDecision: DragDecisionOverlay;
     /** Cached screen-space center and size of the selected face, used for rotation direction inference. */
     haloFaceCenter: { x: number; y: number; size: number } | undefined;
 

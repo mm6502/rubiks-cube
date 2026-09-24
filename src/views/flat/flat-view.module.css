@@ -148,6 +148,15 @@
     z-index: 20;
 }
 
+/* Arms of the drag decision cross / line indicator */
+.flat-drag-decision-arm {
+    stroke: var(--color-drag-halo-zone-stroke);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 7 5;
+    filter: drop-shadow(0 0 2px var(--color-shadow-backdrop));
+}
+
 /* Legend */
 .flat-legend {
     position: absolute;

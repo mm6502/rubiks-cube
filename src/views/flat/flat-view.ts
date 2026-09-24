@@ -210,6 +210,8 @@ export class FlatView implements CubeView {
             showDragLabel: (n, x, y) => this.touchHandler?.showDragLabel(n, x, y),
             hideDragLabel: () => this.touchHandler?.hideDragLabel(),
             hideCancellationZone: () => this.touchHandler?.hideCancellationZone(),
+            showDragCross: (x, y) => this.touchHandler?.showWholeCubeDragCross(x, y),
+            hideDragCross: () => this.touchHandler?.hideDragDecision(),
             emitMove: notation =>
                 Application.eventBus.emit(EventName.MOVE_REQUESTED, {
                     moveNotation: notation,

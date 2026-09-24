@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { Axis, Face } from '@/cube/types';
+import { placeLine } from '@/interaction/drag-decision-overlay';
 import { DragDirection, HitKind } from '@/interaction/types';
 
 import type { AxisCircle } from './svg-tools';
@@ -18,7 +19,6 @@ import {
     isPointInTriangle,
     orientedTangentAtPoint,
     parseAxisCircleKey,
-    setLineFromBasis,
 } from './touch-handler-geometry';
 
 // ── Test helpers ────────────────────────────────────────────────────────────
@@ -27,12 +27,12 @@ function makeCircle(axis: Axis, layer: number, cx = 0, cy = 0, r = 50): AxisCirc
     return { id: `${axis}-${layer}`, axis, layer, cx, cy, r };
 }
 
-// ── setLineFromBasis ────────────────────────────────────────────────────────
+// ── placeLine ───────────────────────────────────────────────────────────────
 
-describe('setLineFromBasis', () => {
+describe('placeLine', () => {
     it('should set line attributes from center, axis direction and arm length', () => {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        setLineFromBasis(line, { x: 100, y: 100 }, { x: 1, y: 0 }, 50);
+        placeLine(line, { x: 100, y: 100 }, { x: 1, y: 0 }, 50);
 
         expect(line.getAttribute('x1')).toBe('50');
         expect(line.getAttribute('y1')).toBe('100');
@@ -43,7 +43,7 @@ describe('setLineFromBasis', () => {
     it('should handle diagonal axis direction', () => {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         const dir = { x: 0, y: 1 };
-        setLineFromBasis(line, { x: 50, y: 50 }, dir, 30);
+        placeLine(line, { x: 50, y: 50 }, dir, 30);
 
         expect(line.getAttribute('x1')).toBe('50');
         expect(line.getAttribute('y1')).toBe('20');
