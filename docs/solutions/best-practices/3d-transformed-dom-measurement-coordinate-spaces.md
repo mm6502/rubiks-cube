@@ -150,9 +150,17 @@ device pixels exactly).
 
 ## Related Issues
 
+- `docs/solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md` —
+  **the defect record for the stripes this rule was derived from.** That doc
+  owns the bug's status, the measured DPR border-snapping mechanism, and the
+  untested fix candidates; this doc owns the measurement convention and does not
+  restate them.
+- `docs/plans/firefox-basic-artifact-repro-procedure.md` — the operational
+  runbook (launch command, Marionette protocol, reference measurements).
 - `docs/solutions/ui-bugs/backface-culling-flash-during-view-rotation.md` — the
   sibling Firefox-only 3D defect in the same view; same "Firefox resolves a
   near-zero 3D case differently" family.
-- The artifact itself is **not fixed**. The stripes are not on screen in the
-  state captured, so the bug is still open; the DPR border-snapping mechanism
-  above is measured but not yet confirmed as the cause of the stripes.
+- The artifact itself is **not fixed** as of 2026-09-24. The stripes were absent
+  in the state captured for measurement, so the DPR border-snapping mechanism
+  described here was derived from a clean render and is **not yet confirmed as
+  the cause of the stripes**. See the defect record above for what remains open.
