@@ -9,8 +9,8 @@ import {
     animateMove,
     animateRotation,
     finalizeLayer,
-    getLayerCubieElements,
 } from './animations';
+import { getLayerCubieElements } from './cubie-rendering';
 
 describe('basic-2 animations', () => {
     afterEach(() => {
@@ -31,6 +31,46 @@ describe('basic-2 animations', () => {
 
         expect(result).toHaveLength(1);
         expect(result[0]).toBe(matched);
+    });
+
+    it('still finds a layer whose cubies have been rehomed into a pivot', () => {
+        // The trap this guards: during a layer animation `animateLayer` MOVES the moving
+        // cubies out of the cube element and into a pivot div nested inside it. A lookup
+        // that walked only direct children would silently find NOTHING mid-move, and the
+        // animation would lose its elements at exactly the moment they matter. The
+        // descendant walk is what makes this work, so it is pinned rather than assumed.
+        const cubeElement = document.createElement('div');
+        const pivot = document.createElement('div');
+        cubeElement.appendChild(pivot);
+
+        const cubie = document.createElement('div');
+        cubie.setAttribute('data-cubie-id', 'cubie-1');
+        pivot.appendChild(cubie);
+
+        expect(cubeElement.children).toHaveLength(1);
+        expect(cubie.parentElement).toBe(pivot);
+
+        const result = getLayerCubieElements(['cubie-1'], cubeElement);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBe(cubie);
+    });
+
+    it('returns one element per id, all in a single index pass', () => {
+        // The index is built once per call, so a large layer must not degrade into a
+        // lookup per cubie. Asserted by construction: every requested id that exists is
+        // returned exactly once, in the order asked for.
+        const cubeElement = document.createElement('div');
+        const ids = ['c1', 'c2', 'c3', 'c4'];
+        for (const id of ids) {
+            const el = document.createElement('div');
+            el.setAttribute('data-cubie-id', id);
+            cubeElement.appendChild(el);
+        }
+
+        const result = getLayerCubieElements(['c3', 'missing', 'c1', 'c4'], cubeElement);
+
+        expect(result.map(el => el.getAttribute('data-cubie-id'))).toEqual(['c3', 'c1', 'c4']);
     });
 
     it('creates a pivot, rehomes cubies, and forwards animation options', () => {

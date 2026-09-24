@@ -45,14 +45,14 @@ function createFixture(): Fixture {
     // Build a face div with the required attributes
     const faceEl = document.createElement('div');
     faceEl.className = styles.face;
-    faceEl.setAttribute('data-basic-face', Face.F);
+    faceEl.setAttribute('data-face', Face.F);
     cubeEl.appendChild(faceEl);
 
     // Stickers for F face (3×3 = 9), needed for face-basis + hit detection
     for (let i = 0; i < 9; i++) {
         const el = document.createElement('div');
         el.className = styles.sticker;
-        el.setAttribute('data-basic-face', Face.F);
+        el.setAttribute('data-face', Face.F);
         el.setAttribute('data-basic-pos', String(i));
         el.setAttribute('data-sticker-id', `F-${i}`);
         faceEl.appendChild(el);

@@ -344,8 +344,8 @@ export class BasicView implements CubeView {
 
         // Create ghost stickers on the ghost-anchor wrapper (scoped root),
         // not the whole cube element — the shared GhostStickers module's
-        // data-basic-face query would otherwise be ambiguous against cubie
-        // sticker divs that share the same attribute shape.
+        // data-face query would otherwise be ambiguous against cubie sticker
+        // and interior divs that share the same attribute.
         /* c8 ignore if — cubeElement/ghostAnchorContainer always created in initialization */
         if (this.state.cubeElement && this.state.ghostAnchorContainer) {
             this.ghostStickers = new GhostStickers(
@@ -642,6 +642,9 @@ export class BasicView implements CubeView {
     }
 
     resize(): void {
+        // Settle any in-flight move so the resize never rescales cubies that are
+        // reparented inside an animation pivot, and never leaves a pivot attached.
+        this.finalizeAnimation();
         resize(this.state);
         this.touchHandler?.resize();
     }

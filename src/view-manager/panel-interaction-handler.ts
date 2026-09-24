@@ -25,6 +25,20 @@ export class PanelInteractionHandler {
     private readonly boundPointerMove: (e: PointerEvent) => void;
     private readonly boundPointerUp: () => void;
     private disposed: boolean = false;
+    /**
+     * Pending `requestAnimationFrame` handle for coalescing resize notifications.
+     * At most one frame is scheduled per drag: the first `pointermove` after a
+     * frame has run requests a new one; subsequent moves within that frame return
+     * early.  On `pointerup` the pending frame is cancelled and the resize is
+     * committed synchronously so the final panel dimensions are always applied.
+     */
+    private pendingResizeFrame: number | null = null;
+    /**
+     * Panel element captured at the time the resize frame was scheduled, so
+     * `endDragOrResize` can still resolve the active view after the drag state
+     * has been cleared.
+     */
+    private resizePanelAtSchedule: HTMLElement | null = null;
     private dragState: {
         isDragging: boolean;
         isResizing: boolean;
@@ -107,6 +121,11 @@ export class PanelInteractionHandler {
     dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
+        if (this.pendingResizeFrame !== null) {
+            cancelAnimationFrame(this.pendingResizeFrame);
+            this.pendingResizeFrame = null;
+        }
+        this.resizePanelAtSchedule = null;
         this.visualizationsContainer.removeEventListener('pointerdown', this.boundPointerDown);
         document.removeEventListener('pointermove', this.boundPointerMove);
         document.removeEventListener('pointerup', this.boundPointerUp);
@@ -302,15 +321,44 @@ export class PanelInteractionHandler {
             newY = this.dragState.initialY + (this.dragState.initialHeight - newHeight);
         }
 
-        // Apply new dimensions
+        // Apply new dimensions (per-event so the drag feels direct).
         this.dragState.panel.style.left = `${newX}px`;
         this.dragState.panel.style.top = `${newY}px`;
         this.dragState.panel.style.width = `${newWidth}px`;
         this.dragState.panel.style.height = `${newHeight}px`;
 
-        // Notify the view that it has been resized
-        if (activeView && activeView.view.resize) {
-            activeView.view.resize();
+        // Coalesce the resize notification to at most one per animation frame.
+        if (this.pendingResizeFrame !== null) {
+            // A frame is already scheduled for this drag — this event is coalesced.
+            return;
+        }
+
+        // Capture the panel at schedule time; it may be removed before the frame fires.
+        this.resizePanelAtSchedule = this.dragState.panel;
+
+        this.pendingResizeFrame = requestAnimationFrame(() => {
+            this.pendingResizeFrame = null;
+            this.flushResize(this.resizePanelAtSchedule);
+            this.resizePanelAtSchedule = null;
+        });
+    }
+
+    /**
+     * Commits the resize that the coalesced frame callback invokes.
+     * Wraps the view call in a try/catch so a throwing `resize()` cannot
+     * break the drag gesture.
+     */
+    private flushResize(panel: HTMLElement | null): void {
+        if (!panel) return;
+        const viewType = panel.id.replace('-panel', '');
+        const activeView = this.activeViews.get(viewType);
+        if (!activeView || !activeView.view) return;
+        const view = activeView.view;
+        if (!view.resize) return;
+        try {
+            view.resize();
+        } catch (err) {
+            logger.warn('Error resizing view during drag', err);
         }
     }
 
@@ -318,6 +366,16 @@ export class PanelInteractionHandler {
      * Ends the current drag or resize operation and saves the panel state
      */
     private endDragOrResize(): void {
+        // If a resize frame is still pending, cancel it and commit the final
+        // dimensions synchronously so the gesture ends at the last pointermove
+        // size rather than the second-to-last one.
+        if (this.pendingResizeFrame !== null) {
+            cancelAnimationFrame(this.pendingResizeFrame);
+            this.flushResize(this.resizePanelAtSchedule);
+            this.pendingResizeFrame = null;
+            this.resizePanelAtSchedule = null;
+        }
+
         if (this.dragState.panel) {
             this.dragState.panel.classList.remove(this.styles.dragging, this.styles.resizing);
 

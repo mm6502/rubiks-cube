@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Face } from '@/cube/types';
 
 import * as cubieRendering from './cubie-rendering';
-import { getLayerCubieElements } from './animations';
 import type { BasicViewInternalData } from './basic-view';
+import { getLayerCubieElements } from './cubie-rendering';
 import {
     getMinimumSize,
     getVisibleFacesWithPositions,
@@ -17,6 +17,17 @@ import {
     updateRotation,
     updateSize,
 } from './rendering';
+
+// Mock only initializeCubies and resizeCubies; delegate everything else to the real module.
+vi.mock('./cubie-rendering', async () => {
+    const actual = await vi.importActual<typeof import('./cubie-rendering')>('./cubie-rendering');
+    return {
+        __esModule: true,
+        ...actual,
+        initializeCubies: vi.fn(),
+        resizeCubies: vi.fn(),
+    };
+});
 
 const styles: Record<string, string> = {
     'ghost-anchor-container': 'ghost-anchor-container',
@@ -52,6 +63,11 @@ describe('rendering - initializeGhostAnchors', () => {
     beforeEach(() => {
         cubeElement = document.createElement('div');
         state = makeState(cubeElement);
+        // Reset mock calls each test.
+        (cubieRendering.initializeCubies as any).mockReset();
+        (cubieRendering.resizeCubies as any).mockReset();
+        (cubieRendering.initializeCubies as any).mockImplementation(() => {});
+        (cubieRendering.resizeCubies as any).mockImplementation(() => false);
     });
 
     it('does nothing when cubeElement is null', () => {
@@ -66,10 +82,10 @@ describe('rendering - initializeGhostAnchors', () => {
         const wrapper = cubeElement.querySelector('.ghost-anchor-container');
         expect(wrapper).not.toBeNull();
 
-        const anchors = wrapper!.querySelectorAll('[data-basic-face]');
+        const anchors = wrapper!.querySelectorAll('[data-face]');
         expect(anchors).toHaveLength(6);
 
-        const faces = Array.from(anchors).map(el => el.getAttribute('data-basic-face'));
+        const faces = Array.from(anchors).map(el => el.getAttribute('data-face'));
         expect(new Set(faces)).toEqual(new Set([Face.F, Face.B, Face.U, Face.D, Face.L, Face.R]));
 
         anchors.forEach(el => {
@@ -84,7 +100,7 @@ describe('rendering - initializeGhostAnchors', () => {
         initializeGhostAnchors(state, 300);
 
         const anchorFor = (face: Face) =>
-            cubeElement.querySelector(`[data-basic-face="${face}"]`) as HTMLElement;
+            cubeElement.querySelector(`[data-face="${face}"]`) as HTMLElement;
 
         expect(anchorFor(Face.F).style.transform).toBe('translateZ(150px)');
         expect(anchorFor(Face.B).style.transform).toBe('rotateY(180deg) translateZ(150px)');
@@ -99,18 +115,18 @@ describe('rendering - initializeGhostAnchors', () => {
         initializeGhostAnchors(state, 300);
 
         expect(cubeElement.querySelectorAll('.ghost-anchor-container')).toHaveLength(1);
-        expect(cubeElement.querySelectorAll('[data-basic-face]')).toHaveLength(6);
+        expect(cubeElement.querySelectorAll('[data-face]')).toHaveLength(6);
     });
 
     it('updates size and transform when resized', () => {
         initializeGhostAnchors(state, 300);
         initializeGhostAnchors(state, 450);
 
-        const anchorF = cubeElement.querySelector('[data-basic-face="F"]') as HTMLElement;
+        const anchorF = cubeElement.querySelector('[data-face="F"]') as HTMLElement;
         expect(anchorF.style.width).toBe('450px');
         expect(anchorF.style.height).toBe('450px');
         expect(anchorF.style.transform).toBe('translateZ(225px)');
-        expect(cubeElement.querySelectorAll('[data-basic-face]')).toHaveLength(6);
+        expect(cubeElement.querySelectorAll('[data-face]')).toHaveLength(6);
     });
 
     it('stores the wrapper reference on state.ghostAnchorContainer', () => {
@@ -159,34 +175,68 @@ describe('rendering - initializeGhostAnchors', () => {
         expect(state.cubeElement!.style.transition).toBe('opacity 1s');
     });
 
-    it('recalculates cube size, rebuilds cubies, and exposes the minimum size', () => {
-        const initializeCubiesSpy = vi
-            .spyOn(cubieRendering, 'initializeCubies')
-            .mockImplementation(() => {});
+    it('recalculates cube size, rebuilds cubies (empty DOM), and exposes the minimum size', () => {
         state.container = document.createElement('div');
         Object.defineProperty(state.container, 'clientWidth', { configurable: true, value: 600 });
         Object.defineProperty(state.container, 'clientHeight', { configurable: true, value: 600 });
 
         updateSize(state);
-        expect(initializeCubiesSpy).toHaveBeenCalledWith(state, 330);
+        // Empty DOM means resizeCubies returns false, so initializeCubies is called.
+        expect(cubieRendering.initializeCubies).toHaveBeenCalledWith(state, 330);
         expect(getMinimumSize()).toEqual({ width: 300, height: 300 });
     });
 
+    it('resizes in place when the DOM matches the model', () => {
+        // Override resizeCubies to return true for this test.
+        (cubieRendering.resizeCubies as any).mockImplementation(() => true);
+
+        // Build a matching DOM: a populated cubeElement with cubies.
+        const cubieEl = document.createElement('div');
+        cubieEl.setAttribute('data-cubie-id', 'c-0-0-0');
+        cubieEl.style.width = '100px';
+        cubieEl.style.height = '100px';
+        cubeElement.appendChild(cubieEl);
+
+        // Provide a mock model so resizeCubies can verify the DOM against it.
+        const cubiesByPosition = new Map<string, any>();
+        cubiesByPosition.set('pos_00_00_00', {
+            id: 'c-0-0-0',
+            position: { x: 0, y: 0, z: 0 },
+            stickers: [],
+        });
+        state.model = {
+            getCurrentState: () => ({
+                cubeSize: 3,
+                cubiesByPosition,
+            }),
+        } as any;
+
+        state.container = document.createElement('div');
+        Object.defineProperty(state.container, 'clientWidth', { configurable: true, value: 600 });
+        Object.defineProperty(state.container, 'clientHeight', { configurable: true, value: 600 });
+
+        updateSize(state);
+
+        // resizeCubies was called and returned true (in-place succeeded).
+        expect(cubieRendering.resizeCubies).toHaveBeenCalled();
+        // initializeCubies was NOT called because in-place succeeded.
+        expect(cubieRendering.initializeCubies).not.toHaveBeenCalled();
+    });
+
     it('rebuilds the cubie DOM during update and delegates to resize', () => {
-        const initializeCubiesSpy = vi
-            .spyOn(cubieRendering, 'initializeCubies')
-            .mockImplementation(() => {});
         const existing = document.createElement('div');
         existing.setAttribute('data-cubie-id', 'cubie-1');
         cubeElement.appendChild(existing);
 
         update(state, {} as any);
 
-        expect(initializeCubiesSpy).toHaveBeenCalled();
+        expect(cubieRendering.initializeCubies).toHaveBeenCalled();
         expect(cubeElement.querySelectorAll('[data-cubie-id]')).toHaveLength(0);
 
+        // resize() calls updateSize which tries in-place first; the stray
+        // cubie element does not match the model, so it falls back to rebuild.
         resize(state);
-        expect(initializeCubiesSpy).toHaveBeenCalled();
+        expect(cubieRendering.initializeCubies).toHaveBeenCalled();
     });
 
     it('is excluded from getLayerCubieElements, which only matches [data-cubie-id]', () => {
@@ -198,25 +248,25 @@ describe('rendering - initializeGhostAnchors', () => {
         expect(result).toEqual([]);
 
         // Anchors themselves never carry data-cubie-id.
-        cubeElement.querySelectorAll('[data-basic-face]').forEach(el => {
+        cubeElement.querySelectorAll('[data-face]').forEach(el => {
             expect(el.hasAttribute('data-cubie-id')).toBe(false);
         });
     });
 
     it('scopes the shared query so it resolves to the anchor even when a stray sticker div shares the same attribute shape', () => {
         // Simulate a cubie sticker div sitting directly under cubeElement,
-        // sharing data-basic-face with no data-basic-pos — the exact shape
+        // sharing data-face with no data-basic-pos — the exact shape
         // GhostStickers queries for. It is NOT inside the wrapper.
         const strayStickerDiv = document.createElement('div');
         strayStickerDiv.className = 'sticker';
-        strayStickerDiv.setAttribute('data-basic-face', Face.F);
+        strayStickerDiv.setAttribute('data-face', Face.F);
         cubeElement.appendChild(strayStickerDiv);
 
         initializeGhostAnchors(state, 300);
 
         const wrapper = state.ghostAnchorContainer!;
         const resolved = wrapper.querySelector(
-            '[data-basic-face="F"]:not([data-basic-pos])'
+            '[data-face="F"]:not([data-basic-pos])'
         ) as HTMLElement;
 
         expect(resolved).not.toBeNull();

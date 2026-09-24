@@ -819,10 +819,10 @@ export class BasicTouchHandler {
             return;
         }
 
-        // Find the face <div> that has data-basic-face matching the selected face.
+        // Find the face <div> that has data-face matching the selected face.
         // The face div also carries the '.face' CSS Module class.
         const faceEl = this.host.querySelector(
-            `[data-basic-face="${this.selectedFace}"].${this.styles['face']}`
+            `[data-face="${this.selectedFace}"].${this.styles['face']}`
         ) as HTMLElement | null;
 
         if (!faceEl) {
@@ -870,7 +870,7 @@ export class BasicTouchHandler {
      */
     private positionHaloFromStickers(): void {
         const stickers = this.host.querySelectorAll(
-            `[data-basic-face="${this.selectedFace}"].${this.styles['sticker']}`
+            `[data-face="${this.selectedFace}"].${this.styles['sticker']}`
         );
 
         if (stickers.length === 0) {
@@ -939,7 +939,7 @@ export class BasicTouchHandler {
 
     /**
      * Applies the `face-selected` CSS class to every sticker whose
-     * `data-basic-face` matches the currently selected face.
+     * `data-face` matches the currently selected face.
      *
      * Removes the class from all other stickers.
      * No-op in views that lack a `face-selected` CSS class.
@@ -955,7 +955,7 @@ export class BasicTouchHandler {
 
         stickers.forEach(node => {
             const el = node as HTMLElement;
-            const face = el.getAttribute('data-basic-face') as Face | null;
+            const face = el.getAttribute('data-face') as Face | null;
             if (face && this.selectedFace && face === this.selectedFace) {
                 el.classList.add(faceSelected);
             } else {
@@ -988,7 +988,7 @@ export class BasicTouchHandler {
         const stickerEl = element.closest(`.${stickerClass}`) as HTMLElement | null;
         if (!stickerEl || !this.host.contains(stickerEl)) return undefined;
 
-        const face = stickerEl.getAttribute('data-basic-face') as Face | null;
+        const face = stickerEl.getAttribute('data-face') as Face | null;
         if (!face) return undefined;
 
         const posText = stickerEl.getAttribute('data-basic-pos');
@@ -1125,13 +1125,13 @@ export class BasicTouchHandler {
         cubeSize: number
     ): { upDir: Point2D; rightDir: Point2D } | undefined {
         let s00 = this.host.querySelector(
-            `[data-basic-face="${face}"][data-basic-pos="0"]`
+            `[data-face="${face}"][data-basic-pos="0"]`
         ) as HTMLElement | null;
         let s01 = this.host.querySelector(
-            `[data-basic-face="${face}"][data-basic-pos="1"]`
+            `[data-face="${face}"][data-basic-pos="1"]`
         ) as HTMLElement | null;
         let s10 = this.host.querySelector(
-            `[data-basic-face="${face}"][data-basic-pos="${cubeSize}"]`
+            `[data-face="${face}"][data-basic-pos="${cubeSize}"]`
         ) as HTMLElement | null;
 
         // Fallback: resolve via CubeStateUtils when data-basic-pos is absent.

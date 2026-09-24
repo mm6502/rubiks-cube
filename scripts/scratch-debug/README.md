@@ -10,6 +10,20 @@ This folder holds the checks that cannot live in the test suite:
 - `verify-tilt-animation.mjs` — drives the **dev server** and checks that a
   tilt/pitch toggle actually starts an animation, with a mid-flight sample that
   distinguishes an interpolated ramp from a snap.
+- `junction-hole-probe.mjs` — answers whether rounding `.cubie-interior` walls
+  leaves a _visible_ hole at the cubie junctions, by diffing the **built app**
+  in a real browser with the shipped walls rounded against a squared-wall
+  alternative. Kept here because the answer is a colour classification of
+  rendered pixels, which jsdom cannot produce, and because it holds a
+  correction: a 2D reduction of the same scene reports a large leak and is
+  wrong. See its header for the controls it refuses to report without.
+
+Subfolders hold instruments for a _different_ defect, kept separate so this
+folder's scope stays readable:
+
+- `firefox-basic-artifact/` — measuring the Firefox-only Basic-view stripes
+  (dark bands eating face colour on resize/move). DPR-dependent, so it cannot be
+  reproduced in Playwright's browsers; see that folder's `README.md`.
 
 ## Why this exists at all
 

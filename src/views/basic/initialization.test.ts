@@ -52,9 +52,9 @@ describe('initialization - ghost-anchor wiring', () => {
         const wrapper = state.cubeElement!.querySelector('.ghost-anchor-container');
         expect(wrapper).not.toBeNull();
 
-        const anchors = wrapper!.querySelectorAll('[data-basic-face]');
+        const anchors = wrapper!.querySelectorAll('[data-face]');
         expect(anchors).toHaveLength(6);
-        const faces = Array.from(anchors).map(el => el.getAttribute('data-basic-face'));
+        const faces = Array.from(anchors).map(el => el.getAttribute('data-face'));
         expect(new Set(faces)).toEqual(new Set([Face.F, Face.B, Face.U, Face.D, Face.L, Face.R]));
     });
 

@@ -3,6 +3,7 @@ import { Axis, QuarterTurn } from '@/cube/types';
 import type { Vector3 } from '@/cube/types';
 import { MoveExecutedEvent } from '@/types';
 
+import { getLayerCubieElements } from './cubie-rendering';
 import { axisToCss } from './rotation-math';
 
 /**
@@ -185,27 +186,6 @@ export type AnimateMoveResult = {
     pivot: HTMLElement;
     cubieElements: HTMLElement[];
 };
-
-/**
- * Get the cubie DOM elements that belong to a move's layer.
- *
- * Uses the cubie IDs from movedCubies.before (the authoritative set of cubies
- * currently in the layer) to look up DOM elements. This is correct across all
- * move sequences because cubie.id is a stable identity key while cubie.position
- * reflects the current location — the ID-coordinate filtering approach fails
- * after any move because IDs encode initial positions, not current positions.
- *
- * @param cubieIds - Stable cubie IDs in the layer (from movedCubies.before)
- * @param cubeElement - The cube DOM element
- * @returns Array of matching cubie elements
- */
-export function getLayerCubieElements(cubieIds: string[], cubeElement: HTMLElement): HTMLElement[] {
-    return cubieIds.reduce<HTMLElement[]>((acc, id) => {
-        const el = cubeElement.querySelector(`[data-cubie-id="${id}"]`) as HTMLElement | null;
-        if (el) acc.push(el);
-        return acc;
-    }, []);
-}
 
 /**
  * Animate a layer of cubies rotating around an axis using a pivot element.
