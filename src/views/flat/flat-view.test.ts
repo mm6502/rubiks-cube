@@ -9,7 +9,7 @@ import { EventName, MoveExecutedEvent } from '@/types';
 
 import { FlatView } from './flat-view';
 import styles from './flat-view.module.css';
-import { inferLegendMove } from './legend-drag';
+import { inferWholeCubeDirection } from './whole-cube';
 
 const R_DEF = { name: 'R', axis: Axis.X, layerIndices: [2], angle: QuarterTurn.QUARTER };
 
@@ -783,45 +783,45 @@ describe('FlatView', () => {
             expect(emitSpy).not.toHaveBeenCalledWith(EventName.MOVE_REQUESTED, expect.anything());
         });
 
-        it("inferLegendMove: non-rotated horizontal right → y'", () => {
+        it("inferWholeCubeDirection: non-rotated horizontal right → y'", () => {
             // Force non-rotated mode
             Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
             view['handleResize']();
             expect(view['state'].isRotated).toBe(false);
 
             // drag right
-            const result = inferLegendMove(50, 5, false);
+            const result = inferWholeCubeDirection(50, 5, false);
             expect(result).toBe("y'");
 
             // Restore
             Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
         });
 
-        it('inferLegendMove: non-rotated horizontal left → y', () => {
+        it('inferWholeCubeDirection: non-rotated horizontal left → y', () => {
             Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
             view['handleResize']();
 
-            const result = inferLegendMove(-50, 5, false);
+            const result = inferWholeCubeDirection(-50, 5, false);
             expect(result).toBe('y');
 
             Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
         });
 
-        it("inferLegendMove: non-rotated vertical down → x'", () => {
+        it("inferWholeCubeDirection: non-rotated vertical down → x'", () => {
             Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
             view['handleResize']();
 
-            const result = inferLegendMove(5, 50, false);
+            const result = inferWholeCubeDirection(5, 50, false);
             expect(result).toBe("x'");
 
             Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
         });
 
-        it('inferLegendMove: non-rotated vertical up → x', () => {
+        it('inferWholeCubeDirection: non-rotated vertical up → x', () => {
             Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
             view['handleResize']();
 
-            const result = inferLegendMove(5, -50, false);
+            const result = inferWholeCubeDirection(5, -50, false);
             expect(result).toBe('x');
 
             Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });

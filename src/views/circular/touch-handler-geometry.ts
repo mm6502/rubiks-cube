@@ -15,21 +15,6 @@ import {
 import { buildFaceScreenBasisByFace, mapDirectionToFaceBasis } from './direction-mapping';
 import type { AxisCircle } from './svg-tools';
 
-// ── SVG line helper ─────────────────────────────────────────────────────────
-
-/** Position an SVG `<line>` symmetrically about `center` along `axisDir`, extending `arm` pixels in each direction. */
-export function setLineFromBasis(
-    line: SVGLineElement,
-    center: Point2D,
-    axisDir: Point2D,
-    arm: number
-): void {
-    line.setAttribute('x1', `${center.x - axisDir.x * arm}`);
-    line.setAttribute('y1', `${center.y - axisDir.y * arm}`);
-    line.setAttribute('x2', `${center.x + axisDir.x * arm}`);
-    line.setAttribute('y2', `${center.y + axisDir.y * arm}`);
-}
-
 // ── Axis center / nearest-axis utilities ────────────────────────────────────
 
 /** Build a lookup from each axis to its center point (taken from the first circle of that axis). */

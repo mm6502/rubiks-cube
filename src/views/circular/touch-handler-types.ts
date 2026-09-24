@@ -1,6 +1,11 @@
 import { Axis, Face } from '@/cube/types';
 import type { CubeState } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import type {
+    CancelZoneOverlay,
+    DragDecisionOverlay,
+    ParallelGuideOverlay,
+} from '@/interaction/drag-decision-overlay';
 import type { DragStateMachine } from '@/interaction/drag-state-machine';
 import {
     CANCEL_ZONE_RADIUS_BASE_PX,
@@ -115,16 +120,33 @@ export const COMMIT_DISTANCE_PX = CANCEL_ZONE_RADIUS_BASE_PX;
 export const COMMIT_DISTANCE_TABBED_PX = CANCEL_ZONE_RADIUS_BASE_PX * CANCEL_ZONE_TABBED_MULTIPLIER;
 /** Max SVG-space distance from a touch point to qualify as "near" a circle crossing (for basis computation). */
 export const CROSSING_PROXIMITY_MAX_SVG = 12;
-/** Length of each arm of the drag-decision cross in floating layout (SVG units). */
-export const DRAG_CROSS_ARM_LENGTH_FLOATING = 34;
-/** Length of each arm of the drag-decision cross in tabbed layout (SVG units). */
-export const DRAG_CROSS_ARM_LENGTH_TABBED = 64;
+// The guide-line arm lengths live in `@/interaction/drag-decision-overlay`, which is
+// where the geometry they describe is implemented. They were once duplicated here,
+// and the cross read one copy while the fretboard read the other — the two agreeing
+// only because two literals happened to match. Re-exported so existing importers in
+// this view keep working without a second source of truth.
+export {
+    DRAG_CROSS_ARM_LENGTH_FLOATING,
+    DRAG_CROSS_ARM_LENGTH_TABBED,
+} from '@/interaction/drag-decision-overlay';
 /** Pixel movement before a pointer-down is promoted to a drag gesture. */
 export const DRAG_THRESHOLD_PX = 4;
 /** Pixel distance beyond which a drag produces a double-move notation (e.g. `R2`). */
 export const FAR_DRAG_THRESHOLD_PX = 70;
-/** Half the perpendicular distance between the two fretboard guide lines (SVG units). */
-export const FRETBOARD_HALF_GAP_SVG = 5;
+/**
+ * Half the perpendicular distance between the two fretboard guide rails, in
+ * **screen pixels**.
+ *
+ * This is the one authoritative fretboard width. It is a screen length because
+ * the rails are drawn on a fixed viewport layer: drawn inside the SVG they were
+ * scaled by the zoom transform, so at 0.2x the gap fell to about 1px and the
+ * guide the user was supposed to track vanished exactly when they needed it.
+ *
+ * The gesture's drift tolerance is derived from this value, not declared
+ * separately — see `fretboardHalfGapViewBox`. Two constants for one concept is
+ * what let the drawn band and the honoured band drift apart before.
+ */
+export const FRETBOARD_HALF_GAP_PX = 5;
 /** Sentinel key for fretboardHighlightKey meaning "outside all circles → whole-cube zone". */
 export const FRETBOARD_BG_KEY = 'BG';
 
@@ -164,20 +186,38 @@ export type TouchHandlerState = {
     readonly faceOverlayEl: SVGEllipseElement;
     /** Floating HTML label that shows the inferred move notation during a drag. */
     readonly dragLabelEl: HTMLDivElement;
-    /** SVG circle shown at the pointer-down position as a cancel/commit threshold indicator. */
-    readonly cancelZoneEl: SVGCircleElement;
-    /** SVG group containing the two drag-decision cross arms. */
-    readonly dragCrossGroupEl: SVGGElement;
-    /** Primary arm of the drag-decision cross (bisector between UP/RIGHT zones). */
-    readonly dragCrossPrimaryEl: SVGLineElement;
-    /** Secondary arm of the drag-decision cross (bisector between UP/LEFT zones). */
-    readonly dragCrossSecondaryEl: SVGLineElement;
-    /** SVG group containing the two parallel fretboard guide lines. */
-    readonly fretboardGroupEl: SVGGElement;
-    /** First parallel fret guide line (offset perpendicular from the radial axis). */
-    readonly fretboardLine1El: SVGLineElement;
-    /** Second parallel fret guide line (offset perpendicular from the radial axis). */
-    readonly fretboardLine2El: SVGLineElement;
+    /**
+     * The commit-threshold ring shown at pointer-down, as a fixed viewport layer.
+     *
+     * Deliberately not an SVG child. A root `<svg>` clips to its own element box,
+     * and the Circular view's box is the *canvas* — which shrinks with the zoom and
+     * can be a small rectangle centred in a much larger panel. A gesture started in
+     * the empty space around it then drew its ring outside the canvas and showed
+     * nothing, while the cross and rails (already on the body) survived the same
+     * gesture. Keeping it in the SVG also tied its stroke width to the zoom, which
+     * rendered a hairline when zoomed out and a blob when zoomed in.
+     */
+    readonly cancelZone: CancelZoneOverlay;
+    /**
+     * The drag-decision indicator: a fixed, viewport-anchored overlay on the body.
+     *
+     * Deliberately not an SVG child. Inside the SVG it was clipped by the
+     * `viewBox` and scaled by the zoom transform, so at 0.2x an arm that is 70px
+     * at 1x rendered 14px — and a gesture made against the panel edge lost the
+     * indicator entirely. As a screen-space overlay it is neither.
+     */
+    readonly dragDecision: DragDecisionOverlay;
+    /**
+     * The two parallel fretboard rails, as a fixed viewport layer on the body.
+     *
+     * Same reasoning as {@link dragDecision}: as SVG children they were both
+     * clipped by the viewBox and scaled by the zoom. A gesture made on the empty
+     * border of a zoomed-out view then drew its rails tens of viewBox units away
+     * from the visible canvas and a fraction of a pixel wide — the user got no
+     * feedback at all. As a screen-space overlay at every zoom the rails are the
+     * same size and always where the pointer is.
+     */
+    readonly fretboardRails: ParallelGuideOverlay;
     /** Per-axis debug annular bands with clip paths for proximity hit visualisation. */
     readonly axisDetectionBands: Map<Axis, { bandEl: SVGPathElement; clipEl: SVGClipPathElement }>;
 

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { Axis } from '@/cube/types';
+import {
+    createCancelZoneOverlay,
+    createParallelGuideOverlay,
+} from '@/interaction/drag-decision-overlay';
 
 import type { AxisCircle } from './svg-tools';
 import {
@@ -44,13 +48,11 @@ function createMinimalState(overrides?: Partial<TouchHandlerState>): TouchHandle
         haloEl: createSvgEl('ellipse'),
         faceOverlayEl: createSvgEl('ellipse'),
         dragLabelEl: document.createElement('div'),
-        cancelZoneEl: createSvgEl('circle'),
+        cancelZone: createCancelZoneOverlay('test-ring'),
         dragCrossGroupEl: createSvgEl('g'),
         dragCrossPrimaryEl: createSvgEl('line'),
         dragCrossSecondaryEl: createSvgEl('line'),
-        fretboardGroupEl: createSvgEl('g'),
-        fretboardLine1El: createSvgEl('line'),
-        fretboardLine2El: createSvgEl('line'),
+        fretboardRails: createParallelGuideOverlay('test-rail'),
         axisDetectionBands: new Map(),
         selectedFace: undefined,
         selectedAxisCircles: new Set<string>(),
@@ -113,7 +115,7 @@ describe('fretboardPerpDistancePx', () => {
 // ── hideFretboard ───────────────────────────────────────────────────────────
 
 describe('hideFretboard', () => {
-    it('should hide the fretboard group and clear state', () => {
+    it('should hide the fretboard rails and clear state', () => {
         const state = createMinimalState({
             fretboardAxis: Axis.X,
             fretboardAxisGroup: [],
@@ -124,7 +126,7 @@ describe('hideFretboard', () => {
 
         hideFretboard(state);
 
-        expect(state.fretboardGroupEl.getAttribute('visibility')).toBe('hidden');
+        expect(state.fretboardRails.element.getAttribute('visibility')).toBe('hidden');
         expect(state.fretboardAxis).toBeUndefined();
         expect(state.fretboardAxisGroup).toBeUndefined();
         expect(state.fretboardBoundaries).toBeUndefined();
@@ -322,5 +324,172 @@ describe('restoreFretboardState', () => {
         const state = createMinimalState();
         restoreFretboardState(state);
         expect(state.fretboardHighlightKey).toBeUndefined();
+    });
+});
+
+// ── Drawn rail gap and honoured tolerance must agree ────────────────────────
+//
+// The rails are a screen overlay (so their gap is a pixel length) while the ring
+// the pointer is over is cube geometry (measured in viewBox units). The drift
+// tolerance has to bridge the two. When it was a second constant in viewBox units
+// the drawn band and the honoured band diverged by 3.8px at 0.2x zoom: the pointer
+// could sit visibly between the rails and the fretboard would still give up.
+
+describe('drift tolerance tracks the drawn rail gap', () => {
+    /**
+     * A state whose SVG reports `clientPerUnit` screen pixels per viewBox unit,
+     * which is what `svgToClientPoint` needs to derive the conversion.
+     *
+     * The fake matrix must expose `inverse()` as well as `a`/`d`: `clientToSvgPoint`
+     * goes through the inverse CTM, and without it that path silently falls back to
+     * raw client coordinates — which would make these tests measure nothing.
+     */
+    function stateWithSvgScale(clientPerUnit: number, overrides?: Partial<TouchHandlerState>) {
+        const state = createMinimalState(overrides);
+        type Matrix = { a: number; d: number; e: number; f: number };
+        /** A DOMPoint-like result: `clientToSvgPoint` reads `.x` and `.y` off it. */
+        type Point = { x: number; y: number };
+        const svg = state.svgRoot as unknown as {
+            createSVGPoint?: () => unknown;
+            getScreenCTM?: () => unknown;
+        };
+        // Must return { x, y } — not the matrix fields — or the callers silently
+        // read `undefined` for both coordinates and every case degenerates.
+        svg.createSVGPoint = () => {
+            const point: {
+                x: number;
+                y: number;
+                matrixTransform(m: Matrix): Point;
+            } = {
+                x: 0,
+                y: 0,
+                matrixTransform(this: Point, m: Matrix): Point {
+                    return { x: this.x * m.a + m.e, y: this.y * m.d + m.f };
+                },
+            };
+            return point;
+        };
+        const matrix = {
+            a: clientPerUnit,
+            d: clientPerUnit,
+            e: 0,
+            f: 0,
+            inverse: () => ({
+                a: 1 / clientPerUnit,
+                d: 1 / clientPerUnit,
+                e: 0,
+                f: 0,
+            }),
+        };
+        svg.getScreenCTM = () => matrix;
+        return state;
+    }
+
+    /** Angular position of a point relative to the ring group's shared centre. */
+    function buildFretboardState(overrides?: Partial<TouchHandlerState>) {
+        const group = [
+            makeCircle(Axis.X, 0, 0, 0, 30),
+            makeCircle(Axis.X, 1, 0, 0, 50),
+            makeCircle(Axis.X, 2, 0, 0, 70),
+        ];
+        return {
+            axisCircles: group,
+            fretboardAxisGroup: group,
+            fretboardBoundaries: [20, 40, 60, 80],
+            fretboardHighlightKey: 'X-1',
+            fretboardRadialDir: { x: 1, y: 0 },
+            fretboardStartSvg: { x: 50, y: 0 },
+            ...overrides,
+        } as Partial<TouchHandlerState>;
+    }
+
+    /**
+     * Build a state where the pointer sits `driftPx` **client pixels** off the
+     * centre line, at an SVG scale of `clientPerUnit`.
+     *
+     * The gesture takes client coordinates, so the drift is expressed in client
+     * pixels and converted internally. Deriving `clientX` from the scale keeps the
+     * pointer in the X-1 band (viewBox distance 50) at every scale, so the only
+     * thing that varies between cases is the zoom.
+     */
+    function stateAtDrift(clientPerUnit: number, driftPx: number) {
+        const state = stateWithSvgScale(clientPerUnit, buildFretboardState());
+        state.fretboardHighlightKey = 'X-0';
+        const clientX = 50 * clientPerUnit; // -> viewBox x 50, inside band [40, 60]
+        return { state, clientX, driftPx };
+    }
+
+    it('tolerates drift up to the drawn half-gap, in client pixels', () => {
+        const inside = stateAtDrift(1, 4);
+        updateFretboardHighlight(inside.state, inside.clientX, inside.driftPx);
+        expect(inside.state.fretboardHighlightKey).toBe('X-1');
+
+        const outside = stateAtDrift(1, 6);
+        updateFretboardHighlight(outside.state, outside.clientX, outside.driftPx);
+        expect(outside.state.fretboardHighlightKey).toBe('X-0');
+    });
+
+    it('honours the same client-pixel band when zoomed out', () => {
+        // At 0.5 client px per viewBox unit the rails still promise a 5px band, so
+        // the gesture must still accept 4px of drift and reject 6px. A fixed
+        // viewBox tolerance would instead have accepted 10px here — twice the band
+        // the user can actually see between the rails.
+        const inside = stateAtDrift(0.5, 4);
+        updateFretboardHighlight(inside.state, inside.clientX, inside.driftPx);
+        expect(inside.state.fretboardHighlightKey).toBe('X-1');
+
+        const outside = stateAtDrift(0.5, 6);
+        updateFretboardHighlight(outside.state, outside.clientX, outside.driftPx);
+        expect(outside.state.fretboardHighlightKey).toBe('X-0');
+    });
+
+    it('honours the same client-pixel band when zoomed in', () => {
+        // At 3 client px per viewBox unit the band spans far fewer viewBox units,
+        // so 6px of drift leaves it even though it is a small viewBox delta.
+        const inside = stateAtDrift(3, 4);
+        updateFretboardHighlight(inside.state, inside.clientX, inside.driftPx);
+        expect(inside.state.fretboardHighlightKey).toBe('X-1');
+
+        const outside = stateAtDrift(3, 6);
+        updateFretboardHighlight(outside.state, outside.clientX, outside.driftPx);
+        expect(outside.state.fretboardHighlightKey).toBe('X-0');
+    });
+
+    it('keeps the band constant across the full zoom range', () => {
+        // The invariant behind the three cases above, stated once: the drift the
+        // gesture accepts is the same number of screen pixels at every zoom, so it
+        // always matches the rails regardless of how far in or out the view is.
+        const verdicts = [0.2, 0.5, 1, 2, 3, 10].map(scale => {
+            const inside = stateAtDrift(scale, 4);
+            updateFretboardHighlight(inside.state, inside.clientX, inside.driftPx);
+            const outside = stateAtDrift(scale, 6);
+            updateFretboardHighlight(outside.state, outside.clientX, outside.driftPx);
+            return {
+                scale,
+                accepts4px: inside.state.fretboardHighlightKey === 'X-1',
+                accepts6px: outside.state.fretboardHighlightKey === 'X-1',
+            };
+        });
+
+        expect(verdicts.every(v => v.accepts4px === true)).toBe(true);
+        expect(verdicts.every(v => v.accepts6px === false)).toBe(true);
+    });
+
+    it('holds the highlight while the pointer is just off the outer band edge', () => {
+        // Sliding outward past the outermost band is what hands control to the
+        // whole-cube zone, so that hand-off needs the same tolerance the rails
+        // draw: one pixel past the edge (band outer edge is 80 viewBox units) must
+        // not be enough, or the gesture would snap to whole-cube while the pointer
+        // is still visibly between the rails.
+        const stillFretting = stateWithSvgScale(1, buildFretboardState());
+        stillFretting.fretboardHighlightKey = 'X-1';
+        updateFretboardHighlight(stillFretting, 81, 0); // margin 1 < 5
+        expect(stillFretting.fretboardHighlightKey).toBe('X-1');
+
+        // Well clear of the edge, the hand-off is correct.
+        const handedOff = stateWithSvgScale(1, buildFretboardState());
+        handedOff.fretboardHighlightKey = 'X-1';
+        updateFretboardHighlight(handedOff, 90, 0); // margin 10 > 5
+        expect(handedOff.fretboardHighlightKey).toBe('BG');
     });
 });

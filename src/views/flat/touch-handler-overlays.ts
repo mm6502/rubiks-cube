@@ -2,10 +2,13 @@
  * Visual overlay management for the flat touch handler.
  *
  * Exports functions that manage the DOM overlay elements: the invisible
- * halo hit-target, cancel zone, drag label, and face-selection styling.
+ * halo hit-target, cancel zone, drag label, drag-decision indicator, and
+ * face-selection styling.
  */
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import { normalize2 } from '@/cube/utils/math';
+import { computeFaceScreenBasis } from '@/interaction/drag-decision-overlay';
 import { computeDragLabelPosition } from '@/interaction/drag-label-positioning';
 import { CANCEL_ZONE_RADIUS_BASE_PX, CANCEL_ZONE_TABBED_MULTIPLIER } from '@/interaction/types';
 
@@ -101,7 +104,6 @@ export function showDragLabel(
     clientX: number,
     clientY: number
 ): void {
-    const hostRect = s.host.getBoundingClientRect();
     s.dragLabelEl.textContent = label;
     s.dragLabelEl.style.display = 'block';
 
@@ -112,23 +114,122 @@ export function showDragLabel(
         layoutMode: s.layoutMode,
         clientX,
         clientY,
-        hostRect,
         labelWidth,
         labelHeight,
         activePointerType: s.activePointerType,
     });
 
-    s.dragLabelEl.style.position = result.position;
-    s.dragLabelEl.style.zIndex = result.zIndex;
     s.dragLabelEl.style.left = `${result.x}px`;
     s.dragLabelEl.style.top = `${result.y}px`;
 }
 
-/** Hide the drag label and reset its positioning styles. */
+/** Hide the drag label. Its position and z-index are constant, so only display changes. */
 export function hideDragLabel(s: FlatTouchHandlerState): void {
     s.dragLabelEl.style.display = 'none';
-    s.dragLabelEl.style.position = '';
-    s.dragLabelEl.style.zIndex = '';
+}
+
+// ── Drag-decision indicator ─────────────────────────────────────────
+
+/** The sticker element at a face/position, or null when the DOM has no such cell. */
+function stickerElementAt(
+    s: FlatTouchHandlerState,
+    face: Face,
+    position: number
+): HTMLElement | null {
+    return s.host.querySelector(
+        `.${s.styles['flat-sticker']}[data-face="${face}"][data-pos="${position}"]`
+    ) as HTMLElement | null;
+}
+
+/**
+ * Show the decision cross for a sticker drag: two dashed arms at the pointer,
+ * marking the boundaries between the four drag zones.
+ *
+ * The arms are derived from the face's measured screen basis — its three
+ * corner stickers are read off the DOM — so the indicator follows the layout
+ * rotation the Flat view applies, without this module restating that rotation.
+ * Shows nothing when the basis cannot be measured (a degenerate or missing
+ * face), rather than drawing a NaN arm.
+ */
+export function showStickerDragCross(
+    s: FlatTouchHandlerState,
+    face: Face,
+    cubeSize: number,
+    clientX: number,
+    clientY: number
+): void {
+    const topLeft = stickerElementAt(s, face, 0);
+    const rightOfTopLeft = stickerElementAt(s, face, 1);
+    const belowTopLeft = stickerElementAt(s, face, cubeSize);
+    /* c8 ignore if — a rendered face always has its corner stickers */
+    if (!topLeft || !rightOfTopLeft || !belowTopLeft) {
+        hideDragDecision(s);
+        return;
+    }
+
+    const basis = computeFaceScreenBasis(topLeft, rightOfTopLeft, belowTopLeft);
+    if (!basis) {
+        hideDragDecision(s);
+        return;
+    }
+
+    s.dragDecision.showCross(basis, clientX, clientY);
+}
+
+/**
+ * Show the single radial guide line for a halo (selected-face rotation) drag,
+ * pointing from the face centre through the pointer.
+ */
+export function showHaloGuideLine(
+    s: FlatTouchHandlerState,
+    clientX: number,
+    clientY: number
+): void {
+    const center = s.haloFaceCenter;
+    if (!center) {
+        hideDragDecision(s);
+        return;
+    }
+
+    const dir = normalize2({ x: clientX - center.x, y: clientY - center.y });
+    if (!dir) {
+        hideDragDecision(s);
+        return;
+    }
+
+    s.dragDecision.showLine(dir, clientX, clientY);
+}
+
+/**
+ * Show the axis-aligned decision cross for a whole-cube legend drag.
+ *
+ * The legend gesture is read from the drag's screen direction alone — there is
+ * no face beneath it to measure a basis from — so its zones are the four screen
+ * directions and the arms are the 45° bisectors between them, which on screen
+ * are the two diagonals. This is the same shape the Basic view shows for its
+ * background drag.
+ */
+export function showWholeCubeDragCross(
+    s: FlatTouchHandlerState,
+    clientX: number,
+    clientY: number
+): void {
+    // Up = screen-up and right = screen-right, so the two bisector arms come out
+    // as the screen diagonals — exactly the zone boundaries for a screen-direction
+    // gesture.
+    s.dragDecision.showCross(
+        {
+            upDir: { x: 0, y: -1 },
+            rightDir: { x: 1, y: 0 },
+        },
+        clientX,
+        clientY
+    );
+}
+
+/** Hide the drag-decision indicator. */
+export function hideDragDecision(s: FlatTouchHandlerState): void {
+    s.dragDecision.hide();
 }
 
 // ── Cancellation zone ───────────────────────────────────────────────

@@ -4,6 +4,12 @@ import type { CubeState, ReadOnlyCubeModel, StickerId } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { normalize2 } from '@/cube/utils/math';
 import { CubeStateUtils } from '@/cube/utils/state-conversion';
+import {
+    DRAG_CROSS_ARM_LENGTH_FLOATING,
+    DRAG_CROSS_ARM_LENGTH_TABBED,
+    type DragDecisionOverlay,
+    createDragDecisionOverlay,
+} from '@/interaction/drag-decision-overlay';
 import { computeDragLabelPosition } from '@/interaction/drag-label-positioning';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { inferMoveFromDrag, inferMoveFromFaceRotation, toFar } from '@/interaction/move-inference';
@@ -22,6 +28,7 @@ import { ViewRotation } from '@/types/geometry';
 
 import * as navigation from './navigation';
 import { buildFaceScreenBasis } from './interaction-adapter';
+import type { Orientation } from './rotation-math';
 import type { BasicViewInternalData } from './types';
 
 type StickerHit = {
@@ -34,9 +41,6 @@ type StickerHit = {
 
 const DRAG_THRESHOLD_PX = 4;
 const FAR_DRAG_THRESHOLD_PX = 60;
-const DRAG_CROSS_ARM_LENGTH_FLOATING = 34;
-const DRAG_CROSS_ARM_LENGTH_TABBED = 64;
-const SVG_NS = 'http://www.w3.org/2000/svg';
 
 export type BasicTouchHandlerOptions = {
     /** The outer container element (host for abs-positioned overlays). */
@@ -52,11 +56,17 @@ export type BasicTouchHandlerOptions = {
     /**
      * Called after a background drag changes the view orientation.
      * Should re-run rendering.updateRotation + rendering.updateFaceLabels.
+     *
+     * `stepAnchor` is the orientation after ONE of the gesture's steps, supplied
+     * only when the gesture composed more than one. A single step is a quarter
+     * turn, whose sign the matrix recovers exactly; a composed half turn is not,
+     * so the caller needs a quarter turn to name its sense.
      */
     onViewRotated: (
         direction: 'horizontal' | 'vertical',
         rotation: ViewRotation,
-        steps: number
+        steps: number,
+        stepAnchor?: Orientation
     ) => void;
     /** View identifier used in MOVE_REQUESTED events. */
     viewId: string;
@@ -93,7 +103,8 @@ export class BasicTouchHandler {
     private readonly onViewRotated: (
         direction: 'horizontal' | 'vertical',
         rotation: ViewRotation,
-        steps: number
+        steps: number,
+        stepAnchor?: Orientation
     ) => void;
     private readonly viewId: string;
     private readonly adapter: ViewInteractionAdapter;
@@ -130,9 +141,7 @@ export class BasicTouchHandler {
               leftMove: string;
           }
         | undefined;
-    private dragDecisionSvgEl: SVGSVGElement;
-    private dragDecisionPrimaryEl: SVGLineElement;
-    private dragDecisionSecondaryEl: SVGLineElement;
+    private readonly dragDecision: DragDecisionOverlay;
 
     private activeCommitDistancePx = CANCEL_ZONE_RADIUS_BASE_PX;
 
@@ -172,23 +181,17 @@ export class BasicTouchHandler {
         this.dragLabelEl.style.display = 'none';
         this.dragLabelEl.setAttribute('aria-hidden', 'true');
 
-        // SVG overlay for drag decision cross / line indicator.
-        this.dragDecisionSvgEl = document.createElementNS(SVG_NS, 'svg') as SVGSVGElement;
-        this.dragDecisionSvgEl.style.cssText =
-            'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:20;';
-        this.dragDecisionSvgEl.setAttribute('aria-hidden', 'true');
-        this.dragDecisionSvgEl.setAttribute('visibility', 'hidden');
-        this.dragDecisionPrimaryEl = document.createElementNS(SVG_NS, 'line') as SVGLineElement;
-        this.dragDecisionPrimaryEl.classList.add(
-            this.styles['basic-drag-decision-arm'] ?? 'basic-drag-decision-arm'
+        // SVG overlay for drag decision cross / line indicator. Appended to the
+        // body, not the host: a hint drawn inside the panel is clipped by the
+        // panel (and by the cube's own 3D transform), which is exactly when a
+        // gesture started near an edge needs it most.
+        this.dragDecision = createDragDecisionOverlay(
+            this.styles['basic-drag-decision-arm'] ?? 'basic-drag-decision-arm',
+            () =>
+                this.layoutMode === LayoutMode.Tabbed
+                    ? DRAG_CROSS_ARM_LENGTH_TABBED
+                    : DRAG_CROSS_ARM_LENGTH_FLOATING
         );
-        this.dragDecisionSecondaryEl = document.createElementNS(SVG_NS, 'line') as SVGLineElement;
-        this.dragDecisionSecondaryEl.classList.add(
-            this.styles['basic-drag-decision-arm'] ?? 'basic-drag-decision-arm'
-        );
-        this.dragDecisionSecondaryEl.setAttribute('visibility', 'hidden');
-        this.dragDecisionSvgEl.appendChild(this.dragDecisionPrimaryEl);
-        this.dragDecisionSvgEl.appendChild(this.dragDecisionSecondaryEl);
 
         this.dragStateMachine = new DragStateMachine(
             {
@@ -219,10 +222,16 @@ export class BasicTouchHandler {
     attach(): void {
         this.host.style.touchAction = 'none';
 
+        // The halo hit target and cancel zone belong to the panel: they mark a
+        // place inside it, so the panel's own clipping is correct for them.
         this.host.appendChild(this.haloHitTargetEl);
         this.host.appendChild(this.haloCancelZoneEl);
-        this.host.appendChild(this.dragLabelEl);
-        this.host.appendChild(this.dragDecisionSvgEl);
+
+        // The label and the decision indicator are viewport-anchored instead.
+        // They follow the pointer, and a gesture made against a screen edge must
+        // still show them in full — inside the panel they would be clipped by it.
+        document.body.appendChild(this.dragLabelEl);
+        document.body.appendChild(this.dragDecision.element);
 
         this.host.addEventListener('pointerdown', this.onPointerDownBound);
         this.host.addEventListener('pointerleave', this.onPointerLeaveBound);
@@ -249,7 +258,7 @@ export class BasicTouchHandler {
         this.haloHitTargetEl.remove();
         this.haloCancelZoneEl.remove();
         this.dragLabelEl.remove();
-        this.dragDecisionSvgEl.remove();
+        this.dragDecision.remove();
     }
 
     resize(): void {
@@ -737,21 +746,21 @@ export class BasicTouchHandler {
         const state = this.getState();
         const steps = gesture.distancePx > this.dragStateMachine.farDragThresholdPx ? 2 : 1;
 
-        for (let i = 0; i < steps; i++) {
-            switch (gesture.direction) {
-                case DragDirection.RIGHT:
-                    navigation.rotateViewRight(state);
-                    break;
-                case DragDirection.LEFT:
-                    navigation.rotateViewLeft(state);
-                    break;
-                case DragDirection.DOWN:
-                    navigation.rotateViewDown(state);
-                    break;
-                case DragDirection.UP:
-                    navigation.rotateViewUp(state);
-                    break;
+        // The pose after the FIRST step, captured before the loop applies the rest.
+        // A composed half turn (the far-drag case) is the same orientation either
+        // way round, so the ramp cannot recover which way the gesture went from the
+        // matrix — but this quarter turn can name it. Captured only when the gesture
+        // actually composes, because a single step is already exact.
+        let stepAnchor: Orientation | undefined;
+        if (steps > 1) {
+            this.applyBackgroundStep(state, gesture.direction);
+            stepAnchor = this.orientationSnapshot(state);
+            // The first step is already applied; the loop applies the rest.
+            for (let i = 1; i < steps; i++) {
+                this.applyBackgroundStep(state, gesture.direction);
             }
+        } else {
+            this.applyBackgroundStep(state, gesture.direction);
         }
 
         const rotation =
@@ -768,8 +777,36 @@ export class BasicTouchHandler {
                 ? 'vertical'
                 : 'horizontal',
             rotation,
-            steps
+            steps,
+            stepAnchor
         );
+    }
+
+    /** Read the current orientation vectors as a plain snapshot. */
+    private orientationSnapshot(state: BasicViewInternalData): Orientation {
+        return {
+            viewRight: { ...state.viewRight },
+            viewUp: { ...state.viewUp },
+            viewForward: { ...state.viewForward },
+        };
+    }
+
+    /** Apply one discrete 90° view rotation in the gesture's direction. */
+    private applyBackgroundStep(state: BasicViewInternalData, direction: DragDirection): void {
+        switch (direction) {
+            case DragDirection.RIGHT:
+                navigation.rotateViewRight(state);
+                break;
+            case DragDirection.LEFT:
+                navigation.rotateViewLeft(state);
+                break;
+            case DragDirection.DOWN:
+                navigation.rotateViewDown(state);
+                break;
+            case DragDirection.UP:
+                navigation.rotateViewUp(state);
+                break;
+        }
     }
 
     /**
@@ -971,14 +1008,28 @@ export class BasicTouchHandler {
     /**
      * Resolves a pointer position to a sticker hit on the cube.
      *
-     * Uses `document.elementFromPoint` to find the element under the
-     * pointer, then walks up to the nearest `.sticker` element.
-     * Extracts the sticker's face, grid position, and DOM id.
+     * Uses `document.elementFromPoint` to find the element under the pointer,
+     * then walks up to the nearest `.sticker` element. That element is used for
+     * two things only: proving the pointer is on a sticker at all, and handing
+     * the caller the element to mark up. Its identity — face, row and column —
+     * comes from the **model**, via `data-sticker-id`.
      *
-     * Reads `data-basic-pos` for fast grid position when present; otherwise
-     * falls back to `CubeStateUtils.getStickerById` via `data-sticker-id`.
+     * Reading identity off the element instead is the defect this replaced. A
+     * move is animated by reparenting the moving cubies into a pivot, so mid-flight
+     * the element under the pointer is showing an in-between pose, and the
+     * `data-face`/`data-basic-pos` attributes it carries still describe where it
+     * *started*. A drag begun before the previous animation settled therefore
+     * targeted the wrong layer — the user grabbed one sticker and turned another's.
+     * The model, meanwhile, is already in its post-move state (a move updates it
+     * before `MOVE_EXECUTED` fires), so it is the only source that agrees with the
+     * cube the user is aiming at.
      *
-     * @returns The resolved hit, or undefined if no sticker was found.
+     * `data-basic-pos` is gone from this path entirely: nothing in production has
+     * written it since face identity was unified on `data-face`, so the "fast path"
+     * that read it was already dead code that only tests could reach.
+     *
+     * @returns The resolved hit, or undefined if no sticker was found or it could
+     *   not be resolved in the model.
      */
     private getStickerHitFromPoint(clientX: number, clientY: number): StickerHit | undefined {
         const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
@@ -988,39 +1039,22 @@ export class BasicTouchHandler {
         const stickerEl = element.closest(`.${stickerClass}`) as HTMLElement | null;
         if (!stickerEl || !this.host.contains(stickerEl)) return undefined;
 
-        const face = stickerEl.getAttribute('data-face') as Face | null;
-        if (!face) return undefined;
+        const stickerId = stickerEl.getAttribute('data-sticker-id') as StickerId | null;
+        if (!stickerId) return undefined;
 
-        const posText = stickerEl.getAttribute('data-basic-pos');
-        let row: number;
-        let col: number;
+        const model = this.getModel?.();
+        if (!model) return undefined;
 
-        if (posText !== null) {
-            // Fast path: Basic view with grid positions
-            const pos = Number(posText);
-            if (!Number.isFinite(pos)) return undefined;
-            const cubeSize = this.getCubeSize();
-            row = Math.floor(pos / cubeSize);
-            col = pos % cubeSize;
-        } else {
-            // Fallback: resolve via CubeStateUtils when grid positions are absent.
-            const stickerId = stickerEl.getAttribute('data-sticker-id') as StickerId | null;
-            if (!stickerId) return undefined;
-            const model = this.getModel?.();
-            if (!model) return undefined;
-            const sticker = CubeStateUtils.getStickerById(model.getCurrentState(), stickerId);
-            if (!sticker || !Number.isFinite(sticker.facePosition)) return undefined;
-            const cubeSize = this.getCubeSize();
-            row = Math.floor(sticker.facePosition / cubeSize);
-            col = sticker.facePosition % cubeSize;
-        }
+        const sticker = CubeStateUtils.getStickerById(model.getCurrentState(), stickerId);
+        if (!sticker || !Number.isFinite(sticker.facePosition)) return undefined;
 
+        const cubeSize = this.getCubeSize();
         return {
             stickerElement: stickerEl,
-            face,
-            row,
-            col,
-            stickerId: stickerEl.getAttribute('data-sticker-id') ?? undefined,
+            face: sticker.currentFace,
+            row: Math.floor(sticker.facePosition / cubeSize),
+            col: sticker.facePosition % cubeSize,
+            stickerId,
         };
     }
 
@@ -1048,7 +1082,6 @@ export class BasicTouchHandler {
      * an offset for touch pointers.
      */
     private showDragLabel(label: string, clientX: number, clientY: number): void {
-        const hostRect = this.host.getBoundingClientRect();
         this.dragLabelEl.textContent = label;
         this.dragLabelEl.style.display = 'block';
 
@@ -1059,7 +1092,6 @@ export class BasicTouchHandler {
             layoutMode: this.layoutMode,
             clientX,
             clientY,
-            hostRect,
             labelWidth,
             labelHeight,
             activePointerType: this.activePointerType,
@@ -1074,8 +1106,6 @@ export class BasicTouchHandler {
     /** Hide the drag label and reset any layout-mode-specific styling. */
     private hideDragLabel(): void {
         this.dragLabelEl.style.display = 'none';
-        this.dragLabelEl.style.position = '';
-        this.dragLabelEl.style.zIndex = '';
     }
 
     // -------------------------------------------------------------------------
@@ -1119,31 +1149,25 @@ export class BasicTouchHandler {
      * reflects the full CSS 3D transform (including tilt/pitch) and works for
      * all six faces.  Falls back to the model-vector projection when the DOM
      * elements are unavailable or degenerate (e.g. in jsdom tests).
+     *
+     * The three probe elements are resolved through the **model**, by sticker
+     * identity, for the same reason the hit-test is: the element under a given
+     * grid slot mid-flight is not necessarily the sticker that belongs there. The
+     * `data-basic-pos` selector this used to consult first has had no production
+     * writer since face identity was unified on `data-face`.
      */
     private getFaceScreenBasisFromDOM(
         face: Face,
         cubeSize: number
     ): { upDir: Point2D; rightDir: Point2D } | undefined {
-        let s00 = this.host.querySelector(
-            `[data-face="${face}"][data-basic-pos="0"]`
-        ) as HTMLElement | null;
-        let s01 = this.host.querySelector(
-            `[data-face="${face}"][data-basic-pos="1"]`
-        ) as HTMLElement | null;
-        let s10 = this.host.querySelector(
-            `[data-face="${face}"][data-basic-pos="${cubeSize}"]`
-        ) as HTMLElement | null;
+        const model = this.getModel?.();
+        /* c8 ignore if — production always supplies a model; guarded for direct construction */
+        if (!model) return undefined;
 
-        // Fallback: resolve via CubeStateUtils when data-basic-pos is absent.
-        if ((!s00 || !s01 || !s10) && this.getModel) {
-            const model = this.getModel();
-            if (model) {
-                const state = model.getCurrentState();
-                if (!s00) s00 = this.resolveBasisElement(state, face, 0);
-                if (!s01) s01 = this.resolveBasisElement(state, face, 1);
-                if (!s10) s10 = this.resolveBasisElement(state, face, cubeSize);
-            }
-        }
+        const state = model.getCurrentState();
+        const s00 = this.resolveBasisElement(state, face, 0);
+        const s01 = this.resolveBasisElement(state, face, 1);
+        const s10 = this.resolveBasisElement(state, face, cubeSize);
 
         /* c8 ignore if */
         if (!s00 || !s01 || !s10) return undefined;
@@ -1278,30 +1302,7 @@ export class BasicTouchHandler {
         clientX: number,
         clientY: number
     ): void {
-        const hostRect = this.host.getBoundingClientRect();
-        const cx = clientX - hostRect.left;
-        const cy = clientY - hostRect.top;
-        const armLength =
-            this.layoutMode === LayoutMode.Tabbed
-                ? DRAG_CROSS_ARM_LENGTH_TABBED
-                : DRAG_CROSS_ARM_LENGTH_FLOATING;
-
-        // Arms are the zone boundaries — bisectors between adjacent drag directions.
-        const arm1Dir =
-            normalize2({
-                x: basis.upDir.x + basis.rightDir.x,
-                y: basis.upDir.y + basis.rightDir.y,
-            }) ?? basis.upDir;
-        const arm2Dir =
-            normalize2({
-                x: basis.upDir.x - basis.rightDir.x,
-                y: basis.upDir.y - basis.rightDir.y,
-            }) ?? basis.rightDir;
-
-        setSvgLineFromCenter(this.dragDecisionPrimaryEl, { x: cx, y: cy }, arm1Dir, armLength);
-        setSvgLineFromCenter(this.dragDecisionSecondaryEl, { x: cx, y: cy }, arm2Dir, armLength);
-        this.dragDecisionSecondaryEl.removeAttribute('visibility');
-        this.dragDecisionSvgEl.removeAttribute('visibility');
+        this.dragDecision.showCross(basis, clientX, clientY);
     }
 
     /**
@@ -1309,23 +1310,13 @@ export class BasicTouchHandler {
      * indicating the CW/CCW rotation boundary for halo/face-direct drags.
      */
     private showDragDecisionLine(dir: Point2D, clientX: number, clientY: number): void {
-        const hostRect = this.host.getBoundingClientRect();
-        const cx = clientX - hostRect.left;
-        const cy = clientY - hostRect.top;
-        const armLength =
-            this.layoutMode === LayoutMode.Tabbed
-                ? DRAG_CROSS_ARM_LENGTH_TABBED
-                : DRAG_CROSS_ARM_LENGTH_FLOATING;
-
-        setSvgLineFromCenter(this.dragDecisionPrimaryEl, { x: cx, y: cy }, dir, armLength);
-        this.dragDecisionSecondaryEl.setAttribute('visibility', 'hidden');
-        this.dragDecisionSvgEl.removeAttribute('visibility');
+        this.dragDecision.showLine(dir, clientX, clientY);
     }
 
     /** Hide the drag decision overlay and clear `pendingStickerCross`. */
     private hideDragDecision(): void {
         this.pendingStickerCross = undefined;
-        this.dragDecisionSvgEl.setAttribute('visibility', 'hidden');
+        this.dragDecision.hide();
     }
 
     // -------------------------------------------------------------------------
@@ -1365,21 +1356,4 @@ export class BasicTouchHandler {
 function getElementCenter(element: HTMLElement): { x: number; y: number } {
     const rect = element.getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-}
-
-/**
- * Positions an SVG line so that it passes through a center point and
- * extends `armLength` pixels in both directions along the given unit vector.
- * Used by the drag decision cross and radial line overlays.
- */
-function setSvgLineFromCenter(
-    line: SVGLineElement,
-    center: Point2D,
-    dir: Point2D,
-    armLength: number
-): void {
-    line.setAttribute('x1', String(center.x - dir.x * armLength));
-    line.setAttribute('y1', String(center.y - dir.y * armLength));
-    line.setAttribute('x2', String(center.x + dir.x * armLength));
-    line.setAttribute('y2', String(center.y + dir.y * armLength));
 }

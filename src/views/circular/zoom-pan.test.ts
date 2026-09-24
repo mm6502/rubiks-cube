@@ -17,7 +17,7 @@ function fireWheel(el: HTMLElement, deltaY: number, clientX = 0, clientY = 0): W
 }
 
 function firePointer(
-    el: HTMLElement,
+    el: EventTarget,
     type: string,
     pointerId: number,
     clientX: number,
@@ -65,6 +65,11 @@ describe('ZoomPanController', () => {
         clipEl = document.createElement('div');
         transformEl = document.createElement('div');
 
+        // The clip must live in the document, as it does in the app: move/end are
+        // heard on the document (so a gesture survives leaving the panel), which
+        // relies on events dispatched on the clip bubbling up to it.
+        document.body.appendChild(clipEl);
+
         // JSDOM stubs for pointer capture APIs.
         clipEl.setPointerCapture = vi.fn();
         clipEl.releasePointerCapture = vi.fn();
@@ -88,6 +93,7 @@ describe('ZoomPanController', () => {
     afterEach(() => {
         ctrl.destroy();
         vi.restoreAllMocks();
+        document.body.innerHTML = '';
     });
 
     // ── Constructor ────────────────────────────────────────────────────────
@@ -636,6 +642,7 @@ describe('ZoomPanController (delegated-left-drag mode)', () => {
     beforeEach(() => {
         clipEl = document.createElement('div');
         transformEl = document.createElement('div');
+        document.body.appendChild(clipEl);
         clipEl.setPointerCapture = vi.fn();
         clipEl.releasePointerCapture = vi.fn();
     });
@@ -668,6 +675,34 @@ describe('ZoomPanController (delegated-left-drag mode)', () => {
         expect(delegate.onPointerUp).toHaveBeenCalledTimes(1);
         expect(transformEl.style.transform).toBe('');
 
+        ctrl.destroy();
+    });
+
+    it('keeps delivering a delegated drag once the pointer leaves the clip', () => {
+        // The clip is only where a gesture may START; it is not a boundary the
+        // gesture must stay inside. If moves are only heard while the pointer is
+        // over the clip, the inference freezes the moment the cursor crosses the
+        // panel edge — which is exactly the reported "inference stops at the panel
+        // border" for background, axis-circle, sticker and face-ellipse drags alike.
+        const delegate = {
+            onPointerDown: vi.fn(),
+            onPointerMove: vi.fn(),
+            onPointerUp: vi.fn(),
+            onPointerCancel: vi.fn(),
+        };
+        const ctrl = new ZoomPanController(clipEl, transformEl, {
+            gestureMode: 'delegated-left-drag',
+            pointerDelegate: delegate,
+        });
+
+        firePointer(clipEl, 'pointerdown', 1, 50, 50);
+        // The rest of the gesture happens OUTSIDE the clip, on the document —
+        // which is where a real pointermove lands once the cursor leaves.
+        firePointer(document, 'pointermove', 1, 400, 50);
+        firePointer(document, 'pointerup', 1, 400, 50);
+
+        expect(delegate.onPointerMove).toHaveBeenCalledTimes(1);
+        expect(delegate.onPointerUp).toHaveBeenCalledTimes(1);
         ctrl.destroy();
     });
 

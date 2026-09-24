@@ -122,18 +122,27 @@
     z-index: 14;
 }
 
+/* Solid rather than dashed, and visibly thinner than the guide lines: it is a
+   filled translucent disc, so a dashed outline competed with the dashed guides
+   drawn over it at the same moment. */
 .flat-halo-cancel-zone {
     position: absolute;
     box-sizing: border-box;
     border-radius: 50%;
     background: var(--color-drag-halo-zone-fill);
-    border: 2px dashed var(--color-drag-halo-zone-stroke);
+    border: 1px solid var(--color-drag-halo-zone-stroke);
     pointer-events: none;
     z-index: 16;
 }
 
+/* Floating label showing the inferred move during a drag.
+   Fixed rather than absolute: it is appended to the body so no panel clipping
+   can hide it, and its coordinates are viewport pixels.
+   Topmost feedback layer: the label states the move that will be committed, so the
+   guide lines must never paint across it. The value is also applied as an inline
+   style by `computeDragLabelPosition`; kept here so the rule is complete on its own. */
 .flat-drag-label {
-    position: absolute;
+    position: fixed;
     padding: 4px 8px;
     min-width: var(--size-tooltip-graphical-width);
     text-align: center;
@@ -145,7 +154,16 @@
     font-weight: 700;
     letter-spacing: 0.02em;
     pointer-events: none;
-    z-index: 20;
+    z-index: 10001;
+}
+
+/* Arms of the drag decision cross / line indicator */
+.flat-drag-decision-arm {
+    stroke: var(--color-drag-halo-zone-stroke);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 7 5;
+    filter: drop-shadow(0 0 2px var(--color-shadow-backdrop));
 }
 
 /* Legend */

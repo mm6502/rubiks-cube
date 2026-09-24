@@ -1,5 +1,10 @@
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import {
+    DRAG_CROSS_ARM_LENGTH_FLOATING,
+    DRAG_CROSS_ARM_LENGTH_TABBED,
+    createDragDecisionOverlay,
+} from '@/interaction/drag-decision-overlay';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import {
     CANCEL_ZONE_RADIUS_BASE_PX,
@@ -25,9 +30,13 @@ import {
     cancelZoneRadiusPx,
     createOverlayElement,
     hideCancellationZone,
+    hideDragDecision,
     hideDragLabel,
     showCancellationZoneAtOrigin,
     showDragLabel,
+    showHaloGuideLine,
+    showStickerDragCross,
+    showWholeCubeDragCross,
     updateHaloPosition,
 } from './touch-handler-overlays';
 import {
@@ -64,6 +73,19 @@ export class FlatTouchHandler {
         const haloCancelZoneEl = createOverlayElement(options.styles, 'flat-halo-cancel-zone');
         const dragLabelEl = createOverlayElement(options.styles, 'flat-drag-label');
 
+        // The drag-decision cross / line, built from the same shared overlay the
+        // Basic view uses — so "the Flat view shows the same indicator" is a
+        // property of one implementation rather than of two copies staying in step.
+        // The arm length is read lazily: the overlay only asks for it when it is
+        // shown, by which time `this.s` exists.
+        const dragDecision = createDragDecisionOverlay(
+            options.styles['flat-drag-decision-arm'] ?? 'flat-drag-decision-arm',
+            () =>
+                this.s.layoutMode === LayoutMode.Tabbed
+                    ? DRAG_CROSS_ARM_LENGTH_TABBED
+                    : DRAG_CROSS_ARM_LENGTH_FLOATING
+        );
+
         const dragStateMachine = new DragStateMachine(
             {
                 onDragStart: () => {
@@ -94,6 +116,7 @@ export class FlatTouchHandler {
             activePointerAllowsDrag: false,
             startHit: undefined,
             selectedFaceGesture: false,
+            backgroundGesture: false,
             suppressNextClick: false,
             activeCommitDistancePx: CANCEL_ZONE_RADIUS_BASE_PX,
             faceDirectMode: false,
@@ -102,6 +125,7 @@ export class FlatTouchHandler {
             haloHitTargetEl,
             haloCancelZoneEl,
             dragLabelEl,
+            dragDecision,
             haloFaceCenter: undefined,
             previousTouchAction: options.host.style.touchAction,
         };
@@ -117,9 +141,14 @@ export class FlatTouchHandler {
     attach(): void {
         this.s.host.style.touchAction = 'none';
 
+        // The halo hit target and cancel zone mark places inside the panel, so
+        // they belong to it. The label and the decision indicator follow the
+        // pointer instead and are viewport-anchored, so a gesture made against a
+        // screen edge still shows them in full rather than clipped by the panel.
         this.s.host.appendChild(this.s.haloHitTargetEl);
         this.s.host.appendChild(this.s.haloCancelZoneEl);
-        this.s.host.appendChild(this.s.dragLabelEl);
+        document.body.appendChild(this.s.dragLabelEl);
+        document.body.appendChild(this.s.dragDecision.element);
 
         this.s.host.addEventListener('pointerdown', this.onPointerDownBound);
         document.addEventListener('pointermove', this.onPointerMoveBound);
@@ -191,6 +220,7 @@ export class FlatTouchHandler {
         this.s.haloHitTargetEl.remove();
         this.s.haloCancelZoneEl.remove();
         this.s.dragLabelEl.remove();
+        this.s.dragDecision.remove();
     }
 
     /**
@@ -213,7 +243,14 @@ export class FlatTouchHandler {
         this.s.activePointerOrigin = { x: event.clientX, y: event.clientY };
         this.s.activePointerAllowsDrag = false;
         this.s.selectedFaceGesture = false;
+        this.s.backgroundGesture = false;
         this.s.startHit = this.getStickerHitFromPoint(event.clientX, event.clientY);
+
+        // Whether the pointer went down on a sticker at all, before any of the
+        // branches below clear `startHit`. This distinguishes a true background
+        // drag (empty space or the legend) from a drag on the selected face's
+        // own sticker — the latter is deliberately ignored, not rotated.
+        const hadStickerHit = Boolean(this.s.startHit);
 
         const isHaloDragStart = this.isHaloHitTargetAtPoint(event.clientX, event.clientY);
 
@@ -242,9 +279,21 @@ export class FlatTouchHandler {
         this.s.activePointerAllowsDrag = canStartDrag;
 
         if (!canStartDrag) {
-            this.restoreTempFaceState();
-            this.hideCancellationZone();
-            return;
+            if (hadStickerHit) {
+                // The pointer went down on the selected face's own sticker (not
+                // the halo). That is not a drag at all — neither a layer move
+                // nor a whole-cube rotation — so end the interaction exactly as
+                // before.
+                this.restoreTempFaceState();
+                this.hideCancellationZone();
+                return;
+            }
+
+            // The pointer is on neither a sticker nor the halo: the empty
+            // background (or the legend). A drag from here is a whole-cube
+            // rotation, so it may begin.
+            this.s.backgroundGesture = true;
+            this.s.activePointerAllowsDrag = true;
         }
 
         this.s.activeCommitDistancePx = this.cancelZoneRadiusPx();
@@ -255,6 +304,7 @@ export class FlatTouchHandler {
             this.s.dragStateMachine.onPointerDown(event, {
                 rotationCenter: getElementCenter(this.s.haloHitTargetEl),
             });
+            showHaloGuideLine(this.s, event.clientX, event.clientY);
         } else if (this.s.startHit) {
             const faceElement = this.findFaceElement(this.s.startHit.stickerElement);
             const rotationCenter =
@@ -263,8 +313,18 @@ export class FlatTouchHandler {
                     : undefined;
 
             this.s.dragStateMachine.onPointerDown(event, { rotationCenter });
+            showStickerDragCross(
+                this.s,
+                this.s.startHit.face,
+                this.s.getCubeSize(),
+                event.clientX,
+                event.clientY
+            );
         } else {
+            // Background drag: whole-cube rotation, so the decision cross is the
+            // axis-aligned four-zone shape read from screen direction alone.
             this.s.dragStateMachine.onPointerDown(event);
+            showWholeCubeDragCross(this.s, event.clientX, event.clientY);
         }
 
         this.s.host.setPointerCapture?.(event.pointerId);
@@ -324,8 +384,10 @@ export class FlatTouchHandler {
         this.s.activePointerOrigin = undefined;
         this.s.activePointerAllowsDrag = false;
         this.s.selectedFaceGesture = false;
+        this.s.backgroundGesture = false;
         this.s.startHit = undefined;
         this.hideCancellationZone();
+        hideDragDecision(this.s);
         this.restoreTempFaceState();
         this.s.host.releasePointerCapture?.(event.pointerId);
         this.s.host.style.cursor = '';
@@ -350,9 +412,11 @@ export class FlatTouchHandler {
         this.s.activePointerOrigin = undefined;
         this.s.activePointerAllowsDrag = false;
         this.s.selectedFaceGesture = false;
+        this.s.backgroundGesture = false;
         this.s.startHit = undefined;
         this.hideDragLabel();
         this.hideCancellationZone();
+        hideDragDecision(this.s);
         this.restoreTempFaceState();
         this.s.host.style.cursor = '';
     }
@@ -399,6 +463,23 @@ export class FlatTouchHandler {
     /** Shows the drag-direction label overlay near the given client coordinates. */
     showDragLabel(label: string, clientX: number, clientY: number): void {
         showDragLabel(this.s, label, clientX, clientY);
+    }
+
+    /**
+     * Shows the axis-aligned decision cross for a whole-cube legend drag.
+     *
+     * Axis-aligned rather than face-derived, because the legend gesture is read
+     * from the drag's screen direction alone — there is no face under it to give
+     * a basis. This matches the Basic view's background drag, which shows the
+     * same axis-aligned cross for the same reason.
+     */
+    showWholeCubeDragCross(clientX: number, clientY: number): void {
+        showWholeCubeDragCross(this.s, clientX, clientY);
+    }
+
+    /** Hides the drag-decision indicator (cross or line). */
+    hideDragDecision(): void {
+        hideDragDecision(this.s);
     }
 
     /** Hides the drag-direction label overlay. */

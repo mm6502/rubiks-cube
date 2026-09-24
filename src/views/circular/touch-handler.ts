@@ -1,6 +1,13 @@
 // fallow-ignore-file unused-type
 import { Axis, Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import {
+    DRAG_CROSS_ARM_LENGTH_FLOATING,
+    DRAG_CROSS_ARM_LENGTH_TABBED,
+    createCancelZoneOverlay,
+    createDragDecisionOverlay,
+    createParallelGuideOverlay,
+} from '@/interaction/drag-decision-overlay';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { HitKind } from '@/interaction/types';
 
@@ -64,42 +71,21 @@ export class CircularTouchHandler {
         dragLabelEl.style.display = 'none';
         dragLabelEl.setAttribute('aria-hidden', 'true');
 
-        const cancelZoneEl = document.createElementNS(SVG_NS, 'circle');
-        cancelZoneEl.classList.add(styles['circular-cancel-zone'] ?? 'circular-cancel-zone');
-        cancelZoneEl.setAttribute('visibility', 'hidden');
-        cancelZoneEl.setAttribute('pointer-events', 'none');
-        cancelZoneEl.setAttribute('aria-hidden', 'true');
-
-        const dragCrossGroupEl = document.createElementNS(SVG_NS, 'g');
-        dragCrossGroupEl.classList.add(styles['circular-drag-cross'] ?? 'circular-drag-cross');
-        dragCrossGroupEl.setAttribute('visibility', 'hidden');
-        dragCrossGroupEl.setAttribute('pointer-events', 'none');
-
-        const dragCrossPrimaryEl = document.createElementNS(SVG_NS, 'line');
-        dragCrossPrimaryEl.classList.add(
-            styles['circular-drag-cross-arm'] ?? 'circular-drag-cross-arm'
+        const cancelZone = createCancelZoneOverlay(
+            styles['circular-cancel-zone'] ?? 'circular-cancel-zone'
         );
-        const dragCrossSecondaryEl = document.createElementNS(SVG_NS, 'line');
-        dragCrossSecondaryEl.classList.add(
-            styles['circular-drag-cross-arm'] ?? 'circular-drag-cross-arm'
+
+        const dragDecision = createDragDecisionOverlay(
+            styles['circular-drag-cross-arm'] ?? 'circular-drag-cross-arm',
+            () =>
+                this.state.layoutMode === LayoutMode.Tabbed
+                    ? DRAG_CROSS_ARM_LENGTH_TABBED
+                    : DRAG_CROSS_ARM_LENGTH_FLOATING
         );
-        dragCrossGroupEl.appendChild(dragCrossPrimaryEl);
-        dragCrossGroupEl.appendChild(dragCrossSecondaryEl);
 
-        const fretboardGroupEl = document.createElementNS(SVG_NS, 'g');
-        fretboardGroupEl.setAttribute('visibility', 'hidden');
-        fretboardGroupEl.setAttribute('pointer-events', 'none');
-
-        const fretboardLine1El = document.createElementNS(SVG_NS, 'line');
-        fretboardLine1El.classList.add(
+        const fretboardRails = createParallelGuideOverlay(
             styles['circular-fretboard-line'] ?? 'circular-fretboard-line'
         );
-        const fretboardLine2El = document.createElementNS(SVG_NS, 'line');
-        fretboardLine2El.classList.add(
-            styles['circular-fretboard-line'] ?? 'circular-fretboard-line'
-        );
-        fretboardGroupEl.appendChild(fretboardLine1El);
-        fretboardGroupEl.appendChild(fretboardLine2El);
 
         const axisDetectionBands = new Map<
             Axis,
@@ -144,13 +130,9 @@ export class CircularTouchHandler {
             haloEl,
             faceOverlayEl,
             dragLabelEl,
-            cancelZoneEl,
-            dragCrossGroupEl,
-            dragCrossPrimaryEl,
-            dragCrossSecondaryEl,
-            fretboardGroupEl,
-            fretboardLine1El,
-            fretboardLine2El,
+            cancelZone,
+            dragDecision,
+            fretboardRails,
             axisDetectionBands,
 
             selectedFace: undefined,
@@ -192,10 +174,19 @@ export class CircularTouchHandler {
         }
         state.svgRoot.appendChild(state.haloEl);
         state.svgRoot.appendChild(state.faceOverlayEl);
-        state.svgRoot.appendChild(state.cancelZoneEl);
-        state.svgRoot.appendChild(state.dragCrossGroupEl);
-        state.svgRoot.appendChild(state.fretboardGroupEl);
-        state.host.appendChild(state.dragLabelEl);
+
+        // The label, the threshold ring, the fretboard rails and the decision indicator
+        // all follow the pointer, so they live in fixed layers on the body rather than
+        // inside the SVG. Inside the SVG they were clipped by its viewBox (or, for
+        // the ring, by the canvas box, which at 0.2x zoom is a small rectangle in the
+        // middle of the panel) and shrank with its zoom.
+        //
+        // Order matters: each layer outranks the one it clarifies — threshold ring,
+        // then rails, then the arms that show what is about to be committed.
+        document.body.appendChild(state.dragLabelEl);
+        document.body.appendChild(state.cancelZone.element);
+        document.body.appendChild(state.fretboardRails.element);
+        document.body.appendChild(state.dragDecision.element);
     }
 
     /** Return whether face-direct mode is active. */
@@ -237,9 +228,9 @@ export class CircularTouchHandler {
         clearAxisSelections(state);
         state.haloEl.remove();
         state.faceOverlayEl.remove();
-        state.cancelZoneEl.remove();
-        state.dragCrossGroupEl.remove();
-        state.fretboardGroupEl.remove();
+        state.dragDecision.remove();
+        state.fretboardRails.remove();
+        state.cancelZone.remove();
         state.dragLabelEl.remove();
         for (const { bandEl, clipEl } of state.axisDetectionBands.values()) {
             bandEl.remove();

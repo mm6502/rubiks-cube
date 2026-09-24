@@ -562,6 +562,124 @@ describe('rotation-math', () => {
                 })
             ).toBeNull();
         });
+
+        it('signs a composed half turn from the elementary-step anchor', () => {
+            // The reported defect. A far drag applies two steps before a single
+            // animation starts, so the ramp is planned fresh over a net half turn —
+            // and a half turn is the same matrix either way round. `axisAngleFromMatrix`
+            // therefore picks one of the two equivalent axis spellings, and the gesture
+            // that meant the other one animates backwards.
+            //
+            // The matrices really are identical, which is why the fix cannot be
+            // matrix-only: both gestures land on the very same orientation.
+            const twiceLeft = stepLeft(stepLeft(IDENTITY_ORIENTATION));
+            const twiceRight = stepRight(stepRight(IDENTITY_ORIENTATION));
+            expectOrientationEqual(twiceLeft, twiceRight, 'both gestures agree');
+            expect(rotationBetween(IDENTITY_ORIENTATION, twiceLeft)!.angle).toBeCloseTo(180, 6);
+
+            const leftPlan = planRotation({
+                plan: null,
+                rendered: IDENTITY_ORIENTATION,
+                target: twiceLeft,
+                currentAngleDeg: 0,
+                // The pose after ONE of the gesture's steps — a quarter turn, where
+                // the matrix still recovers the sense. This is the anchor.
+                stepAnchor: stepLeft(IDENTITY_ORIENTATION),
+            })!;
+            const rightPlan = planRotation({
+                plan: null,
+                rendered: IDENTITY_ORIENTATION,
+                target: twiceRight,
+                currentAngleDeg: 0,
+                stepAnchor: stepRight(IDENTITY_ORIENTATION),
+            })!;
+
+            // The calibration that makes this test meaningful rather than
+            // self-consistent: half of the emitted sweep must reproduce the
+            // elementary step. That anchors the half turn to the 90° behaviour
+            // that is already correct, instead of to a formula of its own making.
+            expectOrientationEqual(
+                rotateBasis(leftPlan.base, {
+                    axis: leftPlan.axis,
+                    angle: leftPlan.toDeg / 2,
+                }),
+                stepLeft(IDENTITY_ORIENTATION),
+                'left: half the sweep is one step'
+            );
+            expectOrientationEqual(
+                rotateBasis(rightPlan.base, {
+                    axis: rightPlan.axis,
+                    angle: rightPlan.toDeg / 2,
+                }),
+                stepRight(IDENTITY_ORIENTATION),
+                'right: half the sweep is one step'
+            );
+
+            // The two gestures differ only in the AXIS SIGN — that is the thing the
+            // matrix loses — so the axes must be opposite, not identical.
+            expect(leftPlan.axis).toEqual(negate3(rightPlan.axis));
+
+            // And each sweep still lands on the orientation the gesture produced.
+            expectOrientationEqual(
+                rotateBasis(leftPlan.base, { axis: leftPlan.axis, angle: leftPlan.toDeg }),
+                twiceLeft,
+                'left landing'
+            );
+            expectOrientationEqual(
+                rotateBasis(rightPlan.base, { axis: rightPlan.axis, angle: rightPlan.toDeg }),
+                twiceRight,
+                'right landing'
+            );
+        });
+
+        it('a step anchor never changes an already-recoverable quarter turn', () => {
+            // Calibration. Only a half turn loses its sense to the matrix, so the
+            // anchor must be inert everywhere else — otherwise it would be a second,
+            // divergent source of truth for the 90° cases that already work.
+            for (const o of reachableOrientations()) {
+                for (const [name, step] of STEPS) {
+                    const target = step(o);
+                    const without = planRotation({
+                        plan: null,
+                        rendered: o,
+                        target,
+                        currentAngleDeg: 0,
+                    })!;
+                    const withAnchor = planRotation({
+                        plan: null,
+                        rendered: o,
+                        target,
+                        currentAngleDeg: 0,
+                        stepAnchor: target,
+                    })!;
+                    expect(withAnchor.toDeg, `${name}`).toBeCloseTo(without.toDeg, 9);
+                    expect(withAnchor.axis, `${name}`).toEqual(without.axis);
+                }
+            }
+        });
+
+        it('ignores a step anchor that does not describe this rotation', () => {
+            // A caller handing over an anchor from an unrelated gesture must not
+            // silently flip the sign. A non-parallel anchor falls back to the
+            // matrix-derived result.
+            const target = stepLeft(stepLeft(IDENTITY_ORIENTATION));
+            const without = planRotation({
+                plan: null,
+                rendered: IDENTITY_ORIENTATION,
+                target,
+                currentAngleDeg: 0,
+            })!;
+            const withForeignAnchor = planRotation({
+                plan: null,
+                rendered: IDENTITY_ORIENTATION,
+                target,
+                currentAngleDeg: 0,
+                // An elementary step about a different axis entirely.
+                stepAnchor: stepUp(IDENTITY_ORIENTATION),
+            })!;
+            expect(withForeignAnchor.axis).toEqual(without.axis);
+            expect(withForeignAnchor.toDeg).toBeCloseTo(without.toDeg, 9);
+        });
     });
 
     it('every interpolated frame of a sweep is still a valid rotation', () => {

@@ -5,7 +5,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     resolve: {
         alias: {
-            '@': resolve(__dirname, './src'),
+            // `import.meta.dirname`, not `__dirname`: Vite plans to load configs with
+            // Node's own ESM loader (`configLoader: 'native'`), where the CommonJS
+            // `__dirname` is undefined. The bundling loader defines it today, so
+            // `__dirname` works now and would break on that switch.
+            '@': resolve(import.meta.dirname, './src'),
         },
     },
     test: {

@@ -110,11 +110,11 @@ describe('buildGestureIntent', () => {
         expect(intent.col).toBe(0);
     });
 
-    it('NONE intent when neither selectedFaceGesture nor startHit', () => {
+    it('BACKGROUND intent when neither selectedFaceGesture nor startHit', () => {
         const s = createMockState();
         const gesture = createGesture();
         const intent = buildGestureIntent(s, gesture);
-        expect(intent.hitKind).toBe(HitKind.NONE);
+        expect(intent.hitKind).toBe(HitKind.BACKGROUND);
     });
 });
 
@@ -198,11 +198,29 @@ describe('inferMoveNotationForGesture', () => {
         expect(notation).toBeUndefined();
     });
 
-    it('STICKER hitKind !== STICKER returns undefined', () => {
-        const s = createMockState();
-        const gesture = createGesture({ distancePx: 50 });
+    it('BACKGROUND drag returns whole-cube notation', () => {
+        const s = createMockState({ activeCommitDistancePx: 5 });
+        const gesture = createGesture({
+            direction: DragDirection.RIGHT,
+            distancePx: 50,
+            deltaX: 50,
+            deltaY: 0,
+        });
         const notation = inferMoveNotationForGesture(s, gesture);
-        expect(notation).toBeUndefined();
+        // Not rotated, drag right → y'.
+        expect(notation).toBe("y'");
+    });
+
+    it('BACKGROUND far drag promotes to the 2 variant', () => {
+        const s = createMockState({ activeCommitDistancePx: 5 });
+        const gesture = createGesture({
+            direction: DragDirection.RIGHT,
+            distancePx: 100,
+            deltaX: 100,
+            deltaY: 0,
+        });
+        const notation = inferMoveNotationForGesture(s, gesture);
+        expect(notation).toBe("y2'");
     });
 
     it('STICKER with valid face infers move', () => {

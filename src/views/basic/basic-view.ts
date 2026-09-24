@@ -257,14 +257,20 @@ export class BasicView implements CubeView {
             //   expects. That mismatch is real, so this half stays; narrowing it
             //   means narrowing the touch handler's declaration.
             onStickerSelected: id => this.updateSelected(id as StickerId),
-            onViewRotated: (_direction: 'horizontal' | 'vertical', rotation, steps) => {
+            onViewRotated: (_direction: 'horizontal' | 'vertical', rotation, steps, stepAnchor) => {
                 // The gesture has already applied `steps` rotations to the
                 // orientation (the touch handler loops over them), so this is one
                 // rotation of the cube whose ramp merges those steps into a single
                 // continuous sweep — not `steps` separate turns.
+                //
+                // A far drag applies both steps before calling back, so the single
+                // ramp covers a net half turn — and a half turn's matrix cannot say
+                // which way it went. The touch handler hands over the pose after ONE
+                // of the steps, whose quarter turn still carries the sense, so the
+                // sweep can be signed correctly.
                 this.beginRotation();
                 updateFaceLabels(this.state, _direction);
-                this.applyRotation(this.shouldSkipRotationAnimation());
+                this.applyRotation(this.shouldSkipRotationAnimation(), stepAnchor);
                 this.emitStateChanged();
                 if (isLinked(this.state.viewType)) {
                     for (let i = 0; i < steps; i++) {
@@ -524,11 +530,16 @@ export class BasicView implements CubeView {
      *
      * A rotation resolving after the element was replaced (resize, model update) still
      * closes its turn, but does not bake a transform onto whatever replaced it.
+     *
+     * @param skipAnimation - Jump straight to the settled transform.
+     * @param stepAnchor - One elementary step of the gesture that produced the
+     *   orientation, when the gesture applied its steps before asking for a single
+     *   animation (a far drag). Signs a composed half turn; see `planRotation`.
      */
-    private applyRotation(skipAnimation?: boolean): void {
+    private applyRotation(skipAnimation?: boolean, stepAnchor?: Orientation): void {
         const element = this.state.cubeElement;
         const previous = this.rotationAnimation;
-        const result = updateRotation(this.state, skipAnimation);
+        const result = updateRotation(this.state, skipAnimation, stepAnchor);
         const opened = result.kind === 'animating' ? result.animation : null;
         const finished = result.kind === 'animating' ? result.finished : null;
         const settlesImmediately = !opened || !finished;

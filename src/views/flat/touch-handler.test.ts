@@ -1,10 +1,25 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Application } from '@/application';
 import { DragDirection } from '@/interaction/types';
 import { EventName } from '@/types';
+import { blockFor, valueOf } from '@/views/basic/css-contract-helpers';
 
 import { FlatTouchHandler } from './touch-handler';
+
+/**
+ * The Flat stylesheet with comments stripped, for the same reason the Basic
+ * helpers strip theirs: these rules carry prose that names properties, and a
+ * naive scan would read a sentence as a declaration.
+ */
+const flatViewCss = readFileSync(resolve(__dirname, 'flat-view.module.css'), 'utf8').replace(
+    /\/\*[\s\S]*?\*\//g,
+    ''
+);
 
 type Fixture = {
     host: HTMLElement;
@@ -20,6 +35,7 @@ const styles = {
     'flat-halo-hit-target': 'flat-halo-hit-target',
     'flat-halo-cancel-zone': 'flat-halo-cancel-zone',
     'flat-drag-label': 'flat-drag-label',
+    'flat-drag-decision-arm': 'flat-drag-decision-arm',
     'face-selected': 'face-selected',
 } as const;
 
@@ -40,6 +56,12 @@ describe('FlatTouchHandler', () => {
 
     afterEach(() => {
         fixture.cleanup();
+        // The label and decision indicator are appended to the body, outside the
+        // host, so removing the host does not remove them. Any test that never
+        // calls `destroy()` would otherwise leave one behind for the next test's
+        // `document.querySelector` to find.
+        document.querySelectorAll(`.${styles['flat-drag-label']}`).forEach(el => el.remove());
+        document.querySelectorAll('svg[aria-hidden="true"]').forEach(el => el.remove());
         Application.eventBus.removeAllListeners();
         vi.restoreAllMocks();
     });
@@ -120,7 +142,7 @@ describe('FlatTouchHandler', () => {
         handler.destroy();
     });
 
-    it('does not start drag from clear background', () => {
+    it('starts a whole-cube rotation drag from the clear background', () => {
         // Arrange
         const emitSpy = vi.spyOn(Application.eventBus, 'emit');
 
@@ -133,26 +155,19 @@ describe('FlatTouchHandler', () => {
         });
         handler.attach();
 
-        // Act
+        // Act — the pointer is on neither a sticker nor the halo: the background.
         elementFromPointMock.mockReturnValue(null);
 
         firePointer(fixture.host, 'pointerdown', 9, 210, 220, 'touch');
         firePointer(document, 'pointermove', 9, 210, 180, 'touch');
         firePointer(document, 'pointerup', 9, 210, 180, 'touch');
 
-        // Assert
-        expect(emitSpy).not.toHaveBeenCalledWith(
-            EventName.MOVE_REQUESTED,
-            expect.objectContaining({ viewId: 'flat' })
-        );
-
-        const cancelZone = fixture.host.querySelector(
-            `.${styles['flat-halo-cancel-zone']}`
-        ) as HTMLElement;
-        expect(cancelZone.style.display).toBe('none');
-
-        const label = fixture.host.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
-        expect(label.style.display).toBe('none');
+        // Assert — a drag up from the background is a whole-cube `x` rotation.
+        expect(emitSpy).toHaveBeenCalledWith(EventName.MOVE_REQUESTED, {
+            moveNotation: 'x',
+            viewId: 'flat',
+            tentative: false,
+        });
 
         handler.destroy();
     });
@@ -206,7 +221,7 @@ describe('FlatTouchHandler', () => {
         firePointer(document, 'pointermove', 4, 80, 92, 'touch');
 
         // Assert
-        const label = fixture.host.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
+        const label = document.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
         expect(label.style.display).toBe('block');
         expect(parseFloat(label.style.top)).toBeLessThan(92);
 
@@ -242,7 +257,7 @@ describe('FlatTouchHandler', () => {
             expect.objectContaining({ viewId: 'flat' })
         );
 
-        const label = fixture.host.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
+        const label = document.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
         expect(label.style.display).toBe('none');
 
         handler.destroy();
@@ -433,9 +448,13 @@ describe('FlatTouchHandler', () => {
 
         handler.showDragLabel("R'", 100, 200);
 
-        const label = fixture.host.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
+        const label = document.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
         expect(label.style.display).toBe('block');
-        expect(label.style.position).toBe('fixed');
+        // Fixed positioning is a stylesheet contract now, not an inline style: the
+        // label is a viewport overlay in every layout mode. jsdom applies no CSS
+        // from a `.module.css`, so the declaration is pinned in the stylesheet
+        // rather than read back through `getComputedStyle`.
+        expect(valueOf(blockFor('.flat-drag-label', flatViewCss), 'position')).toBe('fixed');
 
         handler.destroy();
     });
@@ -451,9 +470,10 @@ describe('FlatTouchHandler', () => {
         handler.attach();
 
         handler.showDragLabel('R', 100, 100);
-        handler.hideDragLabel();
+        const label = document.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
+        expect(label.style.display).toBe('block');
 
-        const label = fixture.host.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
+        handler.hideDragLabel();
         expect(label.style.display).toBe('none');
 
         handler.destroy();
@@ -496,7 +516,7 @@ describe('FlatTouchHandler', () => {
         firePointer(document, 'pointermove', 12, 24, 8);
         firePointer(document, 'pointercancel', 12, 24, 8);
 
-        const label = fixture.host.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
+        const label = document.querySelector(`.${styles['flat-drag-label']}`) as HTMLElement;
         const zone = fixture.host.querySelector(
             `.${styles['flat-halo-cancel-zone']}`
         ) as HTMLElement;
@@ -623,9 +643,11 @@ function createFixture(): Fixture {
         return sticker;
     };
 
-    // pos=0 (top-left), pos=1 (same face), pos=4 (center)
+    // pos=0 (top-left), pos=1 (its right neighbour), pos=3 (its lower neighbour,
+    // needed for the indicator's basis), pos=4 (center)
     makeSticker('s0', '0');
     makeSticker('s1', '1');
+    makeSticker('s3', '3');
     makeSticker('s2', '4');
 
     const selectedCalls: Array<string | undefined> = [];

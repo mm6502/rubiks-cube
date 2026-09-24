@@ -51,6 +51,14 @@ export const ghostStripCss = readFileSync(
  * whitespace on both sides. That is what makes multi-line selector lists usable without
  * the caller having to reproduce their exact line breaks.
  *
+ * A grouped selector list can be looked up EITHER by its full text or by any one of its
+ * members. Both forms are in use: callers asserting on a shared rule pass the whole list,
+ * while a caller asking "what style does this one selector resolve to?" passes a single
+ * member. Grouping is how this codebase states that several rules are deliberately one
+ * style, so it has to be assertable from either direction — otherwise the only way to pin
+ * a shared style would be to write it out once per member, which is the drift the grouping
+ * exists to prevent.
+ *
  * @param selector - The selector text to find; line breaks and spacing are normalised
  * @param css - The comment-stripped stylesheet to search (defaults to the Basic view)
  */
@@ -63,7 +71,10 @@ export function blockFor(selector: string, css: string = basicViewCss): string {
     const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
     let match: RegExpExecArray | null;
     while ((match = rulePattern.exec(css)) !== null) {
-        if (normalise(match[1]) === wanted) found.push(match[2]);
+        const ruleSelector = normalise(match[1]);
+        const matchesWholeList = ruleSelector === wanted;
+        const matchesOneMember = ruleSelector.split(',').some(part => part.trim() === wanted);
+        if (matchesWholeList || matchesOneMember) found.push(match[2]);
     }
 
     if (found.length === 0) throw new Error(`no rule found for ${selector}`);

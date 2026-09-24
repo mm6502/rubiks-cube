@@ -1,5 +1,6 @@
 import { Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
+import type { DragDecisionOverlay } from '@/interaction/drag-decision-overlay';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { ViewInteractionAdapter } from '@/interaction/types';
 
@@ -80,6 +81,11 @@ export type FlatTouchHandlerState = {
     startHit: StickerHit | undefined;
     /** True when the current drag started on the halo or via face-direct mode (whole-face rotation). */
     selectedFaceGesture: boolean;
+    /**
+     * True when the current drag started on neither a sticker nor the halo — the
+     * empty background or the legend — and resolves to a whole-cube rotation.
+     */
+    backgroundGesture: boolean;
     /** When true, the next click event is swallowed to prevent tap-through after a drag. */
     suppressNextClick: boolean;
     /** Minimum drag distance (px) required to commit a move — set to the cancel-zone radius at pointer-down. */
@@ -102,6 +108,12 @@ export type FlatTouchHandlerState = {
     haloCancelZoneEl: HTMLDivElement;
     /** Floating label that previews the inferred move notation during a drag. */
     dragLabelEl: HTMLDivElement;
+    /**
+     * The drag-decision indicator — the cross or single line that shows which way
+     * the gesture is resolving. The same shared overlay the Basic view uses, so
+     * the two views give identical feedback for the same gesture.
+     */
+    dragDecision: DragDecisionOverlay;
     /** Cached screen-space center and size of the selected face, used for rotation direction inference. */
     haloFaceCenter: { x: number; y: number; size: number } | undefined;
 
