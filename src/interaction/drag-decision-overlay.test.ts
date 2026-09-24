@@ -79,6 +79,20 @@ describe('createParallelGuideOverlay', () => {
         }
     });
 
+    it('makes both rails visible, not just the first', () => {
+        // The user-visible property: a fretboard is TWO rails. Asserting only the
+        // geometry let a regression through where the second rail was created
+        // pre-hidden and never un-hidden, so the gesture drew a single line
+        // instead of a band — and the band between the two rails is exactly what
+        // tells the user how far they may drift before the ring switches.
+        const overlay = createParallelGuideOverlay('test-rail');
+        overlay.show({ x: 0, y: -1 }, 200, 300, 5, 40);
+
+        for (const [index, line] of linesOf(overlay.element).entries()) {
+            expect(line.getAttribute('visibility'), `rail ${index + 1}`).not.toBe('hidden');
+        }
+    });
+
     it('offsets the rails perpendicular to the direction they run', () => {
         // Direction is straight up the screen; the rails must therefore be
         // displaced horizontally, one each side.
@@ -170,6 +184,22 @@ describe('createParallelGuideOverlay', () => {
         expect((a.y + b.y) / 2).toBeCloseTo(340, 6);
     });
 
+    it('still shows two rails on a later gesture, not just the first', () => {
+        // One overlay serves every gesture for the lifetime of the view, so the
+        // second rail must survive being hidden and shown again. A rail that is
+        // only correct while it has never been reused would look right in a
+        // single-gesture test and wrong in the app.
+        const overlay = createParallelGuideOverlay('test-rail');
+
+        overlay.show({ x: 0, y: -1 }, 200, 300, 5, 40);
+        overlay.hide();
+        overlay.show({ x: 0, y: -1 }, 200, 300, 5, 40);
+
+        for (const [index, line] of linesOf(overlay.element).entries()) {
+            expect(line.getAttribute('visibility'), `rail ${index + 1}`).not.toBe('hidden');
+        }
+    });
+
     it('hides both rails together again', () => {
         const overlay = createParallelGuideOverlay('test-rail');
         overlay.show({ x: 0, y: -1 }, 200, 300, 5, 40);
@@ -230,6 +260,20 @@ describe('createDragDecisionOverlay', () => {
         overlay.showLine({ x: 0, y: -1 }, 100, 100);
 
         expect(linesOf(overlay.element)[1].getAttribute('visibility')).toBe('hidden');
+    });
+
+    it('brings the second arm back when switching from a line to a cross', () => {
+        // The reverse order. This is the path that depends entirely on `showCross`
+        // un-hiding the arm, since the layer creator no longer hides it up front —
+        // so a single-direction gesture followed by a sticker gesture must still
+        // draw both arms rather than a stale single line.
+        const overlay = createDragDecisionOverlay('test-arm', () => 30);
+        overlay.showLine({ x: 0, y: -1 }, 100, 100);
+        overlay.showCross({ upDir: { x: 0, y: -1 }, rightDir: { x: 1, y: 0 } }, 100, 100);
+
+        for (const line of linesOf(overlay.element)) {
+            expect(line.getAttribute('visibility')).not.toBe('hidden');
+        }
     });
 
     it('hides and detaches the layer', () => {

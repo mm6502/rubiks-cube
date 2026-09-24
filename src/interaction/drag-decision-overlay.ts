@@ -113,13 +113,21 @@ export function computeFaceScreenBasis(
 }
 
 /**
- * Create a viewport-anchored SVG holding `lineCount` lines, initially hidden.
+ * Create a viewport-anchored SVG holding `lineCount` lines, all visible.
  *
  * `position: fixed` at the viewport origin and sized to the viewport, appended to
  * `document.body` rather than to any view. That is what keeps the lines
  * unclipped and at a constant apparent size: inside a view's own subtree they are
  * cut off by whatever clips that subtree and, in the Circular view, scaled with
  * the SVG's zoom.
+ *
+ * The root starts hidden and every line inside it is created visible, so showing
+ * the layer shows all of its lines. A caller that wants some of them hidden by
+ * default (the decision cross, whose second arm is optional) hides them itself —
+ * per-line visibility is a property of what the layer *means*, not of how many
+ * lines it has. Encoding "hide all but the first" here instead was a real bug: it
+ * silently cost the fretboard its second rail, because that caller only ever
+ * un-hides the root.
  *
  * Because the SVG has no `viewBox` and sits at the viewport origin, one user unit
  * is one CSS pixel and viewport coordinates map 1:1 — so any length passed in is
@@ -144,7 +152,6 @@ function createViewportLineLayer(
     for (let i = 0; i < lineCount; i += 1) {
         const line = document.createElementNS(SVG_NS, 'line') as SVGLineElement;
         line.classList.add(className);
-        if (i > 0) line.setAttribute('visibility', 'hidden');
         element.appendChild(line);
         lines.push(line);
     }
@@ -264,6 +271,12 @@ export function createDragDecisionOverlay(
     const { element, lines } = createViewportLineLayer(2, armClassName, 10000);
     const [primary, secondary] = lines;
 
+    // The second arm is optional: this indicator is sometimes a two-armed cross
+    // (a sticker's four drag zones) and sometimes a single radial line (a halo or
+    // face-ellipse rotation). Both methods below therefore set its visibility
+    // explicitly — `showCross` un-hides it, `showLine` hides it — so there is no
+    // third state to establish up front, and the layer creator stays free of a
+    // rule that would otherwise be wrong for its other caller.
     return {
         element,
         showCross(basis, clientX, clientY) {
