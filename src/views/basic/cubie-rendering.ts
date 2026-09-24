@@ -66,6 +66,20 @@ function renderCubieFaces(
     // plane at z=0 — half an edge BEHIND the face planes where the seams actually are.
     // It therefore could not seal them (far-side colour showed through), and at grazing
     // angles it painted over the stickers instead (a line across the middle of a face).
+    //
+    // The wall behind a sticker is SQUARED (see `data-sticker-backed` below and the
+    // `.cubie-interior[data-sticker-backed]` rule): a wall is a full-size box and a
+    // sticker is a full-size box with a border, so the two have DIFFERENT content boxes,
+    // and rounding both by the same fraction puts the sticker's rounded bound OUTSIDE
+    // the wall's. The wall then cannot cover the band the sticker's border paints, and
+    // the wall's own shape decides whether anything shows through. Square, it covers
+    // that band by construction. Sticker-less walls stay rounded to match the stickers'
+    // visible corners (requirement R9).
+    // `cubie.stickers` is an Immutable Map of StickerId -> Sticker, so it is iterated
+    // with `forEach` (as below) rather than built with `Array.prototype.map`.
+    const stickerFaces = new Set<Face>();
+    cubie.stickers.forEach(sticker => stickerFaces.add(sticker.currentFace));
+
     const allFaces = [Face.F, Face.B, Face.R, Face.L, Face.U, Face.D];
     allFaces.forEach(face => {
         const wallEl = document.createElement('div');
@@ -75,6 +89,12 @@ function renderCubieFaces(
         // a transform for every face element of a cubie, and walls are not interactive
         // so they cannot carry the sticker marker instead.
         wallEl.setAttribute('data-face', face);
+        // Marks the wall that has a sticker sharing its face. The pair cannot be
+        // expressed as a selector, so the relationship is recorded here rather than
+        // re-derived in CSS.
+        if (stickerFaces.has(face)) {
+            wallEl.setAttribute('data-sticker-backed', '');
+        }
         wallEl.style.transform = getFaceTransform(face, cubieHalf);
         wallEl.style.backgroundColor = 'var(--color-domain-cube-interior)';
         wallEl.style.pointerEvents = 'none';

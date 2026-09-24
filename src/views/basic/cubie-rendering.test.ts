@@ -324,7 +324,16 @@ describe('cubie-rendering - data-face contract', () => {
 describe('cubie-rendering - resizeCubies', () => {
     function makeState(
         cubeSize: number,
-        cubieSize: number
+        cubieSize: number,
+        /**
+         * Give every surface cubie a sticker on its outward-facing sides.
+         *
+         * The fixtures used to pass `stickers: []` unconditionally, which meant every
+         * `resizeCubies` test exercised only the WALL branch of the `[data-face]` loop and
+         * never the `stickerTransform` branch. A regression that dropped the sticker's
+         * `STICKER_LIFT_PX` during a resize would have passed every test in this file.
+         */
+        withStickers = false
     ): BasicViewInternalData & { cubieSize?: number } {
         const cubeEl = document.createElement('div');
         cubeEl.style.width = `${cubieSize * cubeSize}px`;
@@ -339,10 +348,29 @@ describe('cubie-rendering - resizeCubies', () => {
                 for (let z = 0; z < cubeSize; z++) {
                     if (x === 0 || x === max || y === 0 || y === max || z === 0 || z === max) {
                         const posKey = `pos_${pad(x)}_${pad(y)}_${pad(z)}` as any;
+                        // A sticker exists only on the face pointing out of the cube, so
+                        // the layer at index 0 or max gets one on that axis.
+                        const stickers: any[] = [];
+                        if (withStickers) {
+                            const outward: Array<[string, Face]> = [];
+                            if (x === 0) outward.push(['L', Face.L]);
+                            if (x === max) outward.push(['R', Face.R]);
+                            if (y === 0) outward.push(['D', Face.D]);
+                            if (y === max) outward.push(['U', Face.U]);
+                            if (z === 0) outward.push(['B', Face.B]);
+                            if (z === max) outward.push(['F', Face.F]);
+                            outward.forEach(([name, face], index) => {
+                                stickers.push({
+                                    id: `${name}-${x}-${y}-${z}-${index}` as any,
+                                    currentFace: face,
+                                    color: 'white',
+                                });
+                            });
+                        }
                         cubiesByPosition.set(posKey, {
                             id: `c-${x}-${y}-${z}`,
                             position: { x, y, z },
-                            stickers: [],
+                            stickers,
                         });
                     }
                 }
@@ -390,16 +418,43 @@ describe('cubie-rendering - resizeCubies', () => {
         initializeCubies(state, 300);
         const cubeEl = state.cubeElement!;
 
-        const beforeIds = Array.from(cubeEl.querySelectorAll('[data-cubie-id]')).map(el =>
-            el.getAttribute('data-cubie-id')
-        );
+        // The ELEMENT REFERENCES, not their ids. Collecting `data-cubie-id` only compares
+        // id strings, so a full teardown-and-rebuild that produced the same ids would pass
+        // — which is precisely the regression this covers (see `resizeCubies`).
+        const before = Array.from(cubeEl.querySelectorAll('[data-cubie-id]')) as HTMLElement[];
+        const beforeByCubieId = new Map(before.map(el => [el.getAttribute('data-cubie-id'), el]));
 
         resizeCubies(state, 450);
 
-        const afterIds = Array.from(cubeEl.querySelectorAll('[data-cubie-id]')).map(el =>
-            el.getAttribute('data-cubie-id')
-        );
-        expect(afterIds).toEqual(beforeIds);
+        const after = Array.from(cubeEl.querySelectorAll('[data-cubie-id]')) as HTMLElement[];
+        expect(after, 'no cubie may be added or removed').toHaveLength(before.length);
+        after.forEach(el => {
+            const id = el.getAttribute('data-cubie-id');
+            // `toBe` is identity, not equality: a rebuilt node with the same id fails here.
+            expect(el, `cubie ${id} must be the same node object, not a replacement`).toBe(
+                beforeByCubieId.get(id)
+            );
+        });
+    });
+
+    it('preserves the node identity of every face element too', () => {
+        // The whole point of the in-place path is that no DOM is destroyed. Asserting it
+        // only for cubies would miss a rebuild that re-created each cubie's children.
+        const state = makeState(3, 100, true);
+        initializeCubies(state, 300);
+        const cubeEl = state.cubeElement!;
+
+        const before = Array.from(cubeEl.querySelectorAll('[data-face]')) as HTMLElement[];
+        expect(before.length, 'the fixture must build face elements').toBeGreaterThan(0);
+        const beforeSet = new Set(before);
+
+        resizeCubies(state, 450);
+
+        const after = Array.from(cubeEl.querySelectorAll('[data-face]')) as HTMLElement[];
+        expect(after).toHaveLength(before.length);
+        after.forEach(el => {
+            expect(beforeSet.has(el), 'a face element was replaced, not updated').toBe(true);
+        });
     });
 
     it('rejects a DOM missing one expected cubie', () => {
@@ -477,6 +532,66 @@ describe('cubie-rendering - resizeCubies', () => {
             ).not.toBeNull();
             expect(interior.style.transform).toBe(getFaceTransform(face as Face, newHalf));
         });
+    });
+
+    it('rescales the STICKER transform too, not only the wall transform', () => {
+        // Both branches of the `[data-face]` loop in `resizeCubies` must be exercised. The
+        // other fixtures pass no stickers, so they only ever reach the wall branch — a
+        // regression that gave a sticker the un-lifted `getFaceTransform` on resize would
+        // leave it coplanar with its wall and flickering, and every other test would pass.
+        const state = makeState(3, 100, true);
+        initializeCubies(state, 300);
+        const cubeEl = state.cubeElement!;
+
+        const stickersBefore = cubeEl.querySelectorAll('[data-sticker-id]');
+        expect(stickersBefore.length, 'the fixture must build stickers').toBeGreaterThan(0);
+
+        resizeCubies(state, 600);
+
+        const newHalf = 600 / 3 / 2;
+        let checked = 0;
+        cubeEl.querySelectorAll('[data-sticker-id]').forEach(el => {
+            const sticker = el as HTMLElement;
+            const face = sticker.getAttribute('data-face') as Face;
+            expect(sticker.style.transform).toBe(stickerTransform(face, newHalf));
+            // The lift is the difference between the two transforms, so assert it is
+            // actually present rather than merely that the value changed.
+            expect(sticker.style.transform).not.toBe(getFaceTransform(face, newHalf));
+            checked++;
+        });
+        expect(checked, 'no sticker transform was asserted').toBeGreaterThan(0);
+    });
+
+    it('resolves sticker and wall from the same cubie at different offsets after a resize', () => {
+        // The pairing is the contract: for one cubie and one face, the sticker sits
+        // STICKER_LIFT_PX in front of its wall, and a resize must preserve that relation
+        // rather than moving one and not the other.
+        const state = makeState(3, 100, true);
+        initializeCubies(state, 300);
+        const cubeEl = state.cubeElement!;
+
+        resizeCubies(state, 600);
+
+        const newHalf = 600 / 3 / 2;
+        let pairs = 0;
+        cubeEl.querySelectorAll('[data-cubie-id]').forEach(cubie => {
+            const walls = new Map<string, HTMLElement>();
+            cubie.querySelectorAll('[data-face]').forEach(el => {
+                const h = el as HTMLElement;
+                if (h.hasAttribute('data-sticker-id')) return;
+                walls.set(h.getAttribute('data-face')!, h);
+            });
+            cubie.querySelectorAll('[data-sticker-id]').forEach(el => {
+                const sticker = el as HTMLElement;
+                const face = sticker.getAttribute('data-face')!;
+                const wall = walls.get(face);
+                if (!wall) return;
+                expect(wall.style.transform).toBe(getFaceTransform(face as Face, newHalf));
+                expect(sticker.style.transform).toBe(stickerTransform(face as Face, newHalf));
+                pairs++;
+            });
+        });
+        expect(pairs, 'no sticker/wall pair was asserted').toBeGreaterThan(0);
     });
 
     it('sets --cubie-border-width from stickerBorderWidth of the new cubie size', () => {

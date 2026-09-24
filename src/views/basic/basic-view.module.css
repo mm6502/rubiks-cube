@@ -117,12 +117,34 @@
 
 /* Interior body wall on a cubie.
  *
- * All SIX of a cubie's faces carry this class now, not just the sticker-less ones.
+ * All SIX of a cubie's faces carry this class, not just the sticker-less ones.
  * Together they are the sealed box that hides the cube's far side, so the wall behind
  * a sticker is load-bearing: it fills the area the sticker's rounded corner does not
  * paint, and what shows through that corner is body colour rather than a face from
- * the other side of the cube. Squaring it here would reopen exactly the seam the
- * class exists to close. */
+ * the other side of the cube.
+ *
+ * A wall with a STICKER on it is squared; a wall without one is rounded. The two
+ * declarations are not a typo and not an inconsistency:
+ *
+ *   * A wall is a plain 100% box. A sticker is a 100% box WITH A BORDER and
+ *     `box-sizing: border-box`, so its content box is `size - 2 * border` while the
+ *     wall's content box is the full size. Their border radii are measured from
+ *     different boxes even when the specified percentage is identical, which puts the
+ *     sticker's rounded bound OUTSIDE the wall's. The wall's corner then sits inside
+ *     the rounded band its sticker's border paints, so which of the two shapes decides
+ *     what is visible at the corner depends on the radius. Squaring the sticker-backed
+ *     wall removes that dependency: its rectangle covers the sticker's rounded band
+ *     by construction, at every size and border width.
+ *   * A wall with no sticker has nothing to fill behind, so it keeps the design's
+ *     rounded corner and matches the shape of the facelets around it (R9).
+ *
+ * Measured (Chromium + Firefox, 3x3-7x7, `scripts/scratch-debug/junction-hole-probe.mjs`):
+ * with the wall rounded, every pixel the corner exposed was body `#222` or sticker
+ * border `#333` — i.e. dark in both alternatives — except a 1-2 pixel antialiased
+ * fringe on the stickers' corners (`rgb(54,54,54)` -> `rgb(48,48,48)`). Squaring the
+ * wall covers that fringe with body colour. So the difference this closes is a subpixel
+ * edge on each facelet, not a far-side leak; the square keeps the seal from becoming a
+ * function of the radius, which is what makes it worth pinning. */
 .cubie-interior {
     position: absolute;
     width: 100%;
@@ -139,6 +161,13 @@
      * an opaque box, and a cube built from opaque boxes occludes its own far side
      * without needing the backface test at all. */
     backface-visibility: visible;
+}
+
+/* The wall that shares its face with a sticker — see the block comment above.
+ * Squared, because its sticker's border-radius is measured from a smaller content box
+ * than the wall's, so a rounded wall cannot be relied on to cover the corner. */
+.cubie-interior[data-sticker-backed] {
+    border-radius: 0;
 }
 
 /* Cross-view highlight class — applied by updateHighlight when hovering other views */

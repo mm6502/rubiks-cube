@@ -25,9 +25,13 @@
 //   * `.cubie` re-gains an opaque background            -> the centre quad is back, so it
 //                                                          paints over stickers again and
 //                                                          the seal moves off the face plane;
-//   * a wall loses its `border-radius`                  -> its corner stops matching the
-//                                                          sticker's, so the seam around a
-//                                                          facelet becomes uneven.
+//   * a sticker-backed wall loses its square corner      -> the wall's rounded bound no longer
+//                                                          covers the band the sticker's border
+//                                                          paints, so the seal becomes a
+//                                                          function of the radius again;
+//   * a sticker-less wall loses its `border-radius`      -> it stops matching the sticker
+//                                                          corners, so the facelet grid's
+//                                                          shape becomes uneven.
 //
 // Why this is a CSS contract test and not a rendered assertion: jsdom implements no layout,
 // no compositing and no 3D, so it can never observe a culling difference — a test that
@@ -95,23 +99,30 @@ describe('basic view CSS — backface culling contract (Firefox flash regression
         ).toBe(true);
     });
 
-    it('rounds the wall corners to match the stickers', () => {
-        // Each wall behind a sticker has to fill the area the sticker's rounded corner does
-        // not paint; if the wall's corner shape drifts from the sticker's, the seam around
-        // each facelet becomes visibly uneven between the walls that carry a sticker and
-        // the walls that do not.
-        const wallRadius = valueOf(blockFor('.cubie-interior'), 'border-radius');
-        const stickerRadius = valueOf(blockFor('.sticker'), 'border-radius');
-        expect(wallRadius, 'the wall corner is a designed part of the facelet grid').toBeDefined();
-        expect(wallRadius).not.toBe('0');
-        expect(wallRadius).toBe(stickerRadius);
+    it('squares the wall behind a sticker and rounds the sticker-less walls', () => {
+        // A wall is a plain 100% box; a sticker is a 100% box WITH a border and
+        // `box-sizing: border-box`, so its content box is `size - 2 * border`. Rounding
+        // both by the same percentage therefore measures the two arcs from different
+        // boxes, which puts the sticker's rounded bound outside the wall's — the wall's
+        // corner then depends on the radius rather than being sealed by construction.
+        //
+        // Squaring the sticker-backed wall makes the cover independent of the radius.
+        // The sticker-less walls keep the design's rounding, because they have nothing
+        // to fill behind and their corner is what the facelet grid reads as (R9).
+        const backed = valueOf(blockFor('.cubie-interior[data-sticker-backed]'), 'border-radius');
+        const plain = valueOf(blockFor('.cubie-interior'), 'border-radius');
+
+        expect(backed, 'a sticker-backed wall must be squared').toBe('0');
+        expect(plain, 'a sticker-less wall keeps the rounded facelet corner').toBeDefined();
+        expect(
+            plain,
+            'a sticker-less wall must stay rounded, or the grid loses its shape'
+        ).not.toBe('0');
     });
 
     it('keeps the sticker corners rounded', () => {
-        // The rounded corners are what the wall behind a sticker has to seal, and what the
-        // sticker-less walls have to match. Pinning this keeps the two declarations from
-        // drifting apart: squaring the corners would make the seal above vacuous, since
-        // there would be no corner to seal.
+        // The sticker's rounded corner is the shape the wall behind it must cover, and the
+        // shape the sticker-less walls match. Pinning it keeps the two from drifting apart.
         const sticker = blockFor('.sticker');
         const radius = valueOf(sticker, 'border-radius');
         expect(radius, 'the sticker corners are a designed part of the facelet grid').toBeDefined();
@@ -139,12 +150,35 @@ describe('basic view CSS — backface culling contract (Firefox flash regression
             ).toBeDefined();
         }
 
-        // The body class carries no state variant at all — that is the invariant that keeps
+        // The body class carries no STATE variant at all — that is the invariant that keeps
         // a highlight from ever reaching the body. `css` is already comment-stripped.
+        //
+        // The check is on what a non-base rule would SET, not on whether an attribute
+        // selector exists: `.cubie-interior[data-sticker-backed]` is a legitimate rule that
+        // changes only `border-radius`, which cannot carry a highlight. A selector that
+        // painted the body is the actual hazard, because the dark shape showing through a
+        // sticker's rounded corner IS the body, and tinting it there would glow in that
+        // colour. The base rule is skipped because it is where the body colour belongs.
+        const normalise = (text: string) => text.replace(/\s+/g, ' ').trim();
+        let extraRules = 0;
+        for (const [, selector, block] of css.matchAll(
+            /([^{}]*\.cubie-interior[^{}]*)\{([^{}]*)\}/g
+        )) {
+            if (normalise(selector) === '.cubie-interior') continue;
+            extraRules++;
+            expect(
+                valueOf(block, 'background-color') ?? valueOf(block, 'border-color'),
+                `"${normalise(selector)}" may shape the body walls but must never colour them`
+            ).toBeUndefined();
+        }
+        // Guard the guard: if the selector syntax ever changes so nothing matches, the loop
+        // above would vacuously pass. The sticker-backed rule must be seen here.
+        expect(extraRules, 'the sticker-backed wall rule must be found').toBeGreaterThan(0);
+        // And the base rule must carry the body colour, so the seal exists at all.
         expect(
-            /\.cubie-interior\s*[:.\[][^\s{]*\s*\{/.test(css),
-            'a state selector on .cubie-interior would let a highlight reach the body'
-        ).toBe(false);
+            valueOf(blockFor('.cubie-interior'), 'background-color'),
+            'the base wall rule owns the body colour'
+        ).toBeDefined();
     });
 
     it('still builds a 3D context on the cube, the cubie and the anchor wrapper', () => {
