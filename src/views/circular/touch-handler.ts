@@ -5,6 +5,7 @@ import {
     DRAG_CROSS_ARM_LENGTH_FLOATING,
     DRAG_CROSS_ARM_LENGTH_TABBED,
     createDragDecisionOverlay,
+    createParallelGuideOverlay,
 } from '@/interaction/drag-decision-overlay';
 import { DragStateMachine } from '@/interaction/drag-state-machine';
 import { HitKind } from '@/interaction/types';
@@ -83,20 +84,9 @@ export class CircularTouchHandler {
                     : DRAG_CROSS_ARM_LENGTH_FLOATING
         );
 
-        const fretboardGroupEl = document.createElementNS(SVG_NS, 'g');
-        fretboardGroupEl.setAttribute('visibility', 'hidden');
-        fretboardGroupEl.setAttribute('pointer-events', 'none');
-
-        const fretboardLine1El = document.createElementNS(SVG_NS, 'line');
-        fretboardLine1El.classList.add(
+        const fretboardRails = createParallelGuideOverlay(
             styles['circular-fretboard-line'] ?? 'circular-fretboard-line'
         );
-        const fretboardLine2El = document.createElementNS(SVG_NS, 'line');
-        fretboardLine2El.classList.add(
-            styles['circular-fretboard-line'] ?? 'circular-fretboard-line'
-        );
-        fretboardGroupEl.appendChild(fretboardLine1El);
-        fretboardGroupEl.appendChild(fretboardLine2El);
 
         const axisDetectionBands = new Map<
             Axis,
@@ -143,9 +133,7 @@ export class CircularTouchHandler {
             dragLabelEl,
             cancelZoneEl,
             dragDecision,
-            fretboardGroupEl,
-            fretboardLine1El,
-            fretboardLine2El,
+            fretboardRails,
             axisDetectionBands,
 
             selectedFace: undefined,
@@ -188,15 +176,19 @@ export class CircularTouchHandler {
         state.svgRoot.appendChild(state.haloEl);
         state.svgRoot.appendChild(state.faceOverlayEl);
         state.svgRoot.appendChild(state.cancelZoneEl);
-        state.svgRoot.appendChild(state.fretboardGroupEl);
 
-        // The label and the decision indicator follow the pointer, so they live in
-        // a fixed layer on the body rather than inside the SVG. Inside the SVG
-        // they were clipped by its viewBox and shrank with its zoom (measured: an
-        // arm 70px at 1x renders 14px at 0.2x), both of which made the hint
-        // useless exactly when the view was zoomed out or the gesture was made
-        // near an edge.
+        // The label, the decision indicator and the fretboard rails all follow the
+        // pointer, so they live in fixed layers on the body rather than inside the
+        // SVG. Inside the SVG they were clipped by its viewBox and shrank with its
+        // zoom (measured: an arm 70px at 1x renders 14px at 0.2x, and the rails'
+        // gap fell to about 1px), both of which made the feedback useless exactly
+        // when the view was zoomed out or the gesture was made near an edge.
+        //
+        // Order matters: the rails go in first so the decision indicator paints on
+        // top. The rails say which band is being tracked, the arms say what is
+        // about to be committed, and the latter must never be obscured.
         document.body.appendChild(state.dragLabelEl);
+        document.body.appendChild(state.fretboardRails.element);
         document.body.appendChild(state.dragDecision.element);
     }
 
@@ -241,7 +233,7 @@ export class CircularTouchHandler {
         state.faceOverlayEl.remove();
         state.cancelZoneEl.remove();
         state.dragDecision.remove();
-        state.fretboardGroupEl.remove();
+        state.fretboardRails.remove();
         state.dragLabelEl.remove();
         for (const { bandEl, clipEl } of state.axisDetectionBands.values()) {
             bandEl.remove();

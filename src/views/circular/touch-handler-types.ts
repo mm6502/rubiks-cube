@@ -1,7 +1,10 @@
 import { Axis, Face } from '@/cube/types';
 import type { CubeState } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
-import type { DragDecisionOverlay } from '@/interaction/drag-decision-overlay';
+import type {
+    DragDecisionOverlay,
+    ParallelGuideOverlay,
+} from '@/interaction/drag-decision-overlay';
 import type { DragStateMachine } from '@/interaction/drag-state-machine';
 import {
     CANCEL_ZONE_RADIUS_BASE_PX,
@@ -116,16 +119,28 @@ export const COMMIT_DISTANCE_PX = CANCEL_ZONE_RADIUS_BASE_PX;
 export const COMMIT_DISTANCE_TABBED_PX = CANCEL_ZONE_RADIUS_BASE_PX * CANCEL_ZONE_TABBED_MULTIPLIER;
 /** Max SVG-space distance from a touch point to qualify as "near" a circle crossing (for basis computation). */
 export const CROSSING_PROXIMITY_MAX_SVG = 12;
-/** Length of each arm of the drag-decision cross in floating layout (SVG units). */
+/** Length of each arm of the drag-decision cross in floating layout (screen pixels). */
 export const DRAG_CROSS_ARM_LENGTH_FLOATING = 34;
-/** Length of each arm of the drag-decision cross in tabbed layout (SVG units). */
+/** Length of each arm of the drag-decision cross in tabbed layout (screen pixels). */
 export const DRAG_CROSS_ARM_LENGTH_TABBED = 64;
 /** Pixel movement before a pointer-down is promoted to a drag gesture. */
 export const DRAG_THRESHOLD_PX = 4;
 /** Pixel distance beyond which a drag produces a double-move notation (e.g. `R2`). */
 export const FAR_DRAG_THRESHOLD_PX = 70;
-/** Half the perpendicular distance between the two fretboard guide lines (SVG units). */
-export const FRETBOARD_HALF_GAP_SVG = 5;
+/**
+ * Half the perpendicular distance between the two fretboard guide rails, in
+ * **screen pixels**.
+ *
+ * This is the one authoritative fretboard width. It is a screen length because
+ * the rails are drawn on a fixed viewport layer: drawn inside the SVG they were
+ * scaled by the zoom transform, so at 0.2x the gap fell to about 1px and the
+ * guide the user was supposed to track vanished exactly when they needed it.
+ *
+ * The gesture's drift tolerance is derived from this value, not declared
+ * separately — see `fretboardHalfGapViewBox`. Two constants for one concept is
+ * what let the drawn band and the honoured band drift apart before.
+ */
+export const FRETBOARD_HALF_GAP_PX = 5;
 /** Sentinel key for fretboardHighlightKey meaning "outside all circles → whole-cube zone". */
 export const FRETBOARD_BG_KEY = 'BG';
 
@@ -176,12 +191,17 @@ export type TouchHandlerState = {
      * indicator entirely. As a screen-space overlay it is neither.
      */
     readonly dragDecision: DragDecisionOverlay;
-    /** SVG group containing the two parallel fretboard guide lines. */
-    readonly fretboardGroupEl: SVGGElement;
-    /** First parallel fret guide line (offset perpendicular from the radial axis). */
-    readonly fretboardLine1El: SVGLineElement;
-    /** Second parallel fret guide line (offset perpendicular from the radial axis). */
-    readonly fretboardLine2El: SVGLineElement;
+    /**
+     * The two parallel fretboard rails, as a fixed viewport layer on the body.
+     *
+     * Same reasoning as {@link dragDecision}: as SVG children they were both
+     * clipped by the viewBox and scaled by the zoom. A gesture made on the empty
+     * border of a zoomed-out view then drew its rails tens of viewBox units away
+     * from the visible canvas and a fraction of a pixel wide — the user got no
+     * feedback at all. As a screen-space overlay at every zoom the rails are the
+     * same size and always where the pointer is.
+     */
+    readonly fretboardRails: ParallelGuideOverlay;
     /** Per-axis debug annular bands with clip paths for proximity hit visualisation. */
     readonly axisDetectionBands: Map<Axis, { bandEl: SVGPathElement; clipEl: SVGClipPathElement }>;
 

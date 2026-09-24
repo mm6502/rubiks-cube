@@ -9,7 +9,6 @@ import { Axis } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
 import { distance2 } from '@/cube/utils';
 import { normalize2 } from '@/cube/utils/math';
-import { placeLine } from '@/interaction/drag-decision-overlay';
 import type { DragGesture } from '@/interaction/types';
 
 import type { AxisCircle } from './svg-tools';
@@ -31,7 +30,7 @@ import {
     DRAG_CROSS_ARM_LENGTH_FLOATING,
     DRAG_CROSS_ARM_LENGTH_TABBED,
     FRETBOARD_BG_KEY,
-    FRETBOARD_HALF_GAP_SVG,
+    FRETBOARD_HALF_GAP_PX,
 } from './touch-handler-types';
 import type { AxisHit, TouchHandlerState } from './touch-handler-types';
 
@@ -114,9 +113,17 @@ export function setupFretboardFromBackground(
 // ── Fretboard lines ─────────────────────────────────────────────────────────
 
 /**
- * Show two parallel radial guide lines offset perpendicular from the
- * axis centre through the touch point. Stores the radial direction and
- * start SVG point for later perpendicular-distance computation.
+ * Show the two parallel radial guide rails through the touch point.
+ *
+ * The rails are drawn in **screen space** on a fixed viewport layer, so both the
+ * gap between them and their length stay put across zoom. Their radial direction
+ * is still derived from the axis centre, which is SVG geometry, so the centre is
+ * projected to the screen first — the rails must point at the ring the user is
+ * fretting, and that ring only exists in the cube's own coordinate space.
+ *
+ * The SVG-space radial direction and origin are stored as well: the drift check
+ * and the commit distance are measured against cube geometry, so they stay in
+ * viewBox units and are unaffected by the zoom.
  */
 function showFretboardLines(
     state: TouchHandlerState,
@@ -136,32 +143,29 @@ function showFretboardLines(
     state.fretboardRadialDir = radialDir;
     state.fretboardStartSvg = touchSvg;
 
-    const perpDir = { x: -radialDir.y, y: radialDir.x };
+    const centerClient = svgToClientPoint(state.svgRoot, referenceCircle.cx, referenceCircle.cy, {
+        x: referenceCircle.cx,
+        y: referenceCircle.cy,
+    });
+    const radialDirClient = normalize2({
+        x: clientX - centerClient.x,
+        y: clientY - centerClient.y,
+    });
+    if (!radialDirClient) {
+        return;
+    }
 
     const armLength =
         state.layoutMode === LayoutMode.Tabbed
             ? DRAG_CROSS_ARM_LENGTH_TABBED
             : DRAG_CROSS_ARM_LENGTH_FLOATING;
 
-    const center = touchSvg;
-
-    const c1 = {
-        x: center.x + perpDir.x * FRETBOARD_HALF_GAP_SVG,
-        y: center.y + perpDir.y * FRETBOARD_HALF_GAP_SVG,
-    };
-    const c2 = {
-        x: center.x - perpDir.x * FRETBOARD_HALF_GAP_SVG,
-        y: center.y - perpDir.y * FRETBOARD_HALF_GAP_SVG,
-    };
-
-    placeLine(state.fretboardLine1El, c1, radialDir, armLength);
-    placeLine(state.fretboardLine2El, c2, radialDir, armLength);
-    state.fretboardGroupEl.setAttribute('visibility', 'visible');
+    state.fretboardRails.show(radialDirClient, clientX, clientY, FRETBOARD_HALF_GAP_PX, armLength);
 }
 
-/** Hide the fretboard guide lines and clear all fretboard geometry state. */
+/** Hide the fretboard guide rails and clear all fretboard geometry state. */
 export function hideFretboard(state: TouchHandlerState): void {
-    state.fretboardGroupEl.setAttribute('visibility', 'hidden');
+    state.fretboardRails.hide();
     state.fretboardAxis = undefined;
     state.fretboardAxisGroup = undefined;
     state.fretboardBoundaries = undefined;
@@ -239,6 +243,42 @@ export function clearFretboardVisualState(state: TouchHandlerState): void {
 }
 
 /**
+ * ViewBox units per client pixel at the SVG's current scale.
+ *
+ * Needed because the fretboard now measures two different things in two different
+ * spaces, and they have to agree. Which ring the pointer is over is cube geometry,
+ * so it stays in viewBox units; the rails the user tracks are a screen overlay, so
+ * their gap is a pixel length. The tolerance for drifting off the rails belongs to
+ * the *rails* — it is the band they draw — so it has to be expressed in whatever
+ * units the comparison happens in.
+ *
+ * Falls back to 1 when the SVG cannot be measured (a detached SVG, as in jsdom),
+ * where an identity mapping is the only defensible answer.
+ */
+function svgUnitsPerClientPx(state: TouchHandlerState): number {
+    const origin = svgToClientPoint(state.svgRoot, 0, 0, { x: 0, y: 0 });
+    const probe = svgToClientPoint(state.svgRoot, 1, 0, { x: 1, y: 0 });
+    const clientPerUnit = Math.hypot(probe.x - origin.x, probe.y - origin.y);
+    if (!Number.isFinite(clientPerUnit) || clientPerUnit <= 0) {
+        return 1;
+    }
+    return 1 / clientPerUnit;
+}
+
+/**
+ * Half the perpendicular drift the gesture tolerates, in viewBox units.
+ *
+ * Derived from the *drawn* rail gap rather than from a separate constant, so the
+ * band that is shown and the band that is honoured cannot drift apart. They were
+ * two constants in the same space once, which coincided by construction; now that
+ * the rails are pixels and the geometry is viewBox units, the conversion is what
+ * keeps them coincident.
+ */
+function fretboardHalfGapViewBox(state: TouchHandlerState): number {
+    return FRETBOARD_HALF_GAP_PX * svgUnitsPerClientPx(state);
+}
+
+/**
  * During a fretboard drag, check if the pointer has moved radially
  * past a boundary into a different circle's band. If so, switch
  * highlight, update the detection band, and recompute rotation centre.
@@ -256,13 +296,20 @@ export function updateFretboardHighlight(
 
     const svgPoint = clientToSvgPoint(state.svgRoot, clientX, clientY);
 
+    // The drift tolerance is the drawn rail gap, converted into the units the
+    // measurement below is in. Using a fixed viewBox constant here would let the
+    // rails promise a wider band than the gesture honours whenever the view is
+    // zoomed out — the pointer would sit visibly between the rails and the
+    // fretboard would still give up.
+    const halfGapSvg = fretboardHalfGapViewBox(state);
+
     if (state.fretboardRadialDir && state.fretboardStartSvg) {
         const ddx = svgPoint.x - state.fretboardStartSvg.x;
         const ddy = svgPoint.y - state.fretboardStartSvg.y;
         const perpSvg = Math.abs(
             ddx * state.fretboardRadialDir.y - ddy * state.fretboardRadialDir.x
         );
-        if (perpSvg > FRETBOARD_HALF_GAP_SVG) {
+        if (perpSvg > halfGapSvg) {
             return;
         }
     }
@@ -287,7 +334,7 @@ export function updateFretboardHighlight(
         const innerEdge = boundaries[0];
         const outerEdge = boundaries[boundaries.length - 1];
         const marginFromBand = d < innerEdge ? innerEdge - d : d - outerEdge;
-        if (marginFromBand < FRETBOARD_HALF_GAP_SVG) {
+        if (marginFromBand < halfGapSvg) {
             return;
         }
 

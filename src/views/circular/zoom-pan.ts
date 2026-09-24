@@ -187,14 +187,27 @@ export class ZoomPanController {
         const { signal } = this.abort;
         const el = this.clipEl;
 
+        // These three stay on the clip: they may only *begin* something when the
+        // pointer is over this view.
         el.addEventListener('wheel', this.onWheel, { signal, passive: false });
         el.addEventListener('mousedown', this.onMouseDown, { signal, capture: true });
         el.addEventListener('pointerdown', this.onPointerDown, { signal, capture: true });
-        el.addEventListener('pointermove', this.onPointerMove, { signal });
-        el.addEventListener('pointerup', this.onPointerEnd, { signal });
-        el.addEventListener('pointercancel', this.onPointerEnd, { signal });
         el.addEventListener('dblclick', () => this.reset(), { signal });
         el.addEventListener('click', this.onClickCapture, { signal, capture: true });
+
+        // Move/end are heard on the document instead. The clip is where a gesture
+        // may START, not a boundary it must stay inside: binding these to the clip
+        // meant that once the cursor crossed the panel edge — or, in a delegated
+        // move gesture, left the SVG's own box — no further events arrived and the
+        // inference froze mid-drag, then never ended. The other two views already
+        // listen on the document for exactly this reason, and both handlers below
+        // ignore pointers they are not tracking, so a global listener is safe.
+        //
+        // Pan and pinch are unaffected: they hold pointer capture on the clip, and
+        // a captured event retargets to the clip and bubbles on to the document.
+        document.addEventListener('pointermove', this.onPointerMove, { signal });
+        document.addEventListener('pointerup', this.onPointerEnd, { signal });
+        document.addEventListener('pointercancel', this.onPointerEnd, { signal });
     }
 
     /** Zoom toward/away from the cursor on each wheel tick. */

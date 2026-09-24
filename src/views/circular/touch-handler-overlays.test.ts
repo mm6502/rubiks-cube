@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { Axis, Face } from '@/cube/types';
 import { LayoutMode } from '@/cube/types/view';
-import { createDragDecisionOverlay } from '@/interaction/drag-decision-overlay';
+import {
+    createDragDecisionOverlay,
+    createParallelGuideOverlay,
+} from '@/interaction/drag-decision-overlay';
 
 import type { AxisCircle } from './svg-tools';
 import {
@@ -61,9 +64,7 @@ function createMinimalState(overrides?: Partial<TouchHandlerState>): TouchHandle
         dragLabelEl: document.createElement('div'),
         cancelZoneEl: createSvgEl('circle'),
         dragDecision: createDragDecisionOverlay('test-arm', () => 30),
-        fretboardGroupEl: createSvgEl('g'),
-        fretboardLine1El: createSvgEl('line'),
-        fretboardLine2El: createSvgEl('line'),
+        fretboardRails: createParallelGuideOverlay('test-rail'),
         axisDetectionBands: new Map(),
         selectedFace: undefined,
         selectedAxisCircles: new Set<string>(),

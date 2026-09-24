@@ -113,6 +113,110 @@ export function computeFaceScreenBasis(
 }
 
 /**
+ * Create a viewport-anchored SVG holding `lineCount` lines, initially hidden.
+ *
+ * `position: fixed` at the viewport origin and sized to the viewport, appended to
+ * `document.body` rather than to any view. That is what keeps the lines
+ * unclipped and at a constant apparent size: inside a view's own subtree they are
+ * cut off by whatever clips that subtree and, in the Circular view, scaled with
+ * the SVG's zoom.
+ *
+ * Because the SVG has no `viewBox` and sits at the viewport origin, one user unit
+ * is one CSS pixel and viewport coordinates map 1:1 — so any length passed in is
+ * a screen length, and no host-rect arithmetic is needed.
+ *
+ * @param lineCount - How many lines to create.
+ * @param className - The CSS-module class for the lines.
+ * @param zIndex - Stacking order. Both overlays default to living on the body, so
+ *   the order they are appended in would otherwise decide which paints on top.
+ */
+function createViewportLineLayer(
+    lineCount: number,
+    className: string,
+    zIndex: number
+): { element: SVGSVGElement; lines: SVGLineElement[] } {
+    const element = document.createElementNS(SVG_NS, 'svg') as SVGSVGElement;
+    element.style.cssText = `position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;overflow:visible;z-index:${zIndex};`;
+    element.setAttribute('aria-hidden', 'true');
+    element.setAttribute('visibility', 'hidden');
+
+    const lines: SVGLineElement[] = [];
+    for (let i = 0; i < lineCount; i += 1) {
+        const line = document.createElementNS(SVG_NS, 'line') as SVGLineElement;
+        line.classList.add(className);
+        if (i > 0) line.setAttribute('visibility', 'hidden');
+        element.appendChild(line);
+        lines.push(line);
+    }
+
+    return { element, lines };
+}
+
+/**
+ * A pair of parallel guide rails drawn at the pointer, both running along a
+ * screen direction and offset either side of it.
+ *
+ * This is the Circular view's "fretboard". It lives here rather than in that view
+ * for the same reason the decision cross does: it has to be a fixed viewport
+ * layer, and the *only* part that is view-specific is the CSS class.
+ */
+export type ParallelGuideOverlay = {
+    /** The overlay's root element. Callers append it to `document.body`. */
+    readonly element: SVGSVGElement;
+    /** Show both rails, `halfGap` screen pixels either side of the pointer. */
+    show(dir: Point2D, clientX: number, clientY: number, halfGap: number, arm: number): void;
+    /** Hide the rails. */
+    hide(): void;
+    /** Detach the element. */
+    remove(): void;
+};
+
+/**
+ * Create the parallel-guide overlay — the two rails a fretboard drag shows.
+ *
+ * `dir` is the direction the rails run, in screen space; the offset is taken
+ * perpendicular to it, so the caller never has to build a perpendicular itself
+ * (and the two rails cannot accidentally be drawn non-parallel).
+ *
+ * Deliberately drawn *below* the decision indicator: the rails say "you are
+ * tracking this band", the arms say "this is the move you are about to commit",
+ * and the latter is the one that must never be obscured.
+ *
+ * @param className - The CSS-module class for the rails.
+ * @param zIndex - Stacking order; must be below the decision overlay's.
+ */
+export function createParallelGuideOverlay(className: string, zIndex = 9999): ParallelGuideOverlay {
+    const { element, lines } = createViewportLineLayer(2, className, zIndex);
+    const [rail1, rail2] = lines;
+
+    return {
+        element,
+        show(dir, clientX, clientY, halfGap, arm) {
+            const perp = { x: -dir.y, y: dir.x };
+            placeLine(
+                rail1,
+                { x: clientX + perp.x * halfGap, y: clientY + perp.y * halfGap },
+                dir,
+                arm
+            );
+            placeLine(
+                rail2,
+                { x: clientX - perp.x * halfGap, y: clientY - perp.y * halfGap },
+                dir,
+                arm
+            );
+            element.removeAttribute('visibility');
+        },
+        hide() {
+            element.setAttribute('visibility', 'hidden');
+        },
+        remove() {
+            element.remove();
+        },
+    };
+}
+
+/**
  * A view's drag-decision indicator: a fixed, viewport-sized SVG holding two
  * lines, with the operations the handlers need.
  */
@@ -157,20 +261,8 @@ export function createDragDecisionOverlay(
     armClassName: string,
     getArmLength: () => number
 ): DragDecisionOverlay {
-    const element = document.createElementNS(SVG_NS, 'svg') as SVGSVGElement;
-    element.style.cssText =
-        'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;overflow:visible;z-index:10000;';
-    element.setAttribute('aria-hidden', 'true');
-    element.setAttribute('visibility', 'hidden');
-
-    const primary = document.createElementNS(SVG_NS, 'line') as SVGLineElement;
-    primary.classList.add(armClassName);
-    const secondary = document.createElementNS(SVG_NS, 'line') as SVGLineElement;
-    secondary.classList.add(armClassName);
-    secondary.setAttribute('visibility', 'hidden');
-
-    element.appendChild(primary);
-    element.appendChild(secondary);
+    const { element, lines } = createViewportLineLayer(2, armClassName, 10000);
+    const [primary, secondary] = lines;
 
     return {
         element,
