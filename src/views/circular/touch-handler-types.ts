@@ -120,10 +120,15 @@ export const COMMIT_DISTANCE_PX = CANCEL_ZONE_RADIUS_BASE_PX;
 export const COMMIT_DISTANCE_TABBED_PX = CANCEL_ZONE_RADIUS_BASE_PX * CANCEL_ZONE_TABBED_MULTIPLIER;
 /** Max SVG-space distance from a touch point to qualify as "near" a circle crossing (for basis computation). */
 export const CROSSING_PROXIMITY_MAX_SVG = 12;
-/** Length of each arm of the drag-decision cross in floating layout (screen pixels). */
-export const DRAG_CROSS_ARM_LENGTH_FLOATING = 34;
-/** Length of each arm of the drag-decision cross in tabbed layout (screen pixels). */
-export const DRAG_CROSS_ARM_LENGTH_TABBED = 64;
+// The guide-line arm lengths live in `@/interaction/drag-decision-overlay`, which is
+// where the geometry they describe is implemented. They were once duplicated here,
+// and the cross read one copy while the fretboard read the other — the two agreeing
+// only because two literals happened to match. Re-exported so existing importers in
+// this view keep working without a second source of truth.
+export {
+    DRAG_CROSS_ARM_LENGTH_FLOATING,
+    DRAG_CROSS_ARM_LENGTH_TABBED,
+} from '@/interaction/drag-decision-overlay';
 /** Pixel movement before a pointer-down is promoted to a drag gesture. */
 export const DRAG_THRESHOLD_PX = 4;
 /** Pixel distance beyond which a drag produces a double-move notation (e.g. `R2`). */

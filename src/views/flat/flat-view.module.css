@@ -122,12 +122,15 @@
     z-index: 14;
 }
 
+/* Solid rather than dashed, and visibly thinner than the guide lines: it is a
+   filled translucent disc, so a dashed outline competed with the dashed guides
+   drawn over it at the same moment. */
 .flat-halo-cancel-zone {
     position: absolute;
     box-sizing: border-box;
     border-radius: 50%;
     background: var(--color-drag-halo-zone-fill);
-    border: 2px dashed var(--color-drag-halo-zone-stroke);
+    border: 1px solid var(--color-drag-halo-zone-stroke);
     pointer-events: none;
     z-index: 16;
 }
