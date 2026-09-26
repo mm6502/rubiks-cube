@@ -18,12 +18,17 @@ This folder holds the checks that cannot live in the test suite:
   correction: a 2D reduction of the same scene reports a large leak and is
   wrong. See its header for the controls it refuses to report without.
 
-Subfolders hold instruments for a _different_ defect, kept separate so this
-folder's scope stays readable:
+## Related defect, documented rather than instrumented here
 
-- `firefox-basic-artifact/` — measuring the Firefox-only Basic-view stripes
-  (dark bands eating face colour on resize/move). DPR-dependent, so it cannot be
-  reproduced in Playwright's browsers; see that folder's `README.md`.
+The Firefox-only Basic-view face dropout (a cube face stops being painted when a
+panel sits at certain positions, DPR-dependent, so it cannot reproduce in
+Playwright's browsers) is now **reproduced on demand and fully documented** in
+`docs/solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md`, with
+the operational steps in `docs/plans/firefox-basic-artifact-repro-procedure.md`.
+That document supersedes the scratch instruments formerly kept in a
+`firefox-basic-artifact/` subfolder here — they were one-off probes whose
+findings are all captured in the document, so the folder was removed to keep
+this directory's scope readable.
 
 ## Why this exists at all
 

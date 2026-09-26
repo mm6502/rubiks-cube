@@ -63,14 +63,9 @@ Framing is `length:json`, where **length is the BYTE length** of the JSON.
 | out       | `[0, msgId, command, params]` |
 | in        | `[1, msgId, error, result]`   |
 
-Copy the client from
-`scripts/scratch-debug/firefox-basic-artifact/probe-basic-geometry.mjs`:
-connect, concatenate chunks, split on `0x3a`, `parseInt` the length, slice by
-**byte** length, `JSON.parse`, match on `frame[1] === msgId`.
-
-All scripts named in this document live in
-`scripts/scratch-debug/firefox-basic-artifact/` — see its `README.md` for the
-inventory and the traps.
+A Marionette client is ~30 lines: connect, concatenate chunks, split on `0x3a`,
+`parseInt` the length, slice by **byte** length, `JSON.parse`, match on
+`frame[1] === msgId`.
 
 Commands used: `WebDriver:NewSession`, `WebDriver:ExecuteScript`,
 `WebDriver:GetWindowRect`, `WebDriver:TakeScreenshot`,
@@ -97,70 +92,79 @@ Commands used: `WebDriver:NewSession`, `WebDriver:ExecuteScript`,
 
 ## 4. Reproducing the artifact
 
-The artifact appears **during/after a panel resize or move** and is **persistent
-once it appears** — so it is present in a static screenshot, not only mid-drag.
-It is **not** reproducible on demand: it was absent in the captured state even
-after the reporter had just navigated to it.
+The artifact **is reproducible on demand**, by panel POSITION alone — no gesture
+is needed. Move the panel to a position inside its band and the front face stops
+being painted; move it out and the face returns.
+
+The earlier note in this document that the artifact was "not reproducible on
+demand" was **wrong**, and the reason is worth keeping: the instrument used to
+look for it (`WebDriver:TakeScreenshot`) **forces a repaint, and the repaint
+draws the missing face**. It repaired the defect as it measured it. Any capture
+taken that way will report a clean screen.
 
 Procedure:
 
-1. Bring the window up (section 2) and maximise it.
-2. Drag the Basic panel's **resize handle** (`[data-resize-direction="se"]`),
-   then drag the panel **header** to move it, in a real browser session.
-3. **As soon as stripes are visible, capture before touching anything else** —
-   both scripts below, in the order given.
+1. Bring the window up (section 2), maximise it, and confirm dpr is fractional:
+   `window.devicePixelRatio` must be ~1.7647, not 1. At dpr 1 the defect cannot
+   occur.
+2. Set the panel position, in CSS px, from the page:
 
-```
-node scripts/scratch-debug/firefox-basic-artifact/capture-session-state.mjs <label>
-node scripts/scratch-debug/firefox-basic-artifact/probe-basic-geometry.mjs
+```js
+document.querySelector('.basic-front-view').style.top = '130px';
 ```
 
-`capture-session-state.mjs` writes `<label>.json` + `<label>.png` under
-`d:/llms/vision/artifact/` and prints window rect, viewport, panel rects,
-perspective, cubie/sticker counts and the border pipeline.
-`probe-basic-geometry.mjs` verifies the whole geometry chain and prints the
-border device-pixel maths.
+3. Count red ink **over the whole capture**. Do not crop: see trap 3 below for
+   why a viewport-relative rect is not a screen rect.
 
-Then read the pixels back (section 5) and only afterwards start changing things.
+### The three quantities that decide it
+
+| quantity                           | healthy   | broken    |
+| ---------------------------------- | --------- | --------- |
+| red ink, whole image, `#C41E3A`    | 35 300 px | 72 px     |
+| red blobs (the face is a 3x3 grid) | 9         | 0         |
+| `#333333` ink, whole image         | 23 445 px | 57 069 px |
+
+The **blob count is the strongest check**: a red face is nine separate pieces,
+so 9 -> 0 is structural and cannot be faked by a threshold or a crop offset.
+
+### The band
+
+At cube face size 138.6 px, panel top 120/130/140 CSS px are fully broken, 110
+and 150 are partial, and 60/200 are healthy. The band is **narrow and bounded by
+healthy values** on both sides — the earlier description of the artifact as
+"non-deterministic with no relation to position" was a consequence of never
+having sampled a broken position on purpose.
 
 ---
 
 ## 5. Reading an image without vision
 
-Two tools are sound. **The local VLM is not.**
+The local VLM is **not** usable for this. Two sound substitutes:
 
-### ASCII render — `firefox-basic-artifact/ascii-image.mjs`
+### ASCII render
 
-```
-node scripts/scratch-debug/firefox-basic-artifact/ascii-image.mjs <image> [cols] [rows] [x y w h] [dpr]
-```
+Render an image as glyphs, each character a **block average** classified into a
+coarse palette (`.`=interior#222, `x`=border#333, `W`=white, and the sticker
+colours). Region arguments are CSS px, scaled by `dpr`.
 
-Each character is the **block average** classified into a coarse palette
-(`.`=interior#222, `x`=border#333, `W`=white, `R`,`O`,`Y`,`G`,`B`,`c`,`s`,`#`).
-Region args are CSS px, scaled by `dpr`.
+⚠ Never use a nearest-neighbour downscale. It samples one source pixel per cell,
+so a single dark pixel inside a white block becomes a whole dark character —
+**fabricating thin dark lines that look exactly like the defect.**
 
-⚠ Never let this use a nearest-neighbour downscale. It samples one source pixel
-per cell, so a single dark pixel inside a white block becomes a whole dark
-character — **fabricating thin dark lines that look exactly like the defect.**
+⚠ It also **cannot be used to compare two images** for this defect. It maps any
+dark colour to the nearest palette entry, and most of these screenshots are a
+dark desktop or editor behind the app window, so two quite different defect
+states can render to a nearly identical grid. What looked like agreement between
+a screenshot and a reproduction was agreement about the background. Compare
+exact colour counts and blob structure instead, never glyphs.
 
-### Real pixel runs — `firefox-basic-artifact/probe-u-centerline.mjs`
+### Real pixel runs along a centre line
 
-Prints the actual runs with real token names, e.g.
+Print the actual RGB runs with their token names, e.g.
 `[35..252] 218px 72.2% WHITE`. Sampling the **centre line of the bounding box**
 is safe even for a rotated element: the box centre is inside the projected quad,
-and a convex quad keeps a horizontal/vertical line through it inside for the
+and a convex quad keeps a horizontal or vertical line through it inside for the
 full box extent. The box **corners** are what fall outside.
-
-### Supporting probes
-
-| script                       | what it answers                                                 |
-| ---------------------------- | --------------------------------------------------------------- |
-| `probe-image-provenance.mjs` | photo vs screenshot; exact-colour census; band profile          |
-| `probe-face-stripes.mjs`     | locates the bright face, counts dark bands and thin-run fringes |
-| `probe-stripe-period.mjs`    | band count/thickness/spacing/orientation via a structure tensor |
-| `probe-compositor-cache.mjs` | compositor-cache vs content geometry, **with a control pair**   |
-| `win-restore-rect.ps1`       | real window rect from Windows (restores if minimized)           |
-| `ask-image.mjs`              | local Qwen2.5-VL — **see the warning below**                    |
 
 ---
 
@@ -192,8 +196,21 @@ full box extent. The box **corners** are what fall outside.
 5. **A harness that cannot be seen to fail is not evidence.** Every comparison
    must begin with a **control pair** that is expected to be identical; if the
    control is not identical, stop and fix the instrument.
-   `probe-compositor-cache.mjs` implements this and refuses to continue when the
-   control is unstable.
+
+6. **Do not size something in one loop and measure it in another.** That pattern
+   returned byte-identical pixel counts for three supposedly different cube
+   sizes. Identical readings for different inputs is the fingerprint of an
+   instrument that is not varying what it claims to vary.
+
+7. **A stale application state looks like a fix.** Driving the panel height to
+   vary the cube size left the app's computed `perspective` stale (faceSize
+   138.6 but perspective 720px instead of 462px). In that state the defect does
+   **not** reproduce, so _every_ candidate scored as a fix. Print the app's own
+   computed values beside every measurement.
+
+8. **Gate on the reproduction before scoring any candidate.** If the defect is
+   not present, "does this fix it" has no answer, and a harness will report that
+   everything fixes it. This is the same trap as 7 from the other direction.
 
 ---
 
@@ -245,23 +262,45 @@ one that does not reconcile — worth checking first next session.**
 
 ## 8. Current status
 
-**The artifact is NOT fixed and NOT reproduced on demand.** The mechanism is
-understood in one respect (border snapping at fractional DPR, above) and
-**unconfirmed** in another: the stripes were not on screen in the captured
-state, and a scan of the artifact screenshot showed the dark structure does
-**not** multiply the 3x3 grid into extra stripes (max 3 bright runs per line)
-but does **eat** the bright face colour (mean only 2.33 bright runs per line).
+**REPRODUCED ON DEMAND, NOT FIXED.** See
+`docs/solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md` for
+the full record — this plan is the operational procedure, that document is the
+findings.
 
-The reporter's read is that it "looks like a compositor or driver bug". That is
-still open: `probe-compositor-cache.mjs` gave a clean control but an
-**inconclusive** result, because a negative from a session without the bug
-present proves nothing. Re-run it **while the stripes are visible**.
+The load-bearing facts:
 
-Candidate fixes, none validated:
+- The trigger is the **VALUE of `perspective`**. At face size 138.6 px the
+  shipped value is 462 px (ratio **3.333**), and that sits **dead centre** of a
+  narrow bad band. 440 px and 480 px are healthy; 460 and 462 collapse the face
+  to 0 red pixels and 0 blobs. 500, 660 and 900 px are healthy.
+- The defect is a **paint** fault: transform, cube rect and border width are
+  identical between a healthy and a broken state, and the sticker-border colour
+  absorbs almost exactly what the face colour loses.
+- `perspective: none` removes it (red 72 -> 47k over the band, 0 of 12 positions
+  broken) but **flattens the cube** (215 -> 200 device px), so it is a
+  workaround, not a fix. 480 px and 500 px are the candidates that cost ~1
+  device px.
+- **The open question that gates everything:** whether the band is a **ratio**
+  or an **absolute pixel range**. If a ratio, one constant change fixes every
+  cube size. At face size 165 the equivalent window (551-565 px) was never
+  sampled — the sweep there used a 20 px grid and stepped over it.
 
-1. Make the border a whole number of **device** px:
-   `Math.round(raw * dpr) / dpr` in `stickerBorderWidth()` — which currently
+### Candidate fixes, none validated
+
+1. **Move the perspective away from the shipped ratio** — measured to work at
+   face size 138.6, cost ~1 device px of cube width. Must be gated to Firefox
+   and re-measured at every cube size. `perspective` is written in **two**
+   places: `basic-view.module.css` line 21 (authored, never used) and inline
+   from `rendering.ts` (~line 484, the effective value).
+2. **Make the border a whole number of DEVICE px** —
+   `Math.round(raw * dpr) / dpr` in `stickerBorderWidth()`, which currently
    takes only `cubieSize`, so the DPR has to reach it.
-2. Drop the border from `.sticker` and separate with `outline` or `box-shadow`,
-   which do not participate in border-box layout.
-3. Use an inset `box-shadow` instead of a border.
+3. **Drop the border from `.sticker`** and separate with `outline` or a
+   `box-shadow`, which do not participate in border-box layout.
+
+> ⚠ **Candidate 2 and 3 rest on the border-snapping mechanism, which this
+> investigation did NOT confirm as the cause of the face dropout.** At a FIXED
+> cube size the border is identical in the healthy and the broken state, so
+> snapping cannot be what distinguishes them. The snapping measurements below
+> are real, but their link to this defect is unproven. Do not describe them as
+> "the fix" in a changelog.

@@ -293,7 +293,8 @@ fit rests on a regressor that is collinear with the rival cause.
 - `scripts/scratch-debug/verify-rotation-fix.mjs`,
   `scripts/scratch-debug/verify-tilt-animation.mjs` — existing rotation
   harnesses.
-- `scripts/scratch-debug/firefox-basic-artifact/probe-compositor-cache.mjs` —
-  existing compositor probe, and the control-pair pattern worth reusing.
+- `docs/solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md` —
+  the other Firefox Basic-view paint defect, which also uses a **control pair**
+  and a calibration gate before it will report; the pattern is worth reusing.
 - `docs/plans/2026-09-23-001-fix-seal-cubie-face-planes-plan.md` — the
   sealed-body change this hitch pre-exists.
