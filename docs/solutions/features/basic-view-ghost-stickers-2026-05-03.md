@@ -1,9 +1,10 @@
 ---
 title: Basic View — Ghost hint stickers (implemented)
 date: 2026-05-03
-category: feature
+category: design-patterns
 module: basic-view
-problem_type: feature
+problem_type: design_pattern
+component: frontend_stimulus
 severity: low
 tags:
   - ghost
@@ -33,7 +34,10 @@ Key implementation notes
 - Module: `src/views/basic/ghost-stickers.ts` — `GhostStickers` class,
   `CUBE_EDGE_MAP`, DOM creation, per-edge show/hide and colour sync.
 - Styling: `src/views/basic/ghost-stickers.module.css` — absolute positioning
-  relative to face elements and small `translateZ` offset to avoid z-fighting.
+  relative to face elements and a small 2px in-plane gap to keep the strips off
+  the face edge (`bottom/right: calc(100% + 2px)` in `ghost-stickers.module.css`
+  — the strips carry no `translateZ`; the 3D offset belongs to the anchor host,
+  which `rendering.ts` transforms with `getFaceTransform`).
 - Commands: `src/views/basic/commands.ts` exposes `basic-view.ghost-hints`
   toggle in the header; toggle state is shared between `basic-front` and
   `basic-back`.
@@ -47,8 +51,11 @@ Behavior & API
   cycles opacity states (off → 75% → 100%).
 - Strips appear only on silhouette edges (host face visible, source face
   hidden).
-- Live update during manual rotation: per-edge fade-in/out with delayed fade-in
-  to align visually with rotate gestures.
+- Live update during manual rotation: per-edge fade-in/out. The turn paths pass
+  a delay of **0** so strips appear immediately — a fade-in delay there was
+  measured as a 233 ms dead pause and removed (`ghost-stickers.ts`). A 200 ms
+  `DEFAULT_FADE_DELAY_MS` survives only for non-turn callers. to align visually
+  with rotate gestures.
 - Colour sync: reads the source sticker colour via cube model and applies it to
   ghost elements using `updateColors()`.
 
@@ -78,5 +85,5 @@ Recommended next steps
 
 - Add visual regression screenshot tests covering ghost strip appearance at
   representative orientations.
-- Tweak `translateZ` offset and opacity values if z-fighting or readability
+- Tweak the 2px in-plane gap and opacity values if the strips crowd the face
   issues are observed at extreme pitches.

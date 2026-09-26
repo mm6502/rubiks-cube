@@ -477,11 +477,12 @@ the cube state.
 - `src/docs/coordinate-system.md` — cube axes and layer indices that the derived
   `axis` + `layerIndex` depend on. Note it documents no CSS model-flip, which is
   why the `A = diag(1, −1, −1)` conjugation is worth recording.
-- `src/docs/user-interface-design.md` — **contains a stale claim**: "Manual View
-  Rotation (Basic View)" attributes view rotation to `Ctrl+Arrow`. View rotation
-  is `Alt+Arrow` (`src/views/basic/commands.ts` binds `altKey: true`;
-  `isKeyboardMoveKey()` requires `ctrlKey && !altKey`), while `Ctrl+Arrow` is
-  the slice move this document describes.
+- `src/docs/user-interface-design.md` — **has since been corrected.** This doc
+  originally recorded a stale claim there: "Manual View Rotation (Basic View)"
+  attributed view rotation to `Ctrl+Arrow`. The file now states the opposite and
+  links back here: view rotation is `Alt+Arrow`, while `Ctrl+Arrow` is the slice
+  move this document describes. Kept as a record of the correction, not as an
+  outstanding problem.
 - `src/docs/commanding-and-eventing-system.md` — the `MOVE_REQUESTED` emission
   from `basic-view.ts`, and the command-router path that handles `Alt+Arrow`
   view rotation.

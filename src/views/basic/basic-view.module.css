@@ -138,12 +138,11 @@
  *   * A wall with no sticker has nothing to fill behind, so it keeps the design's
  *     rounded corner and matches the shape of the facelets around it (R9).
  *
- * Measured (Chromium + Firefox, 3x3-7x7, `scripts/scratch-debug/junction-hole-probe.mjs`):
- * with the wall rounded, every pixel the corner exposed was body `#222` or sticker
- * border `#333` — i.e. dark in both alternatives — except a 1-2 pixel antialiased
- * fringe on the stickers' corners (`rgb(54,54,54)` -> `rgb(48,48,48)`). Squaring the
- * wall covers that fringe with body colour. So the difference this closes is a subpixel
- * edge on each facelet, not a far-side leak; the square keeps the seal from becoming a
+ * Measured (Chromium + Firefox, 3x3-7x7): with the wall rounded, every pixel the
+ * corner exposed was body `#222` or sticker border `#333` — i.e. dark in both
+ * alternatives — except a 1-2 pixel antialiased fringe on the stickers' corners
+ * (`rgb(54,54,54)` -> `rgb(48,48,48)`). Squaring the wall covers that fringe with
+ * body colour. So the difference this closes is a subpixel edge on each facelet, not a far-side leak; the square keeps the seal from becoming a
  * function of the radius, which is what makes it worth pinning. */
 .cubie-interior {
     position: absolute;

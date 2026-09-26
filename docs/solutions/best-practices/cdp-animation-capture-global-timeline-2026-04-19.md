@@ -65,19 +65,21 @@ a simple `await wait(80)` is sufficient — no need for CDP event-based detectio
 Per-animation CDP control fails in practice because:
 
 1. **Animation count explosion** — A single Rubik's Cube move triggers ~70
-   animations (sticker rotations at 300ms + ghost fades at 200ms and 150ms).
-   Collecting IDs from `animationStarted` events and issuing per-animation
-   `setPaused` on 70 IDs breaks the animation lifecycle.
+   animations (sticker rotations at 300ms plus ghost fades, whose durations
+   varied). Collecting IDs from `animationStarted` events and issuing
+   per-animation `setPaused` on 70 IDs breaks the animation lifecycle.
 
 2. **Duration variable corruption** — When collecting animation metadata from
    CDP events, the `duration` variable gets overwritten by the last event. Ghost
-   fades (200ms, 150ms) overwrite the sticker rotation duration (300ms), causing
-   seek calculations to target wrong positions.
+   fades overwrite the sticker rotation duration (300ms), causing seek
+   calculations to target wrong positions.
 
 3. **Leaked paused animations** — Per-animation `setPaused` + `resumeAnimations`
    doesn't cleanly resume all animations. Some remain stuck, causing
    `awaitAnimationIdle` (which waits for
-   `document.getAnimations().length === 0`) to timeout at 60 seconds.
+   `document.getAnimations().length === 0`) to time out. Today the readiness
+   predicate is `document.getAnimations().every(a => a.playState !== 'running')`
+   with a 2000ms default, so the long wait this doc describes no longer applies.
 
 The global `setPlaybackRate(0)` approach avoids all three problems — it freezes
 the entire document timeline atomically, and `document.getAnimations()` via

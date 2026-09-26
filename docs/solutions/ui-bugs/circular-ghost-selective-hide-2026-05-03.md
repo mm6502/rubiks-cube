@@ -3,7 +3,9 @@ title: Circular View — selective ghost hiding during move animations
 date: 2026-05-03
 category: ui-bugs
 module: circular-view
-problem_type: code_fix
+problem_type: ui_bug
+component: frontend_stimulus
+resolution_type: code_fix
 severity: medium
 tags:
   - ghost
@@ -27,7 +29,9 @@ Implementation notes
 - Code: `src/views/circular/rendering.ts`
   - Added `collectAffectedGhostElements(state, movedCubies)` to compute the
     subset of ghost SVG elements whose `data-ghost-source` maps to a sticker in
-    the `movedCubies.before` set.
+    the moved cubies. Note the caller passes `movedCubies.after` — the cubie id
+    set is the same either way (ids are coordinate-based and do not change with
+    moves), so both halves would give the same subset.
   - Replaced the unconditional `setGhostOpacity(state, 0)` with a targeted
     opacity change on only the affected ghost elements prior to animation.
   - The existing restore path (`finishAnimation` / `setGhostOpacity`) still

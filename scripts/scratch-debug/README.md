@@ -10,13 +10,13 @@ This folder holds the checks that cannot live in the test suite:
 - `verify-tilt-animation.mjs` — drives the **dev server** and checks that a
   tilt/pitch toggle actually starts an animation, with a mid-flight sample that
   distinguishes an interpolated ramp from a snap.
-- `junction-hole-probe.mjs` — answers whether rounding `.cubie-interior` walls
-  leaves a _visible_ hole at the cubie junctions, by diffing the **built app**
-  in a real browser with the shipped walls rounded against a squared-wall
-  alternative. Kept here because the answer is a colour classification of
-  rendered pixels, which jsdom cannot produce, and because it holds a
-  correction: a 2D reduction of the same scene reports a large leak and is
-  wrong. See its header for the controls it refuses to report without.
+- The junction-hole measurement (whether rounding `.cubie-interior` walls leaves
+  a visible hole at the cubie junctions) was taken with a one-off probe that has
+  since been removed. Its finding is recorded where it is used, in
+  `docs/solutions/ui-bugs/backface-culling-flash-during-view-rotation.md`: of
+  the pixels the rounded corner exposed, 98.4 % were body `#222` or sticker
+  border `#333` — dark either way — so the squared wall closes a subpixel edge
+  per facelet rather than a real leak.
 
 ## Related defect, documented rather than instrumented here
 

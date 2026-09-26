@@ -16,8 +16,9 @@ symptoms:
   - 'Firefox-only, and the discriminator is devicePixelRatio: 1.7647058823529411
     (30/17) here versus exactly 1 in every automated browser tested.'
   - 'It is a band of panel positions, not a random occurrence. At cube face size
-    138.6 px the front red face reads 6802 px healthy but 0 px for panel top
-    120, 130 and 140 CSS px, with partial values at the edges.'
+    138.6 px the front red face reads 35 300 px healthy (whole-image
+    exact-colour count) but 0 px for panel top 120, 130 and 140 CSS px, with
+    partial values at the edges.'
   - 'The trigger is the VALUE of perspective, not the property. The shipped
     value 3.333 x faceSize sits dead centre of a narrow bad band; values just
     outside it render healthy.'

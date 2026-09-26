@@ -151,16 +151,20 @@ device pixels exactly).
 ## Related Issues
 
 - `docs/solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md` —
-  **the defect record for the stripes this rule was derived from.** That doc
-  owns the bug's status, the measured DPR border-snapping mechanism, and the
-  untested fix candidates; this doc owns the measurement convention and does not
-  restate them.
+  **the defect record for the coverage loss this rule was derived from.** That
+  doc owns the bug's status, the reproduction, and the fix candidates; this doc
+  owns the measurement convention and does not restate them. Note its trigger is
+  the **`perspective` value**, not the DPR snapping described below — see
+  `stickerBorderWidth()` further down for what the snapping measurement does and
+  does not explain.
 - `docs/plans/firefox-basic-artifact-repro-procedure.md` — the operational
   runbook (launch command, Marionette protocol, reference measurements).
 - `docs/solutions/ui-bugs/backface-culling-flash-during-view-rotation.md` — the
   sibling Firefox-only 3D defect in the same view; same "Firefox resolves a
   near-zero 3D case differently" family.
-- The artifact itself is **not fixed** as of 2026-09-24. The stripes were absent
-  in the state captured for measurement, so the DPR border-snapping mechanism
-  described here was derived from a clean render and is **not yet confirmed as
-  the cause of the stripes**. See the defect record above for what remains open.
+- The artifact itself is **not fixed** as of 2026-09-26. It is now reproduced on
+  demand by panel position, and its trigger is the `perspective` VALUE rather
+  than the DPR snapping shown above. The snapping is real and measured, but a
+  FIXED cube size renders an identical border in the healthy and the broken
+  state, so snapping cannot be what distinguishes them — see the defect record
+  for the evidence and for what remains open.

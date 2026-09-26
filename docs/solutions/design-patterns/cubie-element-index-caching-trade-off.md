@@ -33,7 +33,7 @@ tags:
 
 ## Context
 
-`collectCubieElements` (`src/views/basic/cubie-rendering.ts`, line 332) builds
+`collectCubieElements` (`src/views/basic/cubie-rendering.ts`, line 352) builds
 an id-keyed `Map` on **every call** rather than caching one. That is what
 removed the per-cubie `querySelector` cost — it is a fix, not a defect — but it
 leaves an open question about whether the index should instead be promoted to
@@ -153,9 +153,9 @@ has no invalidation contract to get wrong.
 ## Related
 
 - `TODO.md` — the source entry this document absorbs.
-- `src/views/basic/cubie-rendering.ts` — `collectCubieElements` (line 332),
-  `resizeCubies` (line 397), `getLayerCubieElements` (line 474),
-  `updateCubiePositions` (line 502).
+- `src/views/basic/cubie-rendering.ts` — `collectCubieElements` (line 352),
+  `resizeCubies` (line 392), `getLayerCubieElements` (line 493),
+  `updateCubiePositions` (line 511).
 - `src/views/basic/animations.ts` — the single production caller of
   `getLayerCubieElements` (line ~300), via `animateMove`.
 - `src/views/basic/animations.test.ts`, `src/views/basic/rendering.test.ts`

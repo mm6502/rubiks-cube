@@ -166,15 +166,14 @@ wall-based implementation so it cannot mislead the next fix in this area.
 
 **Measured, not reasoned (2026-09-24).** Whether the rounded corner of a
 sticker-backed wall leaks was settled by measurement rather than argument
-(`scripts/scratch-debug/junction-hole-probe.mjs`, Chromium **and** Firefox,
-3×3-7×7, driving the real app and diffing the shipped CSS against a squared-wall
-alternative with the declaration applied at runtime, verified applied before the
-result was accepted). Of the pixels the rounded corner exposed, **98.4 % were
-body `#222` or sticker border `#333`** — dark in both alternatives — and the
-remaining 1-2 pixels per cube were the stickers' antialiased corner fringe
-(`rgb(54,54,54)` → `rgb(48,48,48)`). So the squared wall closes a subpixel edge
-per facelet, not a far-side leak; it earns its place by making the seal
-independent of the radius, not by fixing a visible hole.
+(Chromium **and** Firefox, 3x3-7x7, driving the real app and diffing the shipped
+CSS against a squared-wall alternative with the declaration applied at runtime,
+verified applied before the result was accepted). Of the pixels the rounded
+corner exposed, **98.4 % were body `#222` or sticker border `#333`** — dark in
+both alternatives — and the remaining 1-2 pixels per cube were the stickers'
+antialiased corner fringe (`rgb(54,54,54)` → `rgb(48,48,48)`). So the squared
+wall closes a subpixel edge per facelet, not a far-side leak; it earns its place
+by making the seal independent of the radius, not by fixing a visible hole.
 
 A 2D reduction of the same scene reports a large leak and is **wrong**: with the
 perpendicular and back walls omitted, the background sits directly behind the

@@ -10,8 +10,8 @@ symptoms:
     returned `180` for far drags'
   - 'No `-180` value in `QuarterTurn` type — direction could not reach the type
     system'
-  - '`getInverseMove("U2")` returned `"U2"` (self-inverse) — consecutive U2
-    gestures collapsed into undo'
+  - '`getInverseMoveString("U2")` returned `"U2"` (self-inverse) — consecutive
+    U2 gestures collapsed into undo'
   - 'Adjacent-ring sticker animation non-deterministic at exactly ±180° — ring
     belt flickered'
   - '`MoveExecutedEvent.definition` was optional — undo/redo emitted events
@@ -43,9 +43,9 @@ The system had three compounding gaps:
    direction (`plusScore`/`minusScore`) then threw it away for far drags.
 2. **Type system blocked direction** — `QuarterTurn` was `90 | -90 | 180 | 270`
    with no `-180` value.
-3. **Notation was direction-blind** — `getInverseMove("U2")` returned `"U2"`,
-   causing consecutive U2 gestures to be detected as undo-of-self (auto-undo
-   collapse bug).
+3. **Notation was direction-blind** — `getInverseMoveString("U2")` returned
+   `"U2"`, causing consecutive U2 gestures to be detected as undo-of-self
+   (auto-undo collapse bug).
 
 Additionally, the adjacent-ring sticker animation had a floating-point
 non-determinism at exactly ±180° where the ring belt could flicker in either
@@ -58,7 +58,7 @@ direction.
 - Undo of a 180° move played the same CW arc as the forward move — no visual
   reversal.
 - Two consecutive U2 gestures: the second was detected as undo of the first
-  (`getInverseMove("U2") === "U2"`), resulting in zero history entries.
+  (`getInverseMoveString("U2") === "U2"`), resulting in zero history entries.
 - Adjacent-ring stickers sometimes arced CW and sometimes CCW for the same U2
   move — non-deterministic at the ±180° boundary.
 - Undo/redo events omitted `MoveExecutedEvent.moveDetails.definition`, relying
@@ -74,10 +74,10 @@ direction.
   even once the type accepted `-180`, all consumers used bare numeric literals
   (`90`, `180`) that would silently bypass the new value. A const-object with
   named constants was needed to make direction explicit at every call site.
-- **Keeping `getInverseMove("U2") === "U2"`.** The old self-inverse behavior was
-  algebraically correct but broke the auto-undo detection at
-  `cube-controller.ts:74`. Flipping to `"U2'"` makes the string comparison fail,
-  fixing the U2+U2 collapse automatically.
+- **Keeping `getInverseMoveString("U2") === "U2"`.** The old self-inverse
+  behavior was algebraically correct but broke the auto-undo detection at
+  `cube-controller.ts:164`. Flipping to `"U2'"` makes the string comparison
+  fail, fixing the U2+U2 collapse automatically.
 - **Relying on geometry-based arc inference in animation.** The animation layer
   already had access to `currentCenter`/`targetCenter` vectors, but inferring
   direction from geometry alone is fragile at exactly ±180°. Passing direction
@@ -106,8 +106,10 @@ export type QuarterTurn = (typeof QuarterTurn)[keyof typeof QuarterTurn];
 
 This required updating **all** consumers: `cube-invariants.ts` (move
 definitions), `move-inference.ts` (angle computation), `sticker-position.ts`
-(axis computation), `move-icon-generator.ts` (icon rendering), and all test
-files that used bare numeric literals.
+(axis computation), and all test files that used bare numeric literals. The
+moves view was listed here too, but `move-icon-generator.ts` no longer holds a
+`QuarterTurn` reference at all — it derives its glyph from
+`definition.canonicalFamily` plus a modifier suffix, so it needed no change.
 
 ### 2. Gesture direction — `inferQuarterTurnAngle()` returns `±180`
 
@@ -163,31 +165,34 @@ if (suffix === "2'") {
 }
 ```
 
-### 5. `getInverseMove` — flip `'` on 2-moves
+### 5. `getInverseMoveString` — flip `'` on 2-moves
 
 **File:** `src/cube/core/move-parser.ts`
 
-All three branches now flip the apostrophe on 2-moves:
+All three branches now flip the apostrophe on 2-moves. The shipped function
+collapses to a suffix rule, which subsumes every branch the original fix needed:
 
 ```ts
-// Short branch (single-char face/slice)
-if (modifier === '2') return `${face}2'`;
-
-// Regex branch
-if (modifier === '2') return `${prefix}${face}${wide}2'`;
-if (modifier === "2'") return `${prefix}${face}${wide}2`;
-
-// Fallback
-if (move.endsWith("2'")) return move.slice(0, -1);
+// move-parser.ts — getInverseMoveString
+if (move.endsWith("'")) return move.slice(0, -1);
 if (move.endsWith('2')) return move + "'";
+return move + "'";
 ```
 
-This fixes Bug A automatically: `getInverseMove("U2") === "U2'"` ≠ `"U2"`, so
-the auto-undo collapse check no longer fires for consecutive 180° moves.
+The behaviour the fix required still holds —
+`getInverseMoveString('U2') === "U2'"`, `getInverseMoveString("U2'") === 'U2'`,
+and the round-trip law
+`getInverseMoveString(getInverseMoveString(move)) === move` for all forms — but
+the multi-branch shape shown in earlier revisions of this doc is no longer the
+implementation.
+
+This fixes Bug A automatically: `getInverseMoveString("U2") === "U2'"` ≠ `"U2"`,
+so the auto-undo collapse check no longer fires for consecutive 180° moves.
 
 ### 6. Animation — sign pass-through + Bug B tiebreaker
 
-**File:** `src/views/circular/animations.ts`
+**File:** `src/cube/utils/sticker-position.ts` (called from
+`src/views/circular/animations.ts`)
 
 `getFaceRotationAxis` already negated the angle for inverted faces
 (`-angle as QuarterTurn`). With `-180` now a valid `QuarterTurn`, the negation
@@ -235,7 +240,7 @@ Drag gesture
                  │    └─ animateMove(event)
                  │         ├─ getFaceRotationAxis(face, -180) → effectiveAngle ±180
                  │         └─ animateAdjacentStickers … → epsilon tiebreaker
-                 └─ getInverseMove("U2'") → "U2"  (undo notation)
+                 └─ getInverseMoveString("U2'") → "U2"  (undo notation)
 ```
 
 The key insight: **direction lives in the signed `QuarterTurn` channel**,
@@ -250,8 +255,8 @@ consistent with the existing `90`/`-90` convention. No new properties on
   bare numeric literals. This forces every consumer to acknowledge the value
   explicitly.
 - **Test inverse laws.** For any move-notation feature, verify:
-  `getInverseMove(getInverseMove(move)) === move` for all forms including
-  directional 180° (`"U2'"`).
+  `getInverseMoveString(getInverseMoveString(move)) === move` for all forms
+  including directional 180° (`"U2'"`).
 - **Guard animation boundaries.** At exact ±180° transitions, floating-point
   normalization alone is insufficient. Add an epsilon tiebreaker that uses
   available direction context (`adjacentAngle` sign) to break the tie
