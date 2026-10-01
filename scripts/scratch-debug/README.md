@@ -22,13 +22,13 @@ This folder holds the checks that cannot live in the test suite:
 
 The Firefox-only Basic-view face dropout (a cube face stops being painted when a
 panel sits at certain positions, DPR-dependent, so it cannot reproduce in
-Playwright's browsers) is now **reproduced on demand and fully documented** in
+Playwright's browsers) was reproduced on demand in this folder's former
+`firefox-basic-artifact/` subfolder. **The defect no longer reproduces on
+desktop Firefox 157.0**, so those instruments were removed along with the
+folder; their findings, the reproduction steps, and the sensitivity checks
+needed to rebuild them are all in
 `docs/solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md`, with
 the operational steps in `docs/plans/firefox-basic-artifact-repro-procedure.md`.
-That document supersedes the scratch instruments formerly kept in a
-`firefox-basic-artifact/` subfolder here — they were one-off probes whose
-findings are all captured in the document, so the folder was removed to keep
-this directory's scope readable.
 
 ## Why this exists at all
 

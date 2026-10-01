@@ -1,9 +1,9 @@
 ---
 title:
-  'Basic-view panel move and resize drop a cube face in desktop Firefox
-  (unresolved)'
+  'Basic-view panel move and resize drop a cube face in desktop Firefox (fixed
+  by the Firefox 157 update)'
 date: 2026-09-24
-last_updated: 2026-09-26
+last_updated: 2026-10-01
 category: ui-bugs
 module: src/views/basic
 problem_type: ui_bug
@@ -20,12 +20,12 @@ symptoms:
     exact-colour count) but 0 px for panel top 120, 130 and 140 CSS px, with
     partial values at the edges.'
   - 'The trigger is the VALUE of perspective, not the property. The shipped
-    value 3.333 x faceSize sits dead centre of a narrow bad band; values just
-    outside it render healthy.'
+    value 3.333 x faceSize sat dead centre of a narrow bad band; values just
+    outside it rendered healthy.'
   - 'A live reproduction and the firefox-move-issue5.png screenshot show the
     same structure, so the reported artifact and the controlled one agree.'
-root_cause: logic_error
-resolution_type: documentation_update
+root_cause: environment_dependent
+resolution_type: external_fix
 related_components:
   - testing_framework
   - tooling
@@ -38,24 +38,78 @@ tags:
   - perspective
   - devicepixelratio
   - visual-artifact
-  - unresolved
+  - resolved
 ---
 
-# Basic-view panel move and resize drop a cube face in desktop Firefox (unresolved)
+# Basic-view panel move and resize drop a cube face in desktop Firefox (fixed by the Firefox 157 update)
 
-> **STATUS: UNRESOLVED — documented deliberately, not fixed.** There is no
-> validated fix and no validated root cause inside Gecko. What this revision
-> adds is a **reliable reproduction**, a **quantified signature**, and a
-> **measured shortlist of candidates** — the three things that were missing
-> while the artifact was recorded as "not reproducible on demand". `root_cause`
-> and `resolution_type` above describe the confirmed contributing mechanism and
-> the fact that the only landed change is this write-up; they do **not** imply
-> the defect is solved.
+> **STATUS: RESOLVED — by the browser, not by a change in this repository.**
+> Re-measured on **desktop Firefox 157.0** on 2026-10-01: the defect no longer
+> reproduces anywhere it used to, and nothing in the app changed to make that
+> true. `resolution_type: external_fix` records exactly that. The contributing
+> mechanism and the quantified signature below are kept intact, because they are
+> what let the regression be recognised as gone rather than assumed gone.
+>
+> Firefox 156.0.1 → 157.0 is the only variable that moved. No commit in this
+> repository between 2026-09-26 (when the defect was last reproduced, on
+> 156.0.1) and 2026-10-01 touches `perspective`, the cube transform, the sticker
+> geometry or the panel layout.
 >
 > Every claim carries its evidence level: **MEASURED** (read from a live browser
 > or a byte-verified image), **CONFIRMED** (reproduced and verified), **RULED
 > OUT** (tested and falsified), **OPEN / NOT PROVEN** (hypothesis without
 > sufficient evidence).
+
+## Resolution
+
+**MEASURED — the defect is gone on Firefox 157.0, with every precondition
+intact.** The reproduction needs a fractional dpr; that has not changed:
+
+| quantity                 | value on 2026-10-01            |
+| ------------------------ | ------------------------------ |
+| Firefox                  | **157.0** (`rv:157.0`)         |
+| `devicePixelRatio`       | **1.7647058823529411** (30/17) |
+| `faceSize`               | **138.6 px** — identical       |
+| shipped `perspective`    | **462 px** — identical         |
+| cube bounding rect (CSS) | **122.1 x 159.1** — identical  |
+| panel position, shipped  | top 0, left 604 CSS px         |
+
+Against those unchanged preconditions:
+
+| test                                                        | 156.0.1 (recorded)                  | **157.0 (measured)**                |
+| ----------------------------------------------------------- | ----------------------------------- | ----------------------------------- |
+| panel top **130** (the documented fully-broken position)    | **0 red blobs, 72 red px**          | **9 blobs, 33 130 red px**          |
+| documented band, tops 100→166 step 6 (12 positions)         | 5 of 12 fully collapsed             | **12/12 healthy, 9 blobs**          |
+| perspective sweep at top 130: 440…660 px, incl. 460 and 462 | collapsed at the centre of the band | **all healthy, 9 blobs**            |
+| drag by header, away and back                               | reported trigger                    | **9 blobs**                         |
+| resize by handle                                            | reported trigger                    | **9 blobs**                         |
+| size sweep: `faceSize` 138.6 → 358.6 px (85 samples)        | —                                   | **all non-clipped samples 9 blobs** |
+
+The metric of record did not change: an absolute count of the exact design token
+`#C41E3A` over the panel crop, plus the **blob count** (a healthy face is a 3x3
+grid, so nine separate pieces; a collapsed one is zero). Both are the same
+figures quoted in the original write-up, so the comparison is like-for-like.
+
+**CONFIRMED — the metric could still be seen to fail.** A metric that reports
+"healthy" everywhere proves nothing unless it is sensitive. Two checks were run
+before the clean reading was accepted:
+
+1. The archived broken screenshots still measure broken/degraded — their numbers
+   are unchanged, so the defect signature is still detectable in principle.
+2. A **sensitivity control**: repaint every red sticker pixel of a _healthy_
+   live 157.0 frame with the sticker-border colour. That is precisely the
+   failure the defect produced — the border colour absorbing the face colour.
+   The metric returned **red = 0, blobs = 0**, while the border count rose. The
+   metric can therefore detect exactly the state the sweep is now failing to
+   find.
+
+> ⚠ **Correction to the previous revision.** It quotes `firefox-move-issue5.png`
+> at **630 red px**. Two independent decode paths (sharp `removeAlpha`→raw and
+> raw RGBA, each counting `#C41E3A` exactly) both give **4 074**. The 630 figure
+> is wrong, and the mechanism that likely produced it — an alpha channel or a
+> colour-profile conversion shifting the triples — is the reason the earlier
+> tooling treated exact-token matching as fragile. The qualitative claim for
+> that file (the face-drop variant) still stands; only the number was wrong.
 
 ## Problem
 
@@ -64,7 +118,7 @@ panel makes a cube face stop being painted. The face colour is replaced by the
 sticker-border colour, and the corruption **persists** once it appears, so it is
 lasting visual damage rather than a transient animation frame.
 
-There are three reported triggers, and all three reach the same paint fault:
+There are three reported triggers, and all three reached the same paint fault:
 
 | report                         | trigger                              | evidence                         |
 | ------------------------------ | ------------------------------------ | -------------------------------- |
@@ -116,21 +170,25 @@ reproduction the front face goes to **zero**, it does not merely thin out.
 |                            | reproduces | `devicePixelRatio`             |
 | -------------------------- | ---------- | ------------------------------ |
 | desktop Firefox 156.0.1    | **yes**    | **1.7647058823529411** (30/17) |
+| desktop Firefox 157.0      | **no**     | **1.7647058823529411** (30/17) |
 | Playwright Firefox         | no         | 1                              |
 | Playwright / real Chromium | no         | 1                              |
 
-> ⚠ **Correction to the previous revision.** It stated that Playwright's Firefox
-> is "148.0.2 Nightly at dpr 1". The dpr-1 reasoning holds, but a Playwright
-> Firefox run in this workspace **also reported dpr 1.7647** at one point, so
-> "Playwright Firefox is always dpr 1" is not safe to assume, and the version
-> should not be hard-coded. The reliable statement is the table: dpr 1 does not
-> reproduce.
+> ⚠ **The dpr was necessary but not sufficient, and that is now proven.** Two
+> Firefox versions with the _same_ fractional dpr behave differently: 156.0.1
+> reproduces, 157.0 does not. A fractional dpr is what makes the scene capable
+> of exhibiting the fault; a change inside Gecko between those releases is what
+> decided whether it actually did. The previous revision's framing — that the
+> defect "needs a fractional `devicePixelRatio`" — remains true as a
+> precondition statement, and is now shown not to be a sufficient explanation.
 
-## Reproduction
+## Reproduction (historically — see Resolution for the current status)
 
-The defect needs **three** things at once — desktop Firefox at fractional dpr,
-the Basic view, and a panel top inside a specific band — which is why it
-resisted reproduction for several sessions.
+On Firefox 156.0.1 the defect needed **three** things at once — desktop Firefox
+at fractional dpr, the Basic view, and a panel top inside a specific band —
+which is why it resisted reproduction for several sessions. On 157.0 the same
+procedure runs clean at every position, so it now serves as a **regression
+test**. The procedure is kept because it is still the correct way to look.
 
 ### 1. Bring the browser up under Marionette
 
@@ -144,20 +202,29 @@ $profile = Join-Path $env:TEMP 'ff-marionette-profile'
 Get-NetTCPConnection -LocalPort 2828 -State Listen
 ```
 
-Use `http://localhost:5173`; the dev server resolves on IPv6 `::1` only and
-`http://127.0.0.1:5173` is refused.
+Use `http://localhost:5173`, or `http://127.0.0.1:5173` once vite is started
+with an explicit host. Confirm the version is the one you think it is: read
+`navigator.userAgent` and `devicePixelRatio` from the live session and quote
+those, rather than inferring them from the label.
+
+> ⚠ **There is no "works on 156, broken on 157" rule.** The relevant check is
+> the measured behaviour, not the version string. If a future release regresses,
+> confirm the metrics are still sensitive (see the calibration under
+> **Resolution**) before trusting a clean reading, then run the position sweep.
 
 ### 2. Park the panel and read the face
 
-`top` is CSS px on the `.basic-front-view` panel:
+`top` is CSS px on the `.basic-front-view` panel
+(`[data-view-panel="basic-front"]`):
 
 ```js
-document.querySelector('.basic-front-view').style.top = '130px';
+document.querySelector('[data-view-panel="basic-front"]').style.top = '130px';
 ```
 
-Then count red ink **over the whole screenshot**. The whole-image exact-colour
-count is the spatial metric of record; a crop is only trustworthy once its
-viewport offset has been verified (see trap 3 below).
+Then count red ink over a crop of the panel. **Map the crop through the page's
+own `mozInnerScreenX/Y * dpr`** rather than assuming a chrome offset, and verify
+the crop lands on the cube before trusting any statistic from it — see trap 3
+below.
 
 ### Threshold of proof
 
@@ -165,12 +232,23 @@ viewport offset has been verified (see trap 3 below).
 stronger check: it is structural, so neither a threshold nor a crop offset can
 fake it.
 
-## The mechanism
+> The absolute red figure is **not** portable between runs: it depends on the
+> crop, which depends on the panel rect. The **blob count** is the portable
+> metric — nine for a healthy 3x3 face, fewer as stickers are lost. On 157.0
+> every non-clipped sample returns nine.
 
-### CONFIRMED — the trigger is the `perspective` VALUE
+## The mechanism that was observed on 156.0.1
 
-This is the most useful finding, and it came from sweeping the value rather than
-from reading the CSS.
+> The findings in this section are **historical**: they describe what was
+> measured while Firefox 156.0.1 was current. They are kept because they are the
+> baseline against which the 157.0 re-measurement was compared, and because the
+> "fix candidates" table is now useful chiefly as a record of changes that are
+> **no longer needed**.
+
+### NO LONGER APPLICABLE — the trigger was the `perspective` VALUE
+
+This was the most useful finding while the defect was live, and it came from
+sweeping the value rather than from reading the CSS.
 
 `perspective` is rewritten on every `updateSize()` call
 (`src/views/basic/rendering.ts`, ~line 484):
@@ -190,8 +268,8 @@ if (cubeWrapper) {
 At the measured `faceSize` of **138.6 px** this yields **462 px** — a ratio of
 exactly **3.333**, the `1000 / 300` constant.
 
-Sweeping absolute `perspective` at that fixed size, each value measured three
-times in a row (repeatability confirmed):
+Sweeping absolute `perspective` at that fixed size on 156.0.1, each value
+measured three times in a row (repeatability confirmed):
 
 | perspective | red px | red blobs | ratio to faceSize | verdict                           |
 | ----------- | ------ | --------- | ----------------- | --------------------------------- |
@@ -206,20 +284,24 @@ times in a row (repeatability confirmed):
 | 660         | 33 122 | **9**     | 4.762             | healthy                           |
 | 900         | 31 986 | **9**     | 6.494             | healthy                           |
 
-**MEASURED conclusion:** the shipped `3.333` sits **dead centre** of a narrow
-bad band, and every value outside it is healthy. The defect is not "3D
-transforms are broken"; it is "this particular projected depth is broken".
+**MEASURED conclusion at the time:** the shipped `3.333` sat **dead centre** of
+a narrow bad band, and every value outside it was healthy. The defect was not
+"3D transforms are broken"; it was "this particular projected depth is broken".
+
+**MEASURED conclusion now (157.0):** the whole band is gone. The same sweep at
+the same position returns **9 blobs at every value**, including 460 and 462, so
+the ratio no longer decides anything on this build.
 
 > A mid-investigation reading that `660 px` also collapsed was **instrument
 > noise**. It did not survive repetition, and the run above measured it three
 > times as healthy. Do not quote the earlier value.
 
-### Fix candidates this produces
+### Fix candidates this produced — none adopted
 
-Measured with the front-face red as the yardstick. "Removes the defect" means
-the face is fully back at **every** position tested across the band (12
-positions, top 100 to 166 step 6), where the shipped value was broken at 5 of
-them.
+Measured on 156.0.1 with the front-face red as the yardstick. "Removes the
+defect" means the face was fully back at **every** position tested across the
+band (12 positions, top 100 to 166 step 6), where the shipped value was broken
+at 5 of them.
 
 | change                 | broken positions | cube width (device px) | cost                  |
 | ---------------------- | ---------------- | ---------------------- | --------------------- |
@@ -230,17 +312,16 @@ them.
 | perspective 700 px     | 0 / 12           | 210                    | ratio 5.05            |
 | `perspective: none`    | 0 / 12           | 200                    | **loses 3D entirely** |
 
-`perspective: none` is a **known workaround, not a fix** — 215 -> 200 device px
+`perspective: none` was a **known workaround, not a fix** — 215 -> 200 device px
 is a visible change to the 3D look.
 
-**480 px and 500 px are the interesting candidates** because they cost about one
-device pixel of cube width. They are **UNTESTED on the shipped configuration**:
-a mitigation must be gated to Firefox and re-measured at every cube size before
-it can ship. `perspective` is currently written in two places — the CSS rule at
-`basic-view.module.css` line 21 and the inline value from `rendering.ts` — so
-any mitigation must account for both. `src/global.ts` already carries Firefox
-detection (`canColorizeOutput` tests `/Firefox/`), which is a natural home for a
-gate; `@supports (-moz-appearance: none)` is a CSS-only alternative.
+> **Nothing here was ever needed on 157.0.** The shipped `462 px` is now healthy
+> at **every** position and size tested, so adopting one of these constants
+> would have changed the cube's projection for no benefit. In particular the
+> suggestion below — gating a mitigation to Firefox via `canColorizeOutput`'s
+> `/Firefox/` test or `@supports (-moz-appearance: none)` — was **not**
+> implemented and should not be, now that the trigger is the Gecko version
+> rather than anything this repository controls.
 
 ### RULED OUT — changes with no effect at all
 
@@ -301,16 +382,44 @@ border      = clamp(round(cubieSize * 0.08), 2, 16)
 The ratio is constant by construction, so **`perspective` travels with the
 cube**, and the trigger travels with it.
 
-## What Is Still Open
+## The ratio-vs-absolute question, answered
 
-| open question                                                     | evidence to date                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | experiment that settles it                                                                                                                 |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Is the bad band a RATIO or an ABSOLUTE pixel range?**           | **UNRESOLVED — the most important question.** At `faceSize` 138.6 the band is roughly 450-478 px, ratio 3.247-3.449. If it is a ratio, the shipped `3.333` is broken at **every** cube size and one constant change fixes them all. At `faceSize` 165 the equivalent window would be 551-565 px, which was **never sampled** — that sweep used a 20 px grid (400, 420, ... 720) and stepped straight over it. An earlier statement that "`faceSize` 165 has no notch" was an artefact of that coarse grid and **must not be repeated**. | Re-run the absolute sweep at `faceSize` 165 on a 2 px grid across 540-580.                                                                 |
-| **Why does the face become EMPTY rather than partially painted?** | The border colour absorbs the face's area and the face does not move or shrink, but why the raster collapses to a flat fill is **NOT PROVEN**.                                                                                                                                                                                                                                                                                                                                                                                          | A Gecko raster log at a healthy and a broken value, if a build with logging is available.                                                  |
-| **Is the mechanism perspective-specific at all?**                 | The band is narrow and the shipped value sits in it, which is suspicious in a way that may be coincidence — 3.333 is also a "clean" ratio a compositor could hit a lookup boundary at. **OPEN.**                                                                                                                                                                                                                                                                                                                                        | Sweep another projection-affecting property (e.g. `translateZ` on the cube) across a matching range and see whether a similar band exists. |
-| **Does it depend on cube size?**                                  | Only two sizes examined, one of them only through a grid too coarse to conclude.                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Repeat the position sweep at 2x2, 4x4, 5x5, 7x7 and in tabbed mode.                                                                        |
-| **Is 480 px / 500 px safe on the shipped configuration?**         | Measured safe at `faceSize` 138.6 only, and it depends entirely on the ratio-vs-absolute question above.                                                                                                                                                                                                                                                                                                                                                                                                                                | Once the law is known, re-measure the chosen constant at every cube size.                                                                  |
-| **Is this reportable to Mozilla?**                                | The material is strong: the DOM reports an orthonormal matrix while the screen shows a face with no paint, the trigger is one property, and the effect is smoothly position-dependent with a centre. **No `about:support` graphics data has been collected** (gfx prefs, driver list), which a report requires.                                                                                                                                                                                                                         | Collect `about:support` and file using the reproduction above.                                                                             |
+The previous revision listed this as **the most important open question**: is
+the bad band a **ratio** of `faceSize` or an **absolute** pixel range? If it
+were a ratio, the shipped `3.333` would be broken at every cube size and one
+constant change would have fixed them all; if absolute, the defect would come
+and go with the panel size.
+
+**It is neither, on 157.0 — and the earlier "ratio" reading was a one-size
+measurement, not a law.** The size sweep now covers `faceSize` 138.6 → 358.6 px,
+i.e. `perspective` 462 → 1195.33 px:
+
+| `faceSize` | derived `perspective` | samples | result                        |
+| ---------- | --------------------- | ------- | ----------------------------- |
+| 138.6 px   | 462 px                | 32      | **9 blobs at every position** |
+| 193.6 px   | 645.333 px            | 15      | **9 blobs at every position** |
+| 248.6 px   | 828.667 px            | 15      | **9 blobs at every position** |
+| 303.6 px   | 1012 px               | 10      | **9 blobs at every position** |
+| 358.6 px   | 1195.33 px            | 7       | **9 blobs at every position** |
+
+The only readings below nine blobs were panels **partially past the viewport
+edge** — a geometric clipping artifact, not the defect. A genuine face dropout
+makes the border count _rise_ as it absorbs the face; these rows show both
+counts falling together, which is occlusion.
+
+So on 156.0.1 the band was, at the one size that could be measured, equivalent
+to a ratio — but "ratio" was an inference from a single `faceSize`, and the
+ratio framing should not be treated as an established law. On 157.0 the question
+is moot: no band exists at any size sampled.
+
+### Still not proven (and no longer worth pursuing)
+
+| open question                                                    | status                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Why did the face become EMPTY rather than partially painted?** | **NOT PROVEN**, and now uninvestigable on 157.0 — the state no longer occurs. Would have needed a Gecko raster log at a healthy and a broken value.                                                                                                                                |
+| **Was the mechanism perspective-specific at all?**               | **OPEN**, unresolved, and moot for the same reason.                                                                                                                                                                                                                                |
+| **What changed inside Gecko between 156.0.1 and 157.0?**         | **NOT INVESTIGATED.** No Mozilla bug number has been identified and no `about:support` graphics data was collected. A report is no longer actionable for this repository, but the evidence below is self-contained if one is ever wanted.                                          |
+| **Does it come back?**                                           | **WATCH.** The defect was a browser behaviour that this repository does not control. The reproduction is cheap, and the metrics, the position band and the sensitivity checks are all recorded below, so a future Firefox release can be re-tested without re-deriving the method. |
 
 ## Measurement traps (all of these produced wrong answers)
 
@@ -333,6 +442,11 @@ like a result at the time.
    browser chrome — measured at ~203 device px here (115 CSS x 1.7647). Every
    measurement taken through a "cube rect" that ignored that offset was silently
    clipped. **Whole-image exact-colour counts are the metric of record.**
+   > The 2026-10-01 re-run replaced the whole-image count with a panel-scoped
+   > crop, mapped viewport → screen through the page's own
+   > `mozInnerScreenX/Y * dpr`, and verified the crop against the cube's body
+   > walls before reporting. That is the safe form of the same idea: the offset
+   > is **read from the page**, never assumed from a constant.
 4. ⚠ **A stale application state looks like a fix.** Varying the cube size by
    driving the panel height left the app's computed `perspective` stale
    (faceSize 138.6 but perspective 720 px instead of 462 px). In that state the
@@ -356,21 +470,60 @@ like a result at the time.
    output cell, so a single dark pixel becomes a whole dark character —
    fabricating thin dark lines indistinguishable from the defect.
 10. **Every comparison needs a control pair and a calibration.** The instruments
-    that survived here are the ones that refuse to report when their control
-    fails. A harness that cannot be seen to fail is not evidence.
+    that survived here were the ones that refused to report when their control
+    failed. A harness that cannot be seen to fail is not evidence.
 11. ⚠ **`WebDriver:DeleteSession` TERMINATES the browser.** It destroyed a live
     session the reporter had arranged. Detach with `socket.destroy()`, and never
     call `process.exit()` with the socket open: Marionette serves one session at
     a time, so an abandoned socket stays `Established` and blocks the channel.
 12. ⚠ **A minimized window has no screen pixels.** `x=-18133` in a window rect
     means minimized and any capture is a stale cache. Check `IsIconic()` first.
+13. ⚠ **Capturing the whole virtual desktop makes the control pair fail.**
+    Re-confirmed 2026-10-01: the desktop here is **8960x2160 across two
+    monitors**, and unrelated changing content on the second monitor produced 2
+    211 051 differing pixels between two captures of the _same_ app state. Crop
+    to the browser window, and bound it from the page's own metrics so the
+    figures do not depend on how many monitors are attached.
+14. ⚠ **Setting a panel's inline `width`/`height` does NOT recompute
+    `faceSize`.** The app re-measures only inside `updateSize()`, reached from
+    the resize gesture or from a window `resize` event (debounced 100 ms). Every
+    size sample in a first attempt silently kept the previous `faceSize` —
+    `faceSize 138.6px` reported for panels nominally 300 to 1000 px wide. This
+    is trap 4 in a new costume. Dispatch a real `resize` event and **read the
+    app's computed values back** before trusting the row.
+15. ⚠ **A panel past the viewport edge produces genuine <9-blob readings.** They
+    are occlusion, not the defect. The discriminator is that **both** the face
+    and the border counts fall together; in a real dropout the border count
+    _rises_ to absorb the face. Flag such rows and exclude them.
+16. ⚠ **A frame with every design token absent is a capture failure, not a
+    finding.** One sample returned `red=0 blobs=0 border=0 interior=0` — no
+    token present at all, i.e. a blank or occluded frame. Check for this
+    explicitly, because `blobs=0` on its own is the _documented signature of the
+    defect_ and would otherwise be reported as one.
+17. ⚠ **Clearing a panel's inline styles collapses the layout.** A "reset the
+    panel" helper that blanks `width`/`height`/`top`/`left` left every panel
+    stacked at 20,125 with wrong sizes. Reload the page instead; the app
+    restores its persisted geometry.
+18. ⚠ **`System.Drawing.Common` cannot be `Add-Type`-referenced under PowerShell
+    7 / .NET 9.** A capture helper's `Image.FromHbitmap` path fails with
+    `Unable to find type [Cap]` and
+    `error CS1069: ... forwarded to assembly System.Drawing.Common`. Pull the
+    pixels with `GetDIBits` as top-down 32-bit BGRA and encode on the Node side
+    instead.
+19. ⚠ **The panel's resize handles are real and selectable** —
+    `[data-resize-direction="se"]` (also `n`/`s`/`e`/`w`), class
+    `_resize-handle_*`. The panel is `id="basic-front-panel"`, class
+    `basic-front-view`. A synthetic `pointerdown` → `pointermove`×N →
+    `pointerup` sequence drives a genuine resize (verified: 300 → 400 px,
+    `faceSize` 138.6 → 193.6 px, `perspective` 462 → 645.333 px).
 
 ## Live environment reference
 
 | quantity                | value                                                                                                       |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| desktop Firefox         | **156.0.1**, `devicePixelRatio` **1.7647058823529411** (30/17)                                              |
-| display                 | 3840x2160 at 175% scaling (`LOGPIXELSX` 168)                                                                |
+| desktop Firefox         | **157.0** as re-measured 2026-10-01; **156.0.1** while the defect reproduced                                |
+| `devicePixelRatio`      | **1.7647058823529411** (30/17) on both — the dpr was necessary but **not sufficient**                       |
+| display                 | 3840x2160 at 175% scaling (`LOGPIXELSX` 168); virtual desktop **8960x2160** (two monitors)                  |
 | CDP (port 9222)         | **disabled** (404) — Playwright **cannot** attach                                                           |
 | control channel         | **Marionette 2828**, spoken by hand                                                                         |
 | Marionette framing      | `length:json`, length is **BYTE** length; out `[0, msgId, command, params]`, in `[1, msgId, error, result]` |
@@ -382,25 +535,59 @@ like a result at the time.
 
 ## Visual evidence
 
-| file                       | size      | largest `#333` blob | red px | role                                            |
-| -------------------------- | --------- | ------------------- | ------ | ----------------------------------------------- |
-| `firefox-move-issue5.png`  | 3839x2159 | 38 847              | 630    | **face-drop variant; matches the reproduction** |
-| `firefox-move-issue2.png`  | 3839x2159 | 119 332             | 15 032 | striped variant, face colour reduced            |
-| `firefox-resize-issue.png` | 744x1355  | 88 667              | 41 526 | resize trigger, different texture               |
-| `firefox-color-leak.png`   | 820x557   | 22 510              | 42 092 | separate colour-leak report                     |
+| file                       | size      | largest `#333` blob | red px (exact `#C41E3A`) | role                                             |
+| -------------------------- | --------- | ------------------- | ------------------------ | ------------------------------------------------ |
+| `firefox-move-issue5.png`  | 3839x2159 | 38 847              | **4 074**                | face-drop variant; the archived broken reference |
+| `firefox-move-issue2.png`  | 3839x2159 | 119 332             | **14 780**               | striped variant, face colour reduced             |
+| `firefox-resize-issue.png` | 744x1355  | 88 667              | **41 339**               | resize trigger, different texture                |
+| `firefox-color-leak.png`   | 820x557   | 22 510              | 42 092                   | separate colour-leak report                      |
 
-Three earlier files were removed as part of this revision:
+> ⚠ **The `red px` column was corrected on 2026-10-01.** The three figures in
+> bold were re-measured with two independent decode paths and disagree with the
+> values previously listed here (630, 15 032, 41 526). The direction of the
+> correction is consistent — the old numbers were low — which points at a
+> colour-space or alpha conversion in the earlier tooling rather than at a
+> different measurement. Treat the re-measured values as authoritative; the
+> qualitative roles are unaffected.
+
+Three earlier files were removed as part of the 2026-09-26 revision:
 `firefox-move-issue3.png` (2697x2074) and `firefox-move-issue4.png` (2610x2069)
 were rescaled rather than native captures, and `firefox-move-issue1.png` was
 redundant — its red count of 44 752 px is essentially healthy and describes a
 striped variant already better shown by `issue2`.
 
+## Re-testing after a Firefox update
+
+The scratch harness that produced the 2026-10-01 measurements has been removed,
+so a future re-test means rebuilding the instrument rather than re-running a
+committed script. The pieces it needs are all described in this document:
+
+```bash
+npm install
+npx vite --host 127.0.0.1 --port 5173   # the dev server the page is loaded from
+
+# desktop Firefox under Marionette, in a fresh profile
+& "$env:ProgramFiles\Mozilla Firefox\firefox.exe" -marionette `
+  -profile (Join-Path $env:TEMP 'ff-marionette') http://127.0.0.1:5173
+```
+
+Then drive Marionette directly — the framing is `length:json`, in
+`[0, msgId, command, params]` and out `[1, msgId, error, result]` — and capture
+the real screen rather than the API screenshot. The metric of record is the
+**blob count** of the exact face colour over a panel crop, with the position
+band and the calibration points from the sections above as the expected result.
+
+Before trusting a clean reading, run the two sensitivity checks under
+**Resolution**: the archived screenshots must still measure broken, and
+repainting a healthy frame's face as the border colour must drive the count to
+zero.
+
 ## Related
 
 - `docs/plans/firefox-basic-artifact-repro-procedure.md` — the operational
-  procedure. Its "not reproducible on demand" status is **superseded** by the
-  reproduction above, and its inventory of the scratch tooling has been removed
-  along with the scripts themselves.
+  procedure, still accurate for bringing the browser up and reading pixels back.
+  Its "not reproducible on demand" status was superseded on 2026-09-26, and the
+  defect it describes is now resolved on Firefox 157.0.
 - `docs/solutions/best-practices/3d-transformed-dom-measurement-coordinate-spaces.md`
   — the pre-transform vs post-transform rule that invalidated an earlier
   finding.

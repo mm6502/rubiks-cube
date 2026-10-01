@@ -5,6 +5,12 @@ the pixels back **without vision**. Written 2026-09-23 after a session in which
 several harnesses produced confident wrong answers; the rules here are the
 corrected versions.
 
+> **STATUS 2026-10-01: the artifact no longer reproduces on desktop Firefox
+> 157.0.** The procedure below still works and is now the regression test — run
+> it after a Firefox update and compare the blob counts. See
+> [docs/solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md](../solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md)
+> for the resolution evidence.
+
 Related:
 `docs/solutions/best-practices/3d-transformed-dom-measurement-coordinate-spaces.md`.
 
@@ -14,15 +20,20 @@ Related:
 
 |                         | desktop Firefox                | Playwright Firefox | Chromium   |
 | ----------------------- | ------------------------------ | ------------------ | ---------- |
-| version                 | **156.0.1**                    | 148.0.2 Nightly    | —          |
+| version                 | **157.0** (was 156.0.1)        | 148.0.2 Nightly    | —          |
 | `devicePixelRatio`      | **1.7647058823529411** (30/17) | **1**              | **1**      |
 | CDP (port 9222)         | **disabled** (404)             | n/a                | yes        |
 | control channel         | **Marionette 2828**            | Playwright         | Playwright |
-| reproduces the artifact | **yes**                        | no                 | no         |
+| reproduces the artifact | **no** (it did on 156.0.1)     | no                 | no         |
 
-The artifact needs a **fractional** `devicePixelRatio`. At dpr 1 an integer CSS
+The artifact needed a **fractional** `devicePixelRatio`. At dpr 1 an integer CSS
 border is already an integer number of device pixels, so nothing is snapped and
-the effect cannot occur. The reporter's Windows display scale is ~176.47%.
+the effect could not occur. The reporter's Windows display scale is ~176.47%.
+
+> ⚠ **A fractional dpr is necessary but was not sufficient.** Firefox 157.0 runs
+> at the same 1.7647 and does not reproduce, so do not treat the dpr as the
+> explanation. Read `navigator.userAgent` and `devicePixelRatio` from the live
+> session and record both; never infer the behaviour from the version alone.
 
 ---
 
@@ -92,9 +103,11 @@ Commands used: `WebDriver:NewSession`, `WebDriver:ExecuteScript`,
 
 ## 4. Reproducing the artifact
 
-The artifact **is reproducible on demand**, by panel POSITION alone — no gesture
-is needed. Move the panel to a position inside its band and the front face stops
-being painted; move it out and the face returns.
+On Firefox 156.0.1 the artifact **was reproducible on demand**, by panel
+POSITION alone — no gesture was needed. Move the panel to a position inside its
+band and the front face stopped being painted; move it out and the face
+returned. On 157.0 the same sweep returns a healthy nine-blob face at every
+position, so this section is now a regression test rather than a reproduction.
 
 The earlier note in this document that the artifact was "not reproducible on
 demand" was **wrong**, and the reason is worth keeping: the instrument used to
@@ -105,16 +118,19 @@ taken that way will report a clean screen.
 Procedure:
 
 1. Bring the window up (section 2), maximise it, and confirm dpr is fractional:
-   `window.devicePixelRatio` must be ~1.7647, not 1. At dpr 1 the defect cannot
-   occur.
+   `window.devicePixelRatio` must be ~1.7647, not 1. (Necessary, not sufficient
+   — 157.0 is fractional and clean.)
 2. Set the panel position, in CSS px, from the page:
 
 ```js
-document.querySelector('.basic-front-view').style.top = '130px';
+document.querySelector('[data-view-panel="basic-front"]').style.top = '130px';
 ```
 
-3. Count red ink **over the whole capture**. Do not crop: see trap 3 below for
-   why a viewport-relative rect is not a screen rect.
+3. Count red ink over a crop of the panel. Map the crop through the page's own
+   `mozInnerScreenX/Y * dpr` — see trap 3 below for why a viewport-relative rect
+   is not a screen rect — and verify the crop landed on the cube before trusting
+   any statistic from it. A crop that misses the cube makes every number from it
+   meaningless regardless of how carefully the pixels are counted.
 
 ### The three quantities that decide it
 
@@ -127,13 +143,27 @@ document.querySelector('.basic-front-view').style.top = '130px';
 The **blob count is the strongest check**: a red face is nine separate pieces,
 so 9 -> 0 is structural and cannot be faked by a threshold or a crop offset.
 
+> ⚠ **The absolute pixel figures are crop-dependent and do not transfer.** The
+> 35 300 / 72 pair comes from a whole-image count on a specific window. A
+> panel-scoped crop on 2026-10-01 measured ~33 100 px for the same healthy
+> state. Compare blob counts across runs, not raw pixel totals.
+>
+> ⚠ **`blobs = 0` alone is not proof of the defect.** A blank or occluded frame
+> also reports zero. The defect _replaces_ the face colour with the border
+> colour, so a genuine dropout makes the `#333333` count **rise**; a frame where
+> every token count falls to zero is a capture failure. Check both.
+
 ### The band
 
-At cube face size 138.6 px, panel top 120/130/140 CSS px are fully broken, 110
-and 150 are partial, and 60/200 are healthy. The band is **narrow and bounded by
-healthy values** on both sides — the earlier description of the artifact as
-"non-deterministic with no relation to position" was a consequence of never
-having sampled a broken position on purpose.
+At cube face size 138.6 px on 156.0.1, panel top 120/130/140 CSS px were fully
+broken, 110 and 150 partial, and 60/200 healthy. The band was **narrow and
+bounded by healthy values** on both sides — the earlier description of the
+artifact as "non-deterministic with no relation to position" was a consequence
+of never having sampled a broken position on purpose.
+
+**On 157.0 the entire band is healthy.** Tops 100 to 166 step 6 (12 positions)
+all return nine blobs. The band description is kept as the expected result to
+compare against if a future release regresses.
 
 ---
 

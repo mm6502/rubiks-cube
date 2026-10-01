@@ -11,15 +11,6 @@ not repeat each other's content, so they cannot drift apart.
   primary/canonical "identifier" of the move and alternative notations will be
   placed in an alternative notation list in the value object (move descriptor?).
 
-- Basic View - In Firefox, resizing or MOVING a view panel replaces a cube face
-  with the sticker-border colour, and the state persists once it appears.
-  Firefox-only. **REPRODUCED ON DEMAND, NOT FIXED** — the trigger is the VALUE
-  of `perspective` (the shipped `1000/300` ratio sits dead centre of a narrow
-  bad band), and `perspective: none` removes it but flattens the cube. The open
-  question is whether the band is a ratio or an absolute px range. Investigated
-  in
-  [docs/solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md](./docs/solutions/ui-bugs/firefox-basic-view-panel-resize-move-artifacts.md)
-
 - Basic View - 7×7 view rotation hitches once, ~120 ms, mid-flight. Frame rate
   stays at 60 fps, so it is one stall, not a collapse. Firefox and Chromium.
   **UNRESOLVED** — recorded in
