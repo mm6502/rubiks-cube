@@ -791,11 +791,19 @@ export class ViewManager implements CommandManager {
                 // paint shows the correct size. Reading clientWidth here forces
                 // a CSS reflow that picks up the now-visible panel dimensions.
                 view.resize?.();
+                // Queue a follow-up resize for layout that settles after the
+                // synchronous reflow (e.g. header height recalculations).
+                //
+                // Only a reveal needs this. An already-visible panel has not
+                // changed size, so the frame would be a no-op — and on the Basic
+                // view a resize is not a no-op: `BasicView.resize()` settles any
+                // in-flight move animation, so the frame silently cancelled the
+                // undo/redo animation that the very tap which focused the panel
+                // had just started (mobile-only, because this method returns
+                // early outside tabbed mode).
+                requestAnimationFrame(() => view.resize?.());
             }
 
-            // Also queue a rAF resize for any layout changes that settle after
-            // the synchronous reflow (e.g. header height recalculations).
-            requestAnimationFrame(() => view.resize?.());
             // Force a full update so any state changes that accumulated
             // while this tab was hidden are applied immediately.
             view.update?.(this.cubeModel.getReadOnlyModel());
