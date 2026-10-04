@@ -348,4 +348,107 @@ describe('BasicView resize settles in-flight animation', () => {
         expect(pivotEl.parentNode).toBeNull();
         expect((view as any).activeAnimation).toBeNull();
     });
+
+    /**
+     * Builds a viewed 3×3 with a real, still-pending move animation whose layer
+     * cubies are the live DOM elements the pivot actually holds.
+     *
+     * A synthetic `activeAnimation` (as the two tests above use) cannot express the
+     * defect: the bug is that the *detached* elements the animation still holds get
+     * re-inserted by `finalizeLayer`, so the fixture has to carry the real elements
+     * the pivot reparents.
+     *
+     * Returns the view it built — the caller must assert against *that* view, not the
+     * `beforeEach` one, or the assertions pass vacuously.
+     */
+    function startRealMove(size: number = 3): {
+        view: BasicView;
+        model: CubeController;
+        pivot: HTMLElement;
+        cubieElements: HTMLElement[];
+    } {
+        const controller = new CubeController(size);
+        const v = new BasicView({ viewType: 'basic-front' });
+        const c = document.createElement('div');
+        Object.defineProperty(c, 'clientWidth', { value: 600 });
+        Object.defineProperty(c, 'clientHeight', { value: 600 });
+        document.body.appendChild(c);
+        v.create(c, controller);
+
+        const cubeEl = v.getCubeElement()!;
+        const result = controller.applyMove('R', true)!;
+        const movedBefore = result.movedCubies.before.map(m => m.id);
+        const cubieElements = movedBefore
+            .map(id => cubeEl.querySelector<HTMLElement>(`[data-cubie-id="${id}"]`))
+            .filter((el): el is HTMLElement => el !== null);
+        expect(cubieElements.length).toBeGreaterThan(0);
+
+        // Mirror the real animated branch: hole the layer out into a pivot.
+        const pivot = document.createElement('div');
+        pivot.style.cssText =
+            `position:absolute;left:0;top:0;transform-origin:150px 150px 0;` +
+            `transform-style:preserve-3d;width:0;height:0;`;
+        cubeEl.appendChild(pivot);
+        cubieElements.forEach(el => pivot.appendChild(el));
+
+        (v as any).beginRotation();
+        (v as any).activeAnimation = {
+            animation: { cancel: vi.fn() },
+            pivot,
+            cubieElements,
+            event: {
+                moveDetails: {
+                    notation: 'R',
+                    definition: { axis: 'x', angle: 90 },
+                    movedCubies: { before: [], after: result.movedCubies.after },
+                },
+            },
+        };
+
+        return { view: v, model: controller, pivot, cubieElements };
+    }
+
+    it('update during a move animation re-parents the layer exactly once', () => {
+        // The reported defect: in tabbed mode a tap on an already-visible panel
+        // calls `view.update()`, which rebuilds the cubie DOM — but it left the
+        // in-flight move animation alive. When that animation finished,
+        // `finalizeLayer` moved its now-detached elements back into the cube, so one
+        // layer existed twice: once at rest and once animating. Duplicated
+        // `data-cubie-id`s are the observable signature.
+        const started = startRealMove();
+        const subject = started.view;
+        const subjectModel = started.model;
+        const panel = subject.getCubeElement()!;
+
+        // Sanity: before the rebuild the layer lives in the pivot, not the cube.
+        expect(started.cubieElements.every(el => el.parentElement === started.pivot)).toBe(true);
+        expect(panel.contains(started.pivot)).toBe(true);
+
+        // Act — the panel-focus path.
+        subject.update(subjectModel);
+
+        // Assert — the interrupted animation is settled.
+        expect((subject as any).activeAnimation).toBeNull();
+
+        // ...the pivot is gone (so a later `finished` has nothing to re-insert)...
+        expect(started.pivot.isConnected).toBe(false);
+        expect(panel.contains(started.pivot)).toBe(false);
+
+        // ...and the layer's elements are NOT re-attached by the settle. Asserting
+        // only "activeAnimation is null" would also pass for a fix that merely drops
+        // the reference, leaking the pivot and its holed-out cubies — so pin that the
+        // old elements are gone from the tree entirely, not just forgotten.
+        expect(started.cubieElements.some(el => el.isConnected)).toBe(false);
+
+        // The rebuild left exactly one element per surface cubie, reachable through
+        // the same descendant query every consumer uses.
+        const ids = Array.from(panel.querySelectorAll('[data-cubie-id]')).map(el =>
+            el.getAttribute('data-cubie-id')
+        );
+        const seen = new Map<string, number>();
+        for (const id of ids) seen.set(id!, (seen.get(id!) || 0) + 1);
+        const duplicated = [...seen.entries()].filter(([, n]) => n > 1).map(([id]) => id);
+        expect(duplicated, 'no cubie id may appear twice after an update').toEqual([]);
+        expect(ids.length, 'every surface cubie is present exactly once').toBe(seen.size);
+    });
 });

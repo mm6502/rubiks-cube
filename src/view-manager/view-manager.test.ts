@@ -498,6 +498,76 @@ describe('ViewManager', () => {
         expect(view.resize).not.toHaveBeenCalled();
     });
 
+    /** Runs `fn` with rAF queued, then flushes each frame once. */
+    function withQueuedFrames(fn: () => void): void {
+        const frames: FrameRequestCallback[] = [];
+        const originalRaf = globalThis.requestAnimationFrame;
+        globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+            frames.push(cb);
+            return frames.length;
+        }) as typeof globalThis.requestAnimationFrame;
+        try {
+            fn();
+            frames.forEach(cb => cb(0));
+        } finally {
+            globalThis.requestAnimationFrame = originalRaf;
+        }
+    }
+
+    it('showOnlyActivePanel queues no resize frame for an already-visible panel', () => {
+        // A tap inside an already-active panel routes here (panel focus). The
+        // queued frame used to call resize() on a panel whose size had not
+        // changed, and BasicView.resize() settles any in-flight move animation —
+        // so that frame silently killed the undo/redo animation the same tap had
+        // just started. On mobile (tabbed mode) the panel stays put across every
+        // in-panel tap, so no frame is due.
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
+        const container = document.createElement('div');
+        container.style.display = ''; // already visible
+        const view = { resize: vi.fn(), update: vi.fn() } as any;
+        viewManager['activeViews'].set('v', { view, container });
+        viewManager['focusStack'] = ['v'];
+
+        withQueuedFrames(() => (viewManager as any).showOnlyActivePanel());
+
+        expect(view.resize).not.toHaveBeenCalled();
+    });
+
+    it('showOnlyActivePanel still resizes a just-revealed panel on the next frame', () => {
+        // The reveal path must keep its deferred frame: the synchronous resize
+        // measures before late layout settles, so the frame is the correction.
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
+        const container = document.createElement('div');
+        container.style.display = 'none'; // hidden -> being revealed
+        const view = { resize: vi.fn(), update: vi.fn() } as any;
+        viewManager['activeViews'].set('v', { view, container });
+        viewManager['focusStack'] = ['v'];
+
+        const before = view.resize.mock.calls.length;
+        withQueuedFrames(() => (viewManager as any).showOnlyActivePanel());
+
+        // One synchronous reveal resize + one settled frame.
+        expect(view.resize.mock.calls.length - before).toBe(2);
+    });
+
+    it('refocusing the already-active view through updateFocus queues no resize frame', () => {
+        // This drives the real entry point a tap reaches: an in-panel pointerdown
+        // calls onPanelClick -> updateFocus -> showOnlyActivePanel. `updateFocus` is
+        // public, so this exercises the same chain the mobile tap does, not just the
+        // private helper. On the Basic view a resize settles any in-flight move
+        // animation, so a queued frame here is the undo/redo animation killer.
+        viewManager['layoutMode'] = LayoutMode.Tabbed;
+        const container = document.createElement('div');
+        container.style.display = ''; // already visible — a tap on it must not resize
+        const view = { resize: vi.fn(), update: vi.fn() } as any;
+        viewManager['activeViews'].set('v', { view, container });
+        viewManager['focusStack'] = ['v'];
+
+        withQueuedFrames(() => viewManager.updateFocus('v'));
+
+        expect(view.resize).not.toHaveBeenCalled();
+    });
+
     it('should apply tabbed layout to panels', () => {
         // Arrange
         const container = document.createElement('div');
