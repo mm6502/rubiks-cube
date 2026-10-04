@@ -797,15 +797,19 @@ export class ViewManager implements CommandManager {
                 // Only a reveal needs this. An already-visible panel has not
                 // changed size, so the frame would be a no-op — and on the Basic
                 // view a resize is not a no-op: `BasicView.resize()` settles any
-                // in-flight move animation, so the frame silently cancelled the
-                // undo/redo animation that the very tap which focused the panel
-                // had just started (mobile-only, because this method returns
-                // early outside tabbed mode).
+                // in-flight move animation. That settle now also happens in
+                // `view.update()` below, so this frame is not what protects a
+                // running animation.
                 requestAnimationFrame(() => view.resize?.());
             }
 
             // Force a full update so any state changes that accumulated
             // while this tab was hidden are applied immediately.
+            //
+            // On the Basic view this settles any in-flight move animation before
+            // rebuilding the cubie DOM (`BasicView.update()`); without that, the
+            // animation's completion re-parented its detached cubies back into the
+            // rebuilt cube and one layer appeared twice.
             view.update?.(this.cubeModel.getReadOnlyModel());
         }
     }

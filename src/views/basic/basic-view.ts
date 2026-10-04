@@ -377,7 +377,25 @@ export class BasicView implements CubeView {
     }
 
     update(model: ReadOnlyCubeModel): void {
+        // Adopt the new model first: the settle below re-derives face labels and the
+        // selection from `state.model`, so those must read the model this update is
+        // for, not the one being replaced.
         this.state.model = model;
+
+        // Settle any in-flight move animation before the rebuild below.
+        //
+        // `update()` replaces every cubie element, but a running move animation still
+        // holds the OLD elements (holed out into its pivot). Left alone, that
+        // animation's completion re-parents those detached elements back into the
+        // cube — so one layer ends up present twice: once at rest from the rebuild,
+        // once animating. This is reachable in tabbed mode, where a tap on an
+        // already-visible panel calls `showOnlyActivePanel` → `update()`.
+        //
+        // `resize()` already settles for the same reason; doing it here too makes the
+        // rebuild boundary safe on its own rather than depending on which resize frame
+        // a particular caller happens to schedule.
+        this.finalizeAnimation();
+
         update(this.state, model);
         this.ghostStickers?.updateColors();
         this.restoreSelection();
